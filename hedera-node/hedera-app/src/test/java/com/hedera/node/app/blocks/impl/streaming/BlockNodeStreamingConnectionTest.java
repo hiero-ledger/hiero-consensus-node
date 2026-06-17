@@ -601,12 +601,22 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_blockNodeBehind_blockExists() {
         activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        // We are ahead of the block node, streaming a block beyond the one it last verified (10).
+        streamingBlockNumber.set(15L);
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
         when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))
                 .thenReturn(false);
+        when(stats.addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
+                .thenReturn(false);
 
         connection.onNext(response);
+
+        // Recovery path: the block node is behind but block N+1 is buffered, so the CN repositions
+        // its stream to N+1 (10 + 1) and stays ACTIVE.
+        assertThat(streamingBlockNumber).hasValue(11L);
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
@@ -1257,7 +1267,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(101);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
     }
@@ -1279,7 +1288,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
     }
@@ -1301,7 +1309,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(10);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
-        verify(metrics).recordActiveConnectionIp(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
     }
@@ -1323,7 +1330,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
 
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
         verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_BEHIND);
@@ -1401,7 +1407,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -1503,7 +1508,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
-        verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
         verify(metrics, times(5)).recordRequestLatency(anyLong());
         verify(requestCall).completeRequests();
         verify(bufferService).getEarliestAvailableBlockNumber();
@@ -1600,7 +1604,12 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
+        // Block N+1 (11) is missing but not below the earliest available block (10), so this is an
+        // internal inconsistency: the CN sends EndStream.ERROR and closes with INTERNAL_ERROR.
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(requestCall).completeRequests();
     }
 
     // Tests BehindPublisher code with Long.MAX_VALUE edge case (should restart at block 0)

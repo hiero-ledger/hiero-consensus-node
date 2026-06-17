@@ -12,8 +12,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
@@ -40,7 +38,6 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -79,9 +76,7 @@ public record PlatformComponents(
         ComponentWiring<AppNotifier, Void> notifierWiring,
         ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
         ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
-        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
-        ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
-        ComponentWiring<BranchReporter, Void> branchReporterWiring) {
+        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {
 
     /**
      * Bind components to the wiring.
@@ -121,8 +116,6 @@ public record PlatformComponents(
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
-        branchDetectorWiring.bind(builder::buildBranchDetector);
-        branchReporterWiring.bind(builder::buildBranchReporter);
     }
 
     /**
@@ -179,8 +172,6 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector()),
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel()),
-                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor()),
-                new ComponentWiring<>(model, BranchDetector.class, config.branchDetector()),
-                new ComponentWiring<>(model, BranchReporter.class, config.branchReporter()));
+                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor()));
     }
 }

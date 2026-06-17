@@ -51,9 +51,10 @@ public interface QueryModule {
     static SystemContractGasCalculator provideSystemContractGasCalculator(
             @NonNull final CanonicalDispatchPrices canonicalDispatchPrices,
             @NonNull final TinybarValues tinybarValues) {
-        return new SystemContractGasCalculator(tinybarValues, canonicalDispatchPrices, (body, payerId) -> {
-            throw new IllegalStateException("Queries should fail before dispatching a child transaction");
-        });
+        return new SystemContractGasCalculator(
+                tinybarValues, canonicalDispatchPrices, (body, payerId, signatureMap) -> {
+                    throw new IllegalStateException("Queries should fail before dispatching a child transaction");
+                });
     }
 
     @Provides

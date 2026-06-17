@@ -20,8 +20,6 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.config.data.FeesConfig;
-import com.swirlds.config.api.Configuration;
 import java.util.stream.Stream;
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,12 +46,6 @@ class TransactionDispatcherTest {
 
     @Mock
     private FeeContext feeContext;
-
-    @Mock
-    private Configuration configuration;
-
-    @Mock
-    private FeesConfig feesConfig;
 
     @Mock
     private SimpleFeeCalculator simpleFeeCalculator;
@@ -148,16 +140,11 @@ class TransactionDispatcherTest {
                                     .build()));
         }
 
-        @ParameterizedTest(name = "{0} uses simple fees when enabled")
+        @ParameterizedTest(name = "{0} uses simple fees")
         @MethodSource("simpleFeesEnabledTransactions")
-        @DisplayName("Transaction types use simple fees when enabled")
+        @DisplayName("Transaction types use simple fees")
         void testTransactionUsesSimpleFees(String txTypeName, TransactionBody txBody) {
-            // Given: Simple fees are enabled
-            given(feeContext.configuration()).willReturn(configuration);
-            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
-            given(feesConfig.simpleFeesEnabled()).willReturn(true);
-
-            // And: Transaction body is provided
+            // Given: Transaction body is provided
             given(feeContext.body()).willReturn(txBody);
             given(feeContext.activeRate()).willReturn(testExchangeRate);
 

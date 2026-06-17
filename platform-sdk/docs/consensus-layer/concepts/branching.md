@@ -1,7 +1,7 @@
 ---
+type: concept
 title: Branching
-kind: concept
-last_reviewed: TBD
+last_reviewed: 2026-06-08
 ---
 
 # Branching
@@ -9,11 +9,10 @@ last_reviewed: TBD
 ## Definition
 
 A creator *branches* (the original whitepaper calls this *forking*)
-when it signs two events `x` and `y` with the same self-parent —
-equivalently, two events by the same creator where neither is a
-self-ancestor of the other. An honest creator's events form a single
-chain under the self-parent edge; a branched creator's events form a
-tree.
+when it signs two events `x` and `y` — neither a self-ancestor of the
+other — whose birth rounds differ by at most the non-ancient window.
+An honest creator's events form a single chain under the self-parent
+edge; a branched creator's events form a tree.
 
 Branching is the Byzantine behaviour that the entire strong-seeing
 machinery exists to tolerate. Without the possibility of branching,

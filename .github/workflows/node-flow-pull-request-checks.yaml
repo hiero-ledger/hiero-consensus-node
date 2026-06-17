@@ -1,160 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Node: PR Checks"
+name: "Deprecated: Node: PR Checks"
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - labeled
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  issues: write
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
-concurrency:
-  group: pr-checks-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
-  detect-change-type:
-    name: Detect Change Type
+  print-deprecated:
+    name: Print Deprecated Warning
     runs-on: hl-cn-default-lin-sm
-    outputs:
-      docs-only: ${{ steps.classify.outputs.docs-only }}
-      enable-tests: ${{ steps.classify.outputs.enable-tests }}
     steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
-          checkout-fetch-depth: "0"
-
-      - name: Classify Changed Files
-        id: classify
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        with:
-          script: |
-            const script = require('.github/workflows/support/scripts/classify-changed-files.js');
-            await script({github, context, core})
-
-  extract-jdk-version:
-    name: Extract Java Version
-    uses: ./.github/workflows/802-extract-jdk-version.yaml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  mats-pr-checks:
-    name: MATS
-    needs:
-      - detect-change-type
-      - extract-jdk-version
-    uses: ./.github/workflows/zxc-mats-tests.yaml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-misc-records-crypto-and-serial: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-token-and-time-consuming: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-simple-fees-and-nd-reconnect: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-atomic-batch: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-smart-contract-and-iss: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
-      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
-      java-distribution: "temurin"
-      custom-job-label: "Standard"
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-      codecov-token: ${{ secrets.CODECOV_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  ci-complete:
-    name: CI Complete
-    runs-on: hl-cn-default-lin-sm
-    needs:
-      - detect-change-type
-      - mats-pr-checks
-    if: ${{ !cancelled() && always() }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
-        with:
-          egress-policy: audit
-
-      - name: Evaluate Results
+      - name: Print Deprecation Warning
         run: |
-          echo "Docs-only: ${{ needs.detect-change-type.outputs.docs-only }}"
-          echo "MATS result: ${{ needs.mats-pr-checks.result }}"
-
-          if [[ "${{ needs.mats-pr-checks.result }}" == "success" ]]; then
-            echo "All required checks passed."
-            exit 0
-          else
-            echo "MATS checks did not succeed (result: ${{ needs.mats-pr-checks.result }})."
-            exit 1
-          fi
-
-  report-summary:
-    name: Report PR Check Summary
-    runs-on: hl-cn-default-lin-sm
-    needs:
-      - detect-change-type
-      - mats-pr-checks
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-ref: ${{ github.event.pull_request.head.sha }}
-          checkout-token: ${{ secrets.GITHUB_TOKEN }}
-          checkout-fetch-depth: "0"
-
-      - name: Report Summary
-        id: report-summary
-        env:
-          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
-        run: |
-          echo "::debug::Generating PR Check Summary"
-
-          # Append summary to GitHub Step Summary
-          {
-            echo "## PR Check Summary"
-            echo ""
-            if [[ "${{ needs.detect-change-type.outputs.docs-only }}" == "true" ]]; then
-              echo "> **Docs-only PR detected.** Unit, integration, HAPI, otter, determinism, dependency, and Snyk checks were skipped. Build and Spotless still ran."
-              echo ""
-            fi
-            echo "------------------------------------"
-            echo "### Results"
-            echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
-            echo "------------------------------------"
-            if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
-                echo "### MATS Test Failures"
-                echo ""
-                echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
-                echo "- **Failed Tests:**"
-                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
-                echo "------------------------------------"
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

@@ -6,10 +6,12 @@
 #- [x] Produce jumpstart.bin via block-node wrapping tool (offline)
 #- [x] Build temp upgrade properties using parsed jumpstart values
 #- [x] Upgrade to v0.75.0 with application.properties and jumpstart values
-#- [x] Deploy BN with firs managed block jumpstart block + 1000
-#- [x] Upgrade to v0.76.0 -> TSS + WRAPS enabled, dual-write (BOTH / FILE_AND_GRPC), mock signatures
-#- [ ] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
-#- [ ] Perform rolling upgrades of block nodes and ensure block keep flowing e2e
+#- [x] Deploy BN with first managed block jumpstart block + 1000
+#- [x] Upgrade to v0.76.0 -> TSS + WRAPS enabled, dual-write (BOTH / FILE_AND_GRPC), mock signatures.
+#      Each CN self-downloads + extracts the WRAPS proving key from the tss.wrapsProvingKeyDownloadUrl
+#      in resources/0.76|0.77 application.properties (public builds.hedera.com URL); no host-side
+#      pre-download or local nginx server. Per-node download times are reported from hgcaa.log.
+#- [x] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
 
 set -eo pipefail
 set +m
@@ -62,26 +64,25 @@ Environment:
                             (default: resources/0.75/application.properties next to this script)
   APP_PROPS_076_FILE         application.properties for the local-build 0.76.0 upgrade
                             (default: resources/0.76/application.properties next to this script)
+                            Carries the tss.wrapsProvingKeyDownloadUrl each CN self-downloads the
+                            WRAPS proving key from; point this at an edited copy to change the URL.
   APP_PROPS_077_FILE         application.properties for the local-build 0.77.0 BLOCKS-only cutover upgrade
                             (default: resources/0.77/application.properties next to this script)
+                            Carries the same tss.wrapsProvingKeyDownloadUrl as the 0.76 file.
   UPGRADE_074_RELEASE_TAG    Solo release tag for the intermediate upgrade (default: v0.74.0-rc.1)
-  UPGRADE_075_VERSION        Solo upgrade-version for the local-build jumpstart step
-                            Placeholder value required by Solo; local build is used regardless.
-                            Must be strictly newer than the currently-deployed tag and must not
-                            collide with an existing release tag Solo can resolve.
-                            (default: v0.74.0-rc.2)
-  UPGRADE_076_VERSION        Solo upgrade-version for the local-build 0.76 step
-                            Placeholder value required by Solo; local build is used regardless.
-                            Must be strictly newer than UPGRADE_075_VERSION and must not
-                            collide with an existing release tag Solo can resolve.
-                            (default: v0.74.0-rc.3)
-  UPGRADE_077_VERSION        Solo upgrade-version for the local-build 0.77 BLOCKS-only cutover step
-                            Placeholder value required by Solo; local build is used regardless.
-                            Must be strictly newer than UPGRADE_076_VERSION and must not
-                            collide with an existing release tag Solo can resolve.
-                            (default: v0.74.0-rc.4)
+  UPGRADE_075_VERSION        Solo upgrade-version label for the local-build jumpstart step.
+                            Must point at a published Solo tag (Solo resolves it before applying
+                            --local-build-path), but the binary always comes from the local build.
+                            Solo accepts reusing the same label across local-build upgrades.
+                            (default: v0.75.0-rc.6)
+  UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
+                            release image (no --local-build-path), so the 0.76 step exercises the
+                            tag's own default config. (default: v0.76.0-rc.1)
+  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step.
+                            Must be >= the 0.76 release the network is on, or Solo rejects it as a
+                            downgrade. (default: UPGRADE_076_VERSION, i.e. v0.76.0-rc.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
-  SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 local-build upgrade (default: 900)
+  SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
   KEEP_PORT_FORWARD_WATCHDOG true|false; keep CN/mirror/grafana forwards healthy post-run (default: true)
   EXPLORER_INGRESS_LOCAL_PORT Local port for explorer UI tunnel (default: 38080)
@@ -106,10 +107,32 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
-export SOLO_CLUSTER_NAME="cutover-e2e-testing"
-export SOLO_NAMESPACE="solo"
-export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
-export SOLO_DEPLOYMENT="solo-deployment"
+# Shared remote-cluster helpers (default StorageClass, deployment re-establish after destroy,
+# toleration patcher) reused from the jumpstart scenario; the functions are no-ops on kind.
+# shellcheck source=../remote-cluster-helpers.sh
+source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
+
+export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-cutover-e2e-testing}"
+export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
+export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
+export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-deployment}"
+
+# Cluster target: "kind" (default, ephemeral local cluster) or "remote" (pre-allocated cluster
+# reached via an already-current kubectl context, e.g. Teleport). On remote, adopt the CITR
+# conventions so this lands on the shared cluster the same way the longevity tooling does.
+CLUSTER_TARGET="${CLUSTER_TARGET:-kind}"
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  : "${KUBE_CONTEXT:?CLUSTER_TARGET=remote requires KUBE_CONTEXT (the kubectl context to use)}"
+  CLUSTER_REF="${CLUSTER_REF:-${SOLO_NAMESPACE}-ref}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
+  export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
+elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
+  CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
+else
+  echo "Invalid CLUSTER_TARGET: ${CLUSTER_TARGET} (expected 'kind' or 'remote')" >&2
+  exit 1
+fi
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
     3) NODE_ALIASES="node1,node2,node3" ;;
@@ -133,9 +156,12 @@ APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.e
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
-UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.3}"
-UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.3}"
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.3}"
+UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
+UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
+# The 0.77 upgrade uses the local build, but its --upgrade-version label must be >= the network's
+# current version (now ${UPGRADE_076_VERSION} after the 0.76 step) or Solo rejects it as a downgrade.
+# Default to the 0.76 tag so it tracks automatically if UPGRADE_076_VERSION is bumped.
+UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-${UPGRADE_076_VERSION}}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -149,21 +175,13 @@ MIRROR_IMPORTER_MEMORY_REQUEST="${MIRROR_IMPORTER_MEMORY_REQUEST:-768Mi}"
 MIRROR_IMPORTER_MEMORY_LIMIT="${MIRROR_IMPORTER_MEMORY_LIMIT:-1536Mi}"
 
 # WRAPS proving-key config (Step 10).
-# WRAPS_KEY_PATH holds the extracted artifacts pre-staged into each CN pod via Solo's
-# --wraps-key-path. WRAPS_TARBALL_CACHE_PATH is the cached tarball used to seed the
-# extracted directory. CNs additionally download the same tarball at runtime from
-# WRAPS_ARTIFACTS_DOWNLOAD_URL (mirrored into 0.76/application.properties as
-# tss.wrapsProvingKeyDownloadUrl).
-WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
-WRAPS_TARBALL_CACHE_PATH="${WRAPS_TARBALL_CACHE_PATH:-${HOME}/.solo/cache/wraps-v1.0.0.tar.gz}"
-WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz}"
+# The CN downloads + extracts the WRAPS proving-key archive itself from the
+# tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties
+# (tss.wrapsProvingKeyDownloadEnabled=true). The script does not pre-download or serve it;
+# to use a different URL, point APP_PROPS_076_FILE/APP_PROPS_077_FILE at edited copies.
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 HAPI_PATH="${HAPI_PATH:-/opt/hgcapp/services-hedera/HapiApp2.0}"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/keys/wraps"
-# Local Docker nginx serving the wraps tarball at host.docker.internal:8089 so
-# CNs can pull it from inside the kind cluster without an internet round-trip.
-WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}"
-WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
 # upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
@@ -394,6 +412,10 @@ run_step() {
 cleanup() {
   local exit_code=$?
 
+  # Stop the remote toleration patcher first (no-op on kind / when never started), regardless of
+  # exit status or KEEP_NETWORK, so no background loop survives the script.
+  stop_remote_toleration_patcher
+
   # Always restore MinIO regardless of exit status / KEEP_NETWORK. Step 9's
   # disconnect helper sets MINIO_DISCONNECTED_OWNER_* when it scales MinIO to
   # zero; if Step 9 aborts after the scale-down, the next steps (or a re-run)
@@ -424,7 +446,6 @@ cleanup() {
   if [[ -n "${PORT_FORWARD_WATCHDOG_PID}" ]]; then
     kill "${PORT_FORWARD_WATCHDOG_PID}" >/dev/null 2>&1 || true
   fi
-  stop_wraps_proving_key_server
 
   if command -v solo >/dev/null 2>&1; then
     solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
@@ -434,7 +455,10 @@ cleanup() {
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
   fi
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  # Never delete the shared remote cluster; only an ephemeral kind cluster is torn down here.
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
 
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
 }
@@ -1576,6 +1600,29 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
+# Verifies each consensus node runs a release whose Implementation-Version contains the expected
+# substring (e.g. "0.76"). Used for the 0.76 step, which upgrades to a published release image
+# rather than the local build, so the local-build version check does not apply.
+verify_release_version_on_consensus_nodes() {
+  local expected_substr="$1"
+  local node pod pod_version
+  local nodes=()
+
+  echo "Verifying release version on each consensus node (expected to contain '${expected_substr}')"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${pod_version}" == *"${expected_substr}"* ]]; then
+      echo "  ${pod}: ${pod_version} OK"
+    else
+      echo "  ${pod}: expected version containing '${expected_substr}', found ${pod_version:-unknown}" >&2
+      return 1
+    fi
+  done
+}
+
 run_command_with_timeout() {
   local timeout_secs="$1"
   shift
@@ -1621,48 +1668,6 @@ run_075_upgrade() {
     run_command_with_timeout "${SOLO_075_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-}
-
-ensure_wraps_artifacts_downloaded() {
-  local file_count=""
-  local tmp_dir=""
-  local extract_dir=""
-  local extracted_root=""
-  local extracted_dirs=""
-  local extracted_entries=""
-
-  if [[ -d "${WRAPS_KEY_PATH}" ]]; then
-    file_count="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-    if [[ "${file_count}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" && -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-      log "Using cached WRAPS artifacts from ${WRAPS_KEY_PATH}"
-      return 0
-    fi
-  fi
-
-  mkdir -p "$(dirname "${WRAPS_TARBALL_CACHE_PATH}")"
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    log "Downloading WRAPS artifacts from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
-    curl -fL "${WRAPS_ARTIFACTS_DOWNLOAD_URL}" -o "${WRAPS_TARBALL_CACHE_PATH}.partial"
-    mv "${WRAPS_TARBALL_CACHE_PATH}.partial" "${WRAPS_TARBALL_CACHE_PATH}"
-  fi
-
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps-extract.XXXXXX")"
-  extract_dir="${tmp_dir}/extract"
-  mkdir -p "${extract_dir}"
-  tar -xzf "${WRAPS_TARBALL_CACHE_PATH}" -C "${extract_dir}"
-
-  extracted_root="${extract_dir}"
-  extracted_dirs="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-  extracted_entries="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
-  if [[ "${extracted_dirs}" == "1" && "${extracted_entries}" == "1" ]]; then
-    extracted_root="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  fi
-
-  mkdir -p "$(dirname "${WRAPS_KEY_PATH}")"
-  rm -rf "${WRAPS_KEY_PATH}"
-  mkdir -p "${WRAPS_KEY_PATH}"
-  find "${extracted_root}" -maxdepth 1 -type f -exec cp '{}' "${WRAPS_KEY_PATH}/" ';'
-  rm -rf "${tmp_dir}"
 }
 
 configured_wraps_artifacts_container_dir() {
@@ -1721,13 +1726,11 @@ verify_wraps_on_consensus_nodes() {
   local nodes=()
 
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  expected_wraps="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-  [[ "${expected_wraps}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" ]] || {
-    echo "Expected at least ${WRAPS_REQUIRED_FILE_COUNT} WRAPS artifacts in ${WRAPS_KEY_PATH}, found ${expected_wraps}" >&2
-    return 1
-  }
+  # The CN downloads + extracts the WRAPS archive itself into ${wraps_dir}; we expect at least
+  # this many artifact files to land there. No local copy is downloaded by this script.
+  expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  echo "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting ${expected_wraps} extracted files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  echo "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -1746,7 +1749,7 @@ verify_wraps_on_consensus_nodes() {
     while (( SECONDS < deadline )); do
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps}" == "${expected_wraps}" ]]; then
+      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -1783,10 +1786,10 @@ verify_wraps_on_consensus_nodes() {
 }
 
 # Wraps remedy strategy:
-# 1. Serve the wraps tarball locally via nginx on host.docker.internal:8089 so
-#    each CN downloads it from inside the kind cluster without a 1.86 GB pull
-#    from builds.hedera.com on every JVM start. See start-wraps-proving-key-server.sh
-#    for the standalone equivalent — we delegate to it for the docker run.
+# 1. Each CN downloads + extracts the WRAPS proving-key archive itself from the
+#    tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties.
+#    No host-side pre-download or local nginx server is involved; to use a different
+#    URL, point APP_PROPS_076_FILE/APP_PROPS_077_FILE at edited copies.
 # 2. Inject TSS_LIB_WRAPS_ARTIFACTS_PATH directly into each network-nodeX
 #    StatefulSet's container spec via `kubectl set env`. This is the only path
 #    we've confirmed actually reaches the JVM `/proc/$pid/environ`. Solo's
@@ -1800,35 +1803,6 @@ verify_wraps_on_consensus_nodes() {
 #    so a `kubectl delete pod` re-rolls the JVM from a settled disk and
 #    sidesteps the "jars still copying" startup race that intermittently kills
 #    one or two nodes per upgrade.
-
-ensure_wraps_proving_key_server() {
-  local server_url
-  server_url="http://127.0.0.1:${WRAPS_SERVER_PORT:-8089}/$(basename "${WRAPS_TARBALL_CACHE_PATH}")"
-
-  if curl -sfI "${server_url}" >/dev/null 2>&1; then
-    log "Wraps proving key server already serving ${server_url}"
-    return 0
-  fi
-
-  require_cmd docker
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    echo "Wraps tarball cache not found: ${WRAPS_TARBALL_CACHE_PATH}" >&2
-    echo "Run Step 10 from earlier, or fetch the tarball into the cache path first." >&2
-    return 1
-  fi
-
-  echo "Starting wraps proving key server (nginx Docker on port ${WRAPS_SERVER_PORT:-8089})"
-  WRAPS_TAR_PATH="${WRAPS_TARBALL_CACHE_PATH}" \
-  WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}" \
-    "${SCRIPT_DIR}/start-wraps-proving-key-server.sh"
-}
-
-stop_wraps_proving_key_server() {
-  local name="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
-  if command -v docker >/dev/null 2>&1; then
-    docker rm -f "${name}" >/dev/null 2>&1 || true
-  fi
-}
 
 inject_wraps_env_into_statefulsets() {
   local node sts log_file
@@ -1874,9 +1848,8 @@ inject_wraps_env_into_statefulsets() {
 }
 
 run_076_upgrade() {
-  # Local nginx server providing the wraps tarball at host.docker.internal:8089.
-  # The CN's tss.wrapsProvingKeyDownloadEnabled flow will pull from this URL.
-  ensure_wraps_proving_key_server
+  # The CN pulls the WRAPS proving key itself from the tss.wrapsProvingKeyDownloadUrl in the
+  # 0.76 properties (tss.wrapsProvingKeyDownloadEnabled flow).
 
   # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet's container spec
   # BEFORE Solo's upgrade fires. The rolling restart triggered here runs against
@@ -1899,7 +1872,6 @@ run_076_upgrade() {
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --upgrade-version "${UPGRADE_076_VERSION}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_076_FILE}"
     --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
@@ -1910,16 +1882,16 @@ run_076_upgrade() {
   # the JAR cp and restarts them after, so the previous JAR-staging race that
   # forced the stuck-pod recovery dance is gone. We let any non-zero Solo exit
   # (timeout, deploy validation, ACTIVE check failure) propagate via set -e.
-  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (local build, 0.76 properties)" \
+  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (release image, 0.76 properties)" \
     run_command_with_timeout "${SOLO_076_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
-  echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
+  echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify 0.76 release version ---"
   # Solo's `consensus network upgrade` rolls haproxy via its chart upgrade but
   # doesn't wait for the rollout — explicitly wait here so the next port-forward
   # step finds populated endpoints.
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  verify_local_build_on_consensus_nodes
+  verify_release_version_on_consensus_nodes "0.76"
 
   # The TSS ceremony (proof key publication → CRS contribution → adoption →
   # proof construction) stalls without new rounds, and rounds don't advance
@@ -1940,11 +1912,49 @@ run_076_upgrade() {
 
   echo "--- Step 10 check 4/4: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes 600
+
+  report_wraps_download_times
   echo "--- Step 10 all checks passed ---"
 }
 
+# Report, per consensus node, how long the CN itself spent downloading + extracting + verifying
+# the WRAPS proving-key archive from tss.wrapsProvingKeyDownloadUrl. Parsed from hgcaa.log:
+#   start: "WrapsProvingKeyVerification - ... Initiating download"
+#   end:   "WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key"
+# Duration is computed in pure awk (ms-of-day delta) so it works on both GNU and BSD date hosts.
+report_wraps_download_times() {
+  local node pod start_line end_line dur
+  local nodes=()
+  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
+
+  echo "WRAPS proving-key self-download times (per consensus node, from hgcaa.log):"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    start_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "grep -aE 'WrapsProvingKeyVerification - .*Initiating download' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
+    end_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "grep -aE 'WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
+    if [[ -z "${start_line}" ]]; then
+      echo "  ${pod}: no self-download observed (proving key already present, or not started)"
+      continue
+    fi
+    if [[ -z "${end_line}" ]]; then
+      echo "  ${pod}: download started but completion not yet logged"
+      continue
+    fi
+    # Each hgcaa.log line begins with 'YYYY-MM-DD HH:MM:SS.mmm'; split on space/colon/dot and
+    # take the wall-clock-of-day delta in milliseconds (guarding a midnight rollover).
+    dur="$(awk -v a="${start_line}" -v b="${end_line}" '
+      function ms(t,   x){ split(t, x, /[ :.]/); return ((x[2]*3600)+(x[3]*60)+x[4])*1000 + x[5] }
+      BEGIN { d = ms(b) - ms(a); if (d < 0) d += 86400000; printf "%.3f", d/1000 }')"
+    echo "  ${pod}: ${dur}s"
+  done
+}
+
 run_077_upgrade() {
-  # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10.
+  # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10; the
+  # 0.77 properties keep the same download URL so any restarted pod re-fetches from it.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
@@ -3111,6 +3121,7 @@ deploy_mirror_node_for_cutover() {
     solo mirror node add \
     --deployment "${SOLO_DEPLOYMENT}" \
     --enable-ingress \
+    --force-port-forward false \
     --values-file "${MIRROR_NODE_VALUES_FILE}"; then
     return 0
   fi
@@ -3304,8 +3315,9 @@ deploy_block_node_for_cutover() {
   local add_args=(
     solo block node add
     --deployment "${SOLO_DEPLOYMENT}"
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+    --cluster-ref "${CLUSTER_REF}"
     --quiet-mode
+    --force-port-forward false
   )
   [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
   add_args+=(--priority-mapping "${BLOCK_NODE_PRIORITY_MAPPING}")
@@ -3555,7 +3567,10 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
-require_cmd kind
+# kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  require_cmd kind
+fi
 require_cmd kubectl
 require_cmd solo
 require_cmd npm
@@ -3601,21 +3616,32 @@ if should_run_step 1; then
   # recreating the cluster (prevents back-to-back accumulation of forwards/watchdogs/FDs).
   preflight_kill_stale_port_forwards
   print_banner "Step 1/12: Create fresh kind cluster and Solo deployment"
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  fi
   cleanup_record_stream_files_only
   rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
 
-  run_step "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
-    kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+    run_step "Creating kind cluster ${SOLO_CLUSTER_NAME}" \
+      kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  fi
 
-  run_step "Connecting Solo to kind cluster" \
-    solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+  run_step "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
+    solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
   solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   run_step "Attaching cluster to deployment" \
-    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-  if [[ "${ENABLE_MONITORING}" == "true" ]]; then
+    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    # Mark local-path default, tear down any prior network, re-establish the deployment config the
+    # destroy removes, and run cluster-ref setup only if missing (shared helper). Then start the
+    # toleration patcher so the mirror/block-node/shared-resources pods can schedule on the tainted
+    # nodes throughout the multi-step flow; cleanup() stops it.
+    remote_reset_and_prepare_deployment
+    start_remote_toleration_patcher
+  elif [[ "${ENABLE_MONITORING}" == "true" ]]; then
     run_step "Installing Solo cluster prerequisites (Prometheus + MinIO)" \
       solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
     ensure_grafana_port_forward
@@ -3640,12 +3666,26 @@ if should_run_step 2; then
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
+  # Deploy with PVCs on BOTH targets. Step 10 (run_076_upgrade) injects the WRAPS env via
+  # `kubectl set env`, which rolls the consensus StatefulSets BEFORE Solo's upgrade fires. With the
+  # old remote `--pvcs false` (emptyDir), that roll wiped the local-build jars, so the rolled pod
+  # could not restart and Solo's upgrade SDK-ping failed (its retries never found a serving node).
+  # On remote we now use PVCs backed by the local-path StorageClass (made default in
+  # remote_reset_and_prepare_deployment): local-path PVs are node-pinned, so the rolled pod
+  # reschedules to the same node and its data survives the roll. Remote also needs the
+  # scheduling/storage value overrides.
+  cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
+    --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}" --pvcs true)
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    cutover_deploy+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+  fi
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
-    solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor "${service_monitor_flag}" --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
+    "${cutover_deploy[@]}"
   run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
     solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
   run_step "Starting consensus nodes" \
-    solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+    solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --force-port-forward false
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   [[ "${ENABLE_MONITORING}" == "true" ]] && ensure_solo_service_monitor_for_prometheus
@@ -3656,7 +3696,7 @@ if should_run_step 3; then
   print_banner "Step 3/12: Deploy mirror/explorer and validate baseline transactions"
   deploy_mirror_node_for_cutover
   run_step "Deploying explorer node" \
-    solo explorer node add --deployment "${SOLO_DEPLOYMENT}"
+    solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false
   if ! start_explorer_ingress_port_forward; then
     echo "WARNING: Explorer UI tunnel is unavailable; explorer may be inaccessible after run." >&2
   fi
@@ -3791,8 +3831,7 @@ fi
 
 # FUTURE enable when TSS support is ready and tested
 if should_run_step 10; then
-  print_banner "Step 10/12: Upgrade local build with 0.76 properties as ${UPGRADE_076_VERSION}"
-  ensure_wraps_artifacts_downloaded
+  print_banner "Step 10/12: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
   sleep 5
   # Still streaming WRBs but TSS is enabled, force mock signatures
   run_076_upgrade
