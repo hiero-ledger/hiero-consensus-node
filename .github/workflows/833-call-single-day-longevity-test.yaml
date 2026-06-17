@@ -122,7 +122,7 @@ jobs:
         run: |
           git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/private-hedera-services.git target_consensus_node
           cd target_consensus_node
-          git checkout ${{ github.ref }}
+          git checkout ${{ inputs.ref }}
           cd "${{ github.workspace }}"
 
       - name: Check Test Asset
@@ -238,7 +238,7 @@ jobs:
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.ref=${{ github.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt

@@ -137,7 +137,7 @@ jobs:
         run: |
           git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/private-hedera-services.git target_consensus_node
           cd target_consensus_node
-          git checkout ${{ github.ref }}
+          git checkout ${{ inputs.ref }}
           cd "${{ github.workspace }}"
 
       - name: Check Test Asset
