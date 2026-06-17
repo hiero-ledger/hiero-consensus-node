@@ -29,8 +29,6 @@ import org.apache.logging.log4j.Logger;
  * available block number, and if it has advanced past what was already delivered, fetches the new
  * range and pushes each block to the listener in ascending order. Transient gRPC errors and
  * block-finalization lag are tolerated: a failed or empty poll simply retries on the next interval.
- *
- * @see StreamValidationOp readBlocksFromBlockNodes (the analogous one-shot fetch recipe)
  */
 public class BlockNodeBlockSource implements BlockSource {
     private static final Logger log = LogManager.getLogger(BlockNodeBlockSource.class);
