@@ -1,20 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 
 import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
-import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 /**
  * Chooses the appropriate {@link BlockSource} for a {@link HapiSpec}.
@@ -40,7 +34,7 @@ public final class BlockSourceFactory {
      */
     @NonNull
     public static BlockSource blockSourceFor(@NonNull final HapiSpec spec) {
-        final var blockNodeNetwork = resolveBlockNodeNetwork();
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
         if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null && !blockNodeNetwork.isEmpty()) {
             return new BlockNodeBlockSource(blockNodeNetwork);
         }
@@ -49,40 +43,41 @@ public final class BlockSourceFactory {
     }
 
     /**
-     * Returns the <em>effective</em> startup properties for the spec's first node: the node's on-disk
-     * {@code application.properties} (which includes any per-node {@code @GenesisSubprocessTest} overrides
-     * written during {@code start()}) layered in priority over {@link HapiSpec#startupProperties()}. The
-     * node file wins for keys it defines; {@code startupProperties()} supplies the rest. Falls back to
-     * {@link HapiSpec#startupProperties()} when the node file is missing or unreadable.
+     * Returns the <em>effective</em> startup properties for the spec's first node — its network
+     * {@link HapiSpec#startupProperties() startup properties} with that node's per-node
+     * {@code @GenesisSubprocessTest}/{@code @HapiBlockNode} overrides layered on top (see
+     * {@link SubProcessNetwork#effectiveStartupProperties(long)}). For non-subprocess networks, or when the
+     * node has no per-node overrides, this is exactly {@link HapiSpec#startupProperties()} — so per-task
+     * PR-check overrides (e.g. {@code blockStream.streamMode=RECORDS}) stay authoritative.
      *
      * @param spec the spec
-     * @return the effective startup properties
+     * @return the effective startup properties for routing decisions
      */
     @NonNull
     public static HapiPropertySource effectiveStartupProperties(@NonNull final HapiSpec spec) {
-        final var startupProperties = spec.startupProperties();
         try {
-            final Path appPropertiesPath =
-                    spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(APPLICATION_PROPERTIES);
-            if (appPropertiesPath != null && Files.isReadable(appPropertiesPath)) {
-                return inPriorityOrder(new JutilPropertySource(appPropertiesPath), startupProperties);
+            final var network = spec.targetNetworkOrThrow();
+            if (network instanceof SubProcessNetwork subProcessNetwork
+                    && !network.nodes().isEmpty()) {
+                return subProcessNetwork.effectiveStartupProperties(
+                        network.nodes().getFirst().getNodeId());
             }
         } catch (final Exception ignore) {
             // Fall back to the spec's startup properties below
         }
-        return startupProperties;
+        return spec.startupProperties();
     }
 
-    @Nullable
-    private static BlockNodeNetwork resolveBlockNodeNetwork() {
-        var network = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (network == null) {
-            network = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
-        return network;
-    }
-
-    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
+    /**
+     * Returns whether the spec is configured for GRPC-only block streaming ({@code writerMode=GRPC}),
+     * reading the {@link #effectiveStartupProperties(HapiSpec) effective} per-node config so per-node
+     * {@code @GenesisSubprocessTest}/{@code @HapiBlockNode} overrides are honored. Shared by the consumers
+     * that gate block-node reads on writer mode.
+     *
+     * @param spec the spec
+     * @return true if the effective writer mode is GRPC-only
+     */
+    public static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
         try {
             final var writerMode = effectiveStartupProperties(spec).get("blockStream.writerMode");
             return BlockStreamWriterMode.GRPC.name().equals(writerMode);

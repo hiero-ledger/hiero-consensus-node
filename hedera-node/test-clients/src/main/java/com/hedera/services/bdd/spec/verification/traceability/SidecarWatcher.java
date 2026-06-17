@@ -13,10 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
-import com.hedera.services.bdd.junit.support.BlockNodeBlockSource;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -192,32 +190,17 @@ public class SidecarWatcher {
 
     /**
      * Resolves the block node network to pull from when the BLOCKS-mode source is the block node over
-     * gRPC, or {@code null} when the source is {@code .blk} files on disk. Mirrors
-     * {@code BlockSourceFactory}/{@code HapiSpecWaitUntilNextBlock}: returns a non-null network only
-     * when {@code writerMode=GRPC} <em>and</em> a block node network exists (resolved from the
-     * thread-local {@link HapiSpec#TARGET_BLOCK_NODE_NETWORK}, falling back to
-     * {@link NetworkTargetingExtension#SHARED_BLOCK_NODE_NETWORK}). Keeping this in lock-step with the
-     * live subscription's source choice ensures both read from the same place.
+     * gRPC, or {@code null} when the source is {@code .blk} files on disk — a non-null network only when
+     * {@code writerMode=GRPC} <em>and</em> a block node network is active. Delegates the writer-mode gate
+     * to {@link BlockSourceFactory#isWriterModeGrpcOnly(HapiSpec)} and resolution to
+     * {@link BlockNodeReader#activeNetwork()} so the live subscription and the drain read from the same place.
      */
     @Nullable
     private static BlockNodeNetwork resolveGrpcBlockNodeNetwork(@Nullable final HapiSpec spec) {
-        if (spec == null || !isWriterModeGrpcOnly(spec)) {
+        if (spec == null || !BlockSourceFactory.isWriterModeGrpcOnly(spec)) {
             return null;
         }
-        var network = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (network == null) {
-            network = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
-        return network;
-    }
-
-    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
-        try {
-            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-            return BlockStreamWriterMode.GRPC.name().equals(writerMode);
-        } catch (final Exception e) {
-            return false;
-        }
+        return BlockNodeReader.activeNetwork();
     }
 
     private Runnable subscribeBlocks(
@@ -447,7 +430,7 @@ public class SidecarWatcher {
             // block node over gRPC; otherwise re-read the marker-backed (fully written) blocks from
             // disk so we never translate a half-flushed block. Both yield blocks in ascending order.
             final List<Block> blocks = blockNodeNetwork != null
-                    ? BlockNodeBlockSource.fetchAllBlocks(blockNodeNetwork)
+                    ? BlockNodeReader.of(blockNodeNetwork).allBlocks()
                     : BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockStreamPath);
             final var translator = new BlockTransactionalUnitTranslator(shard, realm);
             final var split = new RoleFreeBlockUnitSplit();

@@ -20,13 +20,13 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -288,13 +288,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<DiskBlocks> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        // Try ThreadLocal first, then fall back to the shared AtomicReference
-        // (DynamicTest execution threads in concurrent mode don't inherit ThreadLocal values)
-        var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (blockNodeNetwork == null) {
-            blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
-        if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
+        if (BlockSourceFactory.isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
             // Retry reading from block nodes — blocks may still be in-flight after freeze,
             // especially with TSS/state proofs enabled where block finalization is async
             for (int attempt = 1; attempt <= BLOCK_NODE_READ_MAX_ATTEMPTS; attempt++) {
@@ -502,19 +497,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
     private static Optional<DiskBlocks> readBlocksFromBlockNodes(
             @NonNull final HapiSpec spec, @NonNull final BlockNodeNetwork blockNodeNetwork) {
-        // Determine the configured block node mode from the first entry
-        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
-                .findFirst()
-                .orElse(BlockNodeMode.NONE);
-
-        List<Block> blocks = null;
-        if (mode == BlockNodeMode.SIMULATOR) {
-            blocks = readBlocksFromSimulators(blockNodeNetwork);
-        } else if (mode == BlockNodeMode.REAL) {
-            blocks = readBlocksFromRealContainers(blockNodeNetwork);
-        }
-
-        if (blocks == null || blocks.isEmpty()) {
+        List<Block> blocks = BlockNodeReader.of(blockNodeNetwork).allBlocks();
+        if (blocks.isEmpty()) {
             return Optional.empty();
         }
 
@@ -524,71 +508,21 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (!pendingBlocks.isEmpty()) {
             final var existingNumbers = new HashSet<Long>();
             for (final var block : blocks) {
-                existingNumbers.add(blockNumberOf(block));
+                existingNumbers.add(BlockNodeReader.blockNumberOf(block));
             }
             final var allBlocks = new ArrayList<>(blocks);
             for (final var block : pendingBlocks) {
-                if (existingNumbers.add(blockNumberOf(block))) {
+                if (existingNumbers.add(BlockNodeReader.blockNumberOf(block))) {
                     allBlocks.add(block);
                 }
             }
-            allBlocks.sort(Comparator.comparingLong(StreamValidationOp::blockNumberOf));
+            allBlocks.sort(Comparator.comparingLong(BlockNodeReader::blockNumberOf));
             blocks = allBlocks;
             log.info("Merged {} pending blocks from disk, {} total blocks", pendingBlocks.size(), blocks.size());
         }
 
         // Block-node sources don't carry a preview-archive layer.
         return Optional.of(new DiskBlocks(blocks, List.of()));
-    }
-
-    @Nullable
-    private static List<Block> readBlocksFromSimulators(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        for (final Map.Entry<Long, SimulatedBlockNodeServer> entry :
-                blockNodeNetwork.getSimulatedBlockNodeById().entrySet()) {
-            try {
-                final var blocks = entry.getValue().getAllVerifiedBlocks();
-                log.info("Read {} blocks from simulator block node {}", blocks.size(), entry.getKey());
-                if (!blocks.isEmpty()) {
-                    return blocks;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to read blocks from simulator block node {}", entry.getKey(), e);
-            }
-        }
-        return null;
-    }
-
-    @Nullable
-    private static List<Block> readBlocksFromRealContainers(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        final var containers = blockNodeNetwork.getBlockNodeContainerById();
-        if (containers.isEmpty()) {
-            log.warn("No block node containers available");
-            return null;
-        }
-        for (final Map.Entry<Long, BlockNodeContainer> entry : containers.entrySet()) {
-            try {
-                final var container = entry.getValue();
-                try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    final long lastBlock = client.getLastAvailableBlock();
-                    if (lastBlock >= 0) {
-                        final var blocks = client.subscribeBlocks(0, lastBlock);
-                        log.info(
-                                "Read {} blocks from real block node {} (blocks 0-{})",
-                                blocks.size(),
-                                entry.getKey(),
-                                lastBlock);
-                        if (!blocks.isEmpty()) {
-                            return blocks;
-                        }
-                    } else {
-                        log.info("Block node {} reports no available blocks yet", entry.getKey());
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to read blocks from real block node {}", entry.getKey(), e);
-            }
-        }
-        return null;
     }
 
     private static List<Block> readPendingBlocksFromDisk(@NonNull final HapiSpec spec) {
@@ -688,7 +622,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     private static void writeBlockFileToDisk(@NonNull final Path dir, @NonNull final Block block) throws IOException {
-        final long blockNumber = blockNumberOf(block);
+        final long blockNumber = BlockNodeReader.blockNumberOf(block);
         if (blockNumber == Long.MAX_VALUE) {
             log.warn("Skipping block without header; cannot determine block number");
             return;
@@ -710,10 +644,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<DiskBlocks> readMaybeBlockNodeStreamsFor(@NonNull final HapiSpec spec) {
-        var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (blockNodeNetwork == null) {
-            blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
         if (blockNodeNetwork == null) {
             return Optional.empty();
         }
@@ -722,22 +653,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
         }
         return result;
-    }
-
-    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
-        try {
-            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-            return BlockStreamWriterMode.GRPC.name().equals(writerMode);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static long blockNumberOf(@NonNull final Block block) {
-        if (!block.items().isEmpty() && block.items().getFirst().hasBlockHeader()) {
-            return block.items().getFirst().blockHeader().number();
-        }
-        return Long.MAX_VALUE;
     }
 
     private static Optional<DataOrException> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
@@ -775,7 +690,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     private static void validateProofs(@NonNull final HapiSpec spec) {
-        if (!isWriterModeGrpcOnly(spec)) {
+        if (!BlockSourceFactory.isWriterModeGrpcOnly(spec)) {
             log.info("Beginning block proof validation for each node in the network");
             spec.getNetworkNodes().forEach(node -> {
                 try {
