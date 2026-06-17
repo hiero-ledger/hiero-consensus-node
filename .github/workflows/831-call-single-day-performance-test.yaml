@@ -1827,7 +1827,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-report-to-rootly:
-    if: false
     name: Report Failures to Rootly
     runs-on: hl-cn-sdpt-lin-sm
     needs:
@@ -1850,7 +1849,7 @@ jobs:
       needs.performance-SmartContractLoadTest.result != 'success' ||
       needs.single-day-performance-test-result.result != 'success' ||
       needs.single-day-performance-test-result.outputs.result == 'failure') &&
-      !cancelled() && always() }}
+      !cancelled() && never() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
