@@ -2,7 +2,7 @@
 
 Reference documentation for the consensus layer of the platform-sdk — the subsystem that reaches Byzantine-fault-tolerant agreement on event ordering using a hashgraph-based algorithm.
 
-The KB covers eleven topics — wiring, gossip, event intake, event creation, the hashgraph algorithm, health monitoring and backpressure, reasons not to gossip, signed state management, restart and PCES, freeze and upgrade, and reconnect — and the cross-cutting catalogs that support them.
+The KB covers thirteen topics — wiring, gossip, event intake, event creation, the hashgraph algorithm, health monitoring and backpressure, reasons not to gossip, quiescence, signed state management, ISS detection, restart and PCES, freeze and upgrade, and reconnect — and the cross-cutting catalogs that support them.
 
 **Current implementation is canonical.** Entries describe what runs today, anchored to specific files, classes, and methods. The proposed future shape from `../proposals/consensus-layer/Consensus-Layer.md` appears only as clearly-marked sidebars in topic files and is tracked per-topic under `delta-map/`.
 
