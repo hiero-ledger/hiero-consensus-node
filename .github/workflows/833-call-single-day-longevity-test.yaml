@@ -118,7 +118,7 @@ jobs:
 
       - name: Checkout target CN Code
         env:
-          GITHUB_PAGES_URL: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PAGES_URL: ${{ secrets.github-token }}
         run: |
           git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/private-hedera-services.git target_consensus_node
           cd target_consensus_node
