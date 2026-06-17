@@ -33,7 +33,7 @@ jobs:
         id: run_id
         run: |
           RUN_ID=$(gh api -H "Accept: application/vnd.github+json" \
-            /repos/hiero-ledger/hiero-consensus-node/actions/workflows/zxcron-extended-test-suite.yaml/runs \
+            /repos/hiero-ledger/hiero-consensus-node/actions/workflows/900-cron-extended-test-suite.yaml/runs \
             --jq '.workflow_runs[] | select(.run_number == ${{ inputs.workflow_id }}) | .id')
           echo "::set-output name=value::$RUN_ID"
 

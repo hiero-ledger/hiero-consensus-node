@@ -1,0 +1,7 @@
+# Data-only OCI image carrying the WRAPS proving-key artifacts consumed by the
+# native hedera-cryptography-wraps library via the TSS_LIB_WRAPS_ARTIFACTS_PATH
+# environment variable. It has no entrypoint and is not runnable; it is meant to
+# be mounted read-only (Kubernetes `image:` volume source, or copied out of by an
+# init container). See README.md for provenance and build instructions.
+FROM scratch
+COPY decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin /

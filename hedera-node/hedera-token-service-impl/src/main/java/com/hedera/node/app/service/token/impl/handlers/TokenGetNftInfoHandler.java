@@ -24,7 +24,6 @@ import com.hedera.node.app.hapi.fees.usage.token.TokenGetNftInfoUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -140,18 +139,6 @@ public class TokenGetNftInfoHandler extends PaidQueryHandler {
                     .build();
             return Optional.of(info);
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var nftStore = queryContext.createStore(ReadableNftStore.class);
-        final var op = query.tokenGetNftInfoOrThrow();
-        final var nftId = op.nftIDOrThrow();
-        final var nft = nftStore.get(nftId);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, nft));
     }
 
     private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Nft nft) {

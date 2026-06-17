@@ -14,6 +14,8 @@
 | 101-user-trigger-release.yaml                | 101: [USER] Trigger Release        | flow-trigger-release.yaml                              | [Release] Create New Release                                      |
 | 102-user-memory-profile-ctrl.yaml            | 102: [USER] Memory Profile Ctrl    | 050-user-memory-profile-ctrl.yaml                      | 050: [USER] Memory Profile Ctrl                                   |
 | 103-user-solo-tests-adhoc.yaml               | 103: [USER] Solo Tests Adhoc       | 200-user-adhoc-solo-tests.yaml                         | 200: [USER] Ad Hoc Solo Tests                                     |
+| 104-user-wraps-smoke-test.yaml               | 104: [USER] WRAPS Runner Smoke     | N/A                                                    | N/A                                                               |
+| 105-user-publish-wraps-key.yaml              | 105: [USER] Publish Wraps Image    | N/A                                                    | N/A                                                               |
 |                                              |                                    |                                                        |                                                                   |
 | # CITR (200-299)                             |                                    |                                                        |                                                                   |
 | 200-user-mqpt-controller-adhoc.yaml          | 200: [USER] CITR MQPT Ctrl Adhoc   | zxf-merge-queue-performance-test-controller-adhoc.yaml | ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller       |
@@ -39,7 +41,8 @@
 | 600-flow-pull-request-checks.yaml            | 600: [FLOW] PR Checks              | node-flow-pull-request-checks.yaml                     | Node: PR Checks                                                   |
 | 601-flow-pull-request-formatting.yaml        | 601: [FLOW] PR Formatting          | flow-pull-request-formatting.yaml                      | PR Formatting                                                     |
 | 602-flow-merge-queue-controller.yaml         | 602: [FLOW] Merge Queue Controller | 210-flow-merge-queue-controller.yaml                   | 210: [FLOW] Merge Queue Controller                                |
-|                                              |                                    | # AI HELPERS (700-799)                                 |                                                                   |
+|                                              |                                    |                                                        |                                                                   |
+| # AI HELPERS (700-799)                       |                                    |                                                        |                                                                   |
 | 700-flow-copilot-setup-steps.yaml            | 700: [FLOW] Copilot Setup Steps    | 700-flow-copilot-setup-steps.yaml                      | 700: [FLOW] Copilot Setup Steps                                   |
 | 701-flow-auto-unapprove.yaml                 | 701: [FLOW] Auto Unapprove PR      | 080-flow-auto-unapprove.yaml                           | 080: [FLOW] Auto Unapprove PR                                     |
 |                                              |                                    |                                                        |                                                                   |

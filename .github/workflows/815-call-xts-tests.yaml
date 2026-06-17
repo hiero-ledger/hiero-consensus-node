@@ -86,6 +86,26 @@ on:
         type: string
         required: false
         default: "temurin"
+      tck-version:
+        description: "The TCK version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
+      js-sdk-version:
+        description: "The JavaScript SDK version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
+      bn-release-version:
+        description: "The Block Node release version to use for XTS Panels"
+        type: string
+        required: false
+        default: "latest"
+      bn-mirror-node-version:
+        description: "The Mirror Node release version to use for Block Node XTS Panels"
+        type: string
+        required: false
+        default: "latest"
     secrets:
       access-token:
         description: "Github Access Token"
@@ -232,6 +252,9 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
+      # (FUTURE) Flip to "true" once the hl-cn-hapi-wraps-lin-lg runner pool exists with
+      # the WRAPS proving-key artifacts mounted at /opt/wraps-v1.0.0
+      enable-hapi-tests-wraps: "false"
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
@@ -246,7 +269,7 @@ jobs:
   # re-added separately via enable-hapi-tests-crypto-and-misc-serial. Excluded from set-failure-mode
   # so failures stay silent while the BLOCKS transition stabilizes.
   #
-  # MATS (zxc-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto-and-misc-serial
+  # MATS (800-call-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto-and-misc-serial
   # defaults to false there, so MATS behavior is unchanged.
   xts-hapi-tests-blocks:
     name: XTS HAPI Tests (BLOCKS)
@@ -348,8 +371,10 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
-      solo-version: ${{ inputs.solo-version }}
+      solo-version: "${{ inputs.solo-version }}"
       java-version: "${{ inputs.java-version }}"
+      tck-version: "${{ inputs.tck-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
@@ -365,9 +390,9 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
-      solo-version: ${{ inputs.solo-version }}
-      helm-release-name: ${{ inputs.helm-release-name }}
-      mirror-node-version: ${{ inputs.mirror-node-version || '0.145.2' }}
+      solo-version: "${{ inputs.solo-version }}"
+      helm-release-name: "${{ inputs.helm-release-name }}"
+      mirror-node-version: "${{ inputs.mirror-node-version || '0.145.2' }}"
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
@@ -399,8 +424,12 @@ jobs:
     with:
       ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
-      solo-version: ${{ inputs.solo-version }}
+      solo-version: "${{ inputs.solo-version }}"
       java-version: "${{ inputs.java-version }}"
+      bn-release-version: "${{ inputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ inputs.bn-mirror-node-version }}"
+      tck-version: "${{ inputs.tck-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
