@@ -39,16 +39,6 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      crypto-bench-merkle-db-java-args:
-        required: true
-        default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
-        description: "JMH javaargs"
-        type: string
-      crypto-bench-merkle-db-test-params:
-        required: true
-        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
-        description: "Test params"
-        type: string
       delete-namespace:
         required: false
         default: true
@@ -871,8 +861,8 @@ jobs:
           set +e
 
           merklebenchpod="merklebench"
-          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > swirlds-benchmarks.log 2>&1 &"
+          #kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -- bash -c "cd /host/mnt/nodefs/cryptobench; nohup /usr/bin/env java -Xmx16g -jar build/libs/swirlds-benchmarks-*-jmh.jar \
+          #--jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
         run: |
