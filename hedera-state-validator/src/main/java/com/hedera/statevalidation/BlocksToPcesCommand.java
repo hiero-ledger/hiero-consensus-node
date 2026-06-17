@@ -122,7 +122,6 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         this.downloadThreads = downloadThreads;
     }
 
-
     @Option(
             names = {"-rna", "--rounds-non-ancient"},
             defaultValue = "" + DEFAULT_ROUNDS_NON_ANCIENT,
@@ -173,8 +172,8 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         GcpPathHelper.ensureGcloudAvailable();
 
         final String streamId = GcpPathHelper.extractLastPathElement(gcpBlockStreamPath);
-        final String cacheName =
-                "state-validator-blocks-" + originRound + "-to-" + targetRound + "-rna" + roundsNonAncient + "-s" + streamId;
+        final String cacheName = "state-validator-blocks-" + originRound + "-to-" + targetRound + "-rna"
+                + roundsNonAncient + "-s" + streamId;
         final Path tempBlockDir = Path.of(".", cacheName);
         Files.createDirectories(tempBlockDir);
 

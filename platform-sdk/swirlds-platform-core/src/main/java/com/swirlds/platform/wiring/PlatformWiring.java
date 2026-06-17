@@ -37,6 +37,7 @@ import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -79,6 +80,21 @@ public class PlatformWiring {
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
                 .solderTo(components.pcesModule().eventsToWriteInputWire());
+
+        final AtomicLong intakeOut = new AtomicLong();
+        components.eventIntakeModule().validatedEventsOutputWire().solderTo("replayCounter", "count", e -> {
+            if (intakeOut.incrementAndGet() % 500_000 == 0) {
+                System.out.println("Events out of intake: " + intakeOut.get());
+            }
+        });
+
+        final AtomicLong rounds = new AtomicLong();
+        components.hashgraphModule().consensusRoundOutputWire().solderTo("roundCounter", "count", r -> {
+            if (intakeOut.incrementAndGet() % 5000 == 0) {
+                System.out.println("Consensus round reached: " + r.getRoundNum());
+            }
+            rounds.incrementAndGet();
+        });
 
         final OutputWire<PlatformEvent> writtenEventOutputWire =
                 components.pcesModule().writtenEventsOutputWire();

@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
-import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBinImpl;
@@ -20,21 +18,26 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.StartupStateUtils;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
@@ -103,7 +106,7 @@ public final class ReplayPcesWorkflow {
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
             @NonNull final com.swirlds.base.time.Time time)
-            throws IOException, InterruptedException {
+            throws IOException, InterruptedException, ParseException, KeyStoreException, ExecutionException {
         requireNonNull(stateDir);
         requireNonNull(pcesDir);
         requireNonNull(outDir);
@@ -124,39 +127,59 @@ public final class ReplayPcesWorkflow {
         // DefaultPcesModule.initialize scans PcesUtilities.getDatabaseDirectory(config, fsm, selfId) at build time.
         stagePcesFiles(pcesDir, platformConfig, fileSystemManager, selfId);
 
-        // --- Load the initial state (the same public entry point ServicesMain uses) ---
-        final HashedReservedSignedState reservedState = StartupStateUtils.loadInitialState(
-                recycleBin,
-                version,
-                Hedera.APP_NAME,
-                Hedera.SWIRLD_NAME,
-                selfId,
-                platformContext,
-                hedera.getStateLifecycleManager());
-        final ReservedSignedState initialState = reservedState.state();
+        // --- Load the initial state directly from the given path ---
+        // StartupStateUtils.loadInitialState scans a configured path convention
+        // (savedStateDir/appName/swirldName/selfId)
+        // and does not accept an arbitrary path. SignedStateFileReader.readState loads from any explicit directory,
+        // which is the right approach for a CLI tool — the same pattern EventRecoveryWorkflow uses.
+        final var stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, platformConfig);
+
+        log.info("Loading state from {}", stateDir);
+        final DeserializedSignedState deserializedSignedState =
+                SignedStateFileReader.readState(stateDir, platformContext, stateLifecycleManager);
+
+        final ReservedSignedState initialState = deserializedSignedState.reservedSignedState();
+        final Hash originalHash = deserializedSignedState.originalHash();
         final VirtualMapState state = initialState.get().getState();
 
-        final boolean isGenesis = initialState.get().isGenesisState();
-        if (isGenesis) {
+        if (initialState.get().isGenesisState()) {
             throw new IllegalStateException(
                     "No saved state found in " + stateDir + " — replay-pces requires a loaded (non-genesis) state");
         }
 
         // --- Initialize the States API on the loaded state (restart path) ---
         hedera.initializeStatesApi(state, InitTrigger.RESTART, platformConfig);
-        hedera.setInitialStateHash(reservedState.hash());
+        hedera.setInitialStateHash(originalHash);
 
         // --- Roster + keys (same derivation the platform uses at restart/reconnect) ---
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
         final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
-        final List<RosterEntry> rosterEntries =
-                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
-        final KeysAndCerts keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
-        // Computed deterministically from config by the same public helper ServicesMain uses.
-     //   final int transactionOffsetNanos = ServicesMain.transactionOffsetNanos(platformConfig);
-      //  hedera.setTxnOffsetNanos(transactionOffsetNanos);
+        // --- Generate ephemeral keys for this node ---
+        // initNodeSecurity loads keys from disk (PKCS12 keystores), which don't exist in an offline replay
+        // environment, causing KEY_LOADING_FAILED. For PCES replay we never start gossip or interact with
+        // peers, so real keys are not needed — the platform only requires them to satisfy internal certificate
+        // validation at build time. KeysAndCertsGenerator.generateKeysAndCerts produces self-consistent
+        // ephemeral keys that satisfy those checks without any on-disk key infrastructure.
+        final KeysAndCerts keysAndCerts =
+                KeysAndCertsGenerator.generateKeysAndCerts(List.of(selfId)).get(selfId);
+
+        // Register the platform service-state stubs (PlatformStateService ID 26, RosterService) on the manager's
+        // current mutable state, immediately before building the platform. This must come AFTER Hedera's
+        // initializeStatesApi (whose onStateInitialized migration rebuilds the services map and would otherwise
+        // overwrite earlier stub registration) and BEFORE PlatformComponentBuilder.build() (whose SwirldsPlatform
+        // constructor calls copyMutableState() then accesses PlatformStateService — the copy carries this metadata
+        // forward via VirtualMapStateImpl's copy constructor). This is the same registration StateUtils.initState
+        // performs; the platform's own init path does not register these platform stubs.
+        SignedStateFileReader.registerServiceStates(stateLifecycleManager.getMutableState());
+
+        // --- Recompute replay bounds exactly as the SwirldsPlatform constructor does (non-genesis) ---
+        // These MUST be read before PlatformBuilder.build(): build() takes ownership of the initialState
+        // reservation and closes it during construction (copyMutableState + startup handling), after which
+        // initialState.get() throws ReferenceCountException.
+        final long startingRound = initialState.get().getRound();
+        final long pcesReplayLowerBound = ancientThresholdOf(state);
 
         // --- Build the platform (constructor priming runs inside build()) ---
         final PlatformComponentBuilder componentBuilder = PlatformBuilder.create(
@@ -168,7 +191,7 @@ public final class ReplayPcesWorkflow {
                         selfId,
                         consensusEventStreamName,
                         rosterHistory,
-                        hedera.getStateLifecycleManager())
+                        stateLifecycleManager)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -179,10 +202,8 @@ public final class ReplayPcesWorkflow {
         final Platform platform = componentBuilder.build();
         final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
 
+        boolean started = false;
         try {
-            // --- Recompute replay bounds exactly as the SwirldsPlatform constructor does (non-genesis) ---
-            final long startingRound = initialState.get().getRound();
-            final long pcesReplayLowerBound = ancientThresholdOf(state);
             log.info(
                     "Driving PCES replay: startingRound={}, pcesReplayLowerBound={}",
                     startingRound,
@@ -192,6 +213,7 @@ public final class ReplayPcesWorkflow {
             platformContext.getRecycleBin().start();
             platformContext.getMetrics().start();
             blocks.platformCoordinator().start();
+            started = true; // wiring model is now started; destroy()/stop() is safe from here on
             blocks.platformComponents().pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
             // NOTE: deliberately NOT calling blocks.platformCoordinator().startGossip()
 
@@ -200,10 +222,16 @@ public final class ReplayPcesWorkflow {
             log.info("PCES replay complete. Resulting state round: {}, written under {}", resultRound, outDir);
             return resultRound;
         } finally {
-            try {
-                platform.destroy();
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
+            // platform.destroy() calls platformCoordinator.stop(), which throws if the wiring model was never
+            // started. Only destroy when start succeeded, and never let cleanup mask the original exception.
+            if (started) {
+                try {
+                    platform.destroy();
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (final RuntimeException e) {
+                    log.warn("Error while destroying platform during cleanup", e);
+                }
             }
         }
     }

@@ -28,7 +28,8 @@ import picocli.CommandLine.Parameters;
             DiffCommand.class,
             CompactionCommand.class,
             ApplyBlocksCommand.class,
-            BlocksToPcesCommand.class
+            BlocksToPcesCommand.class,
+            ReplayPcesCommand.class
         },
         description = "CLI tool with validation and introspection modes.")
 public class StateOperatorCommand implements Runnable {

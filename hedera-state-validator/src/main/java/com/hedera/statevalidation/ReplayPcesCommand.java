@@ -37,6 +37,10 @@ import picocli.CommandLine.Option;
                 + "and snapshot the resulting state.")
 public class ReplayPcesCommand implements Callable<Integer> {
 
+    @CommandLine.ParentCommand
+    @SuppressWarnings("unused")
+    private StateOperatorCommand parent;
+
     private static final Logger log = LogManager.getLogger(ReplayPcesCommand.class);
 
     private Path stateDir;
