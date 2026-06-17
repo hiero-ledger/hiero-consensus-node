@@ -288,7 +288,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
         requireNonNull(syntheticPayerId);
-        return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO);
+        return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO, null);
     }
 
     @Override
@@ -430,7 +430,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody txBody,
             @NonNull final AccountID syntheticPayerId,
-            @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel) {
+            @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel,
+            @Nullable final SignatureMap overrideSignatureMap) {
         final var bodyToDispatch = ensureTxnId(txBody);
         var function = HederaFunctionality.NONE;
         try {
@@ -442,7 +443,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
+        final var effectiveSignatureMap = overrideSignatureMap != null ? overrideSignatureMap : txnInfo.signatureMap();
+        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(effectiveSignatureMap);
         return dispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,

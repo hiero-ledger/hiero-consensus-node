@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
@@ -369,7 +370,10 @@ public interface HandleContext {
     NetworkInfo networkInfo();
 
     /**
-     * Dispatches the fee calculation for a child transaction (that might then be dispatched).
+     * Dispatches the fee calculation for a child transaction (that might then be dispatched), with
+     * an optional override {@link SignatureMap} whose serialized size replaces the context-derived
+     * value when computing fees. Pass {@code null} for {@code overrideSignatureMap} to preserve
+     * existing behavior.
      *
      * <p>The override payer id still matters for this purpose, because a transaction can add
      * state whose lifetime is scoped to a payer account (the main current example is a
@@ -378,12 +382,15 @@ public interface HandleContext {
      * @param txBody the {@link TransactionBody} of the child transaction to compute fees for
      * @param syntheticPayerId the child payer
      * @param computeDispatchFeesAsTopLevel for mono fidelity, whether to compute fees as a top-level transaction
+     * @param overrideSignatureMap when non-null, the serialized size of this map is used instead of the
+     *                             context-derived signature map size
      * @return the calculated fees
      */
     Fees dispatchComputeFees(
             @NonNull TransactionBody txBody,
             @NonNull AccountID syntheticPayerId,
-            @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel);
+            @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel,
+            @Nullable SignatureMap overrideSignatureMap);
 
     /**
      * Dispatches a child transaction with the given options.
