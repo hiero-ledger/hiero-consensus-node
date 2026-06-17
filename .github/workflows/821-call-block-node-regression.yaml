@@ -24,6 +24,24 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
+      bn-release-version:
+        description: "The version of the block node to use in the tests:"
+        required: false
+        type: string
+        default: "latest"
+      bn-mirror-node-version:
+        description: "The version of the mirror node to use in the tests"
+        required: false
+        type: string
+        default: "latest"
+      tck-version:
+        description: "The version of the TCK to test against:"
+        required: true
+        type: string
+      js-sdk-version:
+        description: "The version of the JS-SDK to test against:"
+        required: true
+        type: string
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -97,33 +115,39 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Retrieve Latest BN Tag
+      - name: Retrieve BN Release Tag
         run: |
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          if [[ "${{ inputs.bn-release-version }}" != "latest" ]]; then
+            bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/tags/${{ inputs.bn-release-version }}"
+          fi
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
-          LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+          BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
-          if [[ -z "${LATEST_BN_TAG}" ]]; then
-            echo "ERROR: Could not parse LATEST_BN_TAG from response"
+          if [[ -z "${BN_RELEASE_TAG}" ]]; then
+            echo "ERROR: Could not parse BN_RELEASE_TAG from response"
             return 1
           fi
 
-          echo "Latest Block Node tag: ${LATEST_BN_TAG}"
-          echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
+          echo "Block Node Release tag: ${BN_RELEASE_TAG}"
+          echo "BLOCK_NODE_TAG=${BN_RELEASE_TAG}" >> "${GITHUB_ENV}"
 
-      - name: Retrieve Latest MN Tag
+      - name: Retrieve MN Release Tag
         run: |
           mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
+          if [[ "${{ inputs.bn-mirror-node-version }}" != "latest" ]]; then
+            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.bn-mirror-node-version }}"
+          fi
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
-          LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+          MN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
-          if [[ -z "${LATEST_MN_TAG}" ]]; then
-            echo "ERROR: Could not parse LATEST_MN_TAG from response"
+          if [[ -z "${MN_RELEASE_TAG}" ]]; then
+            echo "ERROR: Could not parse MN_RELEASE_TAG from response"
             return 1
           fi
 
-          echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
-          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
+          echo "Mirror Node Release tag: ${MN_RELEASE_TAG}"
+          echo "MIRROR_NODE_TAG=${MN_RELEASE_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -134,13 +158,18 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (TCK)
+      - name: Checkout TCK Tag
         run: |
           cd sdk-tck/regression
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest TCK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+          # if ${{ inputs.tck-version }} is in the tags check it out.
+          if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version: ${{ inputs.tck-version }}"
+            git checkout "tags/${{ inputs.tck-version }}"
+          else
+            echo "Specified TCK version ${{ inputs.tck-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -151,13 +180,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (JS-SDK)
+      - name: Checkout JS-SDK Tag
         run: |
           cd sdk-tck/sdk-server
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
+          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
+            git checkout "tags/${{ inputs.js-sdk-version }}"
+          else
+            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       - name: Setup PNPM
         run: |
