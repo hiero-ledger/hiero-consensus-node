@@ -15,9 +15,7 @@ import com.swirlds.component.framework.model.diagram.ModelGroup;
 import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,6 +31,7 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
+import org.hiero.consensus.pcli.utility.VirtualTerminal;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -130,9 +129,7 @@ public final class DiagramCommand extends AbstractCommand {
                 hashgraphModule,
                 gossipModule);
 
-        // Use non-null callbacks so all optional wires appear in the diagram
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(e -> {}, s -> {}, e -> {});
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, callbacks);
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, null);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

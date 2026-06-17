@@ -3,17 +3,20 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockEndRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -27,8 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.BlockEnd;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
-import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,9 +66,10 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
     private LogCaptor logCaptor;
 
     ExecutorService blockingIoExecutor;
-    private Pipeline<?> requestPipeline;
+    private GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> requestCall;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void beforeEach() {
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider()
                 .withValue("blockNode.slowRequestThresholdMillis", SLOW_REQ_THRESHOLD_MILLIS));
@@ -78,12 +81,12 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
         final BlockStreamMetrics metrics = mock(BlockStreamMetrics.class);
         blockingIoExecutor = Executors.newSingleThreadExecutor();
         final BlockNodeClientFactory clientFactory = mock(BlockNodeClientFactory.class);
-        requestPipeline = mock(Pipeline.class);
+        requestCall = mock(GrpcCall.class);
 
-        final BlockStreamPublishServiceClient client = mock(BlockStreamPublishServiceClient.class);
+        final BlockStreamPublishBytesClient client = mock(BlockStreamPublishBytesClient.class);
         when(clientFactory.createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString()))
                 .thenReturn(client);
-        when(client.publishBlockStream(any(Pipeline.class))).thenReturn(requestPipeline);
+        when(client.publishBlockStream(any(Pipeline.class))).thenReturn(requestCall);
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
@@ -122,10 +125,10 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
 
                     return null;
                 })
-                .when(requestPipeline)
-                .onNext(any());
+                .when(requestCall)
+                .sendRequest(any(), anyBoolean());
 
-        final PublishStreamRequest psr = PublishStreamRequest.newBuilder()
+        final PublishStreamRequestBytes psr = PublishStreamRequestBytes.newBuilder()
                 .endOfBlock(BlockEnd.newBuilder().blockNumber(1))
                 .build();
         final StreamRequest request = new BlockEndRequest(psr, 1, 2);

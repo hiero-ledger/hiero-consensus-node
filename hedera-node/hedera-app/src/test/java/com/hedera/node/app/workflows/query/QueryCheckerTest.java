@@ -52,7 +52,6 @@ import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
@@ -596,36 +595,8 @@ class QueryCheckerTest extends AppTestBase {
     }
 
     @Test
-    void testEstimateTxFees(@Mock final ReadableStoreFactory storeFactory) {
-        // given
-        final var consensusNow = Instant.ofEpochSecond(0);
-        final var txInfo = createPaymentInfo(ALICE.accountID());
-        final var feesConfig = mock(FeesConfig.class);
-        final var expectedNetworkFee = 10L;
-        final var expectedNodeFee = 20L;
-        final var expectedServiceFee = 30L;
-        final var expectedTotalFee = expectedNetworkFee + expectedNodeFee + expectedServiceFee;
-        final var fees = new Fees(expectedNetworkFee, expectedNodeFee, expectedServiceFee);
-
-        // Mock config to disable simple fees
-        when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
-        when(feesConfig.simpleFeesEnabled()).thenReturn(false);
-
-        when(cryptoTransferHandler.calculateFees(any())).thenReturn(fees);
-
-        // when
-        final var result = checker.estimateTxFees(
-                storeFactory, consensusNow, txInfo, ALICE.account().keyOrThrow(), configuration);
-
-        // then
-        assertThat(result).isEqualTo(expectedTotalFee);
-        verify(cryptoTransferHandler).calculateFees(any());
-    }
-
-    @Test
     void testEstimateTxFeesWithSimpleFeesEnabled(@Mock final ReadableStoreFactory storeFactory) {
         final var txInfo = createPaymentInfo(ALICE.accountID());
-        final var feesConfig = mock(FeesConfig.class);
         final var exchangeRateManager = mock(ExchangeRateManager.class);
         final var activeRate =
                 ExchangeRate.newBuilder().hbarEquiv(120).centEquiv(1000).build();
@@ -634,10 +605,6 @@ class QueryCheckerTest extends AppTestBase {
         final var transferFeeResult = new FeeResult(100, 300, 2);
         // hbar equivalent should be 120
         final var expectedFee = 120;
-
-        // Mock config to enable simple fees
-        when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
-        when(feesConfig.simpleFeesEnabled()).thenReturn(true);
 
         // Mock feeManager and calculator
         when(feeManager.getSimpleFeeCalculator()).thenReturn(simpleFeeCalculator);

@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,9 +154,12 @@ class ProofControllerImplTest {
 
     @Test
     void isStillInProgressFalseWhenHasTargetProof() {
+        // isCompleted() requires the proof to be WRAPS-extensible when tss.wrapsEnabled=true
+        // (the new default). Use a proof that satisfies isWrapsExtensible so the test correctly
+        // verifies that a fully-finished construction is no longer in progress.
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(aValidProof())
+                .targetProof(recursiveProof("compressed", "uncompressed"))
                 .build();
 
         subject = new ProofControllerImpl(
@@ -877,7 +881,7 @@ class ProofControllerImplTest {
         subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
-        verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(Set.of(SELF_ID)));
+        verify(writableHistoryStore).clearProofVotes(eq(CONSTRUCTION_ID), eq(new TreeSet<>(List.of(SELF_ID))));
     }
 
     @Test

@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli;
 
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.util.FileSigningUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -14,6 +13,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.pcli.utility.FileSigningUtils;
 import picocli.CommandLine;
 
 /**
