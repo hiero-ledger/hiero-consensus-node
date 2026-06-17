@@ -3,3 +3,7 @@ adhoc-solo-version=0.76.0
 adhoc-xts-solo-version=0.76.0
 citr-mirror-node-version=0.145.2
 mqpt-cluster=Dallas_n10
+tck-version=v0.11.0
+js-sdk-version=v2.85.0
+block-node-version=v0.35.1
+bn-mirror-node-version=v0.156.0
