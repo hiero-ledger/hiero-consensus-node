@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "816: [CALL] Build State Validator"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: false
+        type: string
+      dry-run-enabled:
+        description: "If true, perform a dry run without publishing"
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: false
+        type: string
+      dry-run-enabled:
+        description: "If true, perform a dry run without publishing"
+        required: false
+        type: string
+        default: "false"
+    outputs:
+      gcs-uri:
+        description: "GCS URI of the published uber JAR"
+        value: ${{ jobs.build-publish.outputs.gcs-uri }}
+
+permissions:
+  contents: read
+  id-token: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-publish:
+    name: Build & Publish State Validator Uber JAR
+    needs:
+      - extract-jdk-version
+    runs-on: hl-cn-state-validator-lin
+    outputs:
+      gcs-uri: ${{ steps.upload.outputs.gcs_uri || '' }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.sha }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-distribution: "temurin"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Build State Validator Uber shadowJar
+        run: |
+          ./gradlew --no-daemon --stacktrace :hedera-state-validator:shadowJar
+
+      - name: Determine version and artifact
+        id: version-and-artifact
+        run: |
+          set -euo pipefail
+          FULL_VER=$(./gradlew --no-daemon :hedera-state-validator:properties | grep '^version:' | cut -d ' ' -f2)
+          # Remove -SNAPSHOT suffix if present
+          VER_WITHOUT_SNAPSHOT=${FULL_VER%-SNAPSHOT}
+          # Extract major.minor (first two segments)
+          MAJOR_MINOR=$(echo "$VER_WITHOUT_SNAPSHOT" | cut -d '.' -f1-2)
+
+          # Locate the Shadow (uber) JAR built by the module
+          # Shadow defaults to "-all" classifier; pick the most recent matching jar
+          ART_DIR="hedera-state-validator/build/libs"
+          if [[ ! -d "${ART_DIR}" ]]; then
+            echo "Artifact directory not found: ${ART_DIR}" >&2; exit 1
+          fi
+          JAR_PATH="$(ls -1t "${ART_DIR}"/*-all.jar 2>/dev/null | head -n1 || true)"
+          if [[ -z "${JAR_PATH}" ]]; then
+            # fallback to any jar if classifier is customized
+            JAR_PATH="$(ls -1t "${ART_DIR}"/*.jar 2>/dev/null | head -n1 || true)"
+          fi
+          if [[ -z "${JAR_PATH}" ]]; then
+            echo "No jar found in ${ART_DIR}" >&2; exit 1
+          fi
+
+          DEST_NAME="hedera-state-validator-${MAJOR_MINOR}.jar"
+          echo "full_ver=${FULL_VER}" >> "${GITHUB_OUTPUT}"
+          echo "major_minor=${MAJOR_MINOR}" >> "${GITHUB_OUTPUT}"
+          echo "jar_path=${JAR_PATH}" >> "${GITHUB_OUTPUT}"
+          echo "dest_name=${DEST_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Authenticate to Google Cloud
+        id: gcloud-auth
+        if: ${{ inputs.dry-run-enabled != 'true' }}
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
+          token_format: "access_token"
+          create_credentials_file: true
+
+      - name: Setup Google Cloud SDK
+        id: setup-gcloud
+        if: ${{ inputs.dry-run-enabled != 'true' }}
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          version: "latest"
+          install_components: "gsutil"
+
+      - name: Upload to GCS
+        id: upload
+        if: ${{ inputs.dry-run-enabled != 'true' }}
+        env:
+          SRC: ${{ steps.version-and-artifact.outputs.jar_path }}
+          DEST_NAME: ${{ steps.version-and-artifact.outputs.dest_name }}
+          BUCKET_PATH: "gs://hedera-ci-ephemeral-artifacts/hedera/hedera-state-validator"
+        run: |
+          set -euo pipefail
+          echo "Source: ${SRC}"
+          echo "Destination: ${BUCKET_PATH}/${DEST_NAME}"
+          gsutil -m cp "${SRC}" "${BUCKET_PATH}/${DEST_NAME}"
+          echo "gcs_uri=${BUCKET_PATH}/${DEST_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Summary
+        run: |
+          echo "### Published Hedera State Validator Uber JAR" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Version: ${{ steps.version-and-artifact.outputs.full_ver }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "File: ${{ steps.version-and-artifact.outputs.dest_name }}" >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            echo "GCS URI: Publication skipped due to dry-run mode." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "GCS URI: ${{ steps.upload.outputs.gcs_uri }}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
