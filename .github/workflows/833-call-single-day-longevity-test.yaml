@@ -86,7 +86,7 @@ jobs:
     name: Acquire Kubernetes Resources
     uses: ./.github/workflows/834-call-read-chewie-response.yaml
     with:
-      ref: ${{ inputs.ref }}
+      ref: ${{ github.ref }}
       test-asset: ${{ inputs.test-asset }}
       test-type: "sdlt"
     secrets:
@@ -108,13 +108,22 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
           java-distribution: "temurin"
           java-version: "${{ inputs.java-version }}"
           setup-gradle: "true"
           gradle-version: "wrapper"
+
+      - name: Checkout target CN Code
+        env:
+          GITHUB_PAGES_URL: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/private-hedera-services.git target_consensus_node
+          cd target_consensus_node
+          git checkout ${{ github.ref }}
+          cd "${{ github.workspace }}"
 
       - name: Check Test Asset
         id: set-k8s-cluster
@@ -229,7 +238,7 @@ jobs:
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${{ github.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -240,16 +249,21 @@ jobs:
       - name: Set hederahash sha value
         id: hederahash
         run: |
-          hederahash="$(git rev-parse HEAD)"
+          hederahash="$(git -C target_consensus_node rev-parse HEAD)"
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew clean assemble
+        run: |
+          cd "${{ github.workspace }}"/target_consensus_node
+          ./gradlew clean assemble
+          cd "${{ github.workspace }}"
 
       - name: Build Validator
         run: |
+          cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew --no-daemon :hedera-state-validator:shadowJar
+          cd "${{ github.workspace }}"
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -302,7 +316,7 @@ jobs:
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
-          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
           # Update Init Containers values
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
@@ -351,8 +365,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ github.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ github.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -442,7 +456,7 @@ jobs:
           set +x
           set +e
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
-            cp "${{ github.workspace }}"/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+            cp "${{ github.workspace }}"/target_consensus_node/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
@@ -542,7 +556,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Create report dir
         shell: bash
@@ -699,7 +713,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Create report dir
         shell: bash
@@ -793,8 +807,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ github.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ github.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
 
           #echo "Truncating logs for next test..."
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
@@ -857,7 +871,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Create report dir
         shell: bash
@@ -960,8 +974,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ github.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ github.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/reconnect"
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
@@ -1078,7 +1092,7 @@ jobs:
       - name: Clean branch or tag name from input.ref
         id: clean-branch-name
         run: |
-          raw_ref="${{ inputs.ref }}"
+          raw_ref="${{ github.ref }}"
           echo "Raw input ref: ${raw_ref}"
           clean_ref=""
 
@@ -1179,7 +1193,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*Version*: ${{ inputs.ref }}"
+                        "text": "*Version*: ${{ github.ref }}"
                       },
                       {
                         "type": "mrkdwn",
