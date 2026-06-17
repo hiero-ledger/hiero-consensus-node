@@ -49,11 +49,12 @@ on:
         type: string
         required: false
         default: ""
-      java-version:
-        description: "Java JDK Version:"
+      bnref:
+        description: "BN version"
         type: string
-        required: false
-        default: "25.0.2"
+        required: true
+        default: ""
+
     secrets:
       slack-report-webhook:
         required: true
@@ -80,7 +81,7 @@ env:
 
   #Release version from jFrog
   NLG_VERSION: 0.14.3
-
+  java-version: "25.0.2"
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
@@ -187,7 +188,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ inputs.java-version }}"
+          java-version: "${{ env.java-version }}"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
@@ -1114,7 +1115,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ inputs.java-version }}"
+          java-version: "${{ env.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -1299,7 +1300,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "${{ inputs.java-version }}"
+          java-version: "${{ env.java-version }}"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -1517,7 +1518,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ inputs.java-version }}"
+      java-version: "${{ env.java-version }}"
 
   performance-CryptoTransferLoadTest:
     needs:
@@ -1535,7 +1536,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ inputs.java-version }}"
+      java-version: "${{ env.java-version }}"
 
 
   performance-HeliSwapLoadTest:
@@ -1554,7 +1555,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ inputs.java-version }}"
+      java-version: "${{ env.java-version }}"
 
   performance-SmartContractLoadTest:
     needs:
@@ -1572,7 +1573,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ inputs.java-version }}"
+      java-version: "${{ env.java-version }}"
 
   performance-post-test-validation:
     name: Consensus Node State Validator
