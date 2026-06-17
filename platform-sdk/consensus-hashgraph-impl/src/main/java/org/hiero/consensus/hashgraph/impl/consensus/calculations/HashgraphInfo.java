@@ -90,7 +90,7 @@ public final class HashgraphInfo {
     private long[] candStake; // the total stake of all votes for each candidate event
 
     // these define what each element in benchmarks currently means. Always at least 1. Element 0 must never change.
-    public static final int NUM_BENCHMARKS = 8; // number of elements in long[] getBenchmarks()
+    public static final int NUM_BENCHMARKS = 9; // number of elements in long[] getBenchmarks()
     private static final int BENCHMARK_UPDATE = 0; // time spent in update()
     private static final int BENCHMARK_UPDATE_COUNT = 1; // number of times update() was called
     private static final int BENCHMARK_SEARCH = 2; // graphSearch()
@@ -301,6 +301,7 @@ public final class HashgraphInfo {
      * and call {@link EventInfo#clear EventInfo.clear} to clear the data.
      */
     public static final class EventInfo {
+        private final long eventID; // for debugging, caller could optionally give each event a unique ID
         private HashgraphInfo hashgraph;
         private final long creatorNodeID; // nodeID of this event's creator
         private final Instant timeCreated;
@@ -310,7 +311,7 @@ public final class HashgraphInfo {
         private int creator; // index into the nodes array of this event's creator
         private final long birthRound;
         private boolean[] ancestorJudge;
-        private long gen; // also called dGen
+        private long gen; // also called dGen. Is -1 iff update() has never been called yet on this event
         private EventInfo[] lastSee;
         private EventInfo[] stronglySeeP;
         private EventInfo firstSelfWitnessS;
@@ -340,9 +341,11 @@ public final class HashgraphInfo {
          * parents in the same order as they are listed in the signed event that is gossiped. If there is a self-parent
          * in the array, it must be in the first position. It is ok if the parents array is missing some or all of the
          * ancient parents. It is ok if the array contains some null elements. If an event has no non-ancient parents,
-         * then it is ok to pass in an array of all nulls, or an empty array.
+         * then it is ok to pass in an array of all nulls, or an empty array. The eventID field is not used for
+         * consensus but can be useful for testing / debugging / monitoring.
          *
          * @param hashgraph   which hashgraph this event belongs to (if multiple hashgraphs are simulated in memory)
+         * @param eventID     for debugging, the caller could optionally give each event a unique ID
          * @param creator     the nodeID of the creator of this event
          * @param timeCreated when this event was created, as claimed by its creator node
          * @param birthRound  birth round of this event (which was the pending round at the moment it was created)
@@ -351,18 +354,21 @@ public final class HashgraphInfo {
          */
         public EventInfo(
                 @NonNull HashgraphInfo hashgraph,
+                long eventID,
                 long creator,
                 @NonNull Instant timeCreated,
                 long birthRound,
                 int coin,
                 @NonNull EventInfo[] parents) {
             this.hashgraph = hashgraph;
+            this.eventID = eventID;
             this.creatorNodeID = creator;
             this.timeCreated = timeCreated;
             this.birthRound = birthRound;
             this.parentsSigned = parents;
             this.coin = coin;
             this.isConsensus = false;
+            this.gen = -1; // -1 iff update() has never been called yet on this event
         }
 
         /** True iff this event has reached consensus. (If false, it may still reach consensus later). */
@@ -385,6 +391,8 @@ public final class HashgraphInfo {
         public HashgraphInfo getHashgraph() {
             return hashgraph;
         }
+
+        public long getEventID() {return eventID;}
 
         public long getCreatorNodeID() {
             return creatorNodeID;
@@ -665,14 +673,6 @@ public final class HashgraphInfo {
                 // function minNonAncientRound /------------------------------------------------------------------
                 h.minNonAncientRound = HashgraphInfo.minNonAncientRound(r, rp);
 
-                // if this is the first time this event has been updated, or if this round has a changed address book,
-                // then recalculate the index for the creator.
-                // The index is -1 if the creator is not in this round's address book.
-                if (lastSee == null || h.nodesChanged) {
-                    Integer index = h.nodeIdToIndex.get(creatorNodeID);
-                    creator = (index == null) ? -1 : index;
-                }
-
                 // set isPrevJudge to true for the judges in the previous round
                 for (EventInfo judge : rp.prevJudges) {
                     judge.prevJudge = true;
@@ -698,6 +698,14 @@ public final class HashgraphInfo {
                             ? 2
                             : 1;
                 }
+            } // end if first call for this round
+
+            // if this is the first time this event has been updated, or if this round has a changed address book,
+            // then recalculate the index for the creator.
+            // The index is -1 if the creator is not in this round's address book.
+            if (gen == -1 || h.nodesChanged) {
+                Integer index = h.nodeIdToIndex.get(creatorNodeID);
+                creator = (index == null) ? -1 : index;
             }
 
             final int numNodes = h.numNodes; // make the (possibly updated) value a local constant from here down
@@ -853,6 +861,11 @@ public final class HashgraphInfo {
                     stronglySeeP[m] = (s >= h.supermajorityThreshold) ? y : null;
                 }
             }
+
+            if (gen == 20) {
+                gen = 20;
+            }/**/
+
 
             { // function votingRound /---------------------------------------------------------------------------
                 long p = parentRound;

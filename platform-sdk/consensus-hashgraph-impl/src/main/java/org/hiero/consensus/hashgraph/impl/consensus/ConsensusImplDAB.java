@@ -318,6 +318,7 @@ public class ConsensusImplDAB implements Consensus {
                     event.getAllParents().stream().map(EventImpl::getEventInfo).toArray(EventInfo[]::new);
             final EventInfo eventInfo = new EventInfo(
                     hashgraphInfo,
+                    event.getNGen(),
                     event.getCreatorId().id(),
                     event.getTimeCreated(),
                     event.getBirthRound(),
