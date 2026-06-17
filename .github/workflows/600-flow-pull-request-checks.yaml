@@ -114,7 +114,7 @@ jobs:
         run: |
           echo "Docs-only: ${{ needs.detect-change-type.outputs.docs-only }}"
           echo "MATS result: ${{ needs.mats-pr-checks.result }}"
-          
+
           if [[ "${{ needs.workflow-unit-tests.result }}" == "failure" ]]; then
             echo "Workflow file tests failed."
             exit 1
@@ -163,7 +163,7 @@ jobs:
             echo "------------------------------------"
             echo "### Results"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
-            echo "- **Workflow File Tests:** ${{ needs.workflow-unit-tests.result }}"          
+            echo "- **Workflow File Tests:** ${{ needs.workflow-unit-tests.result }}"
             echo "------------------------------------"
             if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
                 echo "### MATS Test Failures"

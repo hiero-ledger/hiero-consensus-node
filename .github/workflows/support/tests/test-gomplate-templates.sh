@@ -92,6 +92,4 @@ done
 
 echo ""
 echo "Results: ${PASSED} passed, ${FAILED} failed (${TOTAL} total)"
-# fake an error
-FAILED=1
 exit "${FAILED}"
