@@ -39,7 +39,8 @@
 | 600-flow-pull-request-checks.yaml            | 600: [FLOW] PR Checks              | node-flow-pull-request-checks.yaml                     | Node: PR Checks                                                   |
 | 601-flow-pull-request-formatting.yaml        | 601: [FLOW] PR Formatting          | flow-pull-request-formatting.yaml                      | PR Formatting                                                     |
 | 602-flow-merge-queue-controller.yaml         | 602: [FLOW] Merge Queue Controller | 210-flow-merge-queue-controller.yaml                   | 210: [FLOW] Merge Queue Controller                                |
-|                                              |                                    | # AI HELPERS (700-799)                                 |                                                                   |
+|                                              |                                    |                                                        |                                                                   |
+| # AI HELPERS (700-799)                       |                                    |                                                        |                                                                   |
 | 700-flow-copilot-setup-steps.yaml            | 700: [FLOW] Copilot Setup Steps    | 700-flow-copilot-setup-steps.yaml                      | 700: [FLOW] Copilot Setup Steps                                   |
 | 701-flow-auto-unapprove.yaml                 | 701: [FLOW] Auto Unapprove PR      | 080-flow-auto-unapprove.yaml                           | 080: [FLOW] Auto Unapprove PR                                     |
 |                                              |                                    |                                                        |                                                                   |
