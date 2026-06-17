@@ -16,6 +16,8 @@ import java.awt.event.ItemListener;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+
+import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.GuiUtils;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.model.event.EventConstants;
@@ -64,7 +66,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         freezeCheckbox = new Checkbox("Freeze: don't change this window");
         freezeCheckbox.addItemListener(freezeListener);
         simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not");
-        labelRoundCheckbox = new Checkbox("Labels: Round created");
+        labelRoundCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                ? "Labels: Voting round" : "Labels: Round created");
         labelVoteCheckbox = new Checkbox("Labels: Vote");
         labelEventHashCheckbox = new Checkbox("Labels: Event Hash (h)");
         labelRoundRecCheckbox = new Checkbox("Labels: Round received (consensus)");

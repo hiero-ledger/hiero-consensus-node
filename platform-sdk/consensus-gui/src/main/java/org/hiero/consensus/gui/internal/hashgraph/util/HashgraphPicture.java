@@ -274,7 +274,9 @@ public class HashgraphPicture extends JPanel {
         String s = "";
 
         if (options.writeRoundCreated()) {
-            s += " " + event.getRoundCreated();
+            s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                    ? event.getEventInfo().getVotingRound()
+                    : event.getRoundCreated());
         }
         if (options.writeVote() && event.isWitness()) {
             for (int i = 0; i < event.getVotesSize(); i++) {
@@ -311,9 +313,8 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeBirthRound()) {
-            s += " "
-                    + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                            ? event.getEventInfo().getGen()
+            s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                            ? event.getEventInfo().getBirthRound()
                             : event.getBirthRound());
         }
 
