@@ -25,7 +25,7 @@ Once an event has reached consensus, it remains in consensus in every later roun
 
 It is a provable property of the hashgraph consensus algorithm that if an event has reached consensus in some round, it continues to be in consensus in every future round, for as long as it is still non-ancient.
 
-Whether an event has reached consensus is a function of the decided judge sets of the rounds it has reached. A decided judge set is immutable once a supermajority has voted (see INV-007, INV-009), so an event already established as received-by/ordered-against those judges remains so in every later round. The predicate therefore only ever turns on.
+Whether an event has reached consensus is a function determined by the decided judge sets of the rounds it has reached. A decided judge set is immutable once a supermajority has voted (see INV-007, INV-009), so an event already established as received-by/ordered-against those judges remains so in every later round. The predicate therefore only ever turns on.
 
 ## Change risk
 

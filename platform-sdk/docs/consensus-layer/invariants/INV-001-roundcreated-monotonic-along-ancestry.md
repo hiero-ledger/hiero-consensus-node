@@ -17,7 +17,7 @@ source: >
   parent `p`.
 verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java — `recalculateAndVote` (the per-round metadata-clearing step that preserves the property across roster changes)
 provenance: entry originally added by prior elicitation; revised 2026-06-08 (terminology updated to "voting round")
-curated_by: Michael Heinrichs (@netopyr)
+curated_by: Kelly Greco (@poulok)
 ---
 
 # INV-001 — Voting round is monotonic along ancestry
@@ -28,15 +28,13 @@ For every event in the hashgraph, `votingRound(child) >= votingRound(parent)` ho
 
 ## Basis
 
-The hashgraph paper (SWIRLDS-TR-2016-01) defines the round assigned to an event directly in terms of its parents. Definition 5.2:
+The hashgraph paper (SWIRLDS-TR-2016-01) defines `round` directly in terms of parents. Definition 5.2:
 
 > The round created number (or round) of an event x is defined to be `r + i`, where `r` is the maximum round number of the parents of `x` (or 1 if it has no parents), and `i` is defined to be 1 if `x` can strongly see more than 2n/3 witnesses in round `r` (or 0 if it can't).
 
 The `divideRounds` pseudocode (Figure 5 of the paper) implements this directly: for each event `x`, set `r ← max round of parents of x`, then `x.round ← r + 1` if the strongly-sees condition holds, else `x.round ← r`.
 
-For any parent `p` of `x`, the assigned round is `r + i` with `r = max(round of parents of x) ≥ round(p)` and `i ∈ {0, 1}`. Therefore `round(x) ≥ round(p)`. Extending along ancestry — every ancestor is reached by a chain of parent links — gives `round(descendant) ≥ round(ancestor)` for every event in the hashgraph.
-
-The same property holds for the *voting round* (the round the algorithm assigns to an event): `votingRound(x)` is either `parentRound(x)` or `parentRound(x) + 1`, where `parentRound(x)` is the maximum voting round of `x`'s parents; hence `votingRound(x) ≥ parentRound(x) ≥ votingRound(p)` for every parent `p`.
+For any parent `p` of `x`, `round(x) = r + i` with `r = max(round of parents of x) ≥ round(p)` and `i ∈ {0, 1}`. Therefore `round(x) ≥ round(p)`. Extending along ancestry — every ancestor is reached by a chain of parent links — gives `round(descendant) ≥ round(ancestor)` for every event in the hashgraph.
 
 The property is a definitional consequence of how the algorithm assigns rounds, not of any implementation choice. Any consistent realization of the algorithm — regardless of how it stores metadata, batches recalculation, or handles roster changes — must preserve it. If a code path produces a state in which an ancestor's voting round exceeds a descendant's, the round assignment is no longer a valid output of `divideRounds`.
 

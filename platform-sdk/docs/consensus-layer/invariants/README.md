@@ -44,7 +44,6 @@ marks a known correctness gap, not a stale entry.
 | [INV-015](INV-015-honest-event-coin-is-unpredictable.md) | An honest event's coin value is unpredictable | integrity | hashgraph | enforced |
 | [INV-016](INV-016-consensus-order-is-a-strict-total-order.md) | Consensus order is a strict total order with unique ranks | ordering | hashgraph | enforced |
 | [INV-017](INV-017-active-address-book-never-moves-backward.md) | The active address book never moves backward | safety | hashgraph | enforced |
-| [INV-018](INV-018-per-round-roster-governs-voting.md) | Each round's voting is computed against that round's own roster | safety | hashgraph | enforced |
 
 <!--
 Row convention, one line per entry, kept in INV-NNN order:
