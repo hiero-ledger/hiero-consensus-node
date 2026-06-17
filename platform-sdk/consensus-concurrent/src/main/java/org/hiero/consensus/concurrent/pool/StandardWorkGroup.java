@@ -27,7 +27,8 @@ import org.hiero.consensus.concurrent.manager.ThreadManager;
  *
  * <p>The API mirrors {@code StructuredTaskScope} with {@code Joiner.awaitAllSuccessfulOrThrow()} preview feature from JDK structured concurrency.
  */
-// TODO move to {@code StructuredTaskScope} when that is available in a stable JDK release.
+// Future Work:  migrate to StructuredTaskScope when it is available in a stable JDK release, not as preview feature -
+// https://github.com/hiero-ledger/hiero-consensus-node/issues/25696
 public class StandardWorkGroup implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(StandardWorkGroup.class);
@@ -201,7 +202,6 @@ public class StandardWorkGroup implements AutoCloseable {
         }
 
         if (interrupted) {
-            Thread.currentThread().interrupt();
             throw new InterruptedException();
         }
 

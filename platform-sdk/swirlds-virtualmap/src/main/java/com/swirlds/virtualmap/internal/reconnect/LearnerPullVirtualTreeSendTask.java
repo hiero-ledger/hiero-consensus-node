@@ -7,12 +7,9 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A task running on the learner side, which is responsible for sending requests to the teacher.
@@ -23,11 +20,9 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  *
  * <p>This tasks terminates either on exception or when no path is available to send (when {@link Path#INVALID_PATH} is returned by the exchanger).
  */
-public class LearnerPullVirtualTreeSendTask {
+public class LearnerPullVirtualTreeSendTask implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeSendTask.class);
-
-    private static final String NAME = "reconnect-learner-sender";
 
     private final AsyncOutputStream out;
     private final LearnerTreeExchanger treeExchanger;
@@ -52,18 +47,11 @@ public class LearnerPullVirtualTreeSendTask {
     }
 
     /**
-     * Start the background thread that sends requests to the teacher.
-     */
-    public void exec(final @NonNull StandardWorkGroup workGroup) {
-        Objects.requireNonNull(workGroup, "workGroup must not be null");
-        workGroup.fork(NAME, this::run);
-    }
-
-    /**
      * Main loop for the sender thread. Continuously queries the view for the next path to
      * request. Task finishes when all paths are exhausted ({@link Path#INVALID_PATH} is returned).
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 final long path = treeExchanger.getNextPathToSend();

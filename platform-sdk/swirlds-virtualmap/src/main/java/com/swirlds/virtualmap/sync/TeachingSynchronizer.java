@@ -101,9 +101,10 @@ public class TeachingSynchronizer {
             final int teacherTasks = 16;
             final CountDownLatch tasksDone = new CountDownLatch(teacherTasks);
             for (int i = 0; i < teacherTasks; i++) {
-                final TeacherPullVirtualTreeReceiveTask teacherReceiveTask = new TeacherPullVirtualTreeReceiveTask(
-                        time, reconnectConfig, input, output, teacherView, tasksDone);
-                teacherReceiveTask.exec(workGroup);
+                workGroup.fork(
+                        "reconnect-teacher-receiver",
+                        new TeacherPullVirtualTreeReceiveTask(
+                                time, reconnectConfig, input, output, teacherView, tasksDone));
             }
 
             // when all receive tasks done, output can be closed, which signals the learner that no more responses will

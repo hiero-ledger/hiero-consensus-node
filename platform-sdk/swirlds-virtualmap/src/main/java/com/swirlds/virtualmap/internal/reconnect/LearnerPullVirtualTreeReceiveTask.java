@@ -5,9 +5,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
@@ -17,9 +14,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * For every response from the teacher, the learner view is notified, which in turn notifies
  * the current traversal order, so it can recalculate the next virtual path to request.
  */
-public class LearnerPullVirtualTreeReceiveTask {
-
-    private static final String NAME = "reconnect-learner-receiver";
+public class LearnerPullVirtualTreeReceiveTask implements Runnable {
 
     private final AsyncInputStream in;
     private final LearnerTreeExchanger treeExchanger;
@@ -38,19 +33,12 @@ public class LearnerPullVirtualTreeReceiveTask {
     }
 
     /**
-     * Start the background thread that receives responses from the teacher.
-     */
-    public void exec(final @NonNull StandardWorkGroup workGroup) {
-        Objects.requireNonNull(workGroup, "workGroup must not be null");
-        workGroup.fork(NAME, this::run);
-    }
-
-    /**
      * Main loop for the receiver thread. Reads responses from the async input stream,
      * tracks reconnect statistics, and delegates to the learner view.
      * Terminates when input streams returns no more messages to process.
      */
-    private void run() {
+    @Override
+    public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
             if (responseBytes == null) {

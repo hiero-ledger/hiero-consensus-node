@@ -13,12 +13,10 @@ import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -31,11 +29,9 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *
  * <p>This task terminates either on exception or when no messages are returned by {@link AsyncInputStream}.
  */
-public class TeacherPullVirtualTreeReceiveTask {
+public class TeacherPullVirtualTreeReceiveTask implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeReceiveTask.class);
-
-    private static final String NAME = "reconnect-teacher-receiver";
 
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
@@ -77,14 +73,6 @@ public class TeacherPullVirtualTreeReceiveTask {
     }
 
     /**
-     * Start the thread that sends lessons and queries to the learner.
-     */
-    public void exec(final @NonNull StandardWorkGroup workGroup) {
-        Objects.requireNonNull(workGroup, "workGroup must not be null");
-        workGroup.fork(NAME, this::run);
-    }
-
-    /**
      * Enforce the rate limit.
      *
      * @throws InterruptedException if the thread is interrupted while sleeping
@@ -100,7 +88,8 @@ public class TeacherPullVirtualTreeReceiveTask {
     /**
      * This thread is responsible for sending lessons (and nested queries) to the learner.
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             long requestCounter = 0;
             final long start = System.currentTimeMillis();

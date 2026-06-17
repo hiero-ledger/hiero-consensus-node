@@ -134,18 +134,16 @@ public class LearningSynchronizer {
 
             // FUTURE WORK: configurable number of tasks
             for (int i = 0; i < 16; i++) {
-                final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
-                        new LearnerPullVirtualTreeReceiveTask(input, exchanger);
-                learnerReceiveTask.exec(workGroup);
+                workGroup.fork("reconnect-learner-receiver", new LearnerPullVirtualTreeReceiveTask(input, exchanger));
             }
 
             // FUTURE WORK: configurable number of tasks
             final int learnerSendTasks = 16;
             final CountDownLatch sendTasksDone = new CountDownLatch(learnerSendTasks);
             for (int i = 0; i < learnerSendTasks; i++) {
-                final LearnerPullVirtualTreeSendTask learnerSendTask =
-                        new LearnerPullVirtualTreeSendTask(output, exchanger, sendTasksDone);
-                learnerSendTask.exec(workGroup);
+                workGroup.fork(
+                        "reconnect-learner-sender",
+                        new LearnerPullVirtualTreeSendTask(output, exchanger, sendTasksDone));
             }
 
             // when all send tasks done, output can be closed, which signals the teacher that no more requests will be
