@@ -44,10 +44,16 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
+      NLGDparams:
+        description: "NLG -D vars"
+        type: string
+        required: false
+        default: ""
       java-version:
         description: "Java JDK Version:"
         type: string
         required: false
+        default: "25.0.2"
     secrets:
       slack-report-webhook:
         required: true

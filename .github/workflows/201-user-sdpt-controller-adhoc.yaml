@@ -156,7 +156,7 @@ jobs:
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       delete-namespace: ${{ inputs.delete-namespace }}
-      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      #java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       NLGDparams: "${{ inputs.NLGDparams }}"
       bnref: "${{ inputs.bnref }}"
 
