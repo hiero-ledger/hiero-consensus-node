@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-006
 title: Every round eventually has at least one judge, for infinitely many rounds (probability 1)
 class: liveness

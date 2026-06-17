@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-009
 title: A decided election never flips — self-descendants keep the decided vote forever
 class: safety

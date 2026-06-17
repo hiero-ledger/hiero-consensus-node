@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-010
 title: Consensus runs on a hashgraph whose parent links are non-ancient and have matching claimed birth rounds
 class: integrity

@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-007
 title: All deciders of a round agree on its judge set
 class: agreement

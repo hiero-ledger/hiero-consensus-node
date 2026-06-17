@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-014
 title: Every round has a supermajority of judges
 class: safety

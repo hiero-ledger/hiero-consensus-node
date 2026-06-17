@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-017
 title: The active address book never moves backward — roster and stake changes apply forward-only
 class: safety

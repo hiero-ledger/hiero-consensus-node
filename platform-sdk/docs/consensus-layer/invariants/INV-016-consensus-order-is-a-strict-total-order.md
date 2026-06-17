@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-016
 title: Consensus order is a strict total order with unique, gap-free ranks
 class: ordering

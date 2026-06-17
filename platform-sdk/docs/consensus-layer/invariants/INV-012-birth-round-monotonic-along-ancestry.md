@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-012
 title: Birth round is monotonic along ancestry — a parent's birth round never exceeds its child's
 class: safety

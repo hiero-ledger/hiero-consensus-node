@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-003
 title: Consensus timestamp is agreed by all nodes — any two nodes that timestamp an event report the same timestamp
 class: agreement

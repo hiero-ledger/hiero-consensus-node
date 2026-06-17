@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-013
 title: The minimum non-ancient round never decreases — the ancient boundary only moves forward
 class: safety

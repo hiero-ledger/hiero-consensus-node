@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-004
 title: Staleness is agreed by all nodes — a stale event is stale on every node
 class: agreement

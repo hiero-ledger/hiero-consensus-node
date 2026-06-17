@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-008
 title: Consensus, once reached, is permanent — a decision is never reverted while the event is non-ancient
 class: safety

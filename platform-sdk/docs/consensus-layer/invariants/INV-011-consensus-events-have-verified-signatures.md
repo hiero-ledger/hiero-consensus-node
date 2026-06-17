@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-011
 title: Every event used in consensus has a verified creator signature
 class: integrity

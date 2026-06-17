@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-015
 title: An honest event's coin value is unpredictable to the creators of its ancestors
 class: integrity

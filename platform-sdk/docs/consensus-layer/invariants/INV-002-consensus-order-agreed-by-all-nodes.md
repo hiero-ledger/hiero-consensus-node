@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-002
 title: Consensus order is agreed by all nodes — any two nodes that order an event report the same order
 class: agreement

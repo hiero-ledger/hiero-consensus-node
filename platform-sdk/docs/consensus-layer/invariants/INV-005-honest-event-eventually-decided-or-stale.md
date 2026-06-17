@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-005
 title: Every honest event eventually reaches consensus or becomes stale (probability 1)
 class: liveness
