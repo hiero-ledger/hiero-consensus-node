@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -23,11 +24,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
@@ -62,6 +66,7 @@ import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -112,6 +117,49 @@ public class CryptoUpdateSimpleFeesTest {
                             .payingWith(PAYER)
                             .signedBy(PAYER, adminKey)
                             .via(cryptoUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            cryptoUpdateTxn,
+                            txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(cryptoUpdateTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("CryptoUpdate - update max automatic associations - base fees charged")
+        final Stream<DynamicTest> cryptoUpdateMaxAutoAssociationsBaseFeesCharged() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(adminKey),
+                    cryptoCreate(ACCOUNT).key(adminKey),
+                    cryptoUpdate(ACCOUNT)
+                            .maxAutomaticAssociations(11)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, adminKey)
+                            .via(cryptoUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            cryptoUpdateTxn,
+                            txnSize -> expectedCryptoUpdateFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(cryptoUpdateTxn, PAYER));
+        }
+
+        @LeakyHapiTest(overrides = {"entities.maxLifetime"})
+        @DisplayName("CryptoUpdate - extend account expiry - base fees charged")
+        final Stream<DynamicTest> cryptoUpdateExpiryBaseFeesCharged() {
+            final AtomicLong expiry = new AtomicLong();
+            return hapiTest(
+                    overriding("entities.maxLifetime", "3153600000"),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(adminKey),
+                    cryptoCreate(ACCOUNT).key(adminKey).autoRenewSecs(THREE_MONTHS_IN_SECONDS),
+                    getAccountInfo(ACCOUNT).exposingExpiry(expiry::set),
+                    sourcing(() -> cryptoUpdate(ACCOUNT)
+                            .expiring(expiry.get() + THREE_MONTHS_IN_SECONDS)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, adminKey)
+                            .via(cryptoUpdateTxn)),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
                             txnSize -> expectedCryptoUpdateFullFeeUsd(
