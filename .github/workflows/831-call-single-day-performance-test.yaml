@@ -1518,7 +1518,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ env.java-version }}"
+      #java-version: "${{ env.java-version }}"
 
   performance-CryptoTransferLoadTest:
     needs:
@@ -1536,7 +1536,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ env.java-version }}"
+      #java-version: "${{ env.java-version }}"
 
 
   performance-HeliSwapLoadTest:
@@ -1555,7 +1555,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ env.java-version }}"
+      #java-version: "${{ env.java-version }}"
 
   performance-SmartContractLoadTest:
     needs:
@@ -1573,7 +1573,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
       k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-      java-version: "${{ env.java-version }}"
+      #java-version: "${{ env.java-version }}"
 
   performance-post-test-validation:
     name: Consensus Node State Validator
