@@ -323,6 +323,27 @@ class CryptoUpdateFeeCalculatorTest {
         }
 
         @Test
+        @DisplayName("calculateTxFee with no memo set charges base fee without throwing")
+        void calculateTxFeeWithNoMemo() {
+            // Simple-fee replacement for the legacy null-account-memo crash test: the calculator
+            // prices purely from the transaction body op and never reads the account memo, so an
+            // absent memo just yields the base fee.
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
+
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            assertThat(result).isNotNull();
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(1200000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
+        }
+
+        @Test
         @DisplayName("verify getTransactionType returns CRYPTO_UPDATE_ACCOUNT")
         void verifyTransactionType() {
             // Given
