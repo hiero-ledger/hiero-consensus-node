@@ -8,11 +8,6 @@ name: "104: [USER] WRAPS Runner Smoke Test"
 on:
   workflow_dispatch:
     inputs:
-      runner-label:
-        description: "Runner label to test"
-        type: string
-        required: false
-        default: "hl-cn-hapi-wraps-lin-lg"
       artifacts-path:
         description: "Expected mount path of the WRAPS proving-key artifacts"
         type: string
@@ -29,9 +24,14 @@ permissions:
 jobs:
   smoke-test:
     name: "WRAPS Artifacts Smoke Test"
-    runs-on: ${{ inputs.runner-label }}
+    runs-on: hl-cn-hapi-wraps-lin-lg
     timeout-minutes: 15
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
       - name: Verify WRAPS proving-key artifacts
         env:
           ARTIFACTS_PATH: ${{ inputs.artifacts-path }}
