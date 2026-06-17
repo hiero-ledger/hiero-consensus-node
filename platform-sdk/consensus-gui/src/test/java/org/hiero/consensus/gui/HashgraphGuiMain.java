@@ -25,7 +25,7 @@ public class HashgraphGuiMain {
 
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
-                .maxOtherParents(2)
+                .maxOtherParents(4) // 2 /**/
                 .seed(0)
                 .build();
 
