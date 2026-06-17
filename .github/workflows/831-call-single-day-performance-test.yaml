@@ -461,7 +461,7 @@ jobs:
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout fix/tss-wraps-artifacts-path-4658 #${{ inputs.solo-version }}
+          git checkout ${{ inputs.solo-version }}
           #echo > resources/templates/application.properties
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
