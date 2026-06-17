@@ -1,3 +1,10 @@
+---
+type: tunable-catalog
+title: Tunables — Catalog
+description: Catalog of consensus-layer configurable parameters (TUN-NNN) organised by config record, with key, type, default, effect, range, and fragility columns.
+last_reviewed: TBD
+---
+
 # Tunables — Catalog
 
 Catalog of consensus-layer configurable parameters, referenced from other KB
@@ -389,7 +396,7 @@ Module: `consensus-gossip`. Source: [GossipConfig.java](../../consensus-gossip/s
 |   ID    |                   Key                   |            Type             | Default |                                                                 Effect                                                                  | Range | Fragility |
 |---------|-----------------------------------------|-----------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
 | TUN-147 | `gossip.interfaceBindings`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node interface bindings used in `SocketFactory`; overrides default network behavior in specialized environments (containers, etc.). |       | —         |
-| TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionCreator`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
+| TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionManager`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
 | TUN-149 | `gossip.connectionServerThreadPriority` | int                         | `5`     | Priority for threads listening for incoming gossip connections.                                                                         |       | —         |
 | TUN-150 | `gossip.hangingThreadDuration`          | Duration                    | `60s`   | How long a gossip thread is allowed to wait on shutdown before logging an error.                                                        |       | —         |
 
