@@ -36,7 +36,6 @@ tasks:
       - task: "install:kubectl:darwin"
       - task: "install:kubectl:linux"
       - task: "install"
-      - task: "start"
 
   install:
     desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
@@ -47,8 +46,14 @@ tasks:
       - task: "solo:cluster-ref:connect"
       - task: "solo:deployment:create"
       - task: "solo:deployment:add-cluster"
+
+  installCNs:
+    desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
+    cmds:
       - task: "solo:keys"
       - task: "solo:network:deploy"
+      - task: "solo:node:setup"
+      #- task: "start"
 
   destroy:
     cmds:
@@ -253,7 +258,6 @@ tasks:
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${APPLICATION_ENVIRONMENT_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
         fi
-      - task: "solo:node:setup"
 
   solo:node:setup:
     silent: true
@@ -623,3 +627,17 @@ tasks:
           kubectl exec -it {{.postgres_container_name}} \
           -n {{.postgres_database_namespace}} \
           -- /bin/bash /tmp/init.sh "{{.postgres_username}}" "{{.postgres_readonly_username}}" "{{.postgres_readonly_password}}"
+
+  solo:block:add:
+    silent: true
+    desc: solo block node add
+    cmds:
+      - |
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo block node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} ${SOLO_CHARTS_DIR_FLAG} ${BLOCK_NODE_ADD_EXTRA_FLAGS} -q --dev
+
+  solo:block:destroy:
+    silent: true
+    desc: solo block node destroy
+    cmds:
+      - |
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo block node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --force -q --dev || true

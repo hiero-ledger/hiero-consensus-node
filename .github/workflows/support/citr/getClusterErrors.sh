@@ -41,3 +41,5 @@ do
   sh ${TOOLDIR}/kubectlt -n ${NAMESPACE} cp -c root-container network-node${i}-0:${NODE_ROOT}/settingsUsed.txt podlog_${NAMESPACE}/network-node${i}_logs/config/settingsUsed.txt
 
 done
+
+sh $TOOLDIR/getBlockNodeErrors.sh ${NAMESPACE}

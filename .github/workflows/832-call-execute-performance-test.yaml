@@ -91,7 +91,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Validate Input Parameters
@@ -240,6 +240,12 @@ jobs:
           kubectl -n "${{ inputs.k8s-namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
+
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ inputs.k8s-namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
 
       - name: Wait for test completion
         run: |

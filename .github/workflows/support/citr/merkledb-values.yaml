@@ -1,48 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0
-apiVersion: v1
-kind: Pod
-metadata:
-  name: merklebench
-spec:
-  containers:
-    - name: ubuntu
-      image: ubuntu:22.04
-      command: ["/bin/bash", "-c", "--"]
-      args: ["while true; do sleep 30; done;"]
-      securityContext:
-        privileged: true
-        runAsUser: 0
-      volumeMounts:
-        - mountPath: /host
-          name: host-volume
-  volumes:
-    - name: host-volume
-      hostPath:
-        path: /
-  restartPolicy: Never
-  nodeSelector:
-    solo.hashgraph.io/role: "consensus-node"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+replicas: 1
 
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "consensus-node"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+resources:
+  limits:
+    cpu: 20
+    memory: 32Gi
+  requests:
+    cpu: 20
+    memory: 32Gi
 
-  resources:
-    limits:
-      cpu: 32
-      memory: 256Gi
-    requests:
-      cpu: 32
-      memory: 256Gi
+nodeSelector:
+  solo.hashgraph.io/role: "consensus-node"
+  solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+  solo.hashgraph.io/network-id: "%NETWORK_ID%"
+tolerations:
+  - key: "solo.hashgraph.io/role"
+    operator: "Equal"
+    value: "consensus-node"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/owner"
+    operator: "Equal"
+    value: "%NETWORK_OWNER%"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/network-id"
+    operator: "Equal"
+    value: "%NETWORK_ID%"
+    effect: "NoSchedule"
