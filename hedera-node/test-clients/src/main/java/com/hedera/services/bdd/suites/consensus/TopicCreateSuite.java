@@ -182,8 +182,8 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"),
                 validateChargedUsdWithinWithTxnSize(
                         "createTopic",
-                        txnSize -> expectedTopicCreateFullFeeUsd(
-                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                         0.001));
     }
 
@@ -202,8 +202,8 @@ public class TopicCreateSuite {
                         .hasAutoRenewAccount("autoRenewAccount"),
                 validateChargedUsdWithinWithTxnSize(
                         "createTopic",
-                        txnSize -> expectedTopicCreateFullFeeUsd(
-                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                         0.001));
     }
 

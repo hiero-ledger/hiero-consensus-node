@@ -93,8 +93,8 @@ public class TopicDeleteSuite {
                 deleteTopic("testTopic").blankMemo().payingWith("payer").via("topicDelete"),
                 validateChargedUsdWithinWithTxnSize(
                         "topicDelete",
-                        txnSize -> expectedTopicDeleteFullFeeUsd(
-                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                         0.001));
     }
 }

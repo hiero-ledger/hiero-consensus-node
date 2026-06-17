@@ -150,8 +150,8 @@ class AtomicTopicDeleteSuite {
                 validateInnerChargedUsdWithinWithTxnSize(
                         "topicDelete",
                         ATOMIC_BATCH,
-                        txnSize -> expectedTopicDeleteFullFeeUsd(
-                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                         0.001));
     }
 }

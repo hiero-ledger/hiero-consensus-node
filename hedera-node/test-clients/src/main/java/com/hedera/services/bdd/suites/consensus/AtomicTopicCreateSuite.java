@@ -225,8 +225,8 @@ class AtomicTopicCreateSuite {
                 validateInnerChargedUsdWithinWithTxnSize(
                         "createTopic",
                         ATOMIC_BATCH,
-                        txnSize -> expectedTopicCreateFullFeeUsd(
-                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                         0.001));
     }
 
@@ -250,8 +250,8 @@ class AtomicTopicCreateSuite {
                 validateInnerChargedUsdWithinWithTxnSize(
                         "createTopic",
                         ATOMIC_BATCH,
-                        txnSize -> expectedTopicCreateFullFeeUsd(
-                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                         0.001));
     }
 
