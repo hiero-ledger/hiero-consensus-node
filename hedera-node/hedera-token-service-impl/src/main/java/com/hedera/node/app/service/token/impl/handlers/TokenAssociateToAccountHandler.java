@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST;
-import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.TOKEN_ID_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.hasAccountNumOrAlias;
@@ -26,16 +25,12 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenAssociateUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenListChecks;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -186,40 +181,8 @@ public class TokenAssociateToAccountHandler extends BaseTokenHandler implements 
         return !tokenAssociationsLimited || (numAssociations + tokenIds.size() <= maxTokensPerAccount);
     }
 
-    private record Validated(@NonNull Account account, @NonNull List<Token> tokens) {}
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var op = body.tokenAssociateOrThrow();
-
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(DEFAULT);
-        final var unlimitedAssociationsEnabled =
-                feeContext.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-
-        // If the unlimited auto-associations feature is enabled, we calculate the fees in a new way, because the
-        // association price is changed to $0.05. When the feature is enabled the feeSchedules.json will be updated
-        // to reflect the price change and the else case will be removed.
-        // Until then, we calculate the fees using the legacy method.
-        // NOTE: If this flag is disabled, the feeSchedules.json should be modified as well
-        if (unlimitedAssociationsEnabled) {
-            calculator.resetUsage();
-            calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-            calculator.addBytesPerTransaction(op.tokens().size());
-            return calculator.calculate();
-        } else {
-            final var accountId = op.accountOrThrow();
-            final var readableAccountStore = feeContext.readableStore(ReadableAccountStore.class);
-            final var account = readableAccountStore.getAccountById(accountId);
-            return feeContext
-                    .feeCalculatorFactory()
-                    .feeCalculator(DEFAULT)
-                    .legacyCalculate(
-                            sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, account));
-        }
-    }
+    private record Validated(
+            @NonNull Account account, @NonNull List<Token> tokens) {}
 
     private FeeData usageGiven(
             final com.hederahashgraph.api.proto.java.TransactionBody txn,

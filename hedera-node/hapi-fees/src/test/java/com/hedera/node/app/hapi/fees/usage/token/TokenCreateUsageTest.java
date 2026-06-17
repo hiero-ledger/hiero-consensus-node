@@ -50,7 +50,7 @@ class TokenCreateUsageTest {
     private final int sigSize = 100;
     private final int numPayerKeys = 1;
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
-    private final AccountID autoRenewAccount = IdUtils.asAccount("0.0.75231");
+    private final AccountID autoRenewAccount = IdUtils.asAccount(75231L);
 
     private final TokenOpsUsage tokenOpsUsage = new TokenOpsUsage();
     private TokenCreateTransactionBody op;
@@ -261,7 +261,7 @@ class TokenCreateUsageTest {
         }
         if (withCustomFees) {
             builder.addCustomFees(CustomFee.newBuilder()
-                    .setFeeCollectorAccountId(IdUtils.asAccount("0.0.1234"))
+                    .setFeeCollectorAccountId(IdUtils.asAccount(1234L))
                     .setFixedFee(FixedFee.newBuilder().setAmount(123)));
         }
         op = builder.build();

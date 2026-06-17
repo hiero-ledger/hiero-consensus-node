@@ -338,7 +338,8 @@ public class IssueRegressionTests {
                         .payingWith(payer)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("simpleContractCreate"),
-                validateChargedUsd("legacyContractCreate", 0.7505),
+                // simple fees are always used now, so the toggle no longer changes the charged fee
+                validateChargedUsd("legacyContractCreate", 1.02),
                 validateChargedUsd("simpleContractCreate", 1.02));
     }
 

@@ -237,8 +237,9 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
                             });
                             updSigRequired.ifPresent(u -> builder.setReceiverSigRequiredWrapper(BoolValue.of(u)));
                             if (useContractKey) {
-                                builder.setKey(
-                                        Key.newBuilder().setContractID(HapiPropertySource.asContract("0.0.1234")));
+                                builder.setKey(Key.newBuilder()
+                                        .setContractID(
+                                                HapiPropertySource.asContract(spec.shard(), spec.realm(), 1234L)));
                             } else {
                                 updKey.ifPresent(builder::setKey);
                             }

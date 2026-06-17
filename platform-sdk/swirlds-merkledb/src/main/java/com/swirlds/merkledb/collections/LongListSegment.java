@@ -94,14 +94,15 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * <p>If the list size in the file is greater than the capacity, an
      * {@link IllegalArgumentException} is thrown.
      *
-     * @param path          The file to load the long list from
+     * @param file          The file to load the long list from
      * @param capacity      Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListSegment(@NonNull final Path path, final long capacity, @NonNull final Configuration configuration)
+    public LongListSegment(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
             throws IOException {
-        super(path, capacity, configuration);
+        super(capacity, configuration);
+        loadFromFile(file);
     }
 
     /**
@@ -111,21 +112,17 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * <p>If the list size in the file is greater than the capacity, an
      * {@link IllegalArgumentException} is thrown.
      *
-     * @param path               The file to load the long list from
+     * @param file               The file to load the long list from
      * @param longsPerChunk      Number of longs to store in each chunk
      * @param capacity           Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length before the minimal valid index
-     * @param configuration      Platform configuration
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListSegment(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            @NonNull final Configuration configuration)
+            @NonNull final Path file, final int longsPerChunk, final long capacity, final long reservedBufferSize)
             throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+        super(longsPerChunk, capacity, reservedBufferSize);
+        loadFromFile(file);
     }
 
     // =========================================================================
@@ -211,16 +208,22 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * <p>Performs a compare-and-set operation at the given sub-index within the chunk.
      *
-     * <p>If the chunk's arena has been closed by a concurrent {@link #closeChunk} call,
-     * the operation returns {@code false}. This is equivalent to the fast-path in
-     * {@link AbstractLongList#putIfEqual(long, long, long)} that returns {@code false}
-     * when the chunk slot is already {@code null} — the chunk no longer participates
-     * in the valid range.
+     * <p>This method may be called in parallel to updating this list's valid range using
+     * {@link #updateValidRange(long, long)}. For example, a flush is happening on the
+     * virtual lifecycle thread, and compaction is in progress on a compaction thread. When
+     * the valid range is updated, some chunks may be cleaned up and closed. Trying to set
+     * a value in closed chunks results in an illegal state exception. This method should
+     * be ready to handle those.
      */
     @Override
     protected boolean putIfEqual(
             @NonNull final SegmentChunk chunk, final int subIndex, final long oldValue, final long newValue) {
-        return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
+        try {
+            return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
+        } catch (final IllegalStateException e) {
+            // The segment is closed in a parallel thread
+            return false;
+        }
     }
 
     // =========================================================================
