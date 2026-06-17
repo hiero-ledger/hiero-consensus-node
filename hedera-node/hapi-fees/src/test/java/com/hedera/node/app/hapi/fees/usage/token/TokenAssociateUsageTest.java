@@ -31,8 +31,8 @@ class TokenAssociateUsageTest {
     private final int sigSize = 100;
     private final int numPayerKeys = 1;
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
-    private final TokenID firstId = IdUtils.asToken("0.0.75231");
-    private final TokenID secondId = IdUtils.asToken("0.0.75232");
+    private final TokenID firstId = IdUtils.asToken(75231L);
+    private final TokenID secondId = IdUtils.asToken(75232L);
     private final AccountID id = IdUtils.asAccount("1.2.3");
 
     private TokenAssociateTransactionBody op;

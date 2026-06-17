@@ -18,15 +18,12 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -108,13 +105,12 @@ class PlatformWiringTests {
                 pcesModule,
                 hashgraphModule,
                 gossipModule);
-        PlatformWiring.wire(
-                platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
+        PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents, null);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
-        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
+        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
@@ -126,8 +122,6 @@ class PlatformWiringTests {
                 .withStateHasher(mock(StateHasher.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class))
                 .withHashLogger(mock(HashLogger.class))
-                .withBranchDetector(mock(BranchDetector.class))
-                .withBranchReporter(mock(BranchReporter.class))
                 .withStateSigner(mock(StateSigner.class))
                 .withTransactionHandler(mock(DefaultTransactionHandler.class));
 

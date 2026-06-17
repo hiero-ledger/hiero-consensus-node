@@ -154,9 +154,12 @@ class ProofControllerImplTest {
 
     @Test
     void isStillInProgressFalseWhenHasTargetProof() {
+        // isCompleted() requires the proof to be WRAPS-extensible when tss.wrapsEnabled=true
+        // (the new default). Use a proof that satisfies isWrapsExtensible so the test correctly
+        // verifies that a fully-finished construction is no longer in progress.
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
-                .targetProof(aValidProof())
+                .targetProof(recursiveProof("compressed", "uncompressed"))
                 .build();
 
         subject = new ProofControllerImpl(
