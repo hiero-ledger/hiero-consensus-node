@@ -16,6 +16,7 @@ apply it before filing here.
 
 ```yaml
 ---
+type: invariant
 id: INV-NNN
 title: Short declarative title — the property in a phrase
 class: safety                         # safety | liveness | agreement | ordering | integrity | determinism
@@ -98,6 +99,7 @@ entries, history. Omit the section if empty.
 
 ```markdown
 ---
+type: invariant
 id: INV-NNN
 title: ...
 class: safety

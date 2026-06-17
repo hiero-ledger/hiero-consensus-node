@@ -7,14 +7,13 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -28,6 +27,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * streams serialize objects to the underlying output streams in a separate thread. This is
  * where the provided hash from the learner is compared with the corresponding hash on the
  * teacher.
+ *
+ * <p>This task terminates either on exception or when no messages are returned by {@link AsyncInputStream}.
  */
 public class TeacherPullVirtualTreeReceiveTask {
 
@@ -39,7 +40,7 @@ public class TeacherPullVirtualTreeReceiveTask {
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final RecordAccessor teacherView;
-    private final AtomicInteger tasksDone;
+    private final CountDownLatch tasksDone;
 
     private final RateLimiter rateLimiter;
     private final int sleepNanos;
@@ -61,7 +62,7 @@ public class TeacherPullVirtualTreeReceiveTask {
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final RecordAccessor teacherView,
-            final AtomicInteger tasksDone) {
+            final CountDownLatch tasksDone) {
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
@@ -114,10 +115,11 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final PullVirtualTreeRequest request =
                         PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
-                if (request.path() == Path.INVALID_PATH) {
-                    logger.info(RECONNECT.getMarker(), "Teaching is complete as requested by the learner");
-                    break;
+
+                if (request.path() < 0) {
+                    throw new IllegalStateException("Invalid path received from learner: " + request.path());
                 }
+
                 final long path = request.path();
                 final Hash learnerHash = request.hash();
                 assert learnerHash != null;
@@ -150,12 +152,7 @@ public class TeacherPullVirtualTreeReceiveTask {
         } catch (final Exception ex) {
             workGroup.handleError(ex);
         } finally {
-            // Once all teacher tasks are done, finish the async out. All messages currently
-            // scheduled to send to the learner will be processed before the async output
-            // thread is terminated
-            if (tasksDone.decrementAndGet() == 0) {
-                out.done();
-            }
+            tasksDone.countDown();
         }
     }
 
