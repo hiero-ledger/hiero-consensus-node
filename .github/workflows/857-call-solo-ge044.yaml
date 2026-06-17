@@ -1,45 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "857: [CALL] Compute solo-ge-0440 Gate"
-
+name: "Deprecated: 857: [CALL] Compute solo-ge-0440 Gate"
 on:
-  workflow_call:
-    inputs:
-      solo-version:
-        description: "Solo version (with or without leading 'v') to compare against 0.44.0"
-        type: string
-        required: true
-    outputs:
-      solo-ge-0440:
-        description: "'true' if solo-version >= 0.44.0, else 'false'"
-        value: ${{ jobs.compute.outputs.solo-ge-0440 }}
-      solo-version-bare:
-        description: "Input solo-version with any leading 'v' stripped"
-        value: ${{ jobs.compute.outputs.solo-version-bare }}
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
-jobs:
-  compute:
-    name: Compute solo-ge-0440
-    runs-on: hl-cn-default-lin-sm
-    outputs:
-      solo-ge-0440: ${{ steps.compute.outputs.solo-ge-0440 }}
-      solo-version-bare: ${{ steps.compute.outputs.solo-version-bare }}
-    steps:
-      - name: Initialize Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+permissions:
+  contents: read
 
-      - name: Compute Gate
-        id: compute
+jobs:
+  print-deprecated:
+    name: Print Deprecated Warning
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Print Deprecation Warning
         run: |
-          SOLO_VERSION="${{ inputs.solo-version }}"
-          SOLO_VERSION_BARE="${SOLO_VERSION#v}"
-          SOLO_GE_0440=$([[ "$(printf '%s\n' "${SOLO_VERSION_BARE}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
-          echo "::notice::SOLO_VERSION=${SOLO_VERSION} (bare=${SOLO_VERSION_BARE}) SOLO_GE_0440=${SOLO_GE_0440}"
-          echo "solo-version-bare=${SOLO_VERSION_BARE}" >> "${GITHUB_OUTPUT}"
-          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

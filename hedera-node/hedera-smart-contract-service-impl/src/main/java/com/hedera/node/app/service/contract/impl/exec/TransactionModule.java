@@ -43,7 +43,6 @@ import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import dagger.Binds;
@@ -53,8 +52,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
-import org.hiero.hapi.fees.FeeScheduleUtils;
-import org.hiero.hapi.support.fees.Extra;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
@@ -78,16 +75,7 @@ public interface TransactionModule {
     static TinybarValues provideTinybarValues(
             @TopLevelResourcePrices @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @ChildTransactionResourcePrices @NonNull final FunctionalityResourcePrices childTransactionResourcePrices,
-            @NonNull final ExchangeRate exchangeRate,
-            @NonNull final HandleContext context) {
-        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
-            final var gasExtra = FeeScheduleUtils.lookupExtraFee(context.simpleFeesSchedule(), Extra.GAS);
-            if (gasExtra != null) {
-                return TinybarValues.forSimpleFeesTransactionWith(
-                        exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
-            }
-        }
+            @NonNull final ExchangeRate exchangeRate) {
         return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
 
@@ -98,8 +86,8 @@ public interface TransactionModule {
             @NonNull final CanonicalDispatchPrices canonicalDispatchPrices,
             @NonNull final TinybarValues tinybarValues) {
         return new SystemContractGasCalculator(
-                tinybarValues, canonicalDispatchPrices, (body, payerId) -> context.dispatchComputeFees(
-                                body, payerId, ComputeDispatchFeesAsTopLevel.NO)
+                tinybarValues, canonicalDispatchPrices, (body, payerId, signatureMap) -> context.dispatchComputeFees(
+                                body, payerId, ComputeDispatchFeesAsTopLevel.NO, signatureMap)
                         .totalFee());
     }
 
@@ -148,7 +136,7 @@ public interface TransactionModule {
      * If the top-level transaction is an {@code EthereumTransaction}, provides an ECDSA {@link Key} with
      * the public key of the sender address; otherwise returns {@code null}.
      *
-     * @param ethTxSigsCache    the cache of Ethereum transaction signatures
+     * @param ethTxSigsCache the cache of Ethereum transaction signatures
      * @param hydratedEthTxData the hydrated Ethereum transaction data, if this is an {@code EthereumTransaction}
      * @return the ECDSA {@link Key} with the public key of the sender address, or {@code null}
      */
@@ -177,7 +165,6 @@ public interface TransactionModule {
     @TransactionScope
     static HederaEvmContext provideHederaEvmContext(
             @NonNull final HandleContext context,
-            @NonNull final HederaFunctionality functionality,
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaOperations hederaOperations,
@@ -186,22 +173,11 @@ public interface TransactionModule {
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
                 false,
-                shouldChargeSimpleFees(context, functionality),
                 hederaEvmBlocks,
                 tinybarValues,
                 systemContractGasCalculator,
                 context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class),
                 pendingCreationMetadataRef);
-    }
-
-    private static boolean shouldChargeSimpleFees(HandleContext context, HederaFunctionality functionality) {
-        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled() && feesConfig.simpleFeesAreFree()) {
-            return false;
-        }
-        final var feeSchedule = context.simpleFeesSchedule();
-        final var serviceFee = FeeScheduleUtils.lookupServiceFee(feeSchedule, functionality);
-        return serviceFee == null || !serviceFee.free();
     }
 
     @Provides
