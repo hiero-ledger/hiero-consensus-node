@@ -128,7 +128,7 @@ jobs:
           fi
 
           echo "Block Node Release tag: ${BN_RELEASE_TAG}"
-          echo "BLOCK_NODE_TAG=${BN_RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "BLOCK_NODE_TAG=${BN_RELEASE_TAG}" >> "${GITHUB_ENV}"
 
       - name: Retrieve MN Release Tag
         run: |
