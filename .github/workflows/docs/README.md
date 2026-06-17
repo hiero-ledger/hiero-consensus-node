@@ -1,7 +1,7 @@
 # README Workflows (Docs)
 
 |                     Document                     |                                                                                                               Description                                                                                                                |
-|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|
 | [CITR Test Configuration](citr-test-config.md)   | This document outlines the configuration settings for the CITR (Continuous Integration Test & Release) environment used in our workflows. The CITR environment is designed to facilitate automated testing and deployment processes.     |
 | [Commit Contribution Flow](contribution_flow.md) | This document outlines the top-level flow of a commit from the point of PR creation to the point it is included in a release candidate tag (`build-XXXXX`) and the subsequent workflows that are triggered by the release candidate tag. |
 | [Forked PRs](forked_prs.md)                      | This document outlines the rules and limitations for running workflow jobs on pull requests that are opened from forked repositories.                                                                                                    |
