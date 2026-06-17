@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — event-intake
-kind: delta-map
 last_reviewed: TBD
 ---
 

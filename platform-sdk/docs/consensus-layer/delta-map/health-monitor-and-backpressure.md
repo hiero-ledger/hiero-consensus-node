@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — health-monitor-and-backpressure
-kind: delta-map
 last_reviewed: TBD
 ---
 

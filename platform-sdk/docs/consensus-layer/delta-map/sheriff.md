@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — sheriff
-kind: delta-map
 last_reviewed: TBD
 ---
 

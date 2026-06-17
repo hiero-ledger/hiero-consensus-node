@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — wiring-framework
-kind: delta-map
 last_reviewed: TBD
 ---
 

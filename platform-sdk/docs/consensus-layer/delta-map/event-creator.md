@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — event-creator
-kind: delta-map
 last_reviewed: TBD
 ---
 

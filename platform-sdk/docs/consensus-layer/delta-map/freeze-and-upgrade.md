@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — freeze-and-upgrade
-kind: delta-map
 last_reviewed: TBD
 ---
 

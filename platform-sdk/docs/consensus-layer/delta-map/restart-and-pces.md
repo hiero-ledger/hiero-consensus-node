@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — restart-and-pces
-kind: delta-map
 last_reviewed: TBD
 ---
 

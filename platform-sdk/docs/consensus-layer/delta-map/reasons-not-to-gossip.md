@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — reasons-not-to-gossip
-kind: delta-map
 last_reviewed: TBD
 ---
 

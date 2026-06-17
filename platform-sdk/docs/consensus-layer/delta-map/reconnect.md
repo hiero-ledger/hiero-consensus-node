@@ -1,6 +1,6 @@
 ---
+type: delta-map
 title: Delta map — reconnect
-kind: delta-map
 last_reviewed: TBD
 ---
 
