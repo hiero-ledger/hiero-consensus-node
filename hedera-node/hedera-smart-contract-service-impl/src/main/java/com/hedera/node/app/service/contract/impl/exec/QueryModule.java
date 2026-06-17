@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.QueryContextHevmBlocks;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
@@ -121,7 +122,9 @@ public interface QueryModule {
     @Provides
     @QueryScope
     static EvmFrameStateFactory provideEvmFrameStateFactory(
-            @NonNull final HederaOperations operations, @NonNull final HederaNativeOperations nativeOperations) {
-        return EvmFrameStates.DEFAULT.from(operations, nativeOperations);
+            @NonNull final HederaOperations operations,
+            @NonNull final HederaNativeOperations nativeOperations,
+            @NonNull final ContractCodeCache codeCache) {
+        return EvmFrameStates.DEFAULT.from(operations, nativeOperations, codeCache);
     }
 }

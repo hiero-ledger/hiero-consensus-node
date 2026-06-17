@@ -48,6 +48,7 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
@@ -135,7 +136,7 @@ class DispatchingEvmFrameStateTest {
 
     @BeforeEach
     void setUp() {
-        subject = new DispatchingEvmFrameState(nativeOperations, contractStateStore);
+        subject = new DispatchingEvmFrameState(nativeOperations, contractStateStore, new ContractCodeCache());
     }
 
     @Test

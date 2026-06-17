@@ -16,6 +16,7 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
@@ -54,8 +55,9 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             @NonNull final HederaNativeOperations nativeOperations,
             @NonNull final ContractStateStore contractStateStore,
             @NonNull final WritableEvmHookStore writableEvmHookStore,
-            @NonNull final EvmHookState hook) {
-        super(nativeOperations, contractStateStore);
+            @NonNull final EvmHookState hook,
+            @NonNull final ContractCodeCache codeCache) {
+        super(nativeOperations, contractStateStore, codeCache);
         this.entityIdFactory = requireNonNull(nativeOperations).entityIdFactory();
         this.hook = requireNonNull(hook);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);

@@ -34,7 +34,6 @@ import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
-import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.hapi.node.base.AccountID;
@@ -429,7 +428,7 @@ public class HevmTransactionFactory {
         final var minGasLimit = Math.max(
                 ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
                 gasCalculator
-                        .transactionGasRequirements(EMPTY, false, List.of(), List.of())
+                        .transactionGasRequirements(0, 0, false, List.of(), List.of())
                         .intrinsicGas());
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);

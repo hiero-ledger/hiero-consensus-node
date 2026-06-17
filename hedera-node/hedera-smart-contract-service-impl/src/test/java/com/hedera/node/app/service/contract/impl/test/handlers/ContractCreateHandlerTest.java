@@ -294,8 +294,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void validatePureChecks() {
         // check at least intrinsic gas
         final var txn1 = contractCreateTransactionWithInsufficientGas();
-        given(gasCalculator.transactionGasRequirements(
-                        org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, null, null))
+        given(gasCalculator.transactionGasRequirements(0, 0, true, null, null))
                 .willReturn(TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD));
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -339,7 +338,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void validateRepeatedHookIds() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
                 .willReturn(GasCharges.NONE);
         final var txn = TransactionBody.newBuilder()
                 .transactionID(transactionID)

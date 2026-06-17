@@ -30,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
@@ -231,10 +232,11 @@ public interface TransactionModule {
     static EvmFrameStateFactory provideEvmFrameStateFactory(
             @NonNull final EvmFrameStates evmFrameStates,
             @NonNull final HederaOperations operations,
-            @NonNull final HederaNativeOperations nativeOperations) {
+            @NonNull final HederaNativeOperations nativeOperations,
+            @NonNull final ContractCodeCache codeCache) {
         // If this EVM tx is for a hook, the factory returned here will
         // create "hook-aware" EvmFrameState's that e.g. return the executing
         // hook contract's bytecode from address 0x16d
-        return evmFrameStates.from(operations, nativeOperations);
+        return evmFrameStates.from(operations, nativeOperations, codeCache);
     }
 }

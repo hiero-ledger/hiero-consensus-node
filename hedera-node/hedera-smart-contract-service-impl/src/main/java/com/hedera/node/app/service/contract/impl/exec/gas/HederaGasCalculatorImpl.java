@@ -30,6 +30,11 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     public static final long TX_DATA_ZERO_COST = 4L;
     public static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
     public static final long TX_BASE_COST = 21_000L;
+    // EIP-7623 floor-cost constants, mirroring org.hyperledger.besu.evm.gascalculator.PragueGasCalculator. We replicate
+    // the (size, zeros) formula here so callers don't have to materialize a Tuweni payload copy just to price gas;
+    // HederaGasCalculatorImplTest asserts parity with PragueGasCalculator#transactionFloorCost.
+    private static final long TOTAL_COST_FLOOR_PER_TOKEN = 10L;
+    private static final long STANDARD_TOKENS_PER_NON_ZERO_BYTE = 4L;
     private static final int LOG_CONTRACT_ID_SIZE = 24;
     private static final int LOG_TOPIC_SIZE = 32;
     private static final int LOG_BLOOM_SIZE = 256;
@@ -48,11 +53,21 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
             final boolean isContractCreate,
             @Nullable final List<AccessListItem> accessLists,
             @Nullable final List<CodeDelegation> codeDelegations) {
-        final int zeros = payloadZeroBytes(payload);
+        return transactionGasRequirements(
+                payload.size(), payloadZeroBytes(payload), isContractCreate, accessLists, codeDelegations);
+    }
+
+    @Override
+    public GasCharges transactionGasRequirements(
+            final int payloadSize,
+            final int payloadZeroBytes,
+            final boolean isContractCreate,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable final List<CodeDelegation> codeDelegations) {
         final long intrinsicGas =
-                transactionIntrinsicGas(payload, zeros, isContractCreate, accessLists, codeDelegations);
+                transactionIntrinsicGas(payloadSize, payloadZeroBytes, isContractCreate, accessLists, codeDelegations);
         // gasUsed described at https://eips.ethereum.org/EIPS/eip-7623
-        final long floorGas = transactionFloorCost(payload, zeros);
+        final long floorGas = transactionFloorGas(payloadSize, payloadZeroBytes);
         return new GasCharges(intrinsicGas, Math.max(intrinsicGas, floorGas), 0L);
     }
 
@@ -71,12 +86,12 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     }
 
     protected long transactionIntrinsicGas(
-            @NonNull final Bytes payload,
+            final int payloadSize,
             final int zeros,
             final boolean isContractCreate,
             @Nullable final List<AccessListItem> accessLists,
             @Nullable final List<CodeDelegation> codeDelegations) {
-        final int nonZeros = payload.size() - zeros;
+        final int nonZeros = payloadSize - zeros;
         int accessListStorageKeyCount = 0;
         if (accessLists != null) {
             for (final var item : accessLists) {
@@ -93,7 +108,33 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
                 + accessListCost
                 // authorizationList part of intrinsic gas
                 + delegationCost;
-        return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
+        return isContractCreate ? (cost + contractCreationCost(payloadSize)) : cost;
+    }
+
+    /**
+     * EIP-7623 transaction floor gas computed from the payload size and its zero-byte count, mirroring
+     * {@link PragueGasCalculator#transactionFloorCost(Bytes, long)} (which itself only reads {@code payload.size()}).
+     * Keeping this in terms of {@code (size, zeros)} lets callers avoid materializing the payload on every call.
+     */
+    private long transactionFloorGas(final int payloadSize, final int zeros) {
+        final long tokensInCallData =
+                saturatedAdd(zeros, saturatedMultiply((long) (payloadSize - zeros), STANDARD_TOKENS_PER_NON_ZERO_BYTE));
+        return saturatedAdd(
+                getMinimumTransactionCost(), saturatedMultiply(tokensInCallData, TOTAL_COST_FLOOR_PER_TOKEN));
+    }
+
+    private static long saturatedAdd(final long a, final long b) {
+        final long result = a + b;
+        // Overflow occurred iff a and b share a sign that differs from the result's sign
+        return (((a ^ result) & (b ^ result)) < 0) ? Long.MAX_VALUE : result;
+    }
+
+    private static long saturatedMultiply(final long a, final long b) {
+        try {
+            return Math.multiplyExact(a, b);
+        } catch (final ArithmeticException overflow) {
+            return Long.MAX_VALUE;
+        }
     }
 
     @Override

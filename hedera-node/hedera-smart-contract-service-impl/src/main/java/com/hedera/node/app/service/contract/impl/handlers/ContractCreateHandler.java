@@ -34,7 +34,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
@@ -84,8 +83,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var op = txn.contractCreateInstanceOrThrow();
 
             // baselineCost is 0 for ContractCreate as neither access list nor EIP-7702 authorizations are supported
-            final var gasRequirements =
-                    gasCalculator.transactionGasRequirements(Bytes.wrap(new byte[0]), true, null, null);
+            final var gasRequirements = gasCalculator.transactionGasRequirements(0, 0, true, null, null);
             validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
             validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {

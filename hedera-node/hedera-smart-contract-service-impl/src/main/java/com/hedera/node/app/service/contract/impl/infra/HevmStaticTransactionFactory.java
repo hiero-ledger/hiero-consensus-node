@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
-import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
@@ -114,7 +113,7 @@ public class HevmStaticTransactionFactory {
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
         // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
-        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, null, null);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(0, 0, false, null, null);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }

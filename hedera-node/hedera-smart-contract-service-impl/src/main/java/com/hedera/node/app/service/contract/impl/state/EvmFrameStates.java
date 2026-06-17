@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -14,7 +15,9 @@ public interface EvmFrameStates {
      * Build the per-transaction EvmFrameStateFactory.
      */
     EvmFrameStateFactory from(
-            @NonNull HederaOperations hederaOperations, @NonNull HederaNativeOperations hederaNativeOperations);
+            @NonNull HederaOperations hederaOperations,
+            @NonNull HederaNativeOperations hederaNativeOperations,
+            @NonNull ContractCodeCache codeCache);
 
     /**
      * Default strategy: produce a ScopedEvmFrameStateFactory.

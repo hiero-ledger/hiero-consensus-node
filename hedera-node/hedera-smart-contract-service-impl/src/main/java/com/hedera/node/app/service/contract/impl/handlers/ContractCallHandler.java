@@ -31,7 +31,6 @@ import java.util.Arrays;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
@@ -94,8 +93,13 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
             // accessLists and codeDelegations are null because both are not supported for 'ContractCall'
+            final var functionParameters = op.functionParameters();
             final var gasRequirements = gasCalculator.transactionGasRequirements(
-                    Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
+                    (int) functionParameters.length(),
+                    HederaGasCalculator.payloadZeroBytes(functionParameters),
+                    false,
+                    null,
+                    null);
             validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
