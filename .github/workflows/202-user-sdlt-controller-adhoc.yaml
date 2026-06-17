@@ -77,8 +77,8 @@ on:
         description: "If true, automatically delete namespace when done"
       ghp_perf:
         required: true
-        default: true
-        type: boolean
+        default: ""
+        type: strings
         description: "ghp_perf"
 defaults:
   run:
