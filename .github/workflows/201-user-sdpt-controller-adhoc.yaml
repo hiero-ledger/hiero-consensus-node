@@ -96,14 +96,14 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Verify Tag
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref || github.ref }}"
+          CHECK_TAG: "${{ github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -127,7 +127,7 @@ jobs:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -135,7 +135,7 @@ jobs:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
+      ref: ${{ github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -149,7 +149,7 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
-      ref: "${{ inputs.ref || github.ref }}"
+      ref: "${{ inputs.ref }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -176,7 +176,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
 
@@ -246,7 +246,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
-          COMMIT=$(git rev-list -n 1 "${{ inputs.ref || github.ref }}")
+          COMMIT=$(git rev-list -n 1 "${{ github.ref }}")
           EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
           AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
           echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
@@ -301,7 +301,7 @@ jobs:
           RUN_TEST_RESULT: ${{ needs.run-single-day-performance-test.outputs.result }}
           TAG_LABEL: "Tag SDPT Passing"
           TAG_RESULT: ${{ needs.tag-sdpt-result.result }}
-          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -337,7 +337,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ github.ref }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-gomplate: "true"
@@ -433,7 +433,7 @@ jobs:
           TAG_LABEL: "Tag SDPT Passing"
           TAG_RESULT: ${{ needs.tag-sdpt-result.result }}
           COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
-          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}
           COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
