@@ -20,15 +20,15 @@ proposal calls for, scored against current code — is defined in `README.md`.
 
 ```yaml
 ---
+type: delta-map
 title: Delta map — <topic>
-kind: delta-map
 last_reviewed: TBD
 ---
 ```
 
 Field discipline:
 
-- **`kind`** — always `delta-map`. Fixed; tools use it to distinguish
+- **`type`** — always `delta-map`. Fixed; tools use it to distinguish
   delta-map files from architecture topics and other catalogs.
 - **`last_reviewed`** — `TBD` until an engineer has confirmed the file's
   status calls against code, then the date of that review. Tools treat a
@@ -55,7 +55,7 @@ module split is a row, a module renaming is a row, an API method
 introduction is a row, a behaviour shift is a row.
 
 | Change | Proposal state | Current state | Status | Anchor / TBD |
-|---|---|---|---|---|
+|--------|----------------|---------------|--------|--------------|
 
 - **Change** — short noun phrase identifying the discrete item.
 - **Proposal state** — one or two sentences on what the proposal calls for.
@@ -107,8 +107,8 @@ Scoring rules:
 
 ```markdown
 ---
+type: delta-map
 title: Delta map — <topic>
-kind: delta-map
 last_reviewed: TBD
 ---
 

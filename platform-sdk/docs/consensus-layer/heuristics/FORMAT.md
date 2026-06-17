@@ -14,6 +14,7 @@ structure only; allowed values for the `symptoms` field live in the top-level
 
 ```yaml
 ---
+type: heuristic
 id: HEU-NNN
 title: Short imperative title — what the heuristic is about
 symptoms: [SYM-NNN]                   # one or more IDs from symptoms.md
@@ -77,6 +78,7 @@ HEU entries.
 
 ```markdown
 ---
+type: heuristic
 id: HEU-NNN
 title: ...
 symptoms: [SYM-NNN]

@@ -1,8 +1,23 @@
-# ADR: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
+---
+type: decision
+id: ADR-003
+title: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
+topics: [pces]
+related:
+  invariants: []
+  decisions: []
+  scenarios: []
+  heuristics: []
+  rules: []
+status: accepted
+date: 2026-05-19
+deciders:
+  - Kelly Greco (@poulok)
+  - Lazar Petrovic (@lpetrovic05)
+curated_by: Kelly Greco (@poulok)
+---
 
-## Status
-
-Accepted
+# ADR-003 — Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
 
 ## Context
 
@@ -168,8 +183,3 @@ See **Decision** above.
 - [`../../proposals/consensus-layer/Consensus-Layer.md`](../../proposals/consensus-layer/Consensus-Layer.md) — the
   proposal that moves state-saving and lifecycle to the Execution side; relevant context for any future revision of
   the recovery driver, as noted under **Neutral** consequences.
-
-## Authors / Deciders
-
-- Kelly Greco (@poulok)
-- Lazar Petrovic (@lpetrovic05)
