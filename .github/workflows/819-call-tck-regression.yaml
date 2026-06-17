@@ -78,7 +78,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -94,6 +94,7 @@ jobs:
           setup-node: "true"
           node-version: "20.18.0"
           setup-gomplate: "true"
+          setup-jq: "true"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -261,14 +262,9 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-      - name: Set up JQ
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
       - name: Build Slack Payload Message
         id: build-payload
-        if: ${{ always() }}
+        if: ${{ !cancelled() && always() }} # always run unless cancelled
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report"
           STATUS_TEXT: "*TCK Regression Panel was executed. See status below.*"

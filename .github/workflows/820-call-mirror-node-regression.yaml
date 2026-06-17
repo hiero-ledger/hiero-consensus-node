@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -83,6 +83,7 @@ jobs:
           setup-node: "true"
           node-version: "20.19.3"
           setup-gomplate: "true"
+          setup-jq: "true"
 
       - name: Install Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
@@ -180,14 +181,9 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-      - name: Set up JQ
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
       - name: Build Slack Payload Message
         id: build-payload
-        if: always()
+        if: ${{ !cancelled() && always() }} # always run unless cancelled
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Mirror Node Regression Test Report"
           STATUS_TEXT: "*Mirror Node Regression Panel was executed. See status below.*"
