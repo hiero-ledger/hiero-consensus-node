@@ -46,13 +46,24 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
 
     private static final Logger log = LogManager.getLogger(BlocksToPcesCommand.class);
 
+    /**
+     * Default number of rounds to extend the extraction window backward beyond the origin round, to
+     * include the non-ancient "tail" of events whose descendants near the origin reference them as
+     * parents. Matches the platform's default {@code consensus.roundsNonAncient} (26). The replaying
+     * node's orphan buffer will hold any event whose parents are non-ancient until those parents
+     * arrive; extending the window back by this many rounds ensures those parents are present in the
+     * stream rather than missing, so the earliest extracted events can leave the orphan buffer.
+     */
+    private static final long DEFAULT_ROUNDS_NON_ANCIENT = 26;
+
     private Path blockStreamDirectory;
     private String gcpBlockStreamPath;
     private Path outputPath = Path.of("./out");
     private long originRound = -1;
     private long targetRound;
     private String billingProject;
-    private int downloadThreads = 32;
+    private int downloadThreads = Runtime.getRuntime().availableProcessors();
+    private long roundsNonAncient = DEFAULT_ROUNDS_NON_ANCIENT;
 
     @Option(
             names = {"-d", "--block-stream-dir"},
@@ -111,8 +122,28 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         this.downloadThreads = downloadThreads;
     }
 
+
+    @Option(
+            names = {"-rna", "--rounds-non-ancient"},
+            defaultValue = "" + DEFAULT_ROUNDS_NON_ANCIENT,
+            description = "Number of rounds to extend the extraction window backward before --origin-round, "
+                    + "to include the non-ancient tail of events that events near the origin reference as "
+                    + "parents. Without this tail, the earliest extracted events reference parents that are "
+                    + "non-ancient but missing from the stream, and the replaying node's orphan buffer holds "
+                    + "them forever (consensus never advances). Should be >= the replaying node's "
+                    + "consensus.roundsNonAncient. Default = 26.")
+    private void setRoundsNonAncient(final long roundsNonAncient) {
+        this.roundsNonAncient = roundsNonAncient;
+    }
+
     @Override
     public void run() {
+        // This tool writes millions of events sequentially with no concurrent readers and no need
+        // for per-event durability. The default PCES writer on Linux (FILE_CHANNEL) issues one write
+        // syscall per event, which dominates runtime; OUTPUT_STREAM batches writes through a
+        // BufferedOutputStream. Set this before the (lazily built) platform Configuration is created
+        // so CommonPcesWriter picks it up. Scoped to this standalone command's process only.
+        System.setProperty("event.preconsensus.pcesFileWriterType", "OUTPUT_STREAM");
         try {
             // If the block stream directory is on GCS, resolve the range and download.
             if (gcpBlockStreamPath != null) {
@@ -142,14 +173,21 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         GcpPathHelper.ensureGcloudAvailable();
 
         final String streamId = GcpPathHelper.extractLastPathElement(gcpBlockStreamPath);
-        final String cacheName = "state-validator-blocks-" + originRound + "-to-" + targetRound + "-s" + streamId;
+        final String cacheName =
+                "state-validator-blocks-" + originRound + "-to-" + targetRound + "-rna" + roundsNonAncient + "-s" + streamId;
         final Path tempBlockDir = Path.of(".", cacheName);
         Files.createDirectories(tempBlockDir);
 
-        // The left boundary is the first block containing a round >= originRound. BlockRangeResolver
-        // expects a left block number; we use originRound as the left bound for the search.
+        // The left boundary is extended backward by roundsNonAncient before the origin round so that the
+        // non-ancient tail of events (parents of events near the origin) is included. Without this, the
+        // earliest extracted events reference non-ancient parents that are absent from the stream, and the
+        // replaying node's orphan buffer never releases them. The origin stamp itself remains originRound.
+        final long leftSearchRound = Math.max(1L, originRound - roundsNonAncient);
+
+        // The left boundary is the first block containing a round >= leftSearchRound. BlockRangeResolver
+        // expects a left block number; we use leftSearchRound as the left bound for the search.
         final BlockRangeResolver resolver = new BlockRangeResolver(gcpBlockStreamPath, billingProject, tempBlockDir);
-        final BlockRangeResolver.BlockRange range = resolver.resolveByRounds(originRound, targetRound);
+        final BlockRangeResolver.BlockRange range = resolver.resolveByRounds(leftSearchRound, targetRound);
 
         log.info(
                 "Block range resolved: [{}, {}] ({} files). Starting download...",
