@@ -542,8 +542,8 @@ class HintsControllerImplTest {
                 .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
         lenient()
                 .when(store.getOrderedCrsPublications(any()))
-                .thenReturn(
-                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT));
+                .thenReturn(new TreeMap<>(
+                        Map.of(0L, CrsPublicationTransactionBody.DEFAULT, 1L, CrsPublicationTransactionBody.DEFAULT)));
         subject = new HintsControllerImpl(
                 SELF_ID,
                 BLS_KEY_PAIR.privateKey(),

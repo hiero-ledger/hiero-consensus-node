@@ -33,7 +33,7 @@ Environment:
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
                                 (default: <repo>/hedera-node/data)
   GENESIS_APP_PROPS_FILE        Base application.properties for genesis deploy
-                                (default: wrapped-record-block-jumpstart/resources/0.74/application.properties)
+                                (default: wrapped-record-block-jumpstart/resources/0.75/application.properties)
   LOG4J2_XML_PATH               log4j2 xml path (default: <repo>/hedera-node/configuration/dev/log4j2.xml)
   BLOCK_STREAM_MODE             blockStream.streamMode for genesis (default: BOTH)
   BLOCK_STREAM_WRITER_MODE      blockStream.writerMode for genesis (default: FILE_AND_GRPC)
@@ -103,6 +103,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 # toleration patcher) reused from the jumpstart scenario; the functions are no-ops on kind.
 # shellcheck source=../remote-cluster-helpers.sh
 source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
+# Shared Block Node WRB RSA roster helpers (generate_rsa_bootstrap_roster_json,
+# write_block_node_rsa_values). The cutover scenario still carries an inline copy of the same logic;
+# that is a candidate to migrate onto this shared file.
+# shellcheck source=../block-node-rsa-roster.sh
+source "${SCRIPT_DIR}/../block-node-rsa-roster.sh"
 
 export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo}"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
@@ -141,7 +146,7 @@ RELEASE_TAG="${RELEASE_TAG:-v0.73.0-rc.5}"
 USE_LOCAL_BUILD="${USE_LOCAL_BUILD:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
-GENESIS_APP_PROPS_FILE="${GENESIS_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+GENESIS_APP_PROPS_FILE="${GENESIS_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 BLOCK_STREAM_MODE="${BLOCK_STREAM_MODE:-BOTH}"
 BLOCK_STREAM_WRITER_MODE="${BLOCK_STREAM_WRITER_MODE:-FILE_AND_GRPC}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-}"
@@ -167,6 +172,18 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 GENERATED_DIR="${GENERATED_DIR:-${SCRIPT_DIR}/generated}"
 WORK_DIR="${WORK_DIR:-${GENERATED_DIR}/work-genesis-block-node}"
 TMP_GENESIS_APP_PROPS="${WORK_DIR}/genesis-application.properties"
+
+# RSA roster bootstrap for the Block Node's RsaRosterBootstrapPlugin: the wrapped-record-block
+# verifier needs the CN address book (node_id -> RSA public key) or it rejects every streamed block
+# with BAD_BLOCK_PROOF ("Address book is empty"). We generate the roster from the network's gossip
+# certs and seed it into the BN's live-data PVC via an init container (file-first path). No Mirror
+# Node fallback: streaming runs no mirror, and /api/v1/network/nodes 404s on a fresh solo deploy.
+RSA_BOOTSTRAP_ROSTER_FILE="${RSA_BOOTSTRAP_ROSTER_FILE:-${WORK_DIR}/rsa-bootstrap-roster.json}"
+BLOCK_NODE_RSA_VALUES_FILE="${BLOCK_NODE_RSA_VALUES_FILE:-${WORK_DIR}/block-node-rsa-values.yaml}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL:-}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS:-5}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS:-10}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE:-100}"
 WRB_LOCAL_PAYLOAD_PATH="${WORK_DIR}/localPayload/data"
 GENERATED_BLOCK_NODE_PROTO_PATH="${WORK_DIR}/block-node-protos"
 EFFECTIVE_LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}"
@@ -508,6 +525,11 @@ prepare_wrb_local_build_payload() {
 }
 
 deploy_block_node_for_streaming() {
+  # Seed the BN's WRB RSA address book before deploying it; without it the RsaRosterBootstrapPlugin
+  # loads nothing and the verifier rejects every streamed block with BAD_BLOCK_PROOF.
+  generate_rsa_bootstrap_roster_json
+  write_block_node_rsa_values
+
   local add_args=(
     solo block node add
     --deployment "${SOLO_DEPLOYMENT}"
@@ -519,7 +541,11 @@ deploy_block_node_for_streaming() {
   [[ -n "${BLOCK_NODE_CHART_VERSION}" ]] && add_args+=(--chart-version "${BLOCK_NODE_CHART_VERSION}")
   [[ -n "${BLOCK_NODE_RELEASE_TAG}" ]] && add_args+=(--release-tag "${BLOCK_NODE_RELEASE_TAG}")
   [[ -n "${BLOCK_NODE_IMAGE_TAG}" ]] && add_args+=(--image-tag "${BLOCK_NODE_IMAGE_TAG}")
-  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && add_args+=(--values-file "${BLOCK_NODE_VALUES_FILE}")
+  # Solo's --values-file is comma-separated; layer the RSA roster values on top of any user-supplied
+  # BLOCK_NODE_VALUES_FILE so user overrides still win for other keys.
+  local values_files="${BLOCK_NODE_RSA_VALUES_FILE}"
+  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && values_files="${BLOCK_NODE_VALUES_FILE},${BLOCK_NODE_RSA_VALUES_FILE}"
+  add_args+=(--values-file "${values_files}")
 
   log "Deploying Block Node ${BLOCK_NODE_ID} and routing consensus nodes with priority mapping '${BLOCK_NODE_PRIORITY_MAPPING}'"
   "${add_args[@]}"

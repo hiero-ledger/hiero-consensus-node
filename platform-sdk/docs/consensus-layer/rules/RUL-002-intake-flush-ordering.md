@@ -1,4 +1,5 @@
 ---
+type: rule
 id: RUL-002
 title: The intake pipeline is flushed component-by-component in topological order so every event advances as far as it can
 class: structural
