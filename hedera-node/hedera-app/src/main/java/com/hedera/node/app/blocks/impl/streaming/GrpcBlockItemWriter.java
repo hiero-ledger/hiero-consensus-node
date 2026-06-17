@@ -32,7 +32,7 @@ import org.apache.logging.log4j.Logger;
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
     private static final String COMPLETE_PENDING_EXTENSION = ".pnd.gz";
-    private static final String INCOMPLETE_EXTENSION = ".iss.gz";
+    private static final String INCOMPLETE_EXTENSION = ".open.gz";
     private final BlockBufferService blockBufferService;
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -158,7 +158,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void flushIncompleteBlock() {
-        // Persist the open, unproven block's buffered items as a ".iss.gz" triage artifact (gzipped BlockBytes,
+        // Persist the open, unproven block's buffered items as a ".open.gz" triage artifact (gzipped BlockBytes,
         // wire-identical to a Block so it parses back for analysis). We write NO ".pnd.json" proof sidecar, so it is
         // never picked up by pending-block recovery nor mistaken for a finished block. We also deliberately do NOT
         // close the block in the buffer service: a closed block would become eligible for the buffer's own

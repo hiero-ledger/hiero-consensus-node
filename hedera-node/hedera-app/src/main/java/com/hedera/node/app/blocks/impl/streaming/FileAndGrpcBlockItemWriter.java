@@ -79,7 +79,7 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void flushIncompleteBlock() {
-        // The file writer persists the open block as a ".iss.gz" triage artifact. The gRPC buffer block is left as-is
+        // The file writer persists the open block as a ".open.gz" triage artifact. The gRPC buffer block is left as-is
         // for the buffer service to discard on shutdown (closing it would make it eligible for buffer persistence).
         this.fileBlockItemWriter.flushIncompleteBlock();
     }

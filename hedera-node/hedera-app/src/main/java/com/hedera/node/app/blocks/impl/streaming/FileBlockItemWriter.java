@@ -63,7 +63,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
     private static final String COMPLETE_BLOCK_EXTENSION = ".blk";
 
     /** The file extension for an incomplete (open, unproven) block flushed for triage at catastrophic failure. */
-    private static final String INCOMPLETE_BLOCK_EXTENSION = ".iss";
+    private static final String INCOMPLETE_BLOCK_EXTENSION = ".open";
 
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
@@ -494,8 +494,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void flushIncompleteBlock() {
-        // Persist the open, unproven block as a ".iss.gz" triage artifact: close the stream and rename the
-        // partially-written ".blk.gz" to ".iss.gz". We deliberately write no ".mf" completion marker and no
+        // Persist the open, unproven block as a ".open.gz" triage artifact: close the stream and rename the
+        // partially-written ".blk.gz" to ".open.gz". We deliberately write no ".mf" completion marker and no
         // ".pnd.json" proof sidecar, so this block is never treated as a finished block nor picked up by pending-block
         // recovery. Best-effort: never throws.
         if (state != State.OPEN) {

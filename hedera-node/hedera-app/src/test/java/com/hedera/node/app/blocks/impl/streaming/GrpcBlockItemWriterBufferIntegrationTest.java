@@ -34,7 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * (the in-memory buffer used in {@code writerMode=GRPC}, the production default). The mock-based
  * {@code GrpcBlockItemWriterTest} stubs {@code getBlockState(...)}; this test instead drives the real buffer lifecycle
  * ({@code openBlock} + {@code addItem} via the writer) and verifies the open, unproven block is persisted to disk as a
- * recoverable-by-analysis {@code .iss.gz} artifact — closing the residual gap that only a real-buffer run can cover.
+ * recoverable-by-analysis {@code .open.gz} artifact — closing the residual gap that only a real-buffer run can cover.
  */
 @ExtendWith(MockitoExtension.class)
 class GrpcBlockItemWriterBufferIntegrationTest {
@@ -96,8 +96,8 @@ class GrpcBlockItemWriterBufferIntegrationTest {
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         final var dir = tempDir.resolve("block-0.0.3");
-        // The open block is persisted as a .iss.gz triage artifact only: no complete block, no pending block/sidecar.
-        assertThat(Files.exists(dir.resolve(baseName + ".iss.gz"))).isTrue();
+        // The open block is persisted as a .open.gz triage artifact only: no complete block, no pending block/sidecar.
+        assertThat(Files.exists(dir.resolve(baseName + ".open.gz"))).isTrue();
         assertThat(Files.exists(dir.resolve(baseName + ".blk.gz"))).isFalse();
         assertThat(Files.exists(dir.resolve(baseName + ".pnd.gz"))).isFalse();
         assertThat(Files.exists(dir.resolve(baseName + ".pnd.json"))).isFalse();
@@ -110,7 +110,7 @@ class GrpcBlockItemWriterBufferIntegrationTest {
 
         // The artifact round-trips back to a Block for analysis (BlockBytes is wire-identical to Block).
         final byte[] contents;
-        try (final var in = new GZIPInputStream(Files.newInputStream(dir.resolve(baseName + ".iss.gz")))) {
+        try (final var in = new GZIPInputStream(Files.newInputStream(dir.resolve(baseName + ".open.gz")))) {
             contents = in.readAllBytes();
         }
         final var parsed = Block.PROTOBUF.parse(Bytes.wrap(contents));
