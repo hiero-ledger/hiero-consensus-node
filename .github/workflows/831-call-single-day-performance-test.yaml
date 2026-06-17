@@ -128,6 +128,37 @@ jobs:
           checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Checkout target CN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: target_consensus_node
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout target BN Code
+        run: |
+          git clone https://github.com/hiero-ledger/hiero-block-node.git target_block_node
+          cd target_block_node
+          git checkout ${{ inputs.bnref }}
+          cd "${{ github.workspace }}"
+
+      - name: Checkout Perf Analysis
+        run: |
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+            git clone https://"${{ secrets.GITHUB_TOKEN }}"@github.com/swirldslabs/performance-analysis-automation.git performance-analysis-automation
+            cd performance-analysis-automation
+            git checkout fixes_Jul25
+            cd "${{ github.workspace }}"
+          fi
+
+      - name: Checkout PBJ and Besu
+        run: |
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+            git clone https://"${{ secrets.GITHUB_TOKEN }}"@github.com/hashgraph/pbj.git pbj
+            git clone --branch 25.2.2 --single-branch https://github.com/hyperledger/besu.git besu
+          fi
+
       - name: Check Test Asset
         id: set-k8s-cluster
         run: |
