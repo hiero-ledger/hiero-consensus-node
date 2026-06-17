@@ -187,4 +187,10 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     public Configuration configuration() {
         return context.configuration();
     }
+
+    @NonNull
+    @Override
+    public Bytes ledgerId() {
+        return context.ledgerId();
+    }
 }

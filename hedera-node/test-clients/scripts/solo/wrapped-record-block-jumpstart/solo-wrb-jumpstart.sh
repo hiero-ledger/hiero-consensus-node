@@ -26,11 +26,11 @@ Environment:
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars, used when UPGRADE_TAG is
                                 empty (default: <repo>/hedera-node/data)
   LOCAL_BUILD_UPGRADE_TAG       Placeholder upgrade-version Solo applies to a local-build upgrade
-                                (default: v0.75.0-rc.3)
+                                (default: v0.75.0-rc.5)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
-                                (default: wrapped-record-block-jumpstart/resources/0.73/application.properties)
-  BASE_074_APP_PROPS_FILE       Base 0.74 properties used to generate temp upgrade file
                                 (default: wrapped-record-block-jumpstart/resources/0.74/application.properties)
+  BASE_075_APP_PROPS_FILE       Base 0.75 properties used to generate temp upgrade file
+                                (default: wrapped-record-block-jumpstart/resources/0.75/application.properties)
   LOG4J2_XML_PATH               log4j2 xml path (default: <repo>/hedera-node/configuration/dev/log4j2.xml)
   BLOCK_NODE_REPO_PATH          Path to hiero-block-node checkout (default: ../hiero-block-node)
   BLOCKS_WRAP_EXTRA_ARGS        Extra args appended to `blocks wrap ...`
@@ -63,7 +63,7 @@ up to BlockInfo.lastBlockNumber.
 
 Examples:
   ./solo-wrb-jumpstart.sh
-  NODE_ALIASES=node1,node2,node3 UPGRADE_TAG=v0.75.0-rc.3 ./solo-wrb-jumpstart.sh --nodes 3
+  NODE_ALIASES=node1,node2,node3 UPGRADE_TAG=v0.75.0-rc.5 ./solo-wrb-jumpstart.sh --nodes 3
 EOF
 }
 
@@ -140,14 +140,15 @@ INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.74.0}"
 #   UPGRADE_TAG set   -> tag-based upgrade to that release, no local build
 UPGRADE_TAG="${UPGRADE_TAG:-}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
-LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.3}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.75.0-rc.5}"
 USE_LOCAL_BUILD_FOR_UPGRADE="false"
 SOLO_UPGRADE_VERSION=""
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
-DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
-BASE_074_APP_PROPS_FILE="${BASE_074_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+BASE_075_APP_PROPS_FILE="${BASE_075_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 # Remote-only Helm value overrides: scheduling tolerations/nodeSelector + MinIO storage class.
 REMOTE_NETWORK_VALUES_TEMPLATE="${REMOTE_NETWORK_VALUES_TEMPLATE:-${SCRIPT_DIR}/resources/remote/network-values.yaml}"
+REMOTE_MIRROR_VALUES_TEMPLATE="${REMOTE_MIRROR_VALUES_TEMPLATE:-${SCRIPT_DIR}/resources/remote/mirror-values.yaml}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
@@ -894,7 +895,7 @@ normalize_hash_list() {
 }
 
 create_temp_upgrade_properties() {
-  cp "${BASE_074_APP_PROPS_FILE}" "${TMP_UPGRADE_APP_PROPS}"
+  cp "${BASE_075_APP_PROPS_FILE}" "${TMP_UPGRADE_APP_PROPS}"
   {
     echo ""
     echo "# Added by solo-wrb-jumpstart.sh"
@@ -1263,7 +1264,15 @@ ensure_mirror_node() {
     return 0
   fi
   log "Deploying mirror node"
-  solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
+  local mirror_add_args=(solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger)
+  # On the shared remote cluster, give the mirror sub-charts a blanket Exists toleration so they
+  # schedule on the tainted nodes immediately. The value matches the toleration patcher's, so the
+  # patcher never rolls these Deployments — which is what otherwise races Solo's "Check pods are
+  # ready" and crashes mirror node add with "Cannot read properties of undefined (reading 'labels')".
+  if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+    mirror_add_args+=(--values-file "${REMOTE_MIRROR_VALUES_TEMPLATE}")
+  fi
+  "${mirror_add_args[@]}"
   for _ in $(seq 1 60); do
     mirror_rest_service_exists && return 0
     sleep 5
@@ -1369,7 +1378,7 @@ require_cmd java
 validate_block_node_repo
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
-[[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
+[[ -f "${BASE_075_APP_PROPS_FILE}" ]] || { echo "Base 0.75 application.properties not found: ${BASE_075_APP_PROPS_FILE}" >&2; exit 1; }
 if [[ -z "${UPGRADE_TAG}" ]]; then
   # Local-build upgrade from the checked-out branch.
   USE_LOCAL_BUILD_FOR_UPGRADE="true"

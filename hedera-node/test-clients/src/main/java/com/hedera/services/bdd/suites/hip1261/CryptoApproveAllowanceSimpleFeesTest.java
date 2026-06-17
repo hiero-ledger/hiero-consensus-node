@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
@@ -44,11 +45,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.ALLOWANCES;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -73,6 +76,8 @@ public class CryptoApproveAllowanceSimpleFeesTest {
     private static final String SPENDER = "spender";
     private static final String SPENDER2 = "spender2";
     private static final String FT_TOKEN = "fungibleToken";
+    private static final String NFT_TOKEN = "nftToken";
+    private static final String SUPPLY_KEY = "supplyKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String approveAllowanceTxn = "approveAllowanceTxn";
     private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
@@ -119,6 +124,36 @@ public class CryptoApproveAllowanceSimpleFeesTest {
                     tokenAssociate(SPENDER, FT_TOKEN),
                     cryptoApproveAllowance()
                             .addTokenAllowance(OWNER, FT_TOKEN, SPENDER, 100L)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, OWNER)
+                            .via(approveAllowanceTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            approveAllowanceTxn,
+                            txnSize -> expectedCryptoApproveAllowanceFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    ALLOWANCES, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(approveAllowanceTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("CryptoApproveAllowance - single NFT approve-for-all allowance - base fee only")
+        final Stream<DynamicTest> cryptoApproveAllowanceNftApproveForAllBaseFeesOnly() {
+            return hapiTest(
+                    newKeyNamed(SUPPLY_KEY),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(OWNER),
+                    tokenAssociate(SPENDER, NFT_TOKEN),
+                    mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("meta1"))),
+                    cryptoApproveAllowance()
+                            .addNftAllowance(OWNER, NFT_TOKEN, SPENDER, true, List.of())
                             .payingWith(PAYER)
                             .signedBy(PAYER, OWNER)
                             .via(approveAllowanceTxn),
