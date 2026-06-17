@@ -78,7 +78,7 @@ flushed, every event that could become a parent has already reached it.
 The ordering is only sufficient because each component that can *hold an event
 back* does its holding **internally**, so "queue empty + last task handled"
 truly means "nothing more will come out of this component on its own." This is
-the property established by [ADR-005](../decisions/ADR-005-embedded-future-event-buffers.md):
+the property established by ADR-005:
 the hashgraph's future-event buffer lives inside `DefaultConsensusEngine` and
 the event creator's future-event buffer lives inside
 `DefaultEventCreationManager`, rather than in a standalone component upstream
@@ -135,7 +135,7 @@ and must be rejected.
   requirement and is a candidate to be cataloged as an invariant; this rule
   records only the *current implementation mechanism* — ordered, blocking,
   topological flush — by which that property is upheld after PCES replay.
-- See [ADR-005](../decisions/ADR-005-embedded-future-event-buffers.md) for why
+- See ADR-005 for why
   the future-event buffers are embedded in `DefaultConsensusEngine` and
   `DefaultEventCreationManager` rather than factored into a single standalone
   component, which is the structural precondition that makes one ordered

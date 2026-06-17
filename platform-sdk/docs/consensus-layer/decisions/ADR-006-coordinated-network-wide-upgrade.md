@@ -3,7 +3,7 @@ id: ADR-006
 title: Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades
 topics: [freeze-and-upgrade]
 related:
-  invariants: []
+  invariants: [INV-017]
   decisions: [ADR-002]
   scenarios: []
   heuristics: []
@@ -132,7 +132,7 @@ side-by-side handover, which share the single network-agreed boundary.
   the same point this decision rests on: every node restarts from exactly the same state, which is
   what makes it safe to bring up a software version that may interpret transactions or state
   differently than the prior one.
-- [ADR-002](ADR-002-execution-freeze-signature-handoff.md) — freeze-block signature handoff that
+- ADR-002 — freeze-block signature handoff that
   runs during the coordinated freeze this decision adopts.
 
 ## Notes

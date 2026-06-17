@@ -119,7 +119,7 @@ relevant entries, grouped by where they act:
 
 - Topics: [wiring-framework.md](wiring-framework.md), [event-creator.md](event-creator.md), [gossip.md](gossip.md), [restart-and-pces.md](restart-and-pces.md), [reasons-not-to-gossip.md](reasons-not-to-gossip.md).
 - Tunables: [../../tunables.md](../../tunables.md).
-- Invariants: [TBD: INV-NNN once invariants.md catalog populates].
+- Invariants: INV-005 — every honest event eventually reaches consensus or becomes stale (what the throttling reactions ultimately protect).
 - Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
 - Source doc: [../../../core/health-monitor.md](../../../core/health-monitor.md).
 

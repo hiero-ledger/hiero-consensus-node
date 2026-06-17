@@ -309,7 +309,7 @@ this module. See [restart-and-pces.md](restart-and-pces.md).
   `eventIntakeThrottle`, `maximumPermissibleUnhealthyDuration`,
   `maxAllowedSyncLag`, `maxOtherParents`, `maxCreationRate`, `period`.
 - Source doc: [../../../core/tipset-algorithm.md](../../../core/tipset-algorithm.md).
-- Invariants: [TBD: INV-NNN once invariants.md catalog populates].
+- Invariants: INV-012 — birth round is monotonic along ancestry; INV-015 — an honest event's coin value is unpredictable; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
 
 ## Future state

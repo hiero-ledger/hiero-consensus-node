@@ -5,7 +5,7 @@ class: safety
 topics: [hashgraph]
 related:
   rules: []
-  decisions: []
+  decisions: [ADR-006]
   scenarios: []
   heuristics: []
 status: enforced

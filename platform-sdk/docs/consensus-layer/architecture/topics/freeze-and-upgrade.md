@@ -102,7 +102,7 @@ explicitly contains both, and
 gates only on that set — there is no separate freeze branch. Gossip
 continues for three reasons: to send this node's event carrying its
 signature transactions on the freeze state and freeze block (see
-[ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md)
+ADR-002
 for detail on the block signatures), to collect those signatures from
 peers, and to relay them to any peers that still need them. Detail in
 [`gossip.md`](gossip.md) and
@@ -145,7 +145,7 @@ future event buffer (FEB), and any event that is not a future event is
 returned to the caller as a preconsensus event so the application can
 prehandle it. This is the path freeze-block signature transactions take
 to reach the application after the freeze round (see
-[ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md)).
+ADR-002).
 
 The FEB only buffers events whose birth round is greater than the
 pending round. Once the freeze round reaches consensus the pending
@@ -257,11 +257,11 @@ operators may search log archives for its vocabulary):
 
 Pending catalogs:
 
-- Invariants — [TBD: INV-NNN once `../invariants.md` catalog populates].
+- Invariants — INV-017 — the active address book never moves backward; INV-008 — consensus, once reached, is permanent.
 - Decisions:
-  - [ADR-002](../../decisions/ADR-002-execution-freeze-signature-handoff.md) — blocking
+  - ADR-002 — blocking
     `onSealConsensusRound` to hand off freeze-block signatures from Execution to consensus.
-  - [ADR-006](../../decisions/ADR-006-coordinated-network-wide-upgrade.md) — why upgrades use a
+  - ADR-006 — why upgrades use a
     coordinated network-wide freeze rather than rolling upgrades.
 - Scenarios — [TBD: SCN-NNN — freeze-time anomalies (failed save,
   missed freeze round, post-freeze branching, re-freeze on the same

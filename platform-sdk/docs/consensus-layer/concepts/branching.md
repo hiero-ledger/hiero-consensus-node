@@ -168,4 +168,5 @@ is correct without any such mechanism.
   fork relation). The 2020 redefinition of seeing is documented in
   `SWIRLDS-TR-2020-01`, referenced from the JavaDoc on the seeing
   predicates in `ConsensusImpl`.
+- Invariants: INV-002 (consensus order is agreed by all nodes), INV-007 (all deciders of a round agree on its judge set).
 - Glossary entry: [`../glossary.md`](../glossary.md).

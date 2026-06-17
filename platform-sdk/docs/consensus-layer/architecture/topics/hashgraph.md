@@ -313,8 +313,21 @@ Conceptual background:
 - [`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
 - [`../concepts/stale-events.md`](../concepts/stale-events.md)
 
-**Invariants.** [TBD: INV-NNN once
-[`../invariants.md`](../invariants.md) catalog populates.]
+**Invariants.** The consensus algorithm this module runs is where most of
+the layer's invariants are established:
+
+- INV-001 — voting round is monotonic along ancestry.
+- INV-002 — consensus order is agreed by all nodes.
+- INV-003 — consensus timestamp is agreed by all nodes.
+- INV-004 — staleness is agreed by all nodes.
+- INV-005 — every honest event eventually reaches consensus or becomes stale.
+- INV-006 — every round eventually has at least one judge.
+- INV-007 — all deciders of a round agree on its judge set.
+- INV-008 — consensus, once reached, is permanent.
+- INV-009 — a decided election never flips.
+- INV-013 — the minimum non-ancient round never decreases (the ancient boundary only moves forward).
+- INV-014 — every round has a supermajority of judges.
+- INV-016 — consensus order is a strict total order with unique, gap-free ranks.
 
 **Decisions.** [TBD: ADR-NNN once
 [`../decisions/`](../decisions/) catalog populates.]

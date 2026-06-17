@@ -73,7 +73,7 @@ has made itself crash resilient again, which means **writing the learned state t
 This is a **rule**, not an invariant: the protocol does not *require* that only crash-resilient nodes create events — a
 correct reimplementation could instead backfill the PCES gap from gossip and resume event creation immediately (see
 [Alternatives Considered](#alternatives-considered)). It is a deliberate property of the current implementation,
-cataloged as [RUL-003](../rules/RUL-003-consensus-contributors-independently-restartable.md).
+cataloged as RUL-003.
 
 ## Decision
 
@@ -115,7 +115,7 @@ advancing consensus.
   signal already exist; the guarantee is expressed as a status that withholds event creation until a disk write it
   already requested completes.
 - **The wait is exactly as long as the write takes.** Unlike `OBSERVING`, which exits after a fixed delay (see
-  [ADR-004](ADR-004-retain-observing-status-for-self-event-recovery.md)), `RECONNECT_COMPLETE` exits on a concrete
+  ADR-004), `RECONNECT_COMPLETE` exits on a concrete
   event — the reconnect state (or later) reaching disk — so the node resumes event creation the instant it is safe to,
   with no arbitrary delay.
 
@@ -177,7 +177,7 @@ See **Decision** above.
   `BEHIND`, `RECONNECT_COMPLETE`, `CHECKING`, and when the node creates events.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — how a node replays PCES
   from its last on-disk state on startup, which is what a PCES gap invalidates.
-- [ADR-004](ADR-004-retain-observing-status-for-self-event-recovery.md) — the related startup safeguard (`OBSERVING`);
+- ADR-004 — the related startup safeguard (`OBSERVING`);
   contrast its fixed-delay exit with `RECONNECT_COMPLETE`'s state-written-to-disk exit.
 - `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:18-51` — the `BEHIND`
   and `RECONNECT_COMPLETE` status definitions and their javadoc.

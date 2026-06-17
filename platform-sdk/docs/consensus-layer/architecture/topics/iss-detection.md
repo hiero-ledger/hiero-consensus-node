@@ -233,5 +233,5 @@ directly by reconnect and replay paths rather than via wiring.
   [signed-state-management.md](signed-state-management.md),
   [reconnect.md](reconnect.md),
   [restart-and-pces.md](restart-and-pces.md).
-- Invariants: [TBD: INV-NNN once `invariants.md` catalog populates].
+- Invariants: INV-002 and INV-003 — consensus order and timestamp are agreed by all nodes.
 - Decisions: [TBD: ADR-NNN once `decisions/` catalog populates].

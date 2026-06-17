@@ -60,4 +60,5 @@ duplicating the question here.
   [`branching.md`](branching.md),
   [`strongly-seeing.md`](strongly-seeing.md),
   [`coin-rounds.md`](coin-rounds.md).
+- Invariants: INV-006 (every round eventually has at least one judge), INV-007 (all deciders of a round agree on its judge set), INV-014 (every round has a supermajority of judges).
 - Glossary entry: [`../glossary.md`](../glossary.md).

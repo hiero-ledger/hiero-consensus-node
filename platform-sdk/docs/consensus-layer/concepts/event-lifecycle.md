@@ -99,4 +99,5 @@ current code uses birth round.
 - Sibling concepts: [`birth-round.md`](birth-round.md),
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`stale-events.md`](stale-events.md).
+- Invariants: INV-013 (the minimum non-ancient round never decreases — the ancient boundary only moves forward), INV-004 (staleness is agreed by all nodes).
 - Glossary entry: [`../glossary.md`](../glossary.md).

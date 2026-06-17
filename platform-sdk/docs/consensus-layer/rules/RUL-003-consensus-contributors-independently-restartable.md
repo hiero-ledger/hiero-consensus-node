@@ -45,7 +45,7 @@ advance through nodes that are creating events. If every such node is
 independently restartable, no reachable consensus position can leave the whole
 network unable to restart after a simultaneous crash — there is always at least
 one startable on-disk state covering the current position.
-[ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md)
+ADR-007
 works through the rolling-reconnect scenario in which losing this property would
 make the network unrecoverable.
 
@@ -91,7 +91,7 @@ persistence path, signed-state saving, and the reconnect gate.
   does not create events while in that status (`PlatformStatusRule.java:37-45`),
   and leaves it only when a `StateWrittenToDiskAction` reports the reconnect state
   (or later) on disk (`ReconnectCompleteStatusLogic.java:156-187`). See
-  [ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md).
+  ADR-007.
 
 The property is contingent on this combination. If event persistence stopped
 preceding observation, if the node stopped retaining a loadable base state and
@@ -136,9 +136,9 @@ and must be rejected.
 - The property is upheld jointly by normal PCES operation, signed-state saving,
   and the reconnect gate; no single component owns it, so a change in any of those
   areas can put it at risk.
-- Related to [RUL-002](RUL-002-intake-flush-ordering.md), which governs the same
+- Related to RUL-002, which governs the same
   restart boundary from the other side: it flushes the intake pipeline before
   event creation resumes so the event creator observes the latest self event.
-- See [ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md)
+- See ADR-007
   for the reconnect gate and the network-wide unrecoverability scenario this rule
   prevents.

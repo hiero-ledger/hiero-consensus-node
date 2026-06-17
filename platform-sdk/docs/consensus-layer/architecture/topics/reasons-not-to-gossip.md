@@ -285,9 +285,8 @@ ranges are accurate at last review and may shift with refactors.
 
 **Invariants**
 
-- [TBD: INV-NNN — link once `invariants.md` catalog populates. Likely
-  candidates: durability-before-gossip; gossip suspended during
-  reconnect; one-active-sync-per-peer.]
+- INV-005 — every honest event eventually reaches consensus or becomes stale (what every rule here trades against).
+- INV-004 — staleness is agreed by all nodes.
 
 **Decisions**
 
