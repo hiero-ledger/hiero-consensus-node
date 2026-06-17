@@ -36,6 +36,7 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -130,7 +131,21 @@ public class HashgraphPicture extends JPanel {
                 g.drawLine(x, pictureMetadata.getYmin(), x, pictureMetadata.getYmax());
                 final Rectangle2D rect = fm.getStringBounds(name, g);
                 g.drawString(
-                        name, (int) (x - rect.getWidth() / 2), (int) (pictureMetadata.getYmax() + rect.getHeight()));
+                        name, (int) (x - rect.getWidth() / 2),
+                        (int) (pictureMetadata.getYmax() + rect.getHeight()));
+            }
+            if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
+                String benchmarksString = "benchmarks:  ";
+                Rectangle2D rect;
+                long[] benchmarks = events.getFirst().getEventInfo().getHashgraph().getBenchmarks();
+                benchmarksString += benchmarks[1] + " update() calls, ";
+                benchmarksString += (benchmarks[0] / benchmarks[1]) + " ns per update(), inner loops: ";
+                for (int i=2; i<benchmarks.length; i++) {
+                    benchmarksString += (benchmarks[i] * 100 / benchmarks[0]) + "% ";
+                }
+                rect = fm.getStringBounds(benchmarksString, g);
+                g.drawString(benchmarksString, (int)((double)this.getBounds().width / 2- rect.getWidth() / 2),
+                        (int) (pictureMetadata.getYmax() + 2 * rect.getHeight()));
             }
 
             final int d = pictureMetadata.getD();
@@ -277,8 +292,14 @@ public class HashgraphPicture extends JPanel {
             s += " " + event.getRoundReceived();
         }
         // if not consensus, then there's no order yet
-        if (options.writeConsensusOrder() && event.isConsensus()) {
-            s += " " + event.getBaseEvent().getConsensusOrder();
+        if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
+            if (options.writeConsensusOrder() && event.getEventInfo().isConsensus()) {
+                s += " " + event.getEventInfo().getConsensusOrder();
+            }
+        } else {
+            if (options.writeConsensusOrder() && event.isConsensus()) {
+                s += " " + event.getBaseEvent().getConsensusOrder();
+            }
         }
         if (options.writeConsensusTimeStamp()) {
             final Instant t = event.getConsensusTimestamp();

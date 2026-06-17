@@ -91,15 +91,16 @@ public final class HashgraphInfo {
     private long[] candStake; // the total stake of all votes for each candidate event
 
     // these define what each element in benchmarks currently means. Always at least 1. Element 0 must never change.
-    public static final int NUM_BENCHMARKS = 7; // number of elements in long[] getBenchmarks()
+    public static final int NUM_BENCHMARKS = 8; // number of elements in long[] getBenchmarks()
     private static final int BENCHMARK_UPDATE = 0; // time spent in update()
-    private static final int BENCHMARK_SEARCH = 1; // graphSearch()
-    private static final int BENCHMARK_LOOP1 = 2; // prevJudges parentsSigned (in ancestorJudge)
-    private static final int BENCHMARK_LOOP2 = 3; // numNodes parents (in lastSee)
-    private static final int BENCHMARK_LOOP3 = 4; // numNodes parents (in lastSee)
-    private static final int BENCHMARK_LOOP4 = 5; // numNodes numNodes (in stronglySeeP)
-    private static final int BENCHMARK_LOOP5 = 6; // numNodes numNodes (in stakeAgrees)
-    private static final int BENCHMARK_LOOP6 = 7; // numNodes numNodes (in vote (when voteD==2))
+    private static final int BENCHMARK_UPDATE_COUNT = 1; // number of times update() was called
+    private static final int BENCHMARK_SEARCH = 2; // graphSearch()
+    private static final int BENCHMARK_LOOP1 = 3; // prevJudges parentsSigned (in ancestorJudge)
+    private static final int BENCHMARK_LOOP2 = 4; // numNodes parents (in lastSee)
+    private static final int BENCHMARK_LOOP3 = 5; // numNodes parents (in lastSee)
+    private static final int BENCHMARK_LOOP4 = 6; // numNodes numNodes (in stronglySeeP)
+    private static final int BENCHMARK_LOOP5 = 7; // numNodes numNodes (in stakeAgrees)
+    private static final int BENCHMARK_LOOP6 = 8; // numNodes numNodes (in vote (when voteD==2))
 
     /** true iff the last round to reach consensus used a coin round */
     public boolean isLastUpdateUsedCoin() {
@@ -1039,6 +1040,7 @@ public final class HashgraphInfo {
             }
             if (!h.roundDecided) {
                 h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
+                h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE_COUNT] ++;
                 return null;
             }
 
