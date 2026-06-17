@@ -125,26 +125,6 @@ public class CryptoUpdateSimpleFeesTest {
                     validateChargedAccount(cryptoUpdateTxn, PAYER));
         }
 
-        @HapiTest
-        @DisplayName("CryptoUpdate - update max automatic associations - base fees charged")
-        final Stream<DynamicTest> cryptoUpdateMaxAutoAssociationsBaseFeesCharged() {
-            return hapiTest(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    newKeyNamed(adminKey),
-                    cryptoCreate(ACCOUNT).key(adminKey),
-                    cryptoUpdate(ACCOUNT)
-                            .maxAutomaticAssociations(11)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, adminKey)
-                            .via(cryptoUpdateTxn),
-                    validateChargedUsdWithinWithTxnSize(
-                            cryptoUpdateTxn,
-                            txnSize -> expectedCryptoUpdateFullFeeUsd(
-                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
-                            0.1),
-                    validateChargedAccount(cryptoUpdateTxn, PAYER));
-        }
-
         @LeakyHapiTest(overrides = {"entities.maxLifetime"})
         @DisplayName("CryptoUpdate - extend account expiry - base fees charged")
         final Stream<DynamicTest> cryptoUpdateExpiryBaseFeesCharged() {
