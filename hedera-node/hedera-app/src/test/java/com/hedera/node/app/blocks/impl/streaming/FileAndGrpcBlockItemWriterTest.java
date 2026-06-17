@@ -29,7 +29,7 @@ class FileAndGrpcBlockItemWriterTest {
     private static final String BLK_GZ = "000000000000000000000000000000000001.blk.gz";
     private static final String MF = "000000000000000000000000000000000001.mf";
     private static final String PENDING_PROOF_JSON = "000000000000000000000000000000000001.pnd.json";
-    private static final String ISS_GZ = "000000000000000000000000000000000001.iss.gz";
+    private static final String OPEN_GZ = "000000000000000000000000000000000001.open.gz";
 
     @TempDir
     Path tempDir;
@@ -80,10 +80,10 @@ class FileAndGrpcBlockItemWriterTest {
 
         subject.flushIncompleteBlock();
 
-        // The file half persists the open block as a .iss.gz triage artifact, with no .blk.gz, no completion marker,
+        // The file half persists the open block as a .open.gz triage artifact, with no .blk.gz, no completion marker,
         // and no pending-proof sidecar.
         final var dir = tempDir.resolve("block-0.0.3");
-        assertThat(Files.exists(dir.resolve(ISS_GZ))).isTrue();
+        assertThat(Files.exists(dir.resolve(OPEN_GZ))).isTrue();
         assertThat(Files.exists(dir.resolve(BLK_GZ))).isFalse();
         assertThat(Files.exists(dir.resolve(MF))).isFalse();
         assertThat(Files.exists(dir.resolve(PENDING_PROOF_JSON))).isFalse();

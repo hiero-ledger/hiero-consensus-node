@@ -1393,7 +1393,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 // The in-progress writer is handler-owned (quiesced above) and is never touched by signing callbacks,
                 // so it can be flushed without the monitor. flushIncompleteBlock persists the open, unproven block as
-                // a ".iss.gz" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
+                // a ".open.gz" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
                 if (writer != null) {
                     log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
                     try {

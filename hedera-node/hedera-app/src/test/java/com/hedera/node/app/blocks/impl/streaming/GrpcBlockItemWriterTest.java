@@ -203,20 +203,63 @@ class GrpcBlockItemWriterTest {
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         final var nodeDir = tempDir.resolve("block-0.0.3");
-        // The open block's items are persisted as a .iss.gz triage artifact, with no pending-proof sidecar...
-        assertThat(Files.exists(nodeDir.resolve(baseName + ".iss.gz"))).isTrue();
+        // The open block's items are persisted as a .open.gz triage artifact, with no pending-proof sidecar...
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".open.gz"))).isTrue();
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.gz"))).isFalse();
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.json"))).isFalse();
         // ...and the buffer block is deliberately NOT closed (which would make it eligible for buffer persistence)
         verify(blockBufferService, never()).closeBlock(blockNumber);
 
-        // The .iss.gz parses back as a Block for analysis (BlockBytes is wire-identical to Block)
+        // The .open.gz parses back as a Block for analysis (BlockBytes is wire-identical to Block)
         final byte[] contents;
-        try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".iss.gz")))) {
+        try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".open.gz")))) {
             contents = in.readAllBytes();
         }
         final Block parsedBlock = Block.PROTOBUF.parse(Bytes.wrap(contents));
         assertThat(parsedBlock.items()).hasSize(1);
         assertThat(parsedBlock.items().getFirst().blockHeader().number()).isEqualTo(blockNumber);
+    }
+
+    @Test
+    void flushIncompleteBlockIsNoOpWhenNoBlockState() {
+        final var blockNumber = 7L;
+        // getBlockState is unstubbed -> null, so the flush writes nothing and does not throw.
+        final var writer =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        writer.openBlock(blockNumber);
+        writer.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.gz")))
+                .isFalse();
+    }
+
+    @Test
+    void flushIncompleteBlockIsNoOpWhenNoItems() {
+        final var blockNumber = 7L;
+        when(blockBufferService.getBlockState(blockNumber)).thenReturn(new BlockState(blockNumber));
+        final var writer =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        writer.openBlock(blockNumber);
+        writer.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.gz")))
+                .isFalse();
+    }
+
+    @Test
+    void flushIncompleteBlockSwallowsExceptions() {
+        final var blockNumber = 7L;
+        when(blockBufferService.getBlockState(blockNumber)).thenThrow(new RuntimeException("boom"));
+        final var writer =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
+        writer.openBlock(blockNumber);
+        // Best-effort contract: the exception is caught, not propagated.
+        writer.flushIncompleteBlock();
+
+        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.gz")))
+                .isFalse();
     }
 }

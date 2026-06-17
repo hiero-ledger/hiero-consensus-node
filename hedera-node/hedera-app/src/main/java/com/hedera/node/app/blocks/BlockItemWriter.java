@@ -50,7 +50,7 @@ public interface BlockItemWriter {
 
     /**
      * Flushes the current OPEN, unproven block to local disk for triage after a catastrophic failure (e.g. an ISS),
-     * as an {@code .iss.gz} artifact: the gzipped block items, parseable as a {@link
+     * as an {@code .open.gz} artifact: the gzipped block items, parseable as a {@link
      * com.hedera.hapi.block.stream.Block} for analysis. Unlike {@link #flushPendingBlock(PendingProof)}, this is
      * deliberately NOT a recoverable pending block — it has no {@code .pnd.json} proof sidecar (so pending-block
      * recovery never picks it up) and no completion marker (so it is never mistaken for a finished/proven block).

@@ -2211,6 +2211,67 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
+    void willCloseBlockReturnsFalseAfterFatalEvent() {
+        // After a fatal event the block stream is stopped, so no block "closes" normally; the companion record file
+        // (streamMode=BOTH) must not be finalized for a round we are abandoning to a triage flush.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.notifyFatalEvent();
+
+        assertFalse(subject.willCloseBlock(state, ROUND_NO));
+    }
+
+    @Test
+    void awaitFatalShutdownIsNoOpWithoutFatalEvent() {
+        // Defensive: called without a prior notifyFatalEvent, awaitFatalShutdown flushes nothing.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter, never()).flushIncompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void awaitFatalShutdownTimesOutWhenRoundStillInProgress() {
+        // A round is in flight (no endRound) when the failure arrives: awaitFatalShutdown cannot safely touch the
+        // handler-owned writer, so it waits, times out, and flushes only already-closed pending blocks (none here).
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state); // roundInProgress = true; no endRound follows
+        subject.notifyFatalEvent();
+
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofMillis(1)));
+        verify(aWriter, never()).flushIncompleteBlock();
+    }
+
+    @Test
     void stoppedStreamOperationsAreNoOpsAfterFatalEvent() {
         // After the in-progress block is flushed at catastrophic failure, every block-stream operation is a no-op:
         // startRound opens no new block, writeItem (both overloads) and prngSeed return without touching the released
