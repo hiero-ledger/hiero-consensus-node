@@ -245,8 +245,11 @@ jobs:
           if [[ ${?} -eq 0 ]]
           then
             echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
-            exit 13
+            #exit 13
           fi
+
+          #workaround of self-recreating feature of ticket RESD-838
+          exit 0
 
       - name: Cancelling in case of namespace collision
         if: failure()
