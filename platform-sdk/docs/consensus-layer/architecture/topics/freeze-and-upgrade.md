@@ -136,7 +136,7 @@ roster the network adopts at `freezeRound + 1`. The rewrite is what
 keeps pre-upgrade events validating against the pre-upgrade roster,
 even when the new roster drops some of the nodes that signed them, and
 it gives the upgrade a clean boundary if the event format itself
-changes. See [`birth-round.md`](../concepts/birth-round.md) for detail
+changes. See [`birth-round.md`](../../concepts/birth-round.md) for detail
 on birth round values.
 
 Once `FreezeRoundController#isFrozen` is true, `addEvent` stops feeding

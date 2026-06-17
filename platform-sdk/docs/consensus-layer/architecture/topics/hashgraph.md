@@ -113,7 +113,7 @@ is wired against those.
   linked into the DAG that have not yet reached consensus.
 - `staleEventOutputWire(): OutputWire<PlatformEvent>` — events that
   aged past the ancient threshold without reaching consensus
-  (see [`../concepts/stale-events.md`](../concepts/stale-events.md)).
+  (see [`../../concepts/stale-events.md`](../../concepts/stale-events.md)).
 
 `ConsensusRound`
 ([`consensus-model/.../ConsensusRound.java`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/hashgraph/ConsensusRound.java))
@@ -158,7 +158,7 @@ buffered future events and emit several decided rounds.
 5. If consensus advanced, `linker.setEventWindow(round.getEventWindow())`
    shifts the non-ancient window and returns the events that became
    ancient; non-consensus ancients are reported as stale (see
-   [`../concepts/stale-events.md`](../concepts/stale-events.md)).
+   [`../../concepts/stale-events.md`](../../concepts/stale-events.md)).
 6. `futureEventBuffer.updateEventWindow(eventWindow)` releases any
    future events whose birth round is now eligible; they are appended
    to the work queue and each is fed back into step 3
@@ -176,7 +176,7 @@ that this event strongly sees (weighted by roster) and increments to
 decided ancient threshold are marked `ROUND_NEGATIVE_INFINITY` and
 skipped. The current code drives ancient-ness from birth round, not
 generation; for the conceptual background see
-[`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
+[`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff
 its round is greater than `ROUND_NEGATIVE_INFINITY` and its round
@@ -190,7 +190,7 @@ of weight among intermediates that all see the same canonical witness.
 during the round-creation walk. Both rest on
 `lastSee(x, m)` (line 956), the most recent ancestor of `x` by
 member `m`, memoized per event. Conceptual background:
-[`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md).
+[`../../concepts/strongly-seeing.md`](../../concepts/strongly-seeing.md).
 
 **Fame voting.** When a witness is added to round `r + d`, it votes
 on every undecided witness in earlier rounds via
@@ -202,8 +202,8 @@ strongly sees. When `isCoinRound(d)` returns true (line 613), the
 counting vote falls back to a coin-bit derived from the voter's
 `EventCore.coin` field (via `ConsensusUtils.coin`). Fame is decided
 when a super-majority is reached on either side. See
-[`../concepts/voting.md`](../concepts/voting.md) and
-[`../concepts/coin-rounds.md`](../concepts/coin-rounds.md).
+[`../../concepts/voting.md`](../../concepts/voting.md) and
+[`../../concepts/coin-rounds.md`](../../concepts/coin-rounds.md).
 
 **Judges and round-decided.** When `RoundElections.isDecided()` is
 true and the engine is no longer waiting for init judges,
@@ -258,7 +258,7 @@ downstream view of pre-consensus output stays complete.
 > judge mean the same thing in the paper and in the code. The notable
 > divergence is the ancient/expired horizon — the paper uses an event's
 > deterministic generation where the current code uses `birthRound`; see
-> [`../concepts/birth-round.md`](../concepts/birth-round.md) for that
+> [`../../concepts/birth-round.md`](../../concepts/birth-round.md) for that
 > substitution. The
 > implementation also carries a few quantities that do not appear in
 > the paper — `NGen` (a locally-computed, non-deterministic generation
@@ -266,13 +266,13 @@ downstream view of pre-consensus output stays complete.
 > "higher in the hashgraph" comparisons; see `NonDeterministicGeneration`)
 > and the `DeGen`/`cGen` family used inside the algorithm. Conceptual
 > background lives in
-> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
-> and [`../concepts/birth-round.md`](../concepts/birth-round.md).
+> [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
+> and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).
 
 ## Birth-round filtering
 
 Birth round controls what enters the DAG and what stays in it (see
-[`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
+[`../../concepts/event-lifecycle.md`](../../concepts/event-lifecycle.md)
 for the admitted → ancient → expired staircase that this section
 gates).
 
@@ -295,23 +295,23 @@ clears `parentHashMap` for evicted descriptors, calls `EventImpl.clear`
 on each, and returns the list of events that just became ancient.
 `DefaultConsensusEngine.addEvent` reports any of those that did not
 reach consensus on the stale-events output (see
-[`../concepts/stale-events.md`](../concepts/stale-events.md)).
+[`../../concepts/stale-events.md`](../../concepts/stale-events.md)).
 Conceptual background:
-[`../concepts/birth-round.md`](../concepts/birth-round.md).
+[`../../concepts/birth-round.md`](../../concepts/birth-round.md).
 
 ## Cross-references
 
 **Concepts.**
 
-- [`../concepts/hashgraph-dag.md`](../concepts/hashgraph-dag.md)
-- [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
-- [`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md)
-- [`../concepts/voting.md`](../concepts/voting.md)
-- [`../concepts/coin-rounds.md`](../concepts/coin-rounds.md)
-- [`../concepts/judges.md`](../concepts/judges.md)
-- [`../concepts/birth-round.md`](../concepts/birth-round.md)
-- [`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
-- [`../concepts/stale-events.md`](../concepts/stale-events.md)
+- [`../../concepts/hashgraph-dag.md`](../../concepts/hashgraph-dag.md)
+- [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
+- [`../../concepts/strongly-seeing.md`](../../concepts/strongly-seeing.md)
+- [`../../concepts/voting.md`](../../concepts/voting.md)
+- [`../../concepts/coin-rounds.md`](../../concepts/coin-rounds.md)
+- [`../../concepts/judges.md`](../../concepts/judges.md)
+- [`../../concepts/birth-round.md`](../../concepts/birth-round.md)
+- [`../../concepts/event-lifecycle.md`](../../concepts/event-lifecycle.md)
+- [`../../concepts/stale-events.md`](../../concepts/stale-events.md)
 
 **Invariants.** The consensus algorithm this module runs is where most of
 the layer's invariants are established:
@@ -330,10 +330,10 @@ the layer's invariants are established:
 - INV-016 — consensus order is a strict total order with unique, gap-free ranks.
 
 **Decisions.** [TBD: ADR-NNN once
-[`../decisions/`](../decisions/) catalog populates.]
+[`../../decisions/`](../../decisions/) catalog populates.]
 
 **Scenarios.** [TBD: SCN-NNN once
-[`../scenarios/`](../scenarios/) catalog populates.]
+[`../../scenarios/`](../../scenarios/) catalog populates.]
 
 **Sibling topics.**
 
