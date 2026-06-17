@@ -18,12 +18,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NONSENSE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -33,6 +32,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateWithCustomFeeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
@@ -207,7 +207,6 @@ class AtomicTopicCreateSuite {
     // TOPIC_RENEW_5
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer_ECDSA() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("autoRenewAccountKey").shape(KeyShape.SECP256K1),
@@ -223,24 +222,17 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "createTopic",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "createTopic",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicCreateFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     // TOPIC_RENEW_6 - Public topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayer() {
-        final var expectedPriceUsd = 0.0103;
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("autoRenewAccount").balance(ONE_HBAR),
@@ -255,24 +247,17 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "createTopic",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "createTopic",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicCreateFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     // TOPIC_RENEW_6 - Private topic
     @HapiTest
     final Stream<DynamicTest> autoRenewAccountIdDoesNotNeedAdminKeyAutoRenewIsAlsoPayerPrivateTopic() {
-        final var expectedPriceUsd = 0.0105;
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed("submitKey"),
@@ -289,20 +274,37 @@ class AtomicTopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "createTopic",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        KEYS, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd("createTopic", ATOMIC_BATCH, expectedPriceUsd, 5.0);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "createTopic",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                SIGNATURES, 1L,
+                                KEYS, 1L,
+                                PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> topicCreateWithCustomFeeInBatchChargesExpectedFee() {
+        return hapiTest(
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                cryptoCreate("payer").balance(ONE_MILLION_HBARS),
+                cryptoCreate("collector"),
+                atomicBatch(createTopic("topicWithCustomFee")
+                                .blankMemo()
+                                .payingWith("payer")
+                                .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
+                                .via("topicCreateWithCustomFee")
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .via(ATOMIC_BATCH),
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "topicCreateWithCustomFee",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     @HapiTest

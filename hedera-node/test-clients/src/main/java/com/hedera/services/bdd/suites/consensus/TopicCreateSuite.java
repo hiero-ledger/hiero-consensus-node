@@ -18,13 +18,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -59,7 +57,6 @@ import org.junit.jupiter.api.DynamicTest;
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
     public static final String TESTMEMO = "testmemo";
-    public static final Double EXPECTED_PRICE_USD = 0.01;
 
     @HapiTest
     final Stream<DynamicTest> adminKeyIsValidated() {
@@ -183,17 +180,11 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateChargedUsdWithinWithTxnSize(
-                                "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
-                    }
-                }));
+                validateChargedUsdWithinWithTxnSize(
+                        "createTopic",
+                        txnSize -> expectedTopicCreateFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     // TOPIC_RENEW_6 - Public topic
@@ -209,17 +200,11 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateChargedUsdWithinWithTxnSize(
-                                "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 5);
-                    }
-                }));
+                validateChargedUsdWithinWithTxnSize(
+                        "createTopic",
+                        txnSize -> expectedTopicCreateFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     // TOPIC_RENEW_6 - Private topic
@@ -237,19 +222,13 @@ public class TopicCreateSuite {
                 getTopicInfo("noAdminKeyExplicitAutoRenewAccount")
                         .hasNoAdminKey()
                         .hasAutoRenewAccount("autoRenewAccount"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateChargedUsdWithinWithTxnSize(
-                                "createTopic",
-                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        KEYS, 1L,
-                                        PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateChargedUsd("createTopic", EXPECTED_PRICE_USD, 10);
-                    }
-                }));
+                validateChargedUsdWithinWithTxnSize(
+                        "createTopic",
+                        txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                SIGNATURES, 1L,
+                                KEYS, 1L,
+                                PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     @HapiTest
