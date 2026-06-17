@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-004
 title: Retain the OBSERVING Platform Status for Self-Event Recovery After Disk Loss
 topics: [event-creation, pces, platform-status]

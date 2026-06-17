@@ -22,8 +22,6 @@ import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -218,14 +216,6 @@ public class FreezeHandler implements TransactionHandler {
             // UNKNOWN_FREEZE_TYPE will fail at preHandle, this code should never get called
             case UNKNOWN_FREEZE_TYPE -> throw new HandleException(ResponseCodeEnum.INVALID_FREEZE_TRANSACTION_BODY);
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        // Can only reach consensus with a privileged account as payer
-        return Fees.FREE;
     }
 
     /**
