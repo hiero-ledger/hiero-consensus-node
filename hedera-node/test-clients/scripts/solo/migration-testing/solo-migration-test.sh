@@ -601,10 +601,23 @@ upgrade_to_local() {
 
   wait_for_marker "now_frozen.mf" "${MARKER_TIMEOUT_SECS}"
 
+  # Capture baseline swirlds.log sizes for ALL pods upfront, before we start
+  # polling any of them. NMT's nmt-watch dispatches the post-freeze restart on
+  # all pods in parallel; sampling each pod's baseline lazily inside the
+  # per-pod wait loop means later pods get sampled AFTER NMT has already
+  # restarted them and the new JVM's "newStatus":"ACTIVE" is already in the
+  # file — at which point the wait_for_node_active byte-offset gate looks for
+  # ACTIVE *past* that already-post-restart offset and never finds anything.
   log "Waiting for NMT to restart each node on the local build"
+  declare -A baseline_sizes
   local pod
   for pod in $(iterate_pods); do
-    wait_for_node_active "${pod}" "${UPGRADE_RESTART_TIMEOUT_SECS}" true
+    baseline_sizes["${pod}"]=$(kexec "${pod}" stat -c %s \
+      "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+  done
+  for pod in $(iterate_pods); do
+    wait_for_node_active "${pod}" "${UPGRADE_RESTART_TIMEOUT_SECS}" true \
+      "${baseline_sizes[$pod]}"
   done
 
   log "Verifying every consensus node is running the local build"
@@ -1046,7 +1059,7 @@ start_consensus_node_via_nmt() {
 # log4j2 configurations). On timeout we dump `docker logs swirlds-node`
 # from inside the pod plus both log tails for diagnosis.
 wait_for_node_active() {
-  local pod="$1" timeout_secs="$2" require_restart="${3:-false}"
+  local pod="$1" timeout_secs="$2" require_restart="${3:-false}" preset_initial_size="${4:-}"
   local deadline=$((SECONDS + timeout_secs))
   # Optional restart gate: when `require_restart` is true, snapshot the
   # swirlds.log file size before the loop and accept ACTIVE only when it
@@ -1065,10 +1078,22 @@ wait_for_node_active() {
   # signal that survives both file-preserved and file-replaced snapshots.
   # For the BASELINE caller (bring_up_consensus_via_nmt) the JVM is starting
   # fresh and we want the first ACTIVE — pass require_restart=false (default).
+  #
+  # The 4th argument (preset_initial_size) lets the caller pass in a baseline
+  # that was captured upfront for all pods *before* the per-pod polling loop
+  # starts. NMT dispatches the post-freeze restart on all nodes concurrently,
+  # so a per-pod baseline captured inside this function — i.e. AFTER the
+  # earlier pods' polls — races with NMT and ends up sampling a post-restart
+  # file size, at which point any ACTIVE entry is already in the file and the
+  # poll past that offset never sees the transition.
   local initial_size=0
   if [[ "${require_restart}" == "true" ]]; then
-    initial_size=$(kexec "${pod}" stat -c %s \
-      "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+    if [[ -n "${preset_initial_size}" ]]; then
+      initial_size="${preset_initial_size}"
+    else
+      initial_size=$(kexec "${pod}" stat -c %s \
+        "${HAPI_PATH}/output/swirlds.log" 2>/dev/null || echo 0)
+    fi
     log "  ${pod}: baseline swirlds.log size = ${initial_size} bytes; waiting for post-upgrade ACTIVE"
   fi
   while (( SECONDS < deadline )); do
