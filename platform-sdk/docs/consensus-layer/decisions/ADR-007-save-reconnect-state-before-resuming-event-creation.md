@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-007
 title: Save the Reconnect State to Disk Before Resuming Event Creation
 topics: [reconnect, platform-status, event-creation, pces, signed-state]

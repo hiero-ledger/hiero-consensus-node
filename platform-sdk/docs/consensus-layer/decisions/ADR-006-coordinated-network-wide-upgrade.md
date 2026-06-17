@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-006
 title: Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades
 topics: [freeze-and-upgrade]

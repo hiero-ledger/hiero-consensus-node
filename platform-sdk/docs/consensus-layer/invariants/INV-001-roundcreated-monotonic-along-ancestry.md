@@ -1,4 +1,5 @@
 ---
+type: invariant
 id: INV-001
 title: Voting round is monotonic along ancestry — a parent's round never exceeds its child's
 class: safety
@@ -20,7 +21,7 @@ provenance: entry originally added by prior elicitation; revised 2026-06-08 (ter
 curated_by: Kelly Greco (@poulok)
 ---
 
-# INV-001 — Voting round is monotonic along ancestry
+# INV-001 — Voting round is monotonic along ancestry — a parent's round never exceeds its child's
 
 ## Statement
 

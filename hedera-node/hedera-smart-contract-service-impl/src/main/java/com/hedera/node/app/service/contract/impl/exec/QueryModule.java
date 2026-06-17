@@ -96,7 +96,6 @@ public interface QueryModule {
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
                 true,
-                true,
                 hederaEvmBlocks,
                 tinybarValues,
                 systemContractGasCalculator,

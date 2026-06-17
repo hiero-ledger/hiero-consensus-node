@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-002
 title: Block `onSealConsensusRound` to Hand Off Freeze Block Signatures from Execution to Consensus
 topics: [freeze-and-upgrade, execution-layer-interface]

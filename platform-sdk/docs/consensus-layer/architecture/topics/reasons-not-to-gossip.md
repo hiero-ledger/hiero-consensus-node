@@ -1,7 +1,7 @@
 ---
+type: architecture-topic
 title: Reasons not to gossip
-kind: architecture-topic
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Reasons not to gossip

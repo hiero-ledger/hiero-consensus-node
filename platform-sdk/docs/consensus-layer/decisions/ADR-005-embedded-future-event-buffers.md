@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-005
 title: Embed a future-event buffer inside each consuming component instead of one standalone buffering component
 topics: [hashgraph, event-creator, event-intake, wiring-framework]
