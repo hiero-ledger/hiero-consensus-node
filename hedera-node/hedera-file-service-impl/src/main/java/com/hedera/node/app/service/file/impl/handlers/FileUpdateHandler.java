@@ -18,22 +18,18 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.file.FileSignatureWaivers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -168,32 +164,6 @@ public class FileUpdateHandler implements TransactionHandler {
         resolveMutableBuilderAttributes(
                 fileUpdate, builder, fileServiceConfig, file, fileID, accountsConfig, handleContext.payer());
         fileStore.put(builder.build());
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var file = feeContext
-                .readableStore(ReadableFileStore.class)
-                .getFileLeaf(op.fileUpdateOrThrow().fileIDOrThrow());
-
-        final AccountID payerId = op.transactionID().accountID();
-
-        final SystemPrivilege privilege =
-                feeContext.authorizer().hasPrivilegedAuthorization(payerId, HederaFunctionality.FILE_UPDATE, op);
-
-        // Even if the privilege is UNAUTHORIZED or IMPERMISSIBLE continue with a free fee
-        // The appropriate error is thrown at a later stage of the workflow
-        if (privilege != SystemPrivilege.UNNECESSARY) {
-            return Fees.FREE;
-        }
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj ->
-                        usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj, CommonPbjConverters.fromPbj(file)));
     }
 
     private void handleUpdateUpgradeFile(FileUpdateTransactionBody fileUpdate, HandleContext handleContext) {

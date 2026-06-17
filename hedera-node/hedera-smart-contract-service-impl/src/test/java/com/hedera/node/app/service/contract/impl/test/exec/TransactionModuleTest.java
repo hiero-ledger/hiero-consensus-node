@@ -195,7 +195,8 @@ class TransactionModuleTest {
     @Test
     void providesSystemGasContractCalculator() {
         // Given a transaction-specific dispatch cost of 6 tinyBars which will be 12000 tinyCents...
-        given(context.dispatchComputeFees(TransactionBody.DEFAULT, AccountID.DEFAULT, ComputeDispatchFeesAsTopLevel.NO))
+        given(context.dispatchComputeFees(
+                        TransactionBody.DEFAULT, AccountID.DEFAULT, ComputeDispatchFeesAsTopLevel.NO, null))
                 .willReturn(new Fees(1, 2, 3));
         // The 6 tinyBars = 12000 tinyCents
         given(tinybarValues.asTinycents(6L)).willReturn(12000L);

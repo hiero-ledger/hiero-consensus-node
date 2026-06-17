@@ -79,7 +79,8 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
      */
     public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
             throws IOException {
-        super(file, capacity, configuration);
+        super(capacity, configuration);
+        loadFromFile(file);
     }
 
     /**
@@ -89,34 +90,28 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
      * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
      * is thrown.
      *
-     * @param path The file to load the long list from
+     * @param file The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListHeap(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            final Configuration configuration)
+            @NonNull final Path file, final int longsPerChunk, final long capacity, final long reservedBufferSize)
             throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+        super(longsPerChunk, capacity, reservedBufferSize);
+        loadFromFile(file);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void readBodyFromFileChannelOnInit(
-            final String sourceFileName, final FileChannel fileChannel, Configuration configuration)
-            throws IOException {
+    protected void readBodyFromFileChannelOnInit(final FileChannel fileChannel) throws IOException {
         initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.LITTLE_ENDIAN);
         try {
-            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
+            super.readBodyFromFileChannelOnInit(fileChannel);
         } finally {
             MemoryUtils.closeDirectByteBuffer(initReadBuffer);
         }

@@ -581,23 +581,6 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     /**
-     * Calculate the fees for the token airdrop transaction. Initially only the CryptoTransferFees is charged
-     * for the token airdrop transaction. The fees are charged based on number of pending airdrops that
-     * are created in the transaction. If there are no pending airdrops created, no extra fees is charged and
-     * only the CryptoTransferFees is charged.
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body().tokenAirdropOrThrow();
-        final var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
-        validateTrue(tokensConfig.airdropsEnabled(), NOT_SUPPORTED);
-        // Always charge CryptoTransferFee as base price and then each time a pending airdrop is created
-        // we charge airdrop fee in handle
-        return calculateCryptoTransferFees(feeContext, op.tokenTransfers());
-    }
-
-    /**
      * Calculates the CryptoTransfer fees by dispatching a synthetic CryptoTransfer transaction.
      *
      * @param feeContext the fee context

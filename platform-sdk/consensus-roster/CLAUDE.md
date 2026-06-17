@@ -1,14 +1,5 @@
-# Consensus Layer Knowledge Base
-
-`consensus-roster` is part of the **consensus layer**. When working here, consult the
-consensus-layer knowledge base at [`../docs/consensus-layer/`](../docs/consensus-layer/) —
-it documents the current implementation as canonical, anchored to specific files,
-classes, and methods.
-
-**Most relevant to this module:**
-
-- [`architecture/topics/hashgraph.md`](../docs/consensus-layer/architecture/topics/hashgraph.md) — rosters are carried as round metadata so every module agrees which roster applies to which round.
-- [`architecture/interfaces/consensus-execution-boundary.md`](../docs/consensus-layer/architecture/interfaces/consensus-execution-boundary.md) — where rosters cross the boundary (carried in state and as round metadata).
+Read [`README.md`](README.md) for this module's description, dependency rules, and links to
+the relevant consensus-layer knowledge base docs.
 
 **Navigation.** Start at [`architecture/overview.md`](../docs/consensus-layer/architecture/overview.md).
 Vocabulary lives in [`glossary.md`](../docs/consensus-layer/glossary.md) and

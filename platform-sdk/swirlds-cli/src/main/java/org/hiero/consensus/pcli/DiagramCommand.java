@@ -15,7 +15,6 @@ import com.swirlds.component.framework.model.diagram.ModelGroup;
 import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -130,9 +129,7 @@ public final class DiagramCommand extends AbstractCommand {
                 hashgraphModule,
                 gossipModule);
 
-        // Use non-null callbacks so all optional wires appear in the diagram
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(e -> {}, s -> {}, e -> {});
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, callbacks);
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, null);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

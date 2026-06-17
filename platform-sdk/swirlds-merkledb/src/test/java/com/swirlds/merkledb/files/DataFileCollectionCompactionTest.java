@@ -557,8 +557,8 @@ class DataFileCollectionCompactionTest {
             store.close();
 
             // Restore
-            final LongListOffHeap index2 = new LongListOffHeap(
-                    snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0, CONFIGURATION);
+            final LongListOffHeap index2 =
+                    new LongListOffHeap(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0);
             final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
             // Check index size
             assertEquals(numFiles * numValues, index2.size());
@@ -641,7 +641,7 @@ class DataFileCollectionCompactionTest {
         }
 
         // Create a new data collection from the snapshot
-        LongList index2 = new LongListOffHeap(savedIndex, MAXKEYS / 10, MAXKEYS, 0, CONFIGURATION);
+        LongList index2 = new LongListOffHeap(savedIndex, MAXKEYS / 10, MAXKEYS, 0);
         final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshot, storeName, null);
 
         // Merge all files with redundant records
