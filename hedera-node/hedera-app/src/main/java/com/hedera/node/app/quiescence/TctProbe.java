@@ -22,20 +22,23 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 /**
  * A stateful probe that explores a {@link State} to find the earliest target consensus timestamp (TCT) that marks
  * where quiescence should end, no matter if user transactions remain dormant.
  * <p>
- * Suppose the given state has a last-handled consensus time of `T`.
+ * Suppose the given state has a last-handled consensus time of {@code T}.
  * <ol>
- *   <li>When the probe was given a non-negative staking period, the start of the next stake period after `T` is a TCT.</li>
- *   <li>Every second after `T` with a transaction scheduled to execute there is a TCT.</li>
+ *   <li>When the probe was given a positive staking period, the start of the next stake period after {@code T} is
+ *       a TCT.</li>
+ *   <li>Every second after {@code T} with a transaction scheduled to execute there is a TCT.</li>
  *   <li>When the state has a freeze time set, the freeze time is a TCT.</li>
  * </ol>
+ * If none of the three sources yield a deadline, {@link #findTct()} returns {@code null}. The probe never returns
+ * {@link Instant#EPOCH} as a sentinel; an empty result is {@code null}.
+ *
+ * <p>See <a href="../../../../../../../../../docs/design/app/quiescence-analysis.md">hedera-node/docs/design/app/quiescence-analysis.md</a> for context.
  */
 public class TctProbe {
     private final int maxConsecutiveScheduleSecondsToProbe;
@@ -46,13 +49,13 @@ public class TctProbe {
     private Instant nearestTct;
 
     @Nullable
-    private Instant nextFreezeTime;
+    private Optional<Instant> nextFreezeTime;
 
     @Nullable
     private Instant nextScheduledSecond;
 
     @Nullable
-    private Instant nextStakePeriodStart;
+    private Optional<Instant> nextStakePeriodStart;
 
     @Nullable
     private Instant lastHandledConsensusTime;
@@ -67,23 +70,24 @@ public class TctProbe {
     /**
      * Probes its {@link State} for the earliest target consensus timestamp (TCT) that marks where quiescence should
      * end, no matter if user transactions remain dormant.
-     * @return the earliest TCT or {@code null} if there is no TCT discovered yet
+     *
+     * @return the earliest TCT or {@code null} if there is no TCT (no freeze, no positive stake period, and no
+     *         scheduled transaction found within the probe window)
      */
     public @Nullable Instant findTct() {
         if (nextFreezeTime == null) {
             nextFreezeTime = Optional.ofNullable(
                             new ReadableFreezeStoreImpl(state.getReadableStates(FreezeServiceImpl.NAME)).freezeTime())
-                    .map(HapiUtils::asInstant)
-                    .orElse(Instant.EPOCH);
+                    .map(HapiUtils::asInstant);
         }
-        if (stakePeriodMins > 0) {
-            if (nextStakePeriodStart == null) {
+        if (nextStakePeriodStart == null) {
+            if (stakePeriodMins > 0) {
                 final long currentStakePeriod = stakePeriodAt(lastHandledConsensusTime(), stakePeriodMins);
-                nextStakePeriodStart =
-                        Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, stakePeriodMins));
+                nextStakePeriodStart = Optional.of(
+                        Instant.ofEpochSecond(epochSecondAtStartOfPeriod(currentStakePeriod + 1, stakePeriodMins)));
+            } else {
+                nextStakePeriodStart = Optional.empty();
             }
-        } else {
-            nextStakePeriodStart = Instant.EPOCH;
         }
         if (nextScheduledSecond == null || nextScheduledSecondCouldBeNewNearestTct()) {
             if (nextScheduledSecond == null) {
@@ -102,9 +106,7 @@ public class TctProbe {
             }
         }
         if (nearestTct == null) {
-            requireNonNull(nextFreezeTime);
-            requireNonNull(nextStakePeriodStart);
-            nearestTct = Collections.min(List.of(nextStakePeriodStart, nextFreezeTime));
+            nearestTct = earliestPresent(nextStakePeriodStart, nextFreezeTime);
         }
         return nearestTct;
     }
@@ -137,9 +139,21 @@ public class TctProbe {
     }
 
     private boolean nextScheduledSecondCouldBeNewNearestTct() {
-        if (nearestTct == null || nearestTct.equals(Instant.EPOCH)) {
+        if (nearestTct == null) {
             return true;
         }
-        return nearestTct.equals(nextStakePeriodStart) || nearestTct.equals(nextFreezeTime);
+        return Optional.of(nearestTct).equals(nextStakePeriodStart)
+                || Optional.of(nearestTct).equals(nextFreezeTime);
+    }
+
+    private static @Nullable Instant earliestPresent(
+            @NonNull final Optional<Instant> first, @NonNull final Optional<Instant> second) {
+        if (first.isEmpty()) {
+            return second.orElse(null);
+        }
+        if (second.isEmpty()) {
+            return first.get();
+        }
+        return first.get().isBefore(second.get()) ? first.get() : second.get();
     }
 }

@@ -74,8 +74,10 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
                 doingContextual(spec -> org.junit.jupiter.api.Assumptions.assumeTrue(
                         spec.startupProperties().getStreamMode("blockStream.streamMode") != BLOCKS,
                         "WRB requires record stream; skipping in BLOCKS-only mode")),
-                // Produce a new record block and ensure nothing was written with default settings
-                waitUntilNextBlock(),
+                // Produce a new record block and ensure nothing was written with default settings.
+                // Background traffic is required because with quiescence.enabled=true a freshly-booted
+                // empty network correctly quiesces and won't produce a new block on its own.
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
                 sleepFor(DISK_IO_WAIT_MS),
                 doingContextual(spec -> assertNoWrappedHashesWritten(spec.getNetworkNodes().stream()
@@ -84,8 +86,9 @@ public class WrappedRecordHashesFlagUpgradeSubprocessTest implements LifecycleTe
                 prepareFakeUpgrade(),
                 // Now restart with the feature enabled (bootstrap override)
                 upgradeToNextConfigVersion(enableAtRestart),
-                // Produce a new record block and ensure the file exists and is parseable on every node
-                waitUntilNextBlock(),
+                // Produce a new record block and ensure the file exists and is parseable on every node.
+                // Same quiescence concern as above — post-upgrade boot also quiesces without traffic.
+                waitUntilNextBlock().withBackgroundTraffic(true),
                 cryptoTransfer((ignore, builder) -> {}).payingWith(GENESIS),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 sleepFor(DISK_IO_WAIT_MS),
