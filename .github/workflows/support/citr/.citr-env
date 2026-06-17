@@ -6,4 +6,4 @@ mqpt-cluster=Dallas_n10
 tck-version=v0.11.0
 js-sdk-version=v2.85.0
 block-node-version=v0.35.1
-mirror-node-version=v0.156.0
+bn-mirror-node-version=v0.156.0

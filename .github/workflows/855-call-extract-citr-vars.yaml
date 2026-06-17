@@ -29,8 +29,8 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.js-sdk-version }}
       bn-release-version:
         value: ${{ jobs.extract-citr-vars.outputs.block-node-version }}
-      mn-release-version:
-        value: ${{ jobs.extract-citr-vars.outputs.mirror-node-version }}
+      bn-mirror-node-version:
+        value: ${{ jobs.extract-citr-vars.outputs.bn-mirror-node-version }}
 
 permissions:
   contents: read
@@ -52,7 +52,7 @@ jobs:
       tck-version: ${{ steps.get-citr-vars.outputs.tck-version }}
       js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
       block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
-      mirror-node-version: ${{ steps.get-citr-vars.outputs.mirror-node-version }}
+      bn-mirror-node-version: ${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}
     steps:
       - name: Initialize Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
@@ -84,7 +84,18 @@ jobs:
           steps.get-citr-vars.outputs.citr-mirror-node-version == '' || steps.get-citr-vars.outputs.citr-solo-version == '' ||
           steps.get-citr-vars.outputs.mqpt-cluster == '' || steps.get-citr-vars.outputs.tck-version == '' ||
           steps.get-citr-vars.outputs.js-sdk-version == '' || steps.get-citr-vars.outputs.block-node-version == '' ||
-          steps.get-citr-vars.outputs.mirror-node-version == '' }}
+          steps.get-citr-vars.outputs.bn-mirror-node-version == '' }}
         run: |
           echo "::error::One or more required CITR variables are missing or empty. Please ensure .citr-env contains all necessary variables."
+          echo "::group::Extracted Variables"
+            echo "adhoc-solo-version: '${{ steps.get-citr-vars.outputs.adhoc-solo-version }}'"
+            echo "adhoc-xts-solo-version: '${{ steps.get-citr-vars.outputs.adhoc-xts-solo-version }}'"
+            echo "citr-mirror-node-version: '${{ steps.get-citr-vars.outputs.citr-mirror-node-version }}'"
+            echo "citr-solo-version: '${{ steps.get-citr-vars.outputs.citr-solo-version }}'"
+            echo "mqpt-cluster: '${{ steps.get-citr-vars.outputs.mqpt-cluster }}'"
+            echo "tck-version: '${{ steps.get-citr-vars.outputs.tck-version }}'"
+            echo "js-sdk-version: '${{ steps.get-citr-vars.outputs.js-sdk-version }}'"
+            echo "block-node-version: '${{ steps.get-citr-vars.outputs.block-node-version }}'"
+            echo "mirror-node-version: '${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}'"
+          echo "::endgroup::"
           exit 1

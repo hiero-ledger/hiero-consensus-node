@@ -101,8 +101,8 @@ on:
         type: string
         required: false
         default: "latest"
-      mn-release-version:
-        description: "The Mirror Node release version to use for XTS Panels"
+      bn-mirror-node-version:
+        description: "The Mirror Node release version to use for Block Node XTS Panels"
         type: string
         required: false
         default: "latest"
@@ -424,7 +424,7 @@ jobs:
       solo-version: "${{ inputs.solo-version }}"
       java-version: "${{ inputs.java-version }}"
       bn-release-version: "${{ inputs.bn-release-version }}"
-      mn-release-version: "${{ inputs.mn-release-version }}"
+      bn-mirror-node-version: "${{ inputs.bn-mirror-node-version }}"
       tck-version: "${{ inputs.tck-version }}"
       js-sdk-version: "${{ inputs.js-sdk-version }}"
     secrets:

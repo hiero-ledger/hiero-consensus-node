@@ -29,7 +29,7 @@ on:
         required: false
         type: string
         default: "latest"
-      mn-release-version:
+      bn-mirror-node-version:
         description: "The version of the mirror node to use in the tests"
         required: false
         type: string
@@ -133,8 +133,8 @@ jobs:
       - name: Retrieve MN Release Tag
         run: |
           mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
-          if [[ "${{ inputs.mn-release-version }}" != "latest" ]]; then
-            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.mn-release-version }}"
+          if [[ "${{ inputs.bn-mirror-node-version }}" != "latest" ]]; then
+            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.bn-mirror-node-version }}"
           fi
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
           MN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
