@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
@@ -12,40 +11,27 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TO
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
-import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
-import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenFeeScheduleUpdateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -53,16 +39,12 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
-import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -287,98 +269,6 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TOKEN_ID));
-    }
-
-    @Test
-    public void testCalculateFeesHappyPath() {
-        TransactionInfo txnInfo = mock(TransactionInfo.class);
-        FeeManager feeManager = mock(FeeManager.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
-        TransactionBody transactionBody = mock(TransactionBody.class);
-        TokenFeeScheduleUpdateTransactionBody tokenFeeScheduleUpdateTransactionBody =
-                mock(TokenFeeScheduleUpdateTransactionBody.class);
-        TransactionID transactionID = mock(TransactionID.class);
-
-        List<CustomFee> customFees = new ArrayList<>();
-        customFees.add(withFixedFee(hbarFixedFee));
-        customFees.add(withFractionalFee(fractionalFee));
-        customFees.add(withRoyaltyFee(royaltyFee));
-
-        when(feeManager.createFeeCalculator(any(), any(), any(), anyInt(), anyInt(), any(), any(), anyBoolean(), any()))
-                .thenReturn(feeCalculator);
-        when(txnInfo.txBody()).thenReturn(transactionBody);
-        when(transactionBody.tokenFeeScheduleUpdateOrThrow()).thenReturn(tokenFeeScheduleUpdateTransactionBody);
-        when(tokenFeeScheduleUpdateTransactionBody.customFees()).thenReturn(customFees);
-        when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow()).thenReturn(fungibleTokenId);
-        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
-        when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
-        when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
-        when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);
-        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.calculate()).thenReturn(Fees.FREE);
-        when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
-
-        final var feeContext = new IngestFeeContext(
-                consensusInstant,
-                txnInfo,
-                payerKey,
-                payerId,
-                feeManager,
-                storeFactory,
-                configuration,
-                null,
-                -1,
-                transactionDispatcher,
-                synchronizedThrottleAccumulator);
-
-        final var calculateFees = subject.calculateFees(feeContext);
-        assertEquals(calculateFees, Fees.FREE);
-    }
-
-    @Test
-    @DisplayName("If the requested token ID does not exist, the fee calculation should not throw an exception")
-    void calculateFeesTokenDoesNotExist() {
-        TransactionInfo txnInfo = mock(TransactionInfo.class);
-        FeeManager feeManager = mock(FeeManager.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
-        TransactionBody transactionBody = mock(TransactionBody.class);
-        TokenFeeScheduleUpdateTransactionBody tokenFeeScheduleUpdateTransactionBody =
-                mock(TokenFeeScheduleUpdateTransactionBody.class);
-        TransactionID transactionID = mock(TransactionID.class);
-
-        when(feeManager.createFeeCalculator(any(), any(), any(), anyInt(), anyInt(), any(), any(), anyBoolean(), any()))
-                .thenReturn(feeCalculator);
-        when(txnInfo.txBody()).thenReturn(transactionBody);
-        when(transactionBody.tokenFeeScheduleUpdateOrThrow()).thenReturn(tokenFeeScheduleUpdateTransactionBody);
-        // Any token ID that doesn't exist:
-        when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow())
-                .thenReturn(TokenID.newBuilder().tokenNum(1500).build());
-        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
-        when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
-        when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
-        when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);
-        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.calculate()).thenReturn(Fees.FREE);
-        when(txnInfo.functionality()).thenReturn(TOKEN_FEE_SCHEDULE_UPDATE);
-
-        final var feeContext = new IngestFeeContext(
-                consensusInstant,
-                txnInfo,
-                payerKey,
-                payerId,
-                feeManager,
-                storeFactory,
-                configuration,
-                null,
-                -1,
-                transactionDispatcher,
-                synchronizedThrottleAccumulator);
-
-        Assertions.assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
     }
 
     private void givenTxn() {

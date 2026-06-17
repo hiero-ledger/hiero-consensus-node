@@ -288,6 +288,7 @@ jobs:
       - parameters
       - state-validator-uberjar
       - extract-jdk-version
+      - extract-citr-vars
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
@@ -304,6 +305,8 @@ jobs:
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
+      js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
@@ -346,6 +349,10 @@ jobs:
       # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
       enable-hapi-tests-blocks-suite: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
+      js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
+      bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

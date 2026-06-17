@@ -15,7 +15,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
@@ -23,8 +22,6 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -132,21 +129,6 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
                 nftStore.put(updatedNft);
             }
         }
-    }
-
-    /**
-     * The total price should be N * $0.001, where N is the number of NFTs in the transaction body.
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the total Fee
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var serials = op.tokenUpdateNftsOrThrow().serialNumbers();
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
-        feeCalculator.resetUsage();
-        return feeCalculator.addBytesPerTransaction(serials.size()).calculate();
     }
 
     private void validateSemantics(

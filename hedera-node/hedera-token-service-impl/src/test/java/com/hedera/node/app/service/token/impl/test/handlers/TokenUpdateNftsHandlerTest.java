@@ -20,14 +20,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
@@ -46,9 +44,6 @@ import com.hedera.node.app.service.token.impl.handlers.TokenUpdateHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenUpdateNftsHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -400,27 +395,6 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_NFT_ID));
-    }
-
-    @Test
-    void calculateFeesAddsCorrectFeeComponents() {
-        final var metadata1 = Bytes.wrap("test metadata one");
-
-        final List<Long> serialNumbers = new ArrayList<>(Arrays.asList(1L, 2L));
-        final var txnBody =
-                new TokenUpdateNftBuilder().newNftUpdateTransactionBody(TOKEN_123, metadata1, serialNumbers.get(1));
-        final var feeCalculator = mock(FeeCalculator.class);
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeContext = mock(FeeContext.class);
-
-        given(feeContext.body()).willReturn(txnBody);
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE))
-                .willReturn(feeCalculator);
-        given(feeCalculator.addBytesPerTransaction(1L)).willReturn(feeCalculator);
-        subject.calculateFees(feeContext);
-
-        verify(feeCalculator).addBytesPerTransaction(1L);
     }
 
     private class TokenUpdateNftBuilder {
