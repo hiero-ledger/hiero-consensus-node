@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures;
+package org.hiero.consensus.test.fixtures.scratchpad;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 

@@ -13,13 +13,13 @@ import com.swirlds.platform.components.common.output.FatalErrorConsumer;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
-import com.swirlds.platform.test.fixtures.SimpleScratchpad;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.test.fixtures.scratchpad.SimpleScratchpad;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
