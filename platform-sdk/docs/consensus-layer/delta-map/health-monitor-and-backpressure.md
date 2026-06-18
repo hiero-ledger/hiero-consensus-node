@@ -8,22 +8,25 @@ last_reviewed: TBD
 
 ## Summary
 
-Wire-level health monitoring and the pressure-mitigation chain — pause
-event creation, revoke sync permits, throttle PCES replay — are done. The
-module-level backpressure overlay, where Execution paces Consensus by
-pulling rounds via `nextRound` so that Consensus never blocks on slow
-Execution, is not started.
+The proposal's per-node backpressure is emergent — birth-round filtering
+and tipset backoff slow a stressed node until it refuses transactions — and
+that mechanism is built. The module-level `nextRound` pull that lets
+Execution pace Consensus is not started. The wire-level health monitor and
+its sync-permit and replay-throttle reactions are current infrastructure
+the proposal does not describe; whether they survive the `nextRound` model
+is open.
 
 ## Changes
 
 | Change | Proposal state | Current state | Status | Anchor / TBD |
 |---|---|---|---|---|
-| Wire-level health monitor | The wiring framework detects backed-up components and broadcasts an unhealthy-duration signal. | Implemented in the component framework. | **done** | `HealthMonitor` (`swirlds-component-framework`) |
-| Health-driven mitigation chain | Under pressure the node stops creating events, stops accepting transactions, and sheds gossip and replay work. | The health signal gates event creation and transaction acceptance, revokes sync permits, and throttles PCES replay. | **done** | `SyncPermitProvider` (`consensus-gossip-impl`), `EventCreatorModule.healthStatusInputWire()` (`consensus-event-creator`), `TransactionPoolNexus` (`consensus-utility`), `PcesReplayer` (`consensus-pces-impl`) |
-| Module-level (`nextRound`) backpressure overlay | Execution controls the rate at which Consensus produces rounds by pulling them; Consensus never blocks on Execution. | Consensus output is soldered directly to execution-side handlers; wire-level backpressure is the only mechanism. | **not-started** | `PlatformWiring` (`swirlds-platform-core`) — push wiring intact, no `nextRound` in code |
+| Emergent per-node CPU-pressure response | A stressed node naturally slows event creation — birth-round filtering bounds incoming events, and the tipset algorithm stops creating when no parent advances consensus — and ultimately refuses user transactions (§ CPU Pressure). | Realized: tipset backoff halts creation, and transaction acceptance is gated under stress. | **done** | `TipsetEventCreator` (`consensus-event-creator-impl`), `EventWindow.isAncient()` (`consensus-model`), `TransactionPoolNexus` (`consensus-utility`) |
+| `nextRound` module-level backpressure | Execution paces Consensus by pulling each round; Consensus never blocks on slow Execution (§ Slow Execution). | Consensus output is soldered directly to execution-side handlers; no `nextRound` exists. | **not-started** | `PlatformWiring` (`swirlds-platform-core`) — push wiring intact, no `nextRound` in code |
+| Wire-level health monitor and its mitigation chain | Not specified — the proposal's stress response is emergent slowdown plus `nextRound`; it describes no health monitor, sync-permit revocation, or replay throttle. | `HealthMonitor` emits an unhealthy duration; the signal revokes sync permits and throttles PCES replay (and also drives the stress responses above). | **not-started** | `HealthMonitor` (`swirlds-component-framework`), `SyncPermitProvider` (`consensus-gossip-impl`), `PcesReplayer` (`consensus-pces-impl`); [TBD: question for engineer — is the health monitor retained under the `nextRound` model, or made redundant by Execution-paced backpressure?] |
 
 ## Cross-references
 
 - Topic: [../architecture/topics/health-monitor-and-backpressure.md](../architecture/topics/health-monitor-and-backpressure.md)
 - Proposal: [`Consensus-Layer.md` § Liveness Under Stress](../../proposals/consensus-layer/Consensus-Layer.md#liveness-under-stress), [§ CPU Pressure](../../proposals/consensus-layer/Consensus-Layer.md#cpu-pressure), [§ Slow Execution](../../proposals/consensus-layer/Consensus-Layer.md#slow-execution)
+- Related delta maps: [event-creator.md](event-creator.md), [hashgraph.md](hashgraph.md) — the emergent tipset/birth-round path
 - Invariants: [TBD: INV-NNN once invariants.md catalog populates]
