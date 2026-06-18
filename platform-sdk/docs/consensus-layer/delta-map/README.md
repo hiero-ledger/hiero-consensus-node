@@ -24,7 +24,7 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 | `event-intake.md`                    | partial     | Pipeline and persistence done (PCES permanently its own module); branch detection remains partial. |
 | `event-creator.md`                   | partial     | Tipset and transaction pull done; the public Consensus API surface is missing. |
 | `hashgraph.md`                       | partial     | Split and birth-round handling done; the `nextRound` pull API not started. |
-| `health-monitor-and-backpressure.md` | partial     | Proposal's emergent backpressure (birth-round, tipset) done; `nextRound` not started; the health monitor is current infra the proposal doesn't describe. |
+| `health-monitor-and-backpressure.md` | partial     | Proposal's emergent backpressure (birth-round, tipset) done; `nextRound` not started. |
 | `reasons-not-to-gossip.md`           | partial     | Proposal-stated reasons (durability, fallen-behind) done; health and freeze gating are current-only with no proposal counterpart; Sheriff not started. |
 | `signed-state-management.md`         | not-started | Execution ownership not begun; state types extracted within the consensus layer. |
 | `restart-and-pces.md`                | partial     | PCES done and permanently its own module by decision; restart and ISS ownership not yet moved. |
