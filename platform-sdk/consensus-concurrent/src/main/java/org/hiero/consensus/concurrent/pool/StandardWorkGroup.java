@@ -172,37 +172,30 @@ public class StandardWorkGroup implements AutoCloseable {
      * <p>Analogous to {@code StructuredTaskScope.join()} followed by {@code throwIfFailed()}:
      * blocks until every forked task is done, then throws the first captured task exception.
      * If the calling thread is interrupted, all running tasks are cancelled immediately via
-     * {@code shutdownNow()}, this method still waits for every task to finish, then restores
-     * the interrupt status and throws {@link InterruptedException} (taking priority over any
-     * task exception).
+     * {@code shutdownNow()}, this method doesn't wait for every task to finish,
+     * but just throws {@link InterruptedException} (taking priority over any
+     * task exception), expecting this group will be anyway closed by {@link #close()}.
      *
      * @throws InterruptedException if the calling thread is interrupted while waiting;
      *         all running tasks will have been interrupted before this is thrown
      * @throws ParallelExecutionException wrapping the first exception thrown by any task
      */
     public void join() throws InterruptedException, ParallelExecutionException {
-        boolean interrupted = false;
-
         Future<?> future;
         while ((future = futures.poll()) != null) {
-            while (!future.isDone()) {
-                try {
-                    future.get();
-                } catch (final InterruptedException e) {
-                    interrupted = true;
-                    // Propagate the interrupt to all running tasks, then keep waiting for this
-                    // future so every task is guaranteed to finish before we return.
-                    executorService.shutdownNow();
-                } catch (final ExecutionException e) {
-                    break; // defensive — wrapped operation does not re-throw, so this should not occur
-                } catch (final CancellationException e) {
-                    break; // task was cancelled by shutdownNow
-                }
+            try {
+                future.get();
+            } catch (final InterruptedException e) {
+                // Cancel all running tasks, then propagate immediately without waiting;
+                // close() will ensure every task has terminated.
+                executorService.shutdownNow();
+                // future.get() clears the interrupt flag when throwing; restore it so callers
+                // can still observe the interruption alongside the thrown exception.
+                Thread.currentThread().interrupt();
+                throw e;
+            } catch (final ExecutionException | CancellationException e) {
+                break; // defensive — wrapped operation does not re-throw, so this should not occur
             }
-        }
-
-        if (interrupted) {
-            throw new InterruptedException();
         }
 
         final Throwable throwable = firstException.get();

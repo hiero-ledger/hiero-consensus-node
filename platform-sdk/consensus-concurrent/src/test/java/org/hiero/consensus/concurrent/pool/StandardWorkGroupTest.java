@@ -175,7 +175,12 @@ class StandardWorkGroupTest {
         thread.interrupt();
         thread.join();
 
-        assertThat(interruptedCount.get()).isEqualTo(tasksCount);
+        // join() now requests cancellation via shutdownNow() and returns without waiting for
+        // tasks to finish, so the interrupts are observed asynchronously by the worker tasks.
+        assertEventuallyTrue(
+                () -> interruptedCount.get() == tasksCount,
+                Duration.ofSeconds(5),
+                "all tasks should eventually observe the interrupt");
         assertThat(thread.isAlive()).isFalse();
     }
 
