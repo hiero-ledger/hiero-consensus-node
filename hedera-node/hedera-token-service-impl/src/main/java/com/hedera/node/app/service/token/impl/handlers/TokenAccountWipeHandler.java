@@ -225,7 +225,8 @@ public final class TokenAccountWipeHandler implements TransactionHandler {
         validateTrue(!isEmpty(token.wipeKey()), ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY);
 
         final var accountRel = TokenHandlerHelper.getIfUsable(account.accountIdOrThrow(), tokenId, tokenRelStore);
-        if (token.hasKycKey()) {
+        // An empty key list (the HIP-540 removal sentinel) disables KYC, so it counts as "no KYC key".
+        if (!isEmpty(token.kycKey())) {
             validateTrue(accountRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
         }
         validateFalse(

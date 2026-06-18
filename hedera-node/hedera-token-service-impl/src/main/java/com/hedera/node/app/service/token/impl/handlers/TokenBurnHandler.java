@@ -104,7 +104,8 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var treasuryRel = validated.tokenTreasuryRel();
         final var token = validated.token();
 
-        if (token.hasKycKey()) {
+        // An empty key list (the HIP-540 removal sentinel) disables KYC, so it counts as "no KYC key".
+        if (!isEmpty(token.kycKey())) {
             validateTrue(treasuryRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
         }
 

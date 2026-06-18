@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -132,6 +133,28 @@ public class EmptyKeyListTokenKeyTest {
                 // ...and is not needed: the transfer succeeds because the association defaulted to
                 // KYC-granted and unfrozen.
                 cryptoTransfer(moving(100L, "kycFreezeDisabledT").between(TREASURY, HOLDER)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> emptyKeyListKycAndFreezeKeysDoNotBlockAutoAssociations() {
+        return hapiTest(
+                withOpContext((spec, opLog) -> spec.registry().saveKey(EMPTY_KEY, IMMUTABILITY_SENTINEL_KEY)),
+                cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
+                // A recipient with an open auto-association slot and no prior association.
+                cryptoCreate(HOLDER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(1),
+                tokenCreate("autoAssocT")
+                        .treasury(TREASURY)
+                        .initialSupply(1_000L)
+                        .kycKey(EMPTY_KEY)
+                        .freezeKey(EMPTY_KEY)
+                        .signedBy(DEFAULT_PAYER, TREASURY)
+                        .hasKnownStatus(SUCCESS),
+
+                // The transfer auto-associates HOLDER. With empty KYC/freeze keys the auto-created
+                // relation must default to KYC-granted and unfrozen, so the transfer succeeds rather
+                // than failing with ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN / ACCOUNT_FROZEN_FOR_TOKEN.
+                cryptoTransfer(moving(100L, "autoAssocT").between(TREASURY, HOLDER)),
+                getAccountBalance(HOLDER).hasTokenBalance("autoAssocT", 100L));
     }
 
     @HapiTest
