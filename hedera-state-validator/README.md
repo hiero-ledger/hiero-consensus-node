@@ -529,3 +529,86 @@ When `--block-stream-dir` is a GCS path, the tool performs the following steps:
 - The command checks if the block stream contains the next round relative to the initial round to ensure continuity. It fails if the next round is not found.
 - The command also verifies that the corresponding blocks are present. It will fail if a block is missing or if the final round in the stream does not match the target round.
 - When using GCS paths, progress is reported to stdout: state download percentage, block range probing status, and block file download percentage.
+
+## Reconstructing a PCES Stream from Block Files (`blocks-to-pces`)
+
+[BlocksToPcesCommand](src/main/java/com/hedera/statevalidation/BlocksToPcesCommand.java)
+reconstructs an unsigned preconsensus event stream (PCES) from a set of block stream files.
+The resulting PCES files can be fed into `replay-pces` to replay the original consensus traffic
+on top of a matching state snapshot — the first step of the block stream equivalence validation
+experiment.
+
+Block stream files encode all events and their transactions in consensus order. This command
+reconstructs the original event DAG (without signatures — the block stream does not carry
+per-event creator signatures) and writes it as a set of `.pces` files compatible with the
+platform's `PcesFileTracker`.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar blocks-to-pces \
+  --block-stream-dir <path-or-gs://...> \
+  --origin-round <round> \
+  --target-round <round> \
+  [--out <output-dir>] \
+  [--rounds-non-ancient <n>] \
+  [--billing-project <project>]
+```
+
+#### Example (GCS)
+
+```shell
+java -jar ./validator-<version>.jar blocks-to-pces \
+  --block-stream-dir gs://hedera-mainnet-streams/block/0/0 \
+  --origin-round 211155071 \
+  --target-round 211422945 \
+  --out ./out \
+  --billing-project my-gcp-project
+```
+
+#### Example (local)
+
+```shell
+java -jar ./validator-<version>.jar blocks-to-pces \
+  --block-stream-dir ./blocks/0/0 \
+  --origin-round 211155071 \
+  --target-round 211422945 \
+  --out ./out
+```
+
+### Options
+
+- `--block-stream-dir` (or `-d`) — Directory containing `.blk.gz` block stream files (required).
+  Accepts a local path or a GCS URI (`gs://...`). When a GCS URI is provided, `--target-round`
+  is required and the blocks are downloaded to a local cache directory before conversion.
+- `--origin-round` (or `-or`) — The round of the state snapshot these PCES files will be
+  replayed against (required). Stamped as the PCES stream origin. Also used as the right
+  anchor for the GCS left-boundary search (extended backward by `--rounds-non-ancient`).
+- `--target-round` (or `-tr`) — The last round whose events are extracted; events from higher
+  rounds are ignored. Required when `--block-stream-dir` is a GCS URI. Default = extract all
+  available rounds.
+- `--out` (or `-o`) — Output directory. PCES files are written under a
+  `pces-<originRound>-<targetRound>` subdirectory. Default = `./out`.
+- `--rounds-non-ancient` (or `-rna`) — Number of rounds to extend the extraction window
+  backward before `--origin-round`. Required so that the earliest extracted events' parents
+  are present in the stream (see Notes). Should be ≥ the replaying node's
+  `consensus.roundsNonAncient`. Default = 26.
+- `--billing-project` (or `-bp`) — GCP billing project for requester-pays buckets.
+- `--download-threads` (or `-dt`) — Number of parallel threads for downloading block files
+  from GCS. Default = 32.
+- `--decode-threads` (or `-ct`) — Number of parallel worker threads for block decoding and
+  event reconstruction. Default = number of available processors.
+
+### Notes
+
+- The reconstructed events are **unsigned** (`signature = Bytes.EMPTY`, `origin = STORAGE`).
+  The replaying node must have the unsigned-event intake path enabled
+  (`event.preconsensus.intake.allowUnsignedPcesEvents=true`), which `replay-pces` sets
+  automatically.
+- The `--rounds-non-ancient` extension is critical for replay correctness. The replaying
+  node's orphan buffer holds events until their parents ar seen or become ancient. Without
+  the non-ancient tail, the earliest extracted events reference parents that are above the
+  ancient threshold (non-ancient) but absent from the stream — the buffer waits forever and
+  consensus never advances. The default is  configured to 26 rounds.
+- The PCES stream origin stamp (`--origin-round`) must match the round of the state snapshot
+  passed to `replay-pces`, or the platform's `resolveDiscontinuities` will purge the files.
