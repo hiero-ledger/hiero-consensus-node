@@ -1,5 +1,6 @@
 {{- $result := getenv "RESULT" | required "RESULT must be set" -}}
-{{- $color := cond (eq $result "success") "#00FF00" (cond (eq $result "cancelled") "#555555" "#FF0000") -}}
+{{- $color := "#FF0000" -}}
+{{- if eq $result "success" -}}{{- $color = "#00FF00" -}}{{- else if eq $result "cancelled" -}}{{- $color = "#555555" -}}{{- end -}}
 {
   "attachments": [
     {
