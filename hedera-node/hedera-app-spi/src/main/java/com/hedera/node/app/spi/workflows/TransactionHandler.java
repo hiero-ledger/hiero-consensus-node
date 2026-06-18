@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -42,20 +40,6 @@ public interface TransactionHandler {
      * @throws NullPointerException if {@code context} is {@code null}
      */
     default void warm(@NonNull final WarmupContext context) {}
-
-    /**
-     * Calculates the fees for a transaction
-     *
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the calculated {@link Fees}
-     * @throws NullPointerException if {@code feeContext} is {@code null}
-     */
-    // NOTE: FUTURE: This method should not be default, but should be implemented by all
-    // transaction handlers. This is a temporary measure to avoid merge conflicts.
-    @NonNull
-    default Fees calculateFees(@NonNull final FeeContext feeContext) {
-        return Fees.FREE;
-    }
 
     /**
      * Handles a transaction
