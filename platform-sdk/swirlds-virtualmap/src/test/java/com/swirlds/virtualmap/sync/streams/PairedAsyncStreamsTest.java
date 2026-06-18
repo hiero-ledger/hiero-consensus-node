@@ -159,24 +159,41 @@ class PairedAsyncStreamsTest {
             teacherIn.start(workGroup);
             learnerOut.start(workGroup);
 
-            // Close the teacher socket so the learner's write/flush fails with an IOException.
-            // Keep pumping messages on a background thread until the work group records the error
-            // — the OS may buffer the first few writes before reporting the broken pipe.
-            streams.disconnectTeacher();
-
+            // Start pumping messages on a background thread, then close the teacher socket so the
+            // learner's write/flush eventually fails with an IOException. The learner keeps sending
+            // until the work group tears it down — the OS may buffer the first writes before the
+            // broken pipe surfaces, so an unbounded loop guarantees the send buffer overflows and
+            // the failure is observed.
+            //
+            // The fork must happen before disconnectTeacher(): closing the teacher socket makes the
+            // background input reader fail almost immediately, which records the error and calls
+            // shutdownNow() on the executor. A fork() submitted after that teardown would be
+            // rejected with RejectedExecutionException.
             OutcomeRunnable learnerRunnable = new OutcomeRunnable(() -> {
-                for (int i = 0; i < 10_000 && !Thread.currentThread().isInterrupted(); i++) {
-                    learnerOut.sendAsync(serializeLong(i));
+                long i = 0;
+                while (!Thread.currentThread().isInterrupted()) {
+                    learnerOut.sendAsync(serializeLong(i++));
                 }
             });
             workGroup.fork(learnerRunnable);
+
+            streams.disconnectTeacher();
 
             try {
                 workGroup.join();
                 fail("Should have thrown a ParallelExecutionException");
             } catch (ParallelExecutionException ex) {
                 assertInstanceOf(UncheckedIOException.class, ex.getCause(), "UncheckedIOException should be captured");
-                assertInstanceOf(SocketException.class, ex.getCause().getCause(), "SocketException should be a cause");
+                // The teacher disconnect is observed by two background threads racing to record the
+                // first error, and they surface different IOException subtypes: the learner's output
+                // writer fails with a SocketException (broken pipe / connection reset), while the
+                // teacher's input reader fails with an EOFException when it hits end-of-stream
+                // mid-frame (or a SocketException if it was blocked on an empty read at the instant
+                // of close). Either is a legitimate manifestation of the same teardown.
+                final Throwable cause = ex.getCause().getCause();
+                assertTrue(
+                        cause instanceof SocketException || cause instanceof EOFException,
+                        "cause should be a SocketException or EOFException but was " + cause);
             }
 
             assertEquals(AsyncInputStream.Status.DONE, teacherIn.getStatus(), "input stream should be closed");
