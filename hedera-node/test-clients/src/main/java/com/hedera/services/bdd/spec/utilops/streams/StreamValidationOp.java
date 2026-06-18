@@ -243,6 +243,32 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                     throw new AssertionError(
                                             "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
                                 }
+                            } else {
+                                // BLOCKS mode: there is no record stream to compare against, so run the
+                                // data-independent block validators (state-changes replay vs the saved-state
+                                // root hash, block contents, block-number sequence, event hashes) directly
+                                // against the block stream. Parity validators that need records
+                                // (TransactionRecordParityValidator) override only validateBlockVsRecords, so
+                                // their validateBlocks is the no-op default and they are naturally inert here.
+                                final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
+                                        .filter(factory -> factory.appliesTo(spec))
+                                        .flatMap(factory -> {
+                                            final var validator = factory.create(spec);
+                                            final List<Block> input = (validator
+                                                                    instanceof EventHashBlockStreamValidator
+                                                            || validator
+                                                                    instanceof RedactingEventHashBlockStreamValidator)
+                                                    ? blocks.all()
+                                                    : blocks.active();
+                                            return validator.validationErrorsIn(input);
+                                        })
+                                        .peek(t -> log.error("Block stream validation error", t))
+                                        .map(Throwable::getMessage)
+                                        .collect(joining(ERROR_PREFIX));
+                                if (!maybeErrors.isBlank()) {
+                                    throw new AssertionError(
+                                            "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                                }
                             }
                         },
                         () -> Assertions.fail("No block streams found"));
