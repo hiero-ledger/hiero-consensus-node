@@ -12,10 +12,23 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
 
     private final ConcurrentLinkedQueue<MetricSnapshot> snapshots = new ConcurrentLinkedQueue<>();
 
+    private volatile long timestamp = System.currentTimeMillis();
+
     @NonNull
     @Override
     public Iterator<MetricSnapshot> iterator() {
         return snapshots.stream().iterator();
+    }
+
+    /**
+     * The point in time, in milliseconds since the Unix epoch, at which this snapshot was last
+     * {@link #update() updated}. Exporters can use this as a single, consistent timestamp for all
+     * measurements collected in the same snapshot.
+     *
+     * @return the snapshot timestamp in epoch milliseconds
+     */
+    public long timestamp() {
+        return timestamp;
     }
 
     /**
@@ -26,6 +39,7 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
      */
     @NonNull
     synchronized MetricRegistrySnapshot update() {
+        timestamp = System.currentTimeMillis();
         snapshots.forEach(MetricSnapshot::update);
         return this;
     }

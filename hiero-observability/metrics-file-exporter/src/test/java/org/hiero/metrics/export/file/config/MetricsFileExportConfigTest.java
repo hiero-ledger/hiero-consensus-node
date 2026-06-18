@@ -71,7 +71,29 @@ class MetricsFileExportConfigTest {
                 .isEqualTo(bufferSize);
     }
 
-    //TODO test fo positive snapshot intervals
+    @ParameterizedTest
+    @ValueSource(ints = {Integer.MIN_VALUE, -10, -1, 0})
+    void testNonPositiveSnapshotIntervals(int intervalSeconds) {
+        assertThatThrownBy(() -> configBuilder()
+                        .withValue("metrics.exporter.file.snapshotIntervalSeconds", String.valueOf(intervalSeconds))
+                        .build())
+                .as("Non-positive snapshotIntervalSeconds " + intervalSeconds
+                        + " must cause a ConfigViolationException.")
+                .isInstanceOf(ConfigViolationException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 3, 10, Integer.MAX_VALUE})
+    void testPositiveSnapshotIntervals(int intervalSeconds) {
+        MetricsFileExportConfig config = configBuilder()
+                .withValue("metrics.exporter.file.snapshotIntervalSeconds", String.valueOf(intervalSeconds))
+                .build()
+                .getConfigData(MetricsFileExportConfig.class);
+
+        assertThat(config.snapshotIntervalSeconds())
+                .as("snapshotIntervalSeconds must be set to " + intervalSeconds)
+                .isEqualTo(intervalSeconds);
+    }
 
     private ConfigurationBuilder configBuilder() {
         return ConfigurationBuilder.create()

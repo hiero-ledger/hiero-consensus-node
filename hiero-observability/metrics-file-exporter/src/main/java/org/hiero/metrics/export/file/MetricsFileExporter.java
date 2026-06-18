@@ -26,14 +26,17 @@ import org.hiero.metrics.export.file.config.MetricsFileExportConfig;
  * building a historical record suitable for batch ingestion into backends such as VictoriaMetrics.
  * <p>
  * A daemon thread is started on the first call to {@link #setSnapshotSupplier} and runs until
- * {@link #close()} is called. Each export cycle writes a timestamped snapshot (terminated by
- * {@code # EOF}) to the persistent output stream. The file grows unboundedly; external rotation
- * (e.g. logrotate) is the caller's responsibility.
+ * {@link #close()} is called. Each export cycle writes a snapshot in which every sample line carries
+ * the snapshot's millisecond timestamp; snapshots are simply concatenated (there is no {@code # EOF}
+ * terminator). The file grows unboundedly; external rotation (e.g. logrotate) is the caller's
+ * responsibility.
  * <p>
  * When gzip is enabled, the output is a single continuous gzip stream spanning all snapshots,
  * achieving better compression than per-snapshot gzip members because metric names and labels
- * repeat across snapshots and are shared by the compressor's dictionary. The gzip footer is
- * written only on {@link #close()}, so the file is not a valid gzip archive until then.
+ * repeat across snapshots and are shared by the compressor's dictionary. The stream is created with
+ * sync-flush enabled, so each export cycle is flushed to disk and earlier snapshots survive an
+ * abrupt process termination. The gzip footer (and final CRC) is only written on {@link #close()},
+ * so a file from a process that did not close cleanly decompresses up to its last flushed snapshot.
  * <p>
  * Supports optional gzip compression and buffered I/O, configured via {@link MetricsFileExportConfig}.
  */
@@ -50,8 +53,7 @@ public class MetricsFileExporter implements MetricsExporter {
     private OutputStream outputStream;
 
     public MetricsFileExporter(@NonNull MetricsFileExportConfig config) {
-        Objects.requireNonNull(config, "OpenMetrics File Export config must not be null");
-        this.config = config;
+        this.config = Objects.requireNonNull(config, "Metrics file export config must not be null");
         this.writer = new MetricsFileWriter(config.decimalFormat());
     }
 
@@ -67,7 +69,7 @@ public class MetricsFileExporter implements MetricsExporter {
             }
             exportThread = Thread.ofPlatform()
                     .daemon(true)
-                    .name("openmetrics-file-exporter")
+                    .name("metrics-file-exporter")
                     .start(this::exportLoop);
         }
     }
@@ -85,17 +87,21 @@ public class MetricsFileExporter implements MetricsExporter {
             os = new BufferedOutputStream(os, config.bufferSize());
         }
         if (config.useGzip()) {
-            os = new GZIPOutputStream(os);
+            // syncFlush=true so each export cycle's flush() reaches disk; without it the deflater
+            // buffers all data until close() and an abrupt termination would lose the whole history.
+            os = new GZIPOutputStream(os, true);
         }
         outputStream = os;
     }
 
     private void exportLoop() {
-        logger.log(INFO, "OpenMetrics file exporter started. directory={0}", config.directory());
+        logger.log(INFO, "Metrics file exporter started. directory={0}", config.directory());
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 writer.write(snapshotSupplier.get(), outputStream);
-            } catch (IOException e) {
+            } catch (Exception e) {
+                // Catch broadly (not just IOException) so a single failing cycle — e.g. a throwing
+                // snapshot supplier — is logged but does not kill the daemon thread permanently.
                 logger.log(WARNING, "Failed to export metrics to file", e);
             }
             try {
@@ -104,7 +110,7 @@ public class MetricsFileExporter implements MetricsExporter {
                 Thread.currentThread().interrupt();
             }
         }
-        logger.log(INFO, "OpenMetrics file exporter stopped.");
+        logger.log(INFO, "Metrics file exporter stopped.");
     }
 
     @Override
@@ -121,6 +127,6 @@ public class MetricsFileExporter implements MetricsExporter {
         if (outputStream != null) {
             outputStream.close();
         }
-        logger.log(INFO, "OpenMetrics file exporter closed.");
+        logger.log(INFO, "Metrics file exporter closed.");
     }
 }

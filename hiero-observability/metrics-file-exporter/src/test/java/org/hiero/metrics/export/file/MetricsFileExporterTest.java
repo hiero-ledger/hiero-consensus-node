@@ -9,11 +9,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.zip.GZIPInputStream;
 import org.hiero.metrics.DoubleGauge;
 import org.hiero.metrics.LongCounter;
 import org.hiero.metrics.core.MetricKey;
 import org.hiero.metrics.core.MetricRegistry;
+import org.hiero.metrics.core.MetricRegistrySnapshot;
 import org.hiero.metrics.export.file.config.MetricsFileExportConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -48,14 +51,33 @@ class MetricsFileExporterTest {
             registry.register(DoubleGauge.builder(GAUGE).setDescription("A test gauge"));
             registry.getMetric(GAUGE).getOrCreateNotLabeled().set(42.5);
 
-            // Wait for background thread to write at least once
-            awaitFile(filePath);
-            // Wait a bit more for a second write to ensure metric is included
-            Thread.sleep(1200);
+            await(() -> readString(filePath).contains("test_gauge 42.5"), "Expected the gauge sample to be written");
 
-            String content = Files.readString(filePath);
+            String content = readString(filePath);
             assertThat(content).contains("# TYPE test_gauge gauge");
             assertThat(content).contains("# HELP test_gauge A test gauge");
+        }
+    }
+
+    @Test
+    void testMetadataWrittenOnceAcrossSnapshots() throws Exception {
+        Path filePath = tempDir.resolve("metrics.txt");
+        MetricsFileExporter exporter = this.exporterWith(false);
+
+        try (MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build()) {
+            registry.register(DoubleGauge.builder(GAUGE));
+            registry.getMetric(GAUGE).getOrCreateNotLabeled().set(42.5);
+
+            // Wait until at least two snapshots have written the sample line.
+            await(
+                    () -> countOccurrences(readString(filePath), "test_gauge 42.5") >= 2,
+                    "Expected at least two snapshots to be written");
+
+            String content = readString(filePath);
+            assertThat(countOccurrences(content, "# TYPE test_gauge gauge"))
+                    .as("TYPE metadata must be written only once across snapshots")
+                    .isEqualTo(1);
         }
     }
 
@@ -65,21 +87,77 @@ class MetricsFileExporterTest {
         MetricsFileExporter exporter = this.exporterWith(true);
 
         // With a persistent GZIPOutputStream the gzip footer is only written on close(),
-        // so we must close the registry before reading the file.
+        // so we close the registry before reading the file.
         try (MetricRegistry registry =
                 MetricRegistry.builder().setMetricsExporter(exporter).build()) {
             registry.register(LongCounter.builder(COUNTER).setDescription("A test counter"));
             registry.getMetric(COUNTER).getOrCreateNotLabeled().increment(7L);
 
+            // The gzip member footer is only written on close() and the data cannot be decompressed
+            // while the stream is open, so we cannot poll content here. Wait just over one interval
+            // to guarantee a snapshot taken after registration, then close to finish the member.
             awaitFile(filePath);
-            Thread.sleep(1200);
+            Thread.sleep(1300);
         } // closes registry → exporter → GZIPOutputStream (writes gzip footer)
 
-        String content;
-        try (GZIPInputStream gis = new GZIPInputStream(Files.newInputStream(filePath))) {
-            content = new String(gis.readAllBytes(), StandardCharsets.UTF_8);
+        assertThat(gunzip(filePath)).contains("# TYPE test_counter_total counter");
+    }
+
+    @Test
+    void testGzipAppendsAcrossRestarts() throws Exception {
+        Path filePath = tempDir.resolve("metrics.txt.gz");
+
+        // First run writes a counter, then closes (finishing the first gzip member).
+        try (MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporterWith(true)).build()) {
+            registry.register(LongCounter.builder(COUNTER));
+            registry.getMetric(COUNTER).getOrCreateNotLabeled().increment(7L);
+            awaitFile(filePath);
+            Thread.sleep(1300);
         }
-        assertThat(content).contains("# TYPE test_counter counter");
+
+        // Second run appends a new gzip member to the same file.
+        try (MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporterWith(true)).build()) {
+            registry.register(DoubleGauge.builder(GAUGE));
+            registry.getMetric(GAUGE).getOrCreateNotLabeled().set(1.0);
+            Thread.sleep(1300);
+        }
+
+        // GZIPInputStream transparently reads both concatenated members.
+        String content = gunzip(filePath);
+        assertThat(content).contains("# TYPE test_counter_total counter").contains("# TYPE test_gauge gauge");
+    }
+
+    @Test
+    void testDirectoryCreatedWhenMissing() throws Exception {
+        Path missingDir = tempDir.resolve("nested/metrics/dir");
+        Path filePath = missingDir.resolve("metrics.txt");
+        MetricsFileExporter exporter = exporterWith(missingDir, false, 1);
+
+        try (MetricRegistry ignored =
+                MetricRegistry.builder().setMetricsExporter(exporter).build()) {
+            awaitFile(filePath);
+            assertThat(missingDir).isDirectory();
+            assertThat(filePath).exists();
+        }
+    }
+
+    @Test
+    void testExportLoopSurvivesThrowingSupplier() throws Exception {
+        MetricsFileExporter exporter = exporterWith(false);
+        AtomicInteger calls = new AtomicInteger();
+
+        // The first cycle throws; the loop must log it and keep running for later cycles.
+        exporter.setSnapshotSupplier(() -> {
+            if (calls.getAndIncrement() == 0) {
+                throw new RuntimeException("boom");
+            }
+            return new MetricRegistrySnapshot();
+        });
+
+        await(() -> calls.get() >= 3, "Export loop must continue after a throwing snapshot supplier");
+        exporter.close();
     }
 
     @Test
@@ -110,7 +188,7 @@ class MetricsFileExporterTest {
 
     @Test
     void testNoFileCreatedWhenNoSnapshotSupplier() throws Exception {
-        Path filePath = tempDir.resolve("metrics.prom");
+        Path filePath = tempDir.resolve("metrics.txt");
         MetricsFileExporter exporter = exporterWith(false, 1);
         // Never call setSnapshotSupplier — no thread should start, no file should appear
         Thread.sleep(200);
@@ -118,14 +196,18 @@ class MetricsFileExporterTest {
         exporter.close();
     }
 
-    private MetricsFileExporter exporterWith(boolean useGzip) throws IOException {
-        return exporterWith(useGzip, 1);
+    private MetricsFileExporter exporterWith(boolean useGzip) {
+        return exporterWith(tempDir, useGzip, 1);
     }
 
     private MetricsFileExporter exporterWith(boolean useGzip, int intervalSeconds) {
+        return exporterWith(tempDir, useGzip, intervalSeconds);
+    }
+
+    private MetricsFileExporter exporterWith(Path directory, boolean useGzip, int intervalSeconds) {
         Configuration config = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
-                .withValue("metrics.exporter.file.directory", tempDir.toString())
+                .withValue("metrics.exporter.file.directory", directory.toString())
                 .withValue("metrics.exporter.file.useGzip", String.valueOf(useGzip))
                 .withValue("metrics.exporter.file.snapshotIntervalSeconds", String.valueOf(intervalSeconds))
                 .build();
@@ -133,10 +215,38 @@ class MetricsFileExporterTest {
     }
 
     private static void awaitFile(Path path) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 3000;
-        while (!Files.exists(path) && System.currentTimeMillis() < deadline) {
+        await(() -> Files.exists(path), "Expected file to be created: " + path);
+    }
+
+    private static void await(BooleanSupplier condition, String description) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
             Thread.sleep(10);
         }
-        assertThat(path).as("Expected file to be created: " + path).exists();
+        assertThat(condition.getAsBoolean()).as(description).isTrue();
+    }
+
+    private static String readString(Path path) {
+        try {
+            return Files.exists(path) ? Files.readString(path) : "";
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    private static String gunzip(Path path) throws IOException {
+        try (GZIPInputStream gis = new GZIPInputStream(Files.newInputStream(path))) {
+            return new String(gis.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = haystack.indexOf(needle, index)) != -1) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 }

@@ -8,9 +8,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.EnumMap;
 import java.util.List;
-
+import java.util.Locale;
 import org.hiero.metrics.core.DoubleMeasurementSnapshot;
 import org.hiero.metrics.core.Label;
 import org.hiero.metrics.core.LabelValues;
@@ -57,11 +58,14 @@ public class MetricsFileWriter {
     private int lastMetricId = -1;
 
     public MetricsFileWriter(@NonNull String decimalFormat) {
-        formatter = new DecimalFormat(decimalFormat);
+        // Force a locale-independent decimal separator ('.') and disable grouping so the output is
+        // always valid Prometheus text format, regardless of the JVM's default locale.
+        formatter = new DecimalFormat(decimalFormat, DecimalFormatSymbols.getInstance(Locale.ROOT));
+        formatter.setGroupingUsed(false);
     }
 
     public final void write(MetricRegistrySnapshot registrySnapshot, OutputStream output) throws IOException {
-        byte[] timestampAndNewLine = spaceTimestampAndNewLineBytes();
+        byte[] timestampAndNewLine = spaceTimestampAndNewLineBytes(registrySnapshot.timestamp());
         int metricId = 0;
 
         for (MetricSnapshot metricSnapshot : registrySnapshot) {
@@ -73,7 +77,8 @@ public class MetricsFileWriter {
         output.flush();
     }
 
-    private void writeMetric(int metricId, MetricSnapshot metricSnapshot, byte[] timestampAndNewLine, OutputStream output)
+    private void writeMetric(
+            int metricId, MetricSnapshot metricSnapshot, byte[] timestampAndNewLine, OutputStream output)
             throws IOException {
         byte[] metricNameBytes = writeMetricMetadata(metricId, metricSnapshot, output);
 
@@ -95,7 +100,8 @@ public class MetricsFileWriter {
         }
     }
 
-    private byte[] writeMetricMetadata(int metricId, MetricSnapshot metricSnapshot, OutputStream output) throws IOException {
+    private byte[] writeMetricMetadata(int metricId, MetricSnapshot metricSnapshot, OutputStream output)
+            throws IOException {
         String metricName = metricSnapshot.name();
         final String metricUnit = metricSnapshot.unit();
 
@@ -138,7 +144,8 @@ public class MetricsFileWriter {
             throws IOException {
         output.write(metricNameBytes);
 
-        if (!metricSnapshot.staticLabels().isEmpty() || !metricSnapshot.dynamicLabelNames().isEmpty()) {
+        if (!metricSnapshot.staticLabels().isEmpty()
+                || !metricSnapshot.dynamicLabelNames().isEmpty()) {
             output.write(OPEN_BRACKET);
             boolean firstLabel = appendStaticLabels(metricSnapshot, output);
             appendDynamicLabels(metricSnapshot, measurementSnapshot, output, firstLabel);
@@ -218,8 +225,8 @@ public class MetricsFileWriter {
         return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
     }
 
-    private byte[] spaceTimestampAndNewLineBytes() {
-        final byte[] msBytes = Long.toString(System.currentTimeMillis()).getBytes(StandardCharsets.UTF_8);
+    private static byte[] spaceTimestampAndNewLineBytes(long timestampMillis) {
+        final byte[] msBytes = Long.toString(timestampMillis).getBytes(StandardCharsets.UTF_8);
         final byte[] buf = new byte[2 + msBytes.length];
         buf[0] = ' ';
         System.arraycopy(msBytes, 0, buf, 1, msBytes.length);
