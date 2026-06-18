@@ -1,7 +1,7 @@
 ---
 type: delta-map
 title: Delta map — iss-detection
-last_reviewed: TBD
+last_reviewed: 2026-06-18
 ---
 
 # Delta map: iss-detection
