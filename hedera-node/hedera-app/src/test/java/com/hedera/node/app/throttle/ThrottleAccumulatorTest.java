@@ -435,6 +435,34 @@ public class ThrottleAccumulatorTest {
     }
 
     @Test
+    void mainnetThrottlesAlwaysReturnBusyForGetAccountBalance() throws IOException, ParseException {
+        // given - mainnet throttles have no entry for CryptoGetAccountBalance
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/mainnet-throttles.json");
+        subject.rebuildFor(defs);
+        final var query = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .accountID(RECEIVER_ID)
+                        .build())
+                .build();
+
+        // then - no throttle group covers CryptoGetAccountBalance, so every call returns BUSY
+        assertTrue(subject.checkAndEnforceThrottle(CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT, query, state, PAYER_ID));
+        assertTrue(subject.checkAndEnforceThrottle(
+                CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), query, state, PAYER_ID));
+    }
+
+    @Test
     void worksAsExpectedForCountsAssociationsWhenAccountIsProvidedAsAliasInGetBalance()
             throws IOException, ParseException {
         // given

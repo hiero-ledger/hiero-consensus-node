@@ -17,17 +17,13 @@ open module com.swirlds.virtualmap {
             com.swirlds.merkledb,
             com.swirlds.merkledb.test.fixtures,
             com.swirlds.virtualmap.test.fixtures,
-            com.swirlds.platform.core,
             com.swirlds.state.impl,
             com.hedera.state.validator,
             com.hedera.node.app;
     exports com.swirlds.virtualmap.internal.pipeline to
             com.swirlds.merkledb;
     exports com.swirlds.virtualmap.internal.cache to
-            com.swirlds.merkledb,
-            com.swirlds.virtualmap.test.fixtures,
-            com.swirlds.platform.core.test.fixtures,
-            com.hedera.state.validator;
+            com.swirlds.virtualmap.test.fixtures;
     exports com.swirlds.virtualmap.internal.reconnect to
             com.hedera.state.validator;
     exports com.swirlds.virtualmap.internal.hash to
