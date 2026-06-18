@@ -82,10 +82,9 @@ public class SidecarWatcher {
 
     /**
      * The block node network to pull blocks from in the synchronous drain when the BLOCKS-mode source
-     * is the block node over gRPC ({@code writerMode=GRPC}). Resolved once at construction so the live
-     * subscription ({@link #subscribeBlocks}) and the drain ({@link #drainUnseenSidecarsFromBlocks()})
-     * agree on the source. Null in legacy RECORDS/BOTH mode and in non-GRPC BLOCKS mode (where the
-     * source is {@code .blk} files on disk).
+     * is the block node over gRPC ({@code writerMode=GRPC}). Resolved once at construction so the drain
+     * ({@link #drainUnseenSidecarsFromBlocks()}) knows where to read. Null in legacy RECORDS/BOTH mode
+     * and in non-GRPC BLOCKS mode (where the source is {@code .blk} files on disk).
      */
     @Nullable
     private final BlockNodeNetwork blockNodeNetwork;
@@ -97,15 +96,6 @@ public class SidecarWatcher {
      * block-stream-only mode (see the 4-arg constructor).
      */
     private final Runnable unsubscribe;
-
-    /**
-     * Handle to the block-stream listener subscription, present only when the watcher was
-     * constructed in block-stream-only mode. When set, each new block is translated back into
-     * V6-shape {@link TransactionSidecarRecord}s and pumped through the same drain pipeline as the
-     * legacy on-disk sidecars.
-     */
-    @Nullable
-    private final Runnable unsubscribeBlocks;
 
     private final Queue<ExpectedSidecar> expectedSidecars = new LinkedBlockingDeque<>();
     private final Queue<TransactionSidecarRecord> actualSidecars = new LinkedBlockingDeque<>();
@@ -168,13 +158,19 @@ public class SidecarWatcher {
             // Block-stream-only mode: skip the record-stream listener entirely; the legacy dir is
             // empty under streamMode=BLOCKS so it would deliver nothing anyway.
             //
-            // Resolve the block source once here so the live subscription and the synchronous drain
-            // agree: under writerMode=GRPC with a block node network, both read from the block node
-            // over gRPC; otherwise both read .blk files from disk. We capture the resolved network
-            // (non-null only in the gRPC case) so drainUnseenSidecarsFromBlocks() can pull from it.
+            // Resolve the block source (network) once here so the synchronous drain knows where to
+            // read: under writerMode=GRPC with a block node network it pulls blocks from the block
+            // node over gRPC; otherwise it reads .blk files from disk. Captured (non-null only in the
+            // gRPC case) so drainUnseenSidecarsFromBlocks() can pull from it.
+            //
+            // There is deliberately NO live block subscription. A live poller fed a single long-lived
+            // *stateful* translator incrementally, in an order that could diverge from the final drain
+            // and desync the strict-FIFO matcher (e.g. pairing a bytecode sidecar against an expected
+            // state_changes within one consensus timestamp). The authoritative actual sidecars instead
+            // come solely from the deterministic full-stream genesis re-translation performed by
+            // drainUnseenSidecarsFromBlocks() on each assertExpectations() drain pass.
             this.blockNodeNetwork = resolveGrpcBlockNodeNetwork(spec);
             this.unsubscribe = () -> {};
-            this.unsubscribeBlocks = subscribeBlocks(spec, blockStreamPath, shard, realm);
         } else {
             // Legacy mode: V6 sidecar files are the only source.
             this.blockNodeNetwork = null;
@@ -184,7 +180,6 @@ public class SidecarWatcher {
                     enqueueActualSidecar(sidecar);
                 }
             });
-            this.unsubscribeBlocks = null;
         }
     }
 
@@ -201,47 +196,6 @@ public class SidecarWatcher {
             return null;
         }
         return BlockNodeReader.activeNetwork();
-    }
-
-    private Runnable subscribeBlocks(
-            @Nullable final HapiSpec spec, @NonNull final Path blockStreamPath, final long shard, final long realm) {
-        // One translator/split owned by this subscription so alias and nonce state persist
-        // across blocks (BaseTranslator is stateful).
-        final var translator = new BlockTransactionalUnitTranslator(shard, realm);
-        final var split = new RoleFreeBlockUnitSplit();
-        // Single-element array used as a mutable boolean captured by the listener lambda.
-        final boolean[] foundGenesis = {false};
-        final StreamDataListener listener = new StreamDataListener() {
-            // Replay so genesis sidecars (emitted before this subscription) are still picked up.
-            @Override
-            public boolean replayExistingFiles() {
-                return true;
-            }
-
-            @Override
-            public void onNewBlock(@NonNull final Block block) {
-                try {
-                    pumpBlockSidecars(block, translator, split, foundGenesis);
-                } catch (final RuntimeException e) {
-                    // Don't propagate: a single bad unit shouldn't kill the watcher; the
-                    // expectations-vs-actual diff at the end will surface any real miss.
-                    log.warn("Failed to translate block to sidecars; continuing", e);
-                }
-            }
-
-            @Override
-            public String name() {
-                return "SidecarWatcher#blockStreamPump";
-            }
-        };
-        // Pick the live source the same way the drain does: under writerMode=GRPC with a block node
-        // network, blocks arrive from the block node over gRPC (BlockNodeBlockSource); otherwise they
-        // are watched as .blk files on disk (FileSystemBlockSource). BlockSourceFactory makes this
-        // choice. When no spec is available (legacy callers), fall back to the on-disk watcher.
-        if (spec != null) {
-            return BlockSourceFactory.blockSourceFor(spec).subscribe(listener);
-        }
-        return STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(blockStreamPath), listener);
     }
 
     /**
@@ -292,14 +246,12 @@ public class SidecarWatcher {
     }
 
     /**
-     * Ensures that the sidecar watcher is unsubscribed from both the record stream and (if
-     * configured) the block stream.
+     * Ensures that the sidecar watcher is unsubscribed from the record stream. In block-stream mode
+     * there is no live subscription to tear down — actual sidecars are produced on demand by the
+     * genesis re-translation in {@link #assertExpectations(HapiSpec)}.
      */
     public void ensureUnsubscribed() {
         unsubscribe.run();
-        if (unsubscribeBlocks != null) {
-            unsubscribeBlocks.run();
-        }
     }
 
     /**
@@ -337,9 +289,6 @@ public class SidecarWatcher {
 
         // Stop listening for any more actual sidecars, then drain anything already queued.
         unsubscribe.run();
-        if (unsubscribeBlocks != null) {
-            unsubscribeBlocks.run();
-        }
         drainUnseenSidecarsFromStorage();
         drainActualSidecars();
 
