@@ -50,7 +50,7 @@ jobs:
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           PAYLOAD=$(gomplate -f ".github/workflows/templates/${{ inputs.template }}" | jq -c .)
-          echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
+          echo "slack_payload=${PAYLOAD}" >> "${GITHUB_OUTPUT}"
 
       - name: Send to Test Slack Channel
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
