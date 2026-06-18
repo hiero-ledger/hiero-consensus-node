@@ -17,11 +17,11 @@ interaction with the `nextRound` pull model is unspecified.
 
 ## Changes
 
-| Change | Proposal state | Current state | Status | Anchor / TBD |
-|---|---|---|---|---|
-| Quiescence command on the public Consensus API | The proposal's Public API enumerates the boundary operations; none carries quiescence — the proposal predates HIP-1238. | Execution pushes a `QuiescenceCommand` through the platform boundary, fanned out to the event creator and the platform monitor. | **divergent** | `Platform.quiescenceCommand` (`swirlds-platform-core`), `QuiescenceCommand` (`consensus-model`); [TBD: question for engineer — should the proposed public Consensus API gain a quiescence operation, or is quiescence to be re-specified when the API lands?] |
-| Execution-side decision, consensus-side obedience | Not called for by the proposal; HIP-1238 placed all quiescence conditions on the Execution side, consistent with the proposal's minimal-boundary philosophy. | All detection lives in hedera-app; the consensus layer only obeys the latest command. | **done** | `QuiescenceRule`, `TipsetEventCreator` (`consensus-event-creator-impl`) |
-| Quiescence under the pull-based round API | Unspecified: with `nextRound`, Execution paces Consensus directly; whether a separate command remains needed for event creation is open. | Quiescence gates event creation by command; rounds are pushed. | **not-started** | [TBD: question for engineer — under the proposed `nextRound` pull model, does quiescence remain a separate command gating event creation, or is it subsumed by Execution's pacing?] |
+| Change | Proposal state | Proposal source | Current state | Status | Anchor / TBD |
+|---|---|---|---|---|---|
+| Quiescence command on the public Consensus API | The proposal's Public API enumerates the boundary operations; none carries quiescence — the proposal predates HIP-1238. |  | Execution pushes a `QuiescenceCommand` through the platform boundary, fanned out to the event creator and the platform monitor. | **divergent** | `Platform.quiescenceCommand` (`swirlds-platform-core`), `QuiescenceCommand` (`consensus-model`); [TBD: question for engineer — should the proposed public Consensus API gain a quiescence operation, or is quiescence to be re-specified when the API lands?] |
+| Execution-side decision, consensus-side obedience | Not called for by the proposal; HIP-1238 placed all quiescence conditions on the Execution side, consistent with the proposal's minimal-boundary philosophy. |  | All detection lives in hedera-app; the consensus layer only obeys the latest command. | **done** | `QuiescenceRule`, `TipsetEventCreator` (`consensus-event-creator-impl`) |
+| Quiescence under the pull-based round API | Unspecified: with `nextRound`, Execution paces Consensus directly; whether a separate command remains needed for event creation is open. |  | Quiescence gates event creation by command; rounds are pushed. | **not-started** | [TBD: question for engineer — under the proposed `nextRound` pull model, does quiescence remain a separate command gating event creation, or is it subsumed by Execution's pacing?] |
 
 ## Cross-references
 

@@ -54,11 +54,18 @@ A table, one row per discrete change the proposal explicitly calls for — a
 module split is a row, a module renaming is a row, an API method
 introduction is a row, a behaviour shift is a row.
 
-| Change | Proposal state | Current state | Status | Anchor / TBD |
-|--------|----------------|---------------|--------|--------------|
+| Change | Proposal state | Proposal source | Current state | Status | Anchor / TBD |
+|--------|----------------|-----------------|---------------|--------|--------------|
 
 - **Change** — short noun phrase identifying the discrete item.
 - **Proposal state** — one or two sentences on what the proposal calls for.
+- **Proposal source** — the section(s) of
+  `../../proposals/consensus-layer/Consensus-Layer.md` describing the change,
+  as `[§ <heading>](…#<anchor>)` links in the same style as the
+  Cross-references block. Where the proposal only *implies* the change
+  through a general principle (e.g., the lifecycle inversion that moves
+  freeze, ISS, and state ownership to Execution), cite the implying section
+  and tag it `(implied)`.
 - **Current state** — one or two sentences on what current code does.
 - **Status** — exactly one of the four values below, bolded and hyphenated
   (`**not-started**`, never `not started`) so the catalog greps uniformly:
@@ -120,9 +127,9 @@ last_reviewed: TBD
 
 ## Changes
 
-| Change | Proposal state | Current state | Status | Anchor / TBD |
-|---|---|---|---|---|
-| ... | ... | ... | **done** | `Class` (`module`) |
+| Change | Proposal state | Proposal source | Current state | Status | Anchor / TBD |
+|---|---|---|---|---|---|
+| ... | ... | [§ <heading>](…#<anchor>) | ... | **done** | `Class` (`module`) |
 
 ## Cross-references
 
