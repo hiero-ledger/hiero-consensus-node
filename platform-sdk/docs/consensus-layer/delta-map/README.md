@@ -19,7 +19,7 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 
 |                Topic                 |   Status    | Summary |
 |--------------------------------------|-------------|---------|
-| `wiring-framework.md`                | partial     | Framework internals match the proposal; the pulled module boundary has not begun. |
+| `wiring-framework.md`                | not-started | Proposal specifies only the seam (`nextRound`, module pairs, lifecycle), none begun; internal mechanics it doesn't address are flagged open. |
 | `gossip.md`                          | partial     | Extraction and sync behaviour done; Sheriff discipline not started. |
 | `event-intake.md`                    | partial     | Pipeline and persistence done (PCES permanently its own module); branch detection remains partial. |
 | `event-creator.md`                   | partial     | Tipset and transaction pull done; the public Consensus API surface is missing. |

@@ -8,20 +8,21 @@ last_reviewed: TBD
 
 ## Summary
 
-The component framework already provides what the proposal assumes
-internally: declarative wires, wire-level backpressure, and a health signal
-published to module inputs. The outstanding delta is at the seam — the
-proposal moves the Consensus/Execution boundary off wires onto a pulled
-public API (`nextRound`) and makes Execution construct and own the
-Consensus instance, neither of which has begun.
+The proposal specifies the wiring framework only at the seam — the
+`nextRound` pull boundary, the API/impl module pairs, and Execution owning
+the Consensus instance — and explicitly disclaims internal implementation
+detail. The component framework already provides the internal substrate
+(declarative wires, wire-level backpressure, a health signal), but the
+proposal neither describes nor requires it; whether the pull model retains
+those mechanisms is open. None of the seam-level deltas has begun.
 
 ## Changes
 
 | Change | Proposal state | Current state | Status | Anchor / TBD |
 |---|---|---|---|---|
-| Module-level pull boundary (`nextRound`) above wire-level backpressure | Execution paces Consensus by pulling each round through a public API; wires stay an internal detail. | Consensus rounds are pushed to execution-side handlers via output wires; wire backpressure is the only mechanism at the seam. | **not-started** | `PlatformWiring` (`swirlds-platform-core`) solders `HashgraphModule.consensusRoundOutputWire()` — push shape intact |
-| Wire-level backpressure retained inside Consensus | Internal wiring keeps queue-counter backpressure beneath the module-level overlay. | Counter-based scheduler backpressure plus an opt-in hard-backpressure mode. | **done** | `ObjectCounter`, `WiringConfig.hardBackpressureEnabled` (`swirlds-component-framework`) |
-| Health signal published to module inputs | Components react to a system-health signal from the wiring model. | `HealthMonitor` emits the unhealthy duration; modules expose health input wires that consume it. | **done** | `HealthMonitor` (`swirlds-component-framework`), `EventCreatorModule.healthStatusInputWire()` (`consensus-event-creator`) |
+| Pull-based Consensus/Execution boundary (`nextRound`) | Execution paces Consensus by pulling each round through a public API; internal wiring is left a private detail. | Consensus rounds are pushed to execution-side handlers via output wires; wire backpressure is the only mechanism at the seam. | **not-started** | `PlatformWiring` (`swirlds-platform-core`) solders `HashgraphModule.consensusRoundOutputWire()` — push shape intact |
+| Wire-level backpressure under the pull model | Not specified — the proposal disclaims implementation detail and names only `nextRound` as backpressure; whether the pull model retains internal wire-level backpressure or makes it redundant is open. | Counter-based scheduler backpressure plus an opt-in hard-backpressure mode. | **not-started** | `ObjectCounter`, `WiringConfig.hardBackpressureEnabled` (`swirlds-component-framework`); [TBD: question for engineer — does the `nextRound` pull model keep internal wire-level backpressure as a detail, or supersede it?] |
+| Health signal under the pull model | Not specified — the proposal describes no health monitor or system-health signal; its stress handling is birth-round filtering, tipset backoff, and `nextRound`. Whether the health signal survives the pull model is open. | `HealthMonitor` emits the unhealthy duration; modules expose health input wires that consume it. | **not-started** | `HealthMonitor` (`swirlds-component-framework`), `EventCreatorModule.healthStatusInputWire()` (`consensus-event-creator`); [TBD: question for engineer — is the health-monitor signal retained under the `nextRound` model, or subsumed by Execution-paced backpressure?] |
 | Wiring hidden behind an Execution-constructed Consensus facade | Execution creates and destroys Consensus instances; wiring is not visible at the boundary. | Component composition lives in platform-core; Execution does not construct the Consensus library. | **not-started** | `SwirldsPlatform`, `PlatformBuilder` (`swirlds-platform-core`) — pre-proposal orchestration intact |
 | Top-level Consensus API/impl module pair | Execution compile-depends on a Consensus API module and runtime-depends on its implementation module. | No top-level Consensus module exists; the execution layer depends on platform-core directly. | **not-started** | `hedera-app` `module-info.java` requires `com.swirlds.platform.core` — direct dependency intact |
 | `destroy` lifecycle operation | Execution destroys a Consensus instance via the public API, shutting down gossip connections, executors, and background tasks. | The platform manages its own teardown; Execution does not manage Consensus instances. | **not-started** | `SwirldsPlatform.destroy()` (`swirlds-platform-core`) — platform-managed teardown intact |
