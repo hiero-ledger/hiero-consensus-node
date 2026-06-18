@@ -209,7 +209,7 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-  build-json-rpc-relay-slack-payload:
+  build-slack-payload:
     name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
     runs-on: hl-cn-rpc-relay-lin-sm
     needs:
@@ -241,11 +241,12 @@ jobs:
           PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
           echo "slack_payload=${PAYLOAD}" >> "${GITHUB_OUTPUT}"
 
+
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-rpc-relay-lin-sm
     needs:
-      - build-json-rpc-relay-slack-payload
+      - build-slack-payload
     if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
@@ -258,4 +259,4 @@ jobs:
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload: ${{ needs.build-json-rpc-relay-slack-payload.outputs.slack_payload }}
+          payload: ${{ needs.build-slack-payload.outputs.slack_payload }}
