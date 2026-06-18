@@ -6,18 +6,17 @@ import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.IssBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
 
 /**
- * Dagger bindings for the ISS block-upload pipeline: the {@link BlockUploader} backend, chosen from
- * configuration (or a no-op when disabled/unsupported). The {@code IssBlockUploadCoordinator} is bound implicitly via
- * its {@code @Inject} constructor.
+ * Dagger bindings for the ISS block-upload pipeline: the (Bucky-backed) {@link BlockUploader}, or a no-op when both
+ * upload paths are disabled. The {@code IssBlockUploadCoordinator} and {@code IssDetectionUploadCoordinator} are bound
+ * implicitly via their {@code @Inject} constructors.
  */
 @Module
 public interface IssBlockUploadModule {
@@ -27,22 +26,13 @@ public interface IssBlockUploadModule {
     static BlockUploader provideBlockUploader(
             @NonNull final ConfigProvider configProvider,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
-        final var config = configProvider.getConfiguration().getConfigData(IssBlockUploadConfig.class);
-        if (!config.enabled()) {
+        final var config = configProvider.getConfiguration().getConfigData(FailureBlockUploadConfig.class);
+        if (!config.issBlockUploadEnabled() && !config.triageUploadEnabled()) {
             return new NoOpBlockUploader();
         }
         final String nodeAccountString = asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId());
         final Path credentialsFile =
                 getAbsolutePath(config.credentialsFileDir()).resolve(config.credentialsFileName());
-        return switch (config.backend()) {
-            case BUCKY -> new BuckyBlockUploader(config, nodeAccountString, credentialsFile);
-            case GCLOUD_CLI, HTTP -> {
-                LogManager.getLogger(IssBlockUploadModule.class)
-                        .warn(
-                                "ISS block upload backend {} is not implemented; uploads are disabled (use BUCKY)",
-                                config.backend());
-                yield new NoOpBlockUploader();
-            }
-        };
+        return new BuckyBlockUploader(config, nodeAccountString, credentialsFile);
     }
 }

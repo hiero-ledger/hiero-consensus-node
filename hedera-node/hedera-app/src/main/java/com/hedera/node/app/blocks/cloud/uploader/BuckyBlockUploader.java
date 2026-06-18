@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.bucky.S3Client;
 import com.hedera.bucky.S3ClientInitializationException;
-import com.hedera.node.config.data.IssBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedInputStream;
@@ -33,9 +33,9 @@ import org.apache.logging.log4j.Logger;
  * The overall hard deadline is enforced by {@code IssBlockUploadCoordinator} (which runs this on a bounded worker), so
  * this class does not time-box itself. All failures are logged and swallowed (the caller is on the shutdown path).
  *
- * <p>Object keys are {@code {prefix}/{node}/iss/{incidentFolder}/{paddedBlockNumber}/{fileName}}: {@code incidentFolder}
- * groups all blocks from one catastrophic failure, and the padded block number (from the file name) groups a pending
- * block's {@code .pnd.gz} contents with its {@code .pnd.json} proof.
+ * <p>Object keys are {@code {prefix}/{node}/{category}/{incidentFolder}/{paddedBlockNumber}/{fileName}}: {@code category}
+ * is {@code iss} or {@code triage}, {@code incidentFolder} groups all blocks from one event, and the padded block
+ * number (from the file name) groups a pending block's {@code .pnd.gz} contents with its {@code .pnd.json} proof.
  */
 class BuckyBlockUploader implements BlockUploader {
     private static final Logger log = LogManager.getLogger(BuckyBlockUploader.class);
@@ -47,23 +47,23 @@ class BuckyBlockUploader implements BlockUploader {
     /** Upper cap on the per-retry backoff. */
     private static final long MAX_BACKOFF_MS = 20_000;
     /** Block-file extensions, longest first, stripped to recover the padded block number used as the key folder. */
-    private static final List<String> EXTENSIONS = List.of(".pnd.json", ".iss.gz", ".pnd.gz", ".blk.gz");
+    private static final List<String> EXTENSIONS = List.of(".pnd.json", ".open.gz", ".iss.gz", ".pnd.gz", ".blk.gz");
 
     /** Seam so tests can supply a stub {@link S3Client} instead of constructing a real one. */
     @FunctionalInterface
     public interface S3ClientFactory {
         @NonNull
-        S3Client create(@NonNull IssBlockUploadConfig config, @NonNull BucketCredentials credentials)
+        S3Client create(@NonNull FailureBlockUploadConfig config, @NonNull BucketCredentials credentials)
                 throws S3ClientInitializationException;
     }
 
-    private final IssBlockUploadConfig config;
+    private final FailureBlockUploadConfig config;
     private final String nodeAccountString;
     private final Path credentialsFile;
     private final S3ClientFactory clientFactory;
 
     BuckyBlockUploader(
-            @NonNull final IssBlockUploadConfig config,
+            @NonNull final FailureBlockUploadConfig config,
             @NonNull final String nodeAccountString,
             @NonNull final Path credentialsFile) {
         this(config, nodeAccountString, credentialsFile, BuckyBlockUploader::newS3Client);
@@ -71,7 +71,7 @@ class BuckyBlockUploader implements BlockUploader {
 
     // visible for testing
     BuckyBlockUploader(
-            @NonNull final IssBlockUploadConfig config,
+            @NonNull final FailureBlockUploadConfig config,
             @NonNull final String nodeAccountString,
             @NonNull final Path credentialsFile,
             @NonNull final S3ClientFactory clientFactory) {
@@ -84,7 +84,10 @@ class BuckyBlockUploader implements BlockUploader {
     @Override
     @NonNull
     public List<String> uploadBlockFiles(
-            @NonNull final String incidentFolder, @NonNull final List<Path> contentsFiles) {
+            @NonNull final UploadCategory category,
+            @NonNull final String incidentFolder,
+            @NonNull final List<Path> contentsFiles) {
+        requireNonNull(category);
         requireNonNull(incidentFolder);
         requireNonNull(contentsFiles);
         if (contentsFiles.isEmpty()) {
@@ -100,13 +103,13 @@ class BuckyBlockUploader implements BlockUploader {
         final List<String> uploaded = new ArrayList<>();
         try (final S3Client s3 = clientFactory.create(config, credentials)) {
             for (final Path contents : contentsFiles) {
-                final String uri = uploadWithRetry(s3, incidentFolder, contents);
+                final String uri = uploadWithRetry(s3, category, incidentFolder, contents);
                 if (uri != null) {
                     uploaded.add(uri);
                 }
                 final Path sidecar = proofSidecarOf(contents);
                 if (sidecar != null && Files.exists(sidecar)) {
-                    final String sidecarUri = uploadWithRetry(s3, incidentFolder, sidecar);
+                    final String sidecarUri = uploadWithRetry(s3, category, incidentFolder, sidecar);
                     if (sidecarUri != null) {
                         uploaded.add(sidecarUri);
                     }
@@ -120,9 +123,12 @@ class BuckyBlockUploader implements BlockUploader {
 
     @Nullable
     private String uploadWithRetry(
-            @NonNull final S3Client s3, @NonNull final String incidentFolder, @NonNull final Path file) {
+            @NonNull final S3Client s3,
+            @NonNull final UploadCategory category,
+            @NonNull final String incidentFolder,
+            @NonNull final Path file) {
         final int attempts = Math.max(1, config.maxRetries() + 1);
-        final String objectKey = objectKeyFor(incidentFolder, file);
+        final String objectKey = objectKeyFor(category, incidentFolder, file);
         Exception last = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             try (final InputStream in = new BufferedInputStream(Files.newInputStream(file))) {
@@ -157,11 +163,13 @@ class BuckyBlockUploader implements BlockUploader {
         return null;
     }
 
-    private String objectKeyFor(@NonNull final String incidentFolder, @NonNull final Path file) {
+    private String objectKeyFor(
+            @NonNull final UploadCategory category, @NonNull final String incidentFolder, @NonNull final Path file) {
         final String fileName = file.getFileName().toString();
         final String prefix = stripTrailingSlash(config.objectKeyPrefix());
         final String base = prefix.isEmpty() ? "" : prefix + "/";
-        return base + nodeAccountString + "/iss/" + incidentFolder + "/" + baseNameOf(fileName) + "/" + fileName;
+        return base + nodeAccountString + "/" + category.segment() + "/" + incidentFolder + "/" + baseNameOf(fileName)
+                + "/" + fileName;
     }
 
     private String uriFor(@NonNull final String objectKey) {
@@ -205,7 +213,7 @@ class BuckyBlockUploader implements BlockUploader {
 
     @NonNull
     private static S3Client newS3Client(
-            @NonNull final IssBlockUploadConfig config, @NonNull final BucketCredentials credentials)
+            @NonNull final FailureBlockUploadConfig config, @NonNull final BucketCredentials credentials)
             throws S3ClientInitializationException {
         return new S3Client(
                 config.region(),

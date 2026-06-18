@@ -5,7 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
-import com.hedera.node.config.data.IssBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.sun.net.httpserver.HttpServer;
 import java.io.ByteArrayOutputStream;
@@ -79,16 +79,16 @@ class BuckyBlockUploaderS3MockTest {
         try {
             final int port = server.getAddress().getPort();
 
-            final IssBlockUploadConfig config = HederaTestConfigBuilder.create()
-                    .withConfigDataType(IssBlockUploadConfig.class)
-                    .withValue("issBlockUpload.enabled", "true")
-                    .withValue("issBlockUpload.bucketName", BUCKET)
-                    .withValue("issBlockUpload.endpoint", "http://127.0.0.1:" + port + "/")
-                    .withValue("issBlockUpload.region", "us-east-1")
-                    .withValue("issBlockUpload.objectKeyPrefix", "iss-blocks")
-                    .withValue("issBlockUpload.maxRetries", "0")
+            final FailureBlockUploadConfig config = HederaTestConfigBuilder.create()
+                    .withConfigDataType(FailureBlockUploadConfig.class)
+                    .withValue("failureBlockUpload.issBlockUploadEnabled", "true")
+                    .withValue("failureBlockUpload.bucketName", BUCKET)
+                    .withValue("failureBlockUpload.endpoint", "http://127.0.0.1:" + port + "/")
+                    .withValue("failureBlockUpload.region", "us-east-1")
+                    .withValue("failureBlockUpload.objectKeyPrefix", "iss-blocks")
+                    .withValue("failureBlockUpload.maxRetries", "0")
                     .getOrCreateConfig()
-                    .getConfigData(IssBlockUploadConfig.class);
+                    .getConfigData(FailureBlockUploadConfig.class);
 
             final Path creds = tempDir.resolve("creds.properties");
             Files.writeString(creds, "accessKey=AKIAEXAMPLE\nsecretKey=secretExample\n");
@@ -103,7 +103,7 @@ class BuckyBlockUploaderS3MockTest {
 
             final String incident = "2026-06-16T00-00-00Z";
             final var uploader = new BuckyBlockUploader(config, "0.0.3", creds);
-            final List<String> uris = uploader.uploadBlockFiles(incident, List.of(pnd));
+            final List<String> uris = uploader.uploadBlockFiles(UploadCategory.ISS, incident, List.of(pnd));
 
             final String contentsKey = "iss-blocks/0.0.3/iss/" + incident + "/" + base + "/" + base + ".pnd.gz";
             final String proofKey = "iss-blocks/0.0.3/iss/" + incident + "/" + base + "/" + base + ".pnd.json";

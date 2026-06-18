@@ -44,7 +44,7 @@ import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
-import com.hedera.node.config.data.IssBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
@@ -93,7 +93,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 BlockStreamConfig.class,
                 BlockNodeConnectionConfig.class,
                 BlockBufferConfig.class,
-                IssBlockUploadConfig.class,
+                FailureBlockUploadConfig.class,
                 BootstrapConfig.class,
                 CacheConfig.class,
                 ConsensusConfig.class,

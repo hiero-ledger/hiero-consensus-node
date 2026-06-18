@@ -15,7 +15,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
-import com.hedera.node.config.data.IssBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -37,7 +37,7 @@ class IssBlockUploadCoordinatorTest {
     private VersionedConfiguration versionedConfiguration;
 
     @Mock
-    private IssBlockUploadConfig config;
+    private FailureBlockUploadConfig config;
 
     @Mock
     private BlockStreamManager blockStreamManager;
@@ -55,28 +55,29 @@ class IssBlockUploadCoordinatorTest {
     void setUp() {
         lenient().when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         lenient()
-                .when(versionedConfiguration.getConfigData(IssBlockUploadConfig.class))
+                .when(versionedConfiguration.getConfigData(FailureBlockUploadConfig.class))
                 .thenReturn(config);
         subject = new IssBlockUploadCoordinator(configProvider, blockStreamManager, uploader, instantSource);
     }
 
     @Test
     void uploadsFlushedFilesWhenEnabled() {
-        when(config.enabled()).thenReturn(true);
+        when(config.triageUploadEnabled()).thenReturn(true);
         when(config.uploadTimeout()).thenReturn(Duration.ofSeconds(5));
-        final List<Path> files = List.of(Path.of("a.pnd.gz"), Path.of("b.iss.gz"));
+        final List<Path> files = List.of(Path.of("a.pnd.gz"), Path.of("b.open.gz"));
         when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(files);
-        when(uploader.uploadBlockFiles(eq(EXPECTED_FOLDER), eq(files))).thenReturn(List.of("uriA", "uriB"));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.TRIAGE), eq(EXPECTED_FOLDER), eq(files)))
+                .thenReturn(List.of("uriA", "uriB"));
 
         subject.uploadFlushedIssBlocks();
 
-        // The per-incident folder is the fixed-clock UTC timestamp
-        verify(uploader).uploadBlockFiles(EXPECTED_FOLDER, files);
+        // The flushed set goes to the triage/ folder, under the fixed-clock UTC incident timestamp.
+        verify(uploader).uploadBlockFiles(UploadCategory.TRIAGE, EXPECTED_FOLDER, files);
     }
 
     @Test
     void noOpWhenDisabled() {
-        when(config.enabled()).thenReturn(false);
+        when(config.triageUploadEnabled()).thenReturn(false);
 
         subject.uploadFlushedIssBlocks();
 
@@ -85,30 +86,30 @@ class IssBlockUploadCoordinatorTest {
 
     @Test
     void noOpWhenNoFilesFlushed() {
-        when(config.enabled()).thenReturn(true);
+        when(config.triageUploadEnabled()).thenReturn(true);
         when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of());
 
         subject.uploadFlushedIssBlocks();
 
-        verify(uploader, never()).uploadBlockFiles(any(), any());
+        verify(uploader, never()).uploadBlockFiles(any(), any(), any());
     }
 
     @Test
     void swallowsUploaderExceptions() {
-        when(config.enabled()).thenReturn(true);
+        when(config.triageUploadEnabled()).thenReturn(true);
         when(config.uploadTimeout()).thenReturn(Duration.ofSeconds(5));
-        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(Path.of("a.iss.gz")));
-        when(uploader.uploadBlockFiles(anyString(), any())).thenThrow(new RuntimeException("boom"));
+        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(Path.of("a.open.gz")));
+        when(uploader.uploadBlockFiles(any(), anyString(), any())).thenThrow(new RuntimeException("boom"));
 
         assertThatCode(() -> subject.uploadFlushedIssBlocks()).doesNotThrowAnyException();
     }
 
     @Test
     void hardTimeoutAbandonsSlowUpload() {
-        when(config.enabled()).thenReturn(true);
+        when(config.triageUploadEnabled()).thenReturn(true);
         when(config.uploadTimeout()).thenReturn(Duration.ofMillis(200));
-        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(Path.of("a.iss.gz")));
-        when(uploader.uploadBlockFiles(anyString(), any())).thenAnswer(invocation -> {
+        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(Path.of("a.open.gz")));
+        when(uploader.uploadBlockFiles(any(), anyString(), any())).thenAnswer(invocation -> {
             Thread.sleep(5_000); // far longer than the upload timeout
             return List.of("late");
         });

@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.IssBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.InstantSource;
@@ -23,13 +23,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Orchestrates ISS block upload: after a catastrophic failure has flushed the ISS-relevant blocks to
- * disk, uploads those flushed files to the configured bucket and logs the result.
+ * Orchestrates the catastrophic-failure triage upload: after a catastrophic failure has flushed the open/pending
+ * blocks to disk, uploads those flushed files to the {@code triage/} folder of the configured bucket and logs the
+ * result.
  *
  * <p>Invoked from {@code Hedera.newPlatformStatus(CATASTROPHIC_FAILURE)} immediately after
  * {@code BlockStreamManager.awaitFatalShutdown(...)} returns — at which point the flushed files are available via
  * {@link BlockStreamManager#flushedTriageBlockFiles()}. The upload runs on a bounded worker so it cannot delay the
- * node's halt beyond {@code uploadTimeout}; it is best-effort and never throws.
+ * node's halt beyond {@code uploadTimeout}; it is best-effort and never throws. The exact ISS-round block is uploaded
+ * separately (to the {@code iss/} folder) by {@code IssDetectionUploadCoordinator} when it is detected.
  */
 @Singleton
 public class IssBlockUploadCoordinator {
@@ -57,13 +59,13 @@ public class IssBlockUploadCoordinator {
     }
 
     public void uploadFlushedIssBlocks() {
-        final var config = configProvider.getConfiguration().getConfigData(IssBlockUploadConfig.class);
-        if (!config.enabled()) {
+        final var config = configProvider.getConfiguration().getConfigData(FailureBlockUploadConfig.class);
+        if (!config.triageUploadEnabled()) {
             return;
         }
         final List<Path> files = blockStreamManager.flushedTriageBlockFiles();
         if (files.isEmpty()) {
-            log.warn("ISS block upload is enabled but no triage block files were flushed; nothing to upload");
+            log.warn("Triage block upload is enabled but no triage block files were flushed; nothing to upload");
             return;
         }
         // One folder per catastrophic failure, so a later failure's blocks never intermix with this one's.
@@ -77,13 +79,15 @@ public class IssBlockUploadCoordinator {
             return thread;
         });
         try {
-            final Future<List<String>> future = executor.submit(() -> uploader.uploadBlockFiles(incidentFolder, files));
+            final Future<List<String>> future =
+                    executor.submit(() -> uploader.uploadBlockFiles(UploadCategory.TRIAGE, incidentFolder, files));
             final List<String> uploaded = future.get(config.uploadTimeout().toMillis(), TimeUnit.MILLISECONDS);
             if (uploaded.isEmpty()) {
                 log.warn(
-                        "ISS block upload produced no objects from {} flushed file(s); see prior errors", files.size());
+                        "Triage block upload produced no objects from {} flushed file(s); see prior errors",
+                        files.size());
             } else {
-                log.warn("ISS block upload complete: {} object(s) uploaded to {}", uploaded.size(), uploaded);
+                log.warn("Triage block upload complete: {} object(s) uploaded to {}", uploaded.size(), uploaded);
             }
         } catch (final TimeoutException e) {
             log.error(

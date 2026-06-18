@@ -6,14 +6,16 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * A {@link BlockUploader} that uploads nothing. Used when ISS block upload is disabled or the configured provider /
- * backend is unsupported, so the rest of the pipeline can run unconditionally without special-casing the disabled path.
+ * A {@link BlockUploader} that uploads nothing. Used when both ISS block-upload paths are disabled, so the rest of the
+ * pipeline can run unconditionally without special-casing the disabled path.
  */
 public class NoOpBlockUploader implements BlockUploader {
     @Override
     @NonNull
     public List<String> uploadBlockFiles(
-            @NonNull final String incidentFolder, @NonNull final List<Path> contentsFiles) {
+            @NonNull final UploadCategory category,
+            @NonNull final String incidentFolder,
+            @NonNull final List<Path> contentsFiles) {
         return List.of();
     }
 }

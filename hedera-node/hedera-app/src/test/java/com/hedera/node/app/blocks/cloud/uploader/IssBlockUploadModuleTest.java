@@ -9,8 +9,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
-import com.hedera.node.config.data.IssBlockUploadConfig;
-import com.hedera.node.config.types.UploaderBackend;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,8 +17,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Verifies the {@link BlockUploader} selection in {@link IssBlockUploadModule#provideBlockUploader}: disabled and
- * not-yet-implemented backends fall back to {@link NoOpBlockUploader}; {@code BUCKY} yields {@link BuckyBlockUploader}.
+ * Verifies the {@link BlockUploader} selection in {@link IssBlockUploadModule#provideBlockUploader}: both upload paths
+ * disabled falls back to {@link NoOpBlockUploader}; either path enabled yields the Bucky-backed {@link
+ * BuckyBlockUploader}.
  */
 @ExtendWith(MockitoExtension.class)
 class IssBlockUploadModuleTest {
@@ -31,7 +31,7 @@ class IssBlockUploadModuleTest {
     private VersionedConfiguration versionedConfiguration;
 
     @Mock
-    private IssBlockUploadConfig config;
+    private FailureBlockUploadConfig config;
 
     @Mock
     private SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -40,45 +40,39 @@ class IssBlockUploadModuleTest {
     void setUp() {
         lenient().when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         lenient()
-                .when(versionedConfiguration.getConfigData(IssBlockUploadConfig.class))
+                .when(versionedConfiguration.getConfigData(FailureBlockUploadConfig.class))
                 .thenReturn(config);
     }
 
     @Test
-    void disabledYieldsNoOpUploader() {
-        when(config.enabled()).thenReturn(false);
+    void bothPathsDisabledYieldsNoOpUploader() {
+        when(config.issBlockUploadEnabled()).thenReturn(false);
+        when(config.triageUploadEnabled()).thenReturn(false);
 
         assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
                 .isInstanceOf(NoOpBlockUploader.class);
     }
 
     @Test
-    void buckyBackendYieldsBuckyUploader() {
-        givenEnabledWith(UploaderBackend.BUCKY);
+    void detectionEnabledYieldsBuckyUploader() {
+        givenCredentials();
+        when(config.issBlockUploadEnabled()).thenReturn(true);
 
         assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
                 .isInstanceOf(BuckyBlockUploader.class);
     }
 
     @Test
-    void gcloudCliBackendFallsBackToNoOp() {
-        givenEnabledWith(UploaderBackend.GCLOUD_CLI);
+    void triageEnabledYieldsBuckyUploader() {
+        givenCredentials();
+        when(config.issBlockUploadEnabled()).thenReturn(false);
+        when(config.triageUploadEnabled()).thenReturn(true);
 
         assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
-                .isInstanceOf(NoOpBlockUploader.class);
+                .isInstanceOf(BuckyBlockUploader.class);
     }
 
-    @Test
-    void httpBackendFallsBackToNoOp() {
-        givenEnabledWith(UploaderBackend.HTTP);
-
-        assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
-                .isInstanceOf(NoOpBlockUploader.class);
-    }
-
-    private void givenEnabledWith(final UploaderBackend backend) {
-        when(config.enabled()).thenReturn(true);
-        when(config.backend()).thenReturn(backend);
+    private void givenCredentials() {
         when(config.credentialsFileDir()).thenReturn("data/config");
         when(config.credentialsFileName()).thenReturn("iss-bucket-credentials.properties");
         when(selfNodeAccountIdManager.getSelfNodeAccountId())
