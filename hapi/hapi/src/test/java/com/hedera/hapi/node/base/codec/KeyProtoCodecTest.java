@@ -16,20 +16,31 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 final class KeyProtoCodecTest {
+    private static final int PBJ_0_15_9_DEFAULT_MAX_DEPTH = 128;
     private static final int MAX_TRANSACTION_BYTES = 6 * 1024;
     private static final int CONSTRAINED_STACK_SIZE = 64 * 1024;
     private static final int ONE_MEBIBYTE_STACK_SIZE = 1024 * 1024;
+    private static final int PBJ_MESSAGE_FRAMES_PER_KEY_LIST_LEVEL = 2;
+    private static final int DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS =
+            DEFAULT_MAX_DEPTH / PBJ_MESSAGE_FRAMES_PER_KEY_LIST_LEVEL;
+    private static final int FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH =
+            DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS + 1;
     private static final byte KEY_LIST_TAG = 50;
     private static final byte KEY_LIST_KEYS_TAG = 10;
     private static final byte ED25519_TAG = 18;
     private static final byte[] ED25519_KEY = lengthDelimited(ED25519_TAG, new byte[32]);
 
     @Test
+    void pbjRuntimeUsesUpdatedDefaultMaxDepth() {
+        assertThat(DEFAULT_MAX_DEPTH).isEqualTo(PBJ_0_15_9_DEFAULT_MAX_DEPTH);
+    }
+
+    @Test
     void deeplyNestedSerializedKeyUnderSixKiBCanOverflowUnboundedParserStack() throws InterruptedException {
         final var serializedKey = deepestKeyListNestUnder(MAX_TRANSACTION_BYTES);
 
         assertThat(serializedKey.bytes()).hasSizeLessThanOrEqualTo(MAX_TRANSACTION_BYTES);
-        assertThat(serializedKey.nestingLevels()).isGreaterThan(DEFAULT_MAX_DEPTH / 2);
+        assertThat(serializedKey.nestingLevels()).isGreaterThan(FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH);
 
         assertThat(parseWithUnboundedDepthOnConstrainedStack(serializedKey.bytes()))
                 .isInstanceOf(StackOverflowError.class);
@@ -51,8 +62,8 @@ final class KeyProtoCodecTest {
     }
 
     @Test
-    void pbjParserRejectsKeyBeyondDefaultDepthWithParseException() {
-        final var serializedKey = keyListNest(DEFAULT_MAX_DEPTH / 2 + 1);
+    void pbjParserRejectsFirstKeyListLevelBeyondDefaultDepthWithParseException() {
+        final var serializedKey = keyListNest(FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH);
 
         assertThat(serializedKey.bytes()).hasSizeLessThanOrEqualTo(MAX_TRANSACTION_BYTES);
         assertThatThrownBy(() -> Key.PROTOBUF.parse(Bytes.wrap(serializedKey.bytes())))
@@ -62,7 +73,7 @@ final class KeyProtoCodecTest {
 
     @Test
     void deepestDefaultAllowedSerializedKeyUnderSixKiBParsesOnOneMiBStack() throws InterruptedException {
-        final var serializedKey = keyListNest(DEFAULT_MAX_DEPTH / 2);
+        final var serializedKey = keyListNest(DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS);
 
         assertThat(serializedKey.bytes()).hasSizeLessThanOrEqualTo(MAX_TRANSACTION_BYTES);
         assertThatCode(() -> parseWithDefaultDepthOnStack(serializedKey.bytes(), ONE_MEBIBYTE_STACK_SIZE))

@@ -9,9 +9,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,6 +40,11 @@ public class DeeplyNestedKeyListSuite {
     // HAPI re-parses submitted transactions with Google protobuf while resolving status, so stay below
     // its recursion limit while still exceeding the node's semantic key depth cap.
     private static final int PROTOBUF_CLIENT_SAFE_OVER_SEMANTIC_KEY_LIST_LEVELS = 40;
+    private static final int PBJ_MESSAGE_FRAMES_PER_KEY_LIST_LEVEL = 2;
+    private static final int DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS =
+            DEFAULT_MAX_DEPTH / PBJ_MESSAGE_FRAMES_PER_KEY_LIST_LEVEL;
+    private static final int FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH =
+            DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS + 1;
     private static final int TRANSACTION_BODY_TRANSACTION_ID_TAG = 10;
     private static final int TRANSACTION_BODY_NODE_ACCOUNT_ID_TAG = 18;
     private static final int TRANSACTION_BODY_TRANSACTION_FEE_TAG = 24;
@@ -116,7 +119,7 @@ public class DeeplyNestedKeyListSuite {
 
         @Override
         protected Transaction finalizedTxn(final HapiSpec spec, final Consumer<TransactionBody.Builder> opDef) {
-            return cryptoCreateWithRawKey(spec, keyListNest(DEFAULT_MAX_DEPTH / 2 + 1));
+            return cryptoCreateWithRawKey(spec, keyListNest(FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH));
         }
     }
 
