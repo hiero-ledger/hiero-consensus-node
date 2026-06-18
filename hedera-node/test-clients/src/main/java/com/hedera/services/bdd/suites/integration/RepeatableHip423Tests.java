@@ -97,6 +97,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withStatus;
@@ -117,7 +118,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.CREATE_TXN;
@@ -1013,7 +1013,7 @@ public class RepeatableHip423Tests {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("receiver"))
                         .hasKnownStatusFrom(INVALID_SCHEDULE_ID)
                         .via("signTxn"),
-                validateFees("signTxn", 0.001, SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                validateChargedUsdWithin("signTxn", SCHEDULE_SIGN_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
