@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.state;
+package org.hiero.consensus.state.test.fixtures;
 
-import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
@@ -19,7 +18,6 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -54,6 +52,7 @@ import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.state.test.fixtures.manager.SignatureVerificationTestUtils;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
@@ -497,7 +496,8 @@ public class RandomSignedStateGenerator {
             for (final RosterEntry node : roster.rosterEntries()) {
                 final PublicKey publicKey =
                         RosterUtils.fetchGossipCaCertificate(node).getPublicKey();
-                signatures.put(NodeId.of(node.nodeId()), buildFakeSignature(publicKey, hash));
+                signatures.put(
+                        NodeId.of(node.nodeId()), SignatureVerificationTestUtils.buildFakeSignature(publicKey, hash));
             }
             return signatures;
         };
