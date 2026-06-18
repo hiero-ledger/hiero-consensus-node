@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.iss.detection.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.components.common.output.FatalErrorConsumer;
-import com.swirlds.platform.state.iss.IssHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.SerializableLong;
+import org.hiero.consensus.iss.detection.FatalErrorConsumer;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.scratchpad.Scratchpad;
@@ -31,16 +26,13 @@ class IssHandlerTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.OTHER_ISS));
 
@@ -61,16 +53,13 @@ class IssHandlerTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.OTHER_ISS));
 
@@ -86,16 +75,13 @@ class IssHandlerTests {
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, false)
                 .withValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
 
@@ -113,16 +99,13 @@ class IssHandlerTests {
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, false)
                 .withValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
 
@@ -140,16 +123,13 @@ class IssHandlerTests {
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, true)
                 .withValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
 
@@ -172,16 +152,13 @@ class IssHandlerTests {
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, false)
                 .withValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
 
@@ -199,16 +176,13 @@ class IssHandlerTests {
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, true)
                 .withValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
 
@@ -231,16 +205,13 @@ class IssHandlerTests {
                 .withValue(StateConfig_.HALT_ON_ANY_ISS, false)
                 .withValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final AtomicInteger shutdownCount = new AtomicInteger();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
-        final IssHandler handler = new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
+        final IssHandler handler = new DefaultIssHandler(configuration, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
 

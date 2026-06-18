@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss.internal;
+package org.hiero.consensus.iss.detection.internal;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.components.common.output.FatalErrorConsumer;
-import com.swirlds.platform.state.iss.IssHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.system.SystemExitCode;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.io.SerializableLong;
+import org.hiero.consensus.iss.detection.FatalErrorConsumer;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.system.SystemExitCode;
 
 /**
  * A standard implementation of {@link IssHandler}.
@@ -26,16 +24,16 @@ public class DefaultIssHandler implements IssHandler {
     /**
      * Create an object responsible for handling ISS events.
      *
-     * @param platformContext       the platform context
-     * @param fatalErrorConsumer    consumer to invoke if a fatal error occurs
-     * @param issScratchpad         scratchpad for ISS data, is persistent across restarts
+     * @param configuration the configuration
+     * @param fatalErrorConsumer consumer to invoke if a fatal error occurs
+     * @param issScratchpad scratchpad for ISS data, is persistent across restarts
      */
     public DefaultIssHandler(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final FatalErrorConsumer fatalErrorConsumer,
             @NonNull final Scratchpad<IssScratchpad> issScratchpad) {
         this.fatalErrorConsumer = Objects.requireNonNull(fatalErrorConsumer);
-        this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+        this.stateConfig = configuration.getConfigData(StateConfig.class);
         this.issScratchpad = Objects.requireNonNull(issScratchpad);
     }
 

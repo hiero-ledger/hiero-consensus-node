@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.iss.detection.internal;
 
-import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.CATASTROPHIC_ISS;
-import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.DECIDED;
-import static com.swirlds.platform.state.iss.internal.ConsensusHashStatus.UNDECIDED;
-import static org.hiero.base.crypto.test.fixtures.EqualsVerifier.randomHash;
 import static org.hiero.base.utility.Threshold.MAJORITY;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.iss.detection.internal.ConsensusHashStatus.CATASTROPHIC_ISS;
+import static org.hiero.consensus.iss.detection.internal.ConsensusHashStatus.DECIDED;
+import static org.hiero.consensus.iss.detection.internal.ConsensusHashStatus.UNDECIDED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +19,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.EqualsVerifier;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,10 +110,10 @@ class ConsensusHashFinderTests {
     @DisplayName("Single Partition Test")
     void singlePartitionTest(final long totalWeight) {
 
-        final Random random = getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed();
         final long averageWeight = totalWeight / 100;
         final long standardDeviationWeight = totalWeight / 200;
-        final Hash hash = randomHash(random);
+        final Hash hash = EqualsVerifier.randomHash(random);
 
         final ConsensusHashFinder hashFinder = new ConsensusHashFinder(0, totalWeight, Mockito.mock(IssMetrics.class));
         assertEquals(totalWeight, hashFinder.getTotalWeight(), "unexpected total weight");
@@ -137,7 +135,7 @@ class ConsensusHashFinderTests {
             assertEquals(currentAccumulatedWeight, hashFinder.getHashReportedWeight(), "duplicates should be no-ops");
 
             // adding the same node with a different hash should have no effect
-            hashFinder.addHash(nextNodeId, nextNodeWeight, randomHash(random));
+            hashFinder.addHash(nextNodeId, nextNodeWeight, EqualsVerifier.randomHash(random));
             assertEquals(currentAccumulatedWeight, hashFinder.getHashReportedWeight(), "duplicates should be no-ops");
 
             nextNodeId = NodeId.of(nextNodeId.id() + 1L);
@@ -162,10 +160,10 @@ class ConsensusHashFinderTests {
     @ValueSource(longs = {99, 100, 101, 999, 1000, 1001, 1024, 1025, Long.MAX_VALUE})
     @DisplayName("Single Barely Valid Partition Test")
     void singleBarelyValidPartitionTest(final long totalWeight) {
-        final Random random = getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed();
         final long averageWeight = totalWeight / 100;
         final long standardDeviationWeight = totalWeight / 200;
-        final Hash expectedConsensusHash = randomHash(random);
+        final Hash expectedConsensusHash = EqualsVerifier.randomHash(random);
 
         final Set<NodeId> expectedDisagreeingNodes = new HashSet<>();
 
@@ -184,7 +182,7 @@ class ConsensusHashFinderTests {
         while (remainingWeight > 0) {
             final long partitionWeight = Math.min(remainingWeight, totalWeight / 10);
             remainingWeight -= partitionWeight;
-            partitions.add(new PartitionDescription(randomHash(random), partitionWeight));
+            partitions.add(new PartitionDescription(EqualsVerifier.randomHash(random), partitionWeight));
         }
 
         // Add the nodes in a random order
@@ -213,7 +211,7 @@ class ConsensusHashFinderTests {
     @ValueSource(longs = {99, 100, 101, 999, 1000, 1001, 1024, 1025, Long.MAX_VALUE})
     @DisplayName("Almost Complete Partition Test")
     void almostCompletePartitionTest(final long totalWeight) {
-        final Random random = getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed();
         final long averageWeight = totalWeight / 100;
         final long standardDeviationWeight = totalWeight / 200;
 
@@ -226,14 +224,14 @@ class ConsensusHashFinderTests {
         // A partition with almost enough weight to be complete
         final long weightInBigPartition = totalWeight / 2 - 1;
         remainingWeight -= weightInBigPartition;
-        final Hash bigPartitionHash = randomHash(random);
+        final Hash bigPartitionHash = EqualsVerifier.randomHash(random);
         partitions.add(new PartitionDescription(bigPartitionHash, weightInBigPartition));
 
         // Create a bunch of smaller partitions that are incomplete
         while (remainingWeight > 0) {
             final long partitionWeight = Math.min(remainingWeight, totalWeight / 10);
             remainingWeight -= partitionWeight;
-            partitions.add(new PartitionDescription(randomHash(random), partitionWeight));
+            partitions.add(new PartitionDescription(EqualsVerifier.randomHash(random), partitionWeight));
         }
 
         // Add the nodes in a random order
@@ -253,7 +251,7 @@ class ConsensusHashFinderTests {
     @ValueSource(longs = {99, 100, 101, 999, 1000, 1001, 1024, 1025, Long.MAX_VALUE})
     @DisplayName("Lots Of Small Partitions Test")
     void lotsOfSmallPartitionsTest(final long totalWeight) {
-        final Random random = getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed();
         final long averageWeight = totalWeight / 100;
         final long standardDeviationWeight = totalWeight / 200;
 
@@ -267,7 +265,7 @@ class ConsensusHashFinderTests {
         while (remainingWeight > 0) {
             final long partitionWeight = Math.min(remainingWeight, totalWeight / 10);
             remainingWeight -= partitionWeight;
-            partitions.add(new PartitionDescription(randomHash(random), partitionWeight));
+            partitions.add(new PartitionDescription(EqualsVerifier.randomHash(random), partitionWeight));
         }
 
         // Add the nodes in a random order
@@ -287,7 +285,7 @@ class ConsensusHashFinderTests {
     @ValueSource(longs = {99, 100, 101, 999, 1000, 1001, 1024, 1025, Long.MAX_VALUE})
     @DisplayName("Early ISS Detection Test")
     void earlyIssDetectionTest(final long totalWeight) {
-        final Random random = getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed();
         final long averageWeight = totalWeight / 100;
         final long standardDeviationWeight = totalWeight / 200;
 
@@ -298,14 +296,15 @@ class ConsensusHashFinderTests {
         // A partition with almost enough weight to be complete
         final long weightInBigPartition = totalWeight / 2 - 1;
         remainingWeight -= weightInBigPartition;
-        final PartitionDescription bigPartition = new PartitionDescription(randomHash(random), weightInBigPartition);
+        final PartitionDescription bigPartition =
+                new PartitionDescription(EqualsVerifier.randomHash(random), weightInBigPartition);
 
         // Create a bunch of partitions that are incomplete
         final List<PartitionDescription> smallPartitions = new LinkedList<>();
         while (remainingWeight > 0) {
             final long partitionWeight = Math.min(remainingWeight, totalWeight / 10);
             remainingWeight -= partitionWeight;
-            smallPartitions.add(new PartitionDescription(randomHash(random), partitionWeight));
+            smallPartitions.add(new PartitionDescription(EqualsVerifier.randomHash(random), partitionWeight));
         }
 
         NodeId nextNodeId = NodeId.of(0);
@@ -335,10 +334,10 @@ class ConsensusHashFinderTests {
     @ValueSource(longs = {99, 100, 101, 999, 1000, 1001, 1024, 1025, Long.MAX_VALUE})
     @DisplayName("Complete Partition Is Last Test Test")
     void completePartitionIsLastTest(final long totalWeight) {
-        final Random random = getRandomPrintSeed();
+        final Random random = RandomUtils.getRandomPrintSeed();
         final long averageWeight = totalWeight / 100;
         final long standardDeviationWeight = totalWeight / 200;
-        final Hash expectedConsensusHash = randomHash(random);
+        final Hash expectedConsensusHash = EqualsVerifier.randomHash(random);
 
         final Set<NodeId> expectedDisagreeingNodes = new HashSet<>();
 
@@ -356,7 +355,7 @@ class ConsensusHashFinderTests {
         while (remainingWeight > 0) {
             final long partitionWeight = Math.min(remainingWeight, totalWeight / 10);
             remainingWeight -= partitionWeight;
-            smallPartitions.add(new PartitionDescription(randomHash(random), partitionWeight));
+            smallPartitions.add(new PartitionDescription(EqualsVerifier.randomHash(random), partitionWeight));
         }
 
         NodeId nextNodeId = NodeId.of(0);

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.components.common.output;
+package org.hiero.consensus.iss.detection;
 
-import com.swirlds.platform.system.SystemExitCode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.system.SystemExitCode;
 
 /**
  * Invoked when a fatal error has occurred. Consumers should use this method to perform any cleanup or take any final

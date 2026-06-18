@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss;
+package org.hiero.consensus.iss.detection.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.notification.IssNotification;

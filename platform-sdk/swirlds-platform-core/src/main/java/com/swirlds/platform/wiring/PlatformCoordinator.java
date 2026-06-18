@@ -5,7 +5,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.hashlogger.HashLogger;
-import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
@@ -97,20 +96,14 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      * @param state the overriding state
      */
     public void overrideIssDetectorState(@NonNull final ReservedSignedState state) {
-        components
-                .issDetectorWiring()
-                .getInputWire(IssDetector::overridingState)
-                .put(state);
+        components.issDetectionModule().overridingStateInputWire().put(state);
     }
 
     /**
      * Signal the end of the preconsensus replay to the ISS detector.
      */
     public void signalEndOfPcesReplay() {
-        components
-                .issDetectorWiring()
-                .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
-                .put(NoInput.getInstance());
+        components.issDetectionModule().signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
     }
 
     /**

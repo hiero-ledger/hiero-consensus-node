@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.iss.detection.internal;
 
-import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
-import static com.swirlds.platform.state.RoundHashValidatorTests.generateRegularNodeHashes;
-import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
-import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
+import static org.hiero.consensus.iss.detection.internal.HashValidityStatus.CATASTROPHIC_ISS;
+import static org.hiero.consensus.iss.detection.internal.HashValidityStatus.SELF_ISS;
+import static org.hiero.consensus.iss.detection.internal.HashValidityStatus.VALID;
+import static org.hiero.consensus.iss.detection.internal.IssDetector.DO_NOT_IGNORE_ROUNDS;
+import static org.hiero.consensus.iss.detection.internal.RoundHashValidatorTests.generateCatastrophicNodeHashes;
+import static org.hiero.consensus.iss.detection.internal.RoundHashValidatorTests.generateRegularNodeHashes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,11 +21,11 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.state.iss.DefaultIssDetector;
-import com.swirlds.platform.state.iss.IssDetector;
-import com.swirlds.platform.state.iss.internal.HashValidityStatus;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,6 +39,7 @@ import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -69,9 +72,17 @@ class IssDetectorTests {
                 stateWrapperForTest.get().getReservationCount(),
                 "The state should have a single reservation before being passed to the ISS Detector");
 
-        final PlatformContext platformContext = createDefaultPlatformContext();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
         final IssDetector issDetector = new DefaultIssDetector(
-                platformContext, mock(Roster.class), false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+                time,
+                configuration,
+                metrics,
+                mock(Roster.class),
+                false,
+                DO_NOT_IGNORE_ROUNDS,
+                GENESIS_LAST_FREEZE_ROUND);
 
         issDetector.handleState(stateWrapperForIssDetector);
         assertTrue(stateWrapperForIssDetector.isClosed(), "State passed to the ISS Detector should be closed");
@@ -92,10 +103,12 @@ class IssDetectorTests {
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
-        final PlatformContext platformContext = createDefaultPlatformContext();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                time, configuration, metrics, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -157,13 +170,13 @@ class IssDetectorTests {
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
-        final PlatformContext platformContext = createDefaultPlatformContext();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
 
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final int roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
         // Build a roadmap for this test. Generate the hashes that will be sent to the detector, and determine
         // the expected result of adding these hashes to the detector.
@@ -217,8 +230,8 @@ class IssDetectorTests {
             }
         }
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                time, configuration, metrics, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -302,7 +315,10 @@ class IssDetectorTests {
     @DisplayName("Decide hash for catastrophic ISS")
     void decideForCatastrophicIss() {
         final Randotron random = Randotron.create();
-        final PlatformContext platformContext = createDefaultPlatformContext();
+
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
@@ -310,8 +326,8 @@ class IssDetectorTests {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                time, configuration, metrics, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -409,20 +425,21 @@ class IssDetectorTests {
     @DisplayName("Catastrophic Shift Before Complete Test")
     void catastrophicShiftBeforeCompleteTest() {
         final Randotron random = Randotron.create();
-        final PlatformContext platformContext = createDefaultPlatformContext();
 
-        final int roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                time, configuration, metrics, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -490,20 +507,20 @@ class IssDetectorTests {
     void bigShiftTest() {
         final Randotron random = Randotron.create();
 
-        final PlatformContext platformContext = createDefaultPlatformContext();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
 
-        final int roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(100)
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                time, configuration, metrics, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -570,14 +587,15 @@ class IssDetectorTests {
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
-        final PlatformContext platformContext = createDefaultPlatformContext();
-        final int roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
         final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, 1, GENESIS_LAST_FREEZE_ROUND);
+                new DefaultIssDetector(time, configuration, metrics, roster, false, 1, GENESIS_LAST_FREEZE_ROUND);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -622,14 +640,16 @@ class IssDetectorTests {
                 .withWeightGenerator(WEIGHT_GENERATOR)
                 .build();
 
-        final PlatformContext platformContext = createDefaultPlatformContext();
-        final int roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
         final long latestFreezeRound = 5L;
-        final IssDetector issDetector = new DefaultIssDetector(platformContext, roster, false, 1, latestFreezeRound);
+        final IssDetector issDetector =
+                new DefaultIssDetector(time, configuration, metrics, roster, false, 1, latestFreezeRound);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 5;

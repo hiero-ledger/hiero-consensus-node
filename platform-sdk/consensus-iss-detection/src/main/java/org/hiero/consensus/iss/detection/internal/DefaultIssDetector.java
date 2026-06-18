@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss;
+package org.hiero.consensus.iss.detection.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
@@ -9,12 +9,10 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
-import com.swirlds.platform.state.iss.internal.HashValidityStatus;
-import com.swirlds.platform.state.iss.internal.RoundHashValidator;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -103,7 +101,9 @@ public class DefaultIssDetector implements IssDetector {
     /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
-     * @param platformContext the platform context
+     * @param time the time provider
+     * @param configuration the configuration
+     * @param metrics the metrics
      * @param roster the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      * validate them like normal.
@@ -111,21 +111,21 @@ public class DefaultIssDetector implements IssDetector {
      * should be validated.
      */
     public DefaultIssDetector(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Time time,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final Roster roster,
             final boolean ignorePreconsensusSignatures,
             final long ignoredRound,
             final long latestFreezeRound) {
-        Objects.requireNonNull(platformContext);
 
-        final ConsensusConfig consensusConfig =
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
 
         final Duration timeBetweenIssLogs = Duration.ofSeconds(stateConfig.secondsBetweenIssLogs());
-        lackingSignaturesRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
-        selfIssRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
-        catastrophicIssRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
+        lackingSignaturesRateLimiter = new RateLimiter(time, timeBetweenIssLogs);
+        selfIssRateLimiter = new RateLimiter(time, timeBetweenIssLogs);
+        catastrophicIssRateLimiter = new RateLimiter(time, timeBetweenIssLogs);
 
         this.roster = Objects.requireNonNull(roster);
 
@@ -143,7 +143,7 @@ public class DefaultIssDetector implements IssDetector {
         if (ignoredRound != DO_NOT_IGNORE_ROUNDS) {
             logger.warn(STARTUP.getMarker(), "No ISS detection will be performed for round {}", ignoredRound);
         }
-        this.issMetrics = new IssMetrics(platformContext.getMetrics(), roster);
+        this.issMetrics = new IssMetrics(metrics, roster);
         this.latestFreezeRound = latestFreezeRound;
     }
 

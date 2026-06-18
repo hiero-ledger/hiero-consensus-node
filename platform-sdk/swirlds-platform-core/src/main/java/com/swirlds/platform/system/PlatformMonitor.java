@@ -5,7 +5,6 @@ import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -39,12 +38,12 @@ public interface PlatformMonitor {
     /**
      * Inform the monitor of ISS notifications
      *
-     * @param notifications a list of ISS notifications
+     * @param notification an ISS notifications
      * @return the new status after processing this information, or null if the status did not change
      */
     @Nullable
     @InputWireLabel("ISS notification monitoring")
-    PlatformStatus issNotification(@NonNull List<IssNotification> notifications);
+    PlatformStatus issNotification(@NonNull IssNotification notification);
 
     /**
      * Submit a status action

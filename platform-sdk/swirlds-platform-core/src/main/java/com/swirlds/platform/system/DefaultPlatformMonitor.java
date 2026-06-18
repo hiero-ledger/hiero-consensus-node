@@ -12,7 +12,6 @@ import com.swirlds.platform.uptime.UptimeTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -114,8 +113,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Nullable
     @Override
-    public PlatformStatus issNotification(@NonNull final List<IssNotification> notifications) {
-        if (notifications.stream().map(IssNotification::getIssType).anyMatch(CATASTROPHIC_ISS_TYPES::contains)) {
+    public PlatformStatus issNotification(@NonNull final IssNotification notification) {
+        if (CATASTROPHIC_ISS_TYPES.contains(notification.getIssType())) {
             return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
         }
         // don't change status for other types of ISSs

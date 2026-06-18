@@ -16,6 +16,7 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
     exports org.hiero.consensus.scratchpad;
+    exports org.hiero.consensus.system;
     exports org.hiero.consensus.io.counting;
 
     requires transitive com.hedera.node.hapi;

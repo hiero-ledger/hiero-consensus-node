@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss;
+package org.hiero.consensus.iss.detection.internal;
 
 import org.hiero.consensus.scratchpad.ScratchpadType;
 

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.iss.detection.internal;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.platform.state.iss.IssDetector;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -14,7 +13,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
- * A helper class for testing the {@link com.swirlds.platform.state.iss.IssDetector}.
+ * A helper class for testing the {@link IssDetector}.
  */
 public class IssDetectorTestHelper {
     private int selfIssCount = 0;

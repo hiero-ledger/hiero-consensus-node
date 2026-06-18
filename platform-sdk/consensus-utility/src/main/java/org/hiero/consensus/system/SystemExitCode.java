@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system;
+package org.hiero.consensus.system;
 
 public enum SystemExitCode {
     NO_ERROR(0),

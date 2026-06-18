@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss.internal;
+package org.hiero.consensus.iss.detection.internal;
 
 /**
  * The validity of this node's hash for a particular round.

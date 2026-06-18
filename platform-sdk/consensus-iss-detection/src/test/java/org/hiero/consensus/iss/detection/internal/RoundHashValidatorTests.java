@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.iss.detection.internal;
 
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.Threshold.MAJORITY;
@@ -11,9 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.state.iss.internal.HashValidityStatus;
-import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;

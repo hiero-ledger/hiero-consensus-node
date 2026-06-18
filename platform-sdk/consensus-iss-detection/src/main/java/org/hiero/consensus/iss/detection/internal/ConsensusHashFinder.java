@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss.internal;
+package org.hiero.consensus.iss.detection.internal;
 
 import static org.hiero.base.utility.Threshold.MAJORITY;
 
-import com.swirlds.platform.metrics.IssMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;

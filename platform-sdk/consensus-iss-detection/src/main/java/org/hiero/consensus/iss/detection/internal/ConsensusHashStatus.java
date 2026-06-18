@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.iss.internal;
+package org.hiero.consensus.iss.detection.internal;
 
 /**
  * Various states in the process of determining the consensus hash of a round.
