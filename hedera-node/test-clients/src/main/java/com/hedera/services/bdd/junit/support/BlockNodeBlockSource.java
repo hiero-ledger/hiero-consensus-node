@@ -84,14 +84,17 @@ public class BlockNodeBlockSource implements BlockSource {
                 if (latest > lastDelivered) {
                     final var blocks = reader.blocks(lastDelivered + 1, latest);
                     for (final var block : blocks) {
-                        listener.onNewBlock(block);
                         final long number = BlockNodeReader.blockNumberOf(block);
-                        // Only advance the watermark past blocks we actually delivered, so any
-                        // blocks the node reported as available but did not yet return (finalization
-                        // lag, partial fetch) are retried on the next poll rather than skipped.
-                        if (number != Long.MAX_VALUE && number > lastDelivered) {
-                            lastDelivered = number;
+                        // Skip header-less blocks and any block at or below the watermark. A range fetch can
+                        // re-deliver an already-seen block, and delivering one twice corrupts stateful
+                        // listeners (e.g. SidecarWatcher's translator re-applies a FileAppend, doubling a file
+                        // page). Advancing the watermark only past blocks we actually deliver also lets a
+                        // partial fetch retry the remainder on the next poll.
+                        if (number == Long.MAX_VALUE || number <= lastDelivered) {
+                            continue;
                         }
+                        listener.onNewBlock(block);
+                        lastDelivered = number;
                     }
                 }
             } catch (final Exception e) {

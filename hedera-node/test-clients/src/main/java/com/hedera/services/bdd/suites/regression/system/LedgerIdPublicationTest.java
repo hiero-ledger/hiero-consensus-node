@@ -6,7 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,7 +68,7 @@ public class LedgerIdPublicationTest {
             })
     final Stream<DynamicTest> ledgerIdPublicationExternalizedInRecordStream() {
         return hapiTest(
-                streamMustIncludePassFrom(
+                streamMustIncludePassWithReplayFrom(
                         selectedItems(ledgerIdPublicationValidator(), 1, (spec, item) -> {
                             try {
                                 return extractTransactionBody(item.getTransaction())

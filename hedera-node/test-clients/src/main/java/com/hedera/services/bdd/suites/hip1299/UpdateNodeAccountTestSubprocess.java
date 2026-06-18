@@ -3,8 +3,9 @@ package com.hedera.services.bdd.suites.hip1299;
 
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -33,7 +34,6 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -99,10 +99,6 @@ public class UpdateNodeAccountTestSubprocess {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
             final String nodeToUpdate = "3";
-            final Path dataDir =
-                    workingDirFor(Long.parseLong(nodeToUpdate), null).resolve("data");
-            final Path blocksDir = dataDir.resolve("blockStreams");
-            final Path recordsDir = dataDir.resolve("recordStreams");
 
             return hapiTest(
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
@@ -114,8 +110,15 @@ public class UpdateNodeAccountTestSubprocess {
                     // The output dir stays on the old node account until a restart; assert against whichever
                     // stream the node is producing for the current mode.
                     withOpContext((spec, log) -> {
+                        // Resolve the stream dirs from the updated node's own (scope-aware) working dir: a
+                        // @GenesisSubprocessTest network is scoped by method name, not the default "hapi"
+                        // scope, so workingDirFor(..., null) would point at a non-existent path. The output
+                        // dir stays on the old node account until a restart.
+                        final var node = spec.getNetworkNodes().get(Integer.parseInt(nodeToUpdate));
                         final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
                         if (streamMode != StreamMode.BLOCKS) {
+                            final var recordsDir =
+                                    node.getExternalPath(RECORD_STREAMS_DIR).getParent();
                             final var oldRecordPath =
                                     recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
                             final var newRecordPath =
@@ -124,6 +127,7 @@ public class UpdateNodeAccountTestSubprocess {
                             assertFalse(newRecordPath.toFile().exists());
                         }
                         if (streamMode != StreamMode.RECORDS) {
+                            final var blocksDir = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR);
                             final var oldBlockPath =
                                     blocksDir.resolve("block-" + asAccountString(oldNodeAccountId.get()));
                             final var newBlockPath = blocksDir.resolve("block-" + asAccountString(newAccountId.get()));
