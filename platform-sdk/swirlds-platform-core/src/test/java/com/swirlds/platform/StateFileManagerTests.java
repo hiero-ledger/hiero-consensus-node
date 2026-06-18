@@ -46,6 +46,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -78,6 +79,9 @@ class StateFileManagerTests {
     @TempDir
     private Path tmpDir;
 
+    // A counter used to create unique test folders for every test case
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
     private Path testDirectory;
     private FileSystemManager fileSystemManager;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
@@ -89,7 +93,10 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() {
-        testDirectory = tmpDir.resolve("SignedStateFileReadWriteTest");
+        // Make sure each test uses a different directory, so they don't conflict with each
+        // other, e.g. one test destroying a state (which is an async process under the cover)
+        // and another test is initializing from the same state folder
+        testDirectory = tmpDir.resolve("StateFileManagerTests" + counter.getAndIncrement());
         fileSystemManager = new FileSystemManager(testDirectory);
         context = TestPlatformContextBuilder.create()
                 .withFileSystemManager(fileSystemManager)
@@ -198,7 +205,6 @@ class StateFileManagerTests {
     @ValueSource(booleans = {true, false})
     @DisplayName("Sequence Of States Test")
     void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException, ParseException {
-
         final Random random = getRandomPrintSeed();
 
         // Save state every 100 (simulated) seconds
@@ -320,12 +326,11 @@ class StateFileManagerTests {
                         CompareTo.isGreaterThan(nextBoundary, timestamp),
                         "next boundary should be after current timestamp");
             }
-
-            stateLifecycleManager.getMutableState().release();
         }
+
+        stateLifecycleManager.getMutableState().release();
     }
 
-    @SuppressWarnings("resource")
     @Test
     @DisplayName("State Deletion Test")
     void stateDeletionTest() throws IOException, ParseException {
@@ -413,10 +418,6 @@ class StateFileManagerTests {
     }
 
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
-        destroyStateLifecycleManager(stateLifecycleManager);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
-
         stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getLatestImmutableState().release();
     }

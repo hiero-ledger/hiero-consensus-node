@@ -1077,6 +1077,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
+                .append("storageDir", dbPaths.storageDir)
                 .append("initialCapacity", initialCapacity)
                 .append("preferDiskBasedIndexes", preferDiskBasedIndices)
                 .append("idToDiskLocationHashChunks.size", idToDiskLocationHashChunks.size())
