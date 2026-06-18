@@ -117,14 +117,19 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 delegate = createBlockDelegate(adaptedFactory);
             } else {
                 final EventualRecordStreamAssertion recordAssertion;
-                if (timeout != null) {
-                    recordAssertion = hasPassedIfNothingFailed
-                            ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory)
-                            : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory, timeout);
+                if (hasPassedIfNothingFailed) {
+                    recordAssertion = EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory);
+                } else if (timeout != null && replayExistingFiles) {
+                    // Replay already-written record files so a genesis-time externalization (e.g. a
+                    // LedgerIdPublication) that landed in the still-open genesis record file before this
+                    // assertion subscribed is still seen.
+                    recordAssertion = EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay(
+                            recordFactory, timeout);
+                } else if (timeout != null) {
+                    recordAssertion =
+                            EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory, timeout);
                 } else {
-                    recordAssertion = hasPassedIfNothingFailed
-                            ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory)
-                            : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory);
+                    recordAssertion = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory);
                 }
                 if (needsBackgroundTraffic) {
                     recordAssertion.withBackgroundTraffic();
