@@ -51,9 +51,10 @@ public class BlockStreamingObs implements AutoCloseable {
     /** Sizing hint only — steady state is ~62 live buckets; {@link #getThroughputBucket} guards runaway growth. */
     private static final int THROUGHPUT_BUCKETS_CAPACITY_HINT = (PERIOD_SECONDS * 2) + 10;
     /**
-     * A block that has not been acked this long after its init is considered abandoned (e.g. block node down,
-     * streaming disabled, or pruned from the buffer without an ack) and is evicted from tracking so that
-     * {@link #blockStatistics} cannot grow without bound. Abandoned blocks are reported in the summary.
+     * A never-acked block this old (e.g. block node down, streaming disabled, or pruned from the buffer
+     * without an ack) is considered abandoned and evicted by the gather task, so never-acked blocks cannot
+     * accumulate. This does NOT cover acked blocks — those are bounded separately by the gather task draining
+     * them every cycle. Abandoned blocks are reported in the summary.
      */
     private static final long ABANDONED_AFTER_NANOS = TimeUnit.SECONDS.toNanos(PERIOD_SECONDS * 5L);
 
