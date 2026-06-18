@@ -2,8 +2,8 @@
 package com.swirlds.platform.eventhandling;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
-import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
