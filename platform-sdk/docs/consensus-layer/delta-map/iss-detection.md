@@ -12,16 +12,15 @@ The proposal never names ISS detection; the deltas below are implied by
 its lifecycle inversion. Under the proposed split, Execution owns state
 hashing and signature collection, so detecting hash disagreement becomes
 Execution-internal rather than a consensus-layer concern. Current
-detection, response, and boundary notification all sit in platform-core
-— the pre-proposal shape.
+detection and response both sit in platform-core — the pre-proposal
+shape.
 
 ## Changes
 
 | Change | Proposal state | Proposal source | Current state | Status | Anchor / TBD |
 |---|---|---|---|---|---|
-| ISS detection moves with the Execution-owned state lifecycle | Implied by the lifecycle split, not named: Execution collects state signatures, so comparing the local hash against the consensus of peer hashes happens on the Execution side. | [§ Lifecycle of the Consensus Module](../../proposals/consensus-layer/Consensus-Layer.md#lifecycle-of-the-consensus-module), [§ Assumptions](../../proposals/consensus-layer/Consensus-Layer.md#assumptions) (implied) | The detector and its supporting machinery live in platform-core, fed by platform wiring. | **not-started** | `IssDetector`, `RoundHashValidator`, `ConsensusHashFinder` (`swirlds-platform-core`) — pre-proposal shape intact |
+| ISS detection moves with the Execution-owned state lifecycle | Implied by the lifecycle split, not named: Execution collects state signatures, so comparing the local hash against the consensus of peer hashes happens on the Execution side. | [§ Lifecycle of the Consensus Module](../../proposals/consensus-layer/Consensus-Layer.md#lifecycle-of-the-consensus-module), [§ Assumptions](../../proposals/consensus-layer/Consensus-Layer.md#assumptions) (implied) | The detector and its supporting machinery live in platform-core, fed by platform wiring; its output is currently forwarded to Execution-side app callbacks via `AppNotifier.sendIssNotification`. | **not-started** | `IssDetector`, `RoundHashValidator`, `ConsensusHashFinder` (`swirlds-platform-core`) — pre-proposal shape intact |
 | ISS response under the Execution-owned lifecycle | With Execution owning state and restart, the response to an ISS is an Execution concern. | [§ Lifecycle of the Consensus Module](../../proposals/consensus-layer/Consensus-Layer.md#lifecycle-of-the-consensus-module), [§ Assumptions](../../proposals/consensus-layer/Consensus-Layer.md#assumptions) (implied) | The handler lives in platform-core, and the offline ISS-recovery procedure remains part of platform startup — the same gap recorded in [restart-and-pces.md](restart-and-pces.md). | **not-started** | `DefaultIssHandler` (`swirlds-platform-core`) — pre-proposal shape intact |
-| ISS surfaced across the boundary | The proposed public Consensus API has no ISS notification — under the split, none would be needed. | [§ Lifecycle of the Consensus Module](../../proposals/consensus-layer/Consensus-Layer.md#lifecycle-of-the-consensus-module), [§ Public API](../../proposals/consensus-layer/Consensus-Layer.md#public-api) (implied) | Detector output is forwarded to Execution-side application callbacks. | **not-started** | `AppNotifier.sendIssNotification` (`swirlds-platform-core`); [TBD: question for engineer — is ISS detection intended to become Execution-internal with the state-lifecycle handoff, or will the public Consensus API need an ISS surface?] |
 
 ## Cross-references
 
