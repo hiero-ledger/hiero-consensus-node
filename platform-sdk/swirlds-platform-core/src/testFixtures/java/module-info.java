@@ -25,6 +25,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility.test.fixtures;
+    requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
     requires org.junit.jupiter.api;
     requires org.mockito;
