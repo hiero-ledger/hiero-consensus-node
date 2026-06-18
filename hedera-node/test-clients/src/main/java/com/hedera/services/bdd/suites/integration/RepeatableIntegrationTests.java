@@ -80,6 +80,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
@@ -98,6 +99,8 @@ public class RepeatableIntegrationTests {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(
+                Map.of("contracts.systemContract.scheduleService.signSchedule.from.contract.enabled", "true"));
         testLifecycle.doAdhoc(SIGNING_CONTRACT.getInfo());
     }
 
