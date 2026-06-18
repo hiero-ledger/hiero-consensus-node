@@ -4,17 +4,16 @@ package com.swirlds.platform.test.fixtures;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.platform.scratchpad.Scratchpad;
-import com.swirlds.platform.scratchpad.ScratchpadType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.consensus.scratchpad.Scratchpad;
+import org.hiero.consensus.scratchpad.ScratchpadType;
 
 /**
  * A pared down version of the StandardScratchpad class that does not actually write to disk. Useful for testing
@@ -46,12 +45,9 @@ public class SimpleScratchpad<K extends Enum<K> & ScratchpadType> implements Scr
             }
         }
 
-        logger.info(
-                STARTUP.getMarker(),
-                """
+        logger.info(STARTUP.getMarker(), """
                         Scratchpad contents:
-                        {}""",
-                table.render());
+                        {}""", table.render());
     }
 
     /**
@@ -72,14 +68,6 @@ public class SimpleScratchpad<K extends Enum<K> & ScratchpadType> implements Scr
     @Override
     public <V extends SelfSerializable> V set(@NonNull K key, @Nullable V value) {
         return (V) data.put(key, value);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void atomicOperation(@NonNull Consumer<Map<K, SelfSerializable>> operation) {
-        operation.accept(data);
     }
 
     /**
