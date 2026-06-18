@@ -68,7 +68,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -178,7 +178,7 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-  build-mirror-node-slack-payload:
+  build-slack-payload:
     name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
     runs-on: hl-cn-mn-regression-lin-sm
     needs:
@@ -219,7 +219,7 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-mn-regression-lin-sm
     needs:
-      - build-mirror-node-slack-payload
+      - build-slack-payload
     permissions:
       id-token: write
     if: ${{ !cancelled() && always() }}
@@ -234,4 +234,4 @@ jobs:
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload: ${{ needs.build-mirror-node-slack-payload.outputs.slack_payload }}
+          payload: ${{ needs.build-slack-payload.outputs.slack_payload }}
