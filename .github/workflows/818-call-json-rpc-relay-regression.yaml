@@ -225,7 +225,7 @@ jobs:
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
-          echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
+          echo "slack_payload=${PAYLOAD}" >> "${GITHUB_OUTPUT}"
 
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
