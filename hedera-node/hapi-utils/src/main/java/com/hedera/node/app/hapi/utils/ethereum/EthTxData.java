@@ -602,10 +602,18 @@ public record EthTxData(
         throw new OutOfRangeException();
     }
 
-    private static Object[] encodeRlpList(final RLPList rlpList) {
+    private static final int MAX_ACCESS_LIST_DEPTH = 2;
 
+    private static Object[] encodeRlpList(final RLPList rlpList) {
+        return encodeRlpList(rlpList, 0);
+    }
+
+    private static Object[] encodeRlpList(final RLPList rlpList, final int depth) {
+        if (depth > MAX_ACCESS_LIST_DEPTH) {
+            throw new IllegalArgumentException("RLP access list nested too deeply");
+        }
         return rlpList.elements().stream()
-                .map(rlpItem -> rlpItem.isList() ? encodeRlpList(rlpItem.asRLPList()) : rlpItem.data())
+                .map(rlpItem -> rlpItem.isList() ? encodeRlpList(rlpItem.asRLPList(), depth + 1) : rlpItem.data())
                 .toArray();
     }
 }
