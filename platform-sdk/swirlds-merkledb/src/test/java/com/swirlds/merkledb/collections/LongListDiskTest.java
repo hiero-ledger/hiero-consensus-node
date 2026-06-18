@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-
 import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -19,14 +17,14 @@ public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
     @Override
     protected LongListDisk createLongList(
             final int longsPerChunk, final long capacity, final long reservedBufferLength) {
-        return new LongListDisk(longsPerChunk, capacity, reservedBufferLength, CONFIGURATION, fileSystemManager);
+        return new LongListDisk(longsPerChunk, capacity, reservedBufferLength, fileSystemManager);
     }
 
     @Override
     protected LongListDisk createLongList(
             final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
             throws IOException {
-        return new LongListDisk(file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION, fileSystemManager);
+        return new LongListDisk(file, longsPerChunk, capacity, reservedBufferLength, fileSystemManager);
     }
 
     /**

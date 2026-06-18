@@ -1,4 +1,5 @@
 ---
+type: rule
 id: RUL-003
 title: Every node contributing to consensus is independently restartable
 class: structural

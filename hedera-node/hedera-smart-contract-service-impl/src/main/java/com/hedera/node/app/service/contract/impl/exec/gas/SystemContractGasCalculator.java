@@ -5,9 +5,10 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FE
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.ToLongBiFunction;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Computes the gas requirements for dispatching transactions or queries.
@@ -21,22 +22,38 @@ public class SystemContractGasCalculator {
     // per tiny cents). For more info -> https://hedera.com/blog/rolling-smart-contract-hedera-api-fees-into-gas-fees
     private static final long FIXED_TINY_CENT_GAS_PRICE_COST = 852_000L;
 
+    /**
+     * Computes the fee in tinybars for a dispatched child transaction, optionally using an
+     * externally-supplied {@link SignatureMap} to determine signature costs.
+     */
+    @FunctionalInterface
+    public interface FeeCalculatorFunction {
+        /**
+         * @param body the transaction body to compute fees for
+         * @param payer the synthetic payer account
+         * @param signatureMap when non-null, its serialized size is used instead of the
+         *                     context-derived signature map size
+         * @return the computed fee in tinybars
+         */
+        long computeFee(@NonNull TransactionBody body, @NonNull AccountID payer, @Nullable SignatureMap signatureMap);
+    }
+
     private final TinybarValues tinybarValues;
     private final CanonicalDispatchPrices dispatchPrices;
-    private final ToLongBiFunction<TransactionBody, AccountID> feeCalculator;
+    private final FeeCalculatorFunction feeCalculator;
 
     public SystemContractGasCalculator(
             @NonNull final TinybarValues tinybarValues,
             @NonNull final CanonicalDispatchPrices dispatchPrices,
-            @NonNull final ToLongBiFunction<TransactionBody, AccountID> feeCalculator) {
+            @NonNull final FeeCalculatorFunction feeCalculator) {
         this.tinybarValues = requireNonNull(tinybarValues);
         this.dispatchPrices = requireNonNull(dispatchPrices);
         this.feeCalculator = requireNonNull(feeCalculator);
     }
 
     /**
-     * Convenience method that, given a transaction body whose cost can be directly compared to the minimum
-     * cost of a dispatch type, returns the gas requirement for the transaction to be dispatched.
+     * Given a transaction body whose cost can be directly compared to the minimum cost of a dispatch
+     * type, returns the gas requirement for the transaction to be dispatched.
      *
      * @param body the transaction body to be dispatched
      * @param dispatchType the type of dispatch whose minimum cost should be respected
@@ -47,15 +64,37 @@ public class SystemContractGasCalculator {
             @NonNull final TransactionBody body,
             @NonNull final DispatchType dispatchType,
             @NonNull final AccountID payer) {
-        requireNonNull(body);
-        requireNonNull(dispatchType);
-        requireNonNull(payer);
-        return gasRequirementWithTinycents(body, payer, dispatchPrices.canonicalPriceInTinycents(dispatchType));
+        return gasRequirement(body, dispatchType, payer, null);
     }
 
     /**
-     * Compares the canonical price and the feeCalculator's calculated price and uses the maximum of the two to
-     * calculate the gas requirement and returns it.
+     * Given a transaction body whose cost can be directly compared to the minimum cost of a dispatch
+     * type, returns the gas requirement for the transaction to be dispatched. When
+     * {@code signatureMap} is non-null its serialized size is used instead of the context-derived
+     * signature map size.
+     *
+     * @param body the transaction body to be dispatched
+     * @param dispatchType the type of dispatch whose minimum cost should be respected
+     * @param payer the payer of the transaction
+     * @param signatureMap when non-null, its serialized size is used for fee computation
+     * @return the gas requirement for the transaction to be dispatched
+     */
+    public long gasRequirement(
+            @NonNull final TransactionBody body,
+            @NonNull final DispatchType dispatchType,
+            @NonNull final AccountID payer,
+            @Nullable final SignatureMap signatureMap) {
+        requireNonNull(body);
+        requireNonNull(dispatchType);
+        requireNonNull(payer);
+        return gasRequirementWithTinycents(
+                body, payer, dispatchPrices.canonicalPriceInTinycents(dispatchType), signatureMap);
+    }
+
+    /**
+     * Compares the canonical price and the feeCalculator's calculated price, uses the maximum of the
+     * two to calculate the gas requirement, and returns it.
+     *
      * @param body the transaction body
      * @param payer the payer of the transaction
      * @param minimumPriceInTinycents the minimum price in tiny cents
@@ -63,7 +102,26 @@ public class SystemContractGasCalculator {
      */
     public long gasRequirementWithTinycents(
             @NonNull final TransactionBody body, @NonNull final AccountID payer, final long minimumPriceInTinycents) {
-        final var computedPriceInTinybars = feeCalculator.applyAsLong(body, payer);
+        return gasRequirementWithTinycents(body, payer, minimumPriceInTinycents, null);
+    }
+
+    /**
+     * Compares the canonical price and the feeCalculator's calculated price, uses the maximum of the
+     * two to calculate the gas requirement, and returns it. When {@code signatureMap} is non-null its
+     * serialized size is used instead of the context-derived signature map size.
+     *
+     * @param body the transaction body
+     * @param payer the payer of the transaction
+     * @param minimumPriceInTinycents the minimum price in tiny cents
+     * @param signatureMap when non-null, its serialized size is used for fee computation
+     * @return the gas requirement for the transaction
+     */
+    public long gasRequirementWithTinycents(
+            @NonNull final TransactionBody body,
+            @NonNull final AccountID payer,
+            final long minimumPriceInTinycents,
+            @Nullable final SignatureMap signatureMap) {
+        final var computedPriceInTinybars = feeCalculator.computeFee(body, payer, signatureMap);
         final var priceInTinycents =
                 Math.max(minimumPriceInTinycents, tinybarValues.asTinycents(computedPriceInTinybars));
         // For the rare cases where computedPrice > minimumPriceInTinycents:
@@ -133,7 +191,7 @@ public class SystemContractGasCalculator {
      * @return the canonical price for that dispatch
      */
     public long feeCalculatorPriceInTinyBars(@NonNull final TransactionBody body, @NonNull final AccountID payer) {
-        return feeCalculator.applyAsLong(body, payer);
+        return feeCalculator.computeFee(body, payer, null);
     }
 
     /**

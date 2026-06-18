@@ -3,7 +3,6 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
@@ -674,7 +673,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
     static final LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
-            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, fileSystemManager));
+            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
     static final LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
@@ -685,7 +684,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     static final LongListReaderFactory heapReaderFactory =
             new LongListReaderFactory(LongListHeap.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -694,7 +693,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     static final LongListReaderFactory offHeapReaderFactory =
             new LongListReaderFactory(LongListOffHeap.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListOffHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListOffHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -702,8 +701,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     static final LongListReaderFactory diskReaderFactory =
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListDisk(
-                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, fileSystemManager);
+                    return new LongListDisk(file, (int) a.get(0).longValue(), a.get(1), a.get(2), fileSystemManager);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -711,7 +709,16 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     static final LongListReaderFactory segmentReaderFactory =
             new LongListReaderFactory(LongListSegment.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListSegment(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListSegment(file, (int) a.get(0).longValue(), a.get(1), a.get(2));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+    static final LongListReaderFactory diskSegmentReaderFactory =
+            new LongListReaderFactory(LongListDiskSegment.class.getSimpleName(), (file, a) -> {
+                try {
+                    return new LongListDiskSegment(
+                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), fileSystemManager);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -734,7 +741,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                 Arguments.of(writerFactory, heapReaderFactory),
                 Arguments.of(writerFactory, offHeapReaderFactory),
                 Arguments.of(writerFactory, diskReaderFactory),
-                Arguments.of(writerFactory, segmentReaderFactory));
+                Arguments.of(writerFactory, segmentReaderFactory),
+                Arguments.of(writerFactory, diskSegmentReaderFactory));
     }
 
     @ParameterizedTest(name = "[{index}] Writer={0}, Reader={1}")
@@ -977,7 +985,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                     Arguments.of(writerFactory, readerFactory, heapReaderFactory),
                     Arguments.of(writerFactory, readerFactory, offHeapReaderFactory),
                     Arguments.of(writerFactory, readerFactory, diskReaderFactory),
-                    Arguments.of(writerFactory, readerFactory, segmentReaderFactory));
+                    Arguments.of(writerFactory, readerFactory, segmentReaderFactory),
+                    Arguments.of(writerFactory, readerFactory, diskSegmentReaderFactory));
         });
     }
 

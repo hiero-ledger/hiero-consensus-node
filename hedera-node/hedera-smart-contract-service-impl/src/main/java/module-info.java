@@ -28,7 +28,6 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.units;
     requires com.hedera.node.app.service.addressbook;
     requires com.swirlds.base;
-    requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires org.apache.commons.lang3;
