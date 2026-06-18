@@ -154,7 +154,15 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
                 throw new IllegalArgumentException("Output directory already exists: " + pcesDir);
             }
 
-            final long count = convert(blockStreamDirectory, pcesDir, originRound);
+            // The extraction window, in consensus rounds, matched to the GCS resolver's semantics:
+            //  - left bound extends roundsNonAncient before originRound (non-ancient parent tail; see option doc)
+            //  - right bound is the target round
+            // convert() applies this window with whole-block granularity (a block is included if its round
+            // span intersects [leftRound, targetRound]), identical to what the GCS BlockRangeResolver downloads,
+            // so a local directory and a GCS source yield the same block set — and thus the same PCES output.
+            final long leftRound = Math.max(1L, originRound - roundsNonAncient);
+
+            final long count = convert(blockStreamDirectory, pcesDir, originRound, leftRound, targetRound);
             log.info("blocks-to-pces complete: {} event(s) written to {}", count, pcesDir);
         } catch (final IOException e) {
             throw new RuntimeException(e);

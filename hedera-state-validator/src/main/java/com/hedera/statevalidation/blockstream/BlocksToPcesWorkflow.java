@@ -95,28 +95,46 @@ public final class BlocksToPcesWorkflow {
      * @param pcesOutputDir directory where the PCES database tree is created (must be empty/new)
      * @param originRound the starting round of the state snapshot the PCES files will be replayed
      *     against; stamped as the PCES stream origin
+     * @param leftRound inclusive lower bound (consensus round) of the extraction window; blocks whose
+     *     max round is below this are excluded
+     * @param targetRound inclusive upper bound (consensus round) of the extraction window; blocks whose
+     *     min round is above this are excluded
      * @return the number of events written
      * @throws IOException if reading blocks or writing PCES files fails
      */
     public static long convert(
-            @NonNull final Path blockStreamDirectory, @NonNull final Path pcesOutputDir, final long originRound)
+            @NonNull final Path blockStreamDirectory,
+            @NonNull final Path pcesOutputDir,
+            final long originRound,
+            final long leftRound,
+            final long targetRound)
             throws IOException {
         requireNonNull(blockStreamDirectory);
         requireNonNull(pcesOutputDir);
 
-        // Discover and order block file paths up front (also validates contiguity). The expensive
-        // per-block work (gzip decode + protobuf parse + event reconstruction) is deferred to the
+        // Discover and order block file paths up front (also validates contiguity), then restrict to the
+        // [leftRound, targetRound] window using the same whole-block, max-RoundHeader.roundNumber semantics
+        // the GCS BlockRangeResolver uses — so local and GCS paths produce the identical block set. The
+        // expensive per-block work (gzip decode + protobuf parse + event reconstruction) is deferred to the
         // worker pool — see readAndSubmit — so it runs in parallel rather than on the reader thread.
-        final List<Path> orderedFiles = orderedBlockFiles(blockStreamDirectory);
-        if (orderedFiles.isEmpty()) {
+        final List<Path> allFiles = orderedBlockFiles(blockStreamDirectory);
+        if (allFiles.isEmpty()) {
             throw new IllegalArgumentException("No block files found in " + blockStreamDirectory);
+        }
+        final List<Path> orderedFiles = filterByRoundWindow(allFiles, leftRound, targetRound);
+        if (orderedFiles.isEmpty()) {
+            throw new IllegalArgumentException("No block files fall within round window [" + leftRound + ", "
+                    + targetRound + "] in " + blockStreamDirectory);
         }
 
         final int workers = Math.max(1, PARALLELISM);
         log.info(
                 CONSOLE,
-                "Reconstructing events from {} blocks using {} worker thread(s)",
+                "Reconstructing events from {} blocks (of {} present, round window [{}, {}]) using {} worker thread(s)",
                 orderedFiles.size(),
+                allFiles.size(),
+                leftRound,
+                targetRound,
                 workers);
 
         final CommonPcesWriter writer = createPcesWriter(pcesOutputDir, originRound);
@@ -289,6 +307,55 @@ public final class BlocksToPcesWorkflow {
         final CommonPcesWriter writer = new CommonPcesWriter(configuration, fileManager);
         writer.beginStreamingNewEvents();
         return writer;
+    }
+
+    /**
+     * Restricts the ordered block files to those overlapping the consensus-round window
+     * {@code [leftRound, targetRound]}, using whole-block granularity identical to the GCS
+     * {@code BlockRangeResolver}: a block's round span is taken from its {@code RoundHeader.roundNumber}
+     * items (min and max). A block is included if its round span intersects the window — i.e. its max round
+     * is {@code >= leftRound} and its min round is {@code <= targetRound}. Blocks with no round headers are
+     * skipped. This guarantees that for the same {@code --origin-round}/{@code --target-round}, a local
+     * directory yields the same block set the GCS path would download.
+     */
+    private static List<Path> filterByRoundWindow(
+            @NonNull final List<Path> orderedFiles, final long leftRound, final long targetRound) {
+        final List<Path> selected = new ArrayList<>();
+        for (final Path file : orderedFiles) {
+            final long[] span = roundSpan(file);
+            final long minRound = span[0];
+            final long maxRound = span[1];
+            if (minRound == -1) {
+                continue; // no round headers — not a round-bearing block
+            }
+            // Include if [minRound, maxRound] intersects [leftRound, targetRound].
+            if (maxRound >= leftRound && minRound <= targetRound) {
+                selected.add(file);
+            }
+        }
+        return selected;
+    }
+
+    /**
+     * Returns {@code [minRound, maxRound]} from a block's {@code RoundHeader} items, or {@code [-1, -1]} if
+     * the block has none. Mirrors {@code BlockRangeResolver}'s round extraction.
+     */
+    private static long[] roundSpan(@NonNull final Path file) {
+        final Block block = BlockStreamAccess.blockFrom(file);
+        long minRound = -1;
+        long maxRound = -1;
+        for (final var item : block.items()) {
+            if (item.hasRoundHeader()) {
+                final long r = item.roundHeader().roundNumber();
+                if (minRound == -1 || r < minRound) {
+                    minRound = r;
+                }
+                if (r > maxRound) {
+                    maxRound = r;
+                }
+            }
+        }
+        return new long[] {minRound, maxRound};
     }
 
     /**
