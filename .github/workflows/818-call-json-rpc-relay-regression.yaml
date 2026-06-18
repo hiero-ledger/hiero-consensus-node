@@ -62,7 +62,6 @@ jobs:
     runs-on: hl-cn-rpc-relay-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -79,8 +78,6 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
-          setup-gomplate: "true"
-          setup-jq: "true"
 
       #  Checkout the json-rpc-relay repository
       - name: Checkout JSON-RPC Relay
@@ -212,14 +209,36 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
+  build-json-rpc-relay-slack-payload:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
+    runs-on: hl-cn-rpc-relay-lin-sm
+    needs:
+      - json-rpc-relay-regression
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+          setup-jq: "true"
+
       - name: Build Slack Payload Message
-        id: payload
-        if: ${{ !cancelled() && always() }} # always run unless cancelled
+        id: build-payload
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - JSON-RPC Relay Regression Test Report"
           STATUS_TEXT: "*JSON-RPC Relay Regression Panel was executed. See status below.*"
           PANEL_LABEL: "JSON-RPC Relay Regression Panel Result"
-          RESULT: ${{ job.status }}
+          RESULT: ${{ needs.json-rpc-relay-regression.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -231,8 +250,8 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-rpc-relay-lin-sm
     needs:
-      - json-rpc-relay-regression
-    if: ${{ !cancelled() && always() }} # always run unless cancelled
+      - build-json-rpc-relay-slack-payload
+    if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -244,4 +263,4 @@ jobs:
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload: ${{ needs.json-rpc-relay-regression.outputs.slack_payload }}
+          payload: ${{ needs.build-json-rpc-relay-slack-payload.outputs.slack_payload }}

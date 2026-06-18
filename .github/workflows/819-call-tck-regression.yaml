@@ -74,7 +74,6 @@ jobs:
     runs-on: hl-cn-sdk-tck-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -93,8 +92,6 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "20.18.0"
-          setup-gomplate: "true"
-          setup-jq: "true"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -262,14 +259,32 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
+  build-tck-slack-payload:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
+    runs-on: hl-cn-sdk-tck-lin-sm
+    needs:
+      - tck-regression
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+          setup-jq: "true"
+
       - name: Build Slack Payload Message
         id: build-payload
-        if: ${{ !cancelled() && always() }} # always run unless cancelled
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report"
           STATUS_TEXT: "*TCK Regression Panel was executed. See status below.*"
           PANEL_LABEL: "TCK Regression Panel Result"
-          RESULT: ${{ job.status }}
+          RESULT: ${{ needs.tck-regression.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -281,8 +296,8 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-sdk-tck-lin-sm
     needs:
-      - tck-regression
-    if: ${{ always() }}
+      - build-tck-slack-payload
+    if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -294,4 +309,4 @@ jobs:
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload: ${{ needs.tck-regression.outputs.slack_payload }}
+          payload: ${{ needs.build-tck-slack-payload.outputs.slack_payload }}

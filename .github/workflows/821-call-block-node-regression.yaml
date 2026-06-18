@@ -80,7 +80,6 @@ jobs:
     runs-on: hl-cn-bn-regression-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-      slack_payload: ${{ steps.build-payload.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -97,8 +96,6 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
-          setup-gomplate: "true"
-          setup-jq: "true"
 
       # Get version for the checked out hiero-consensus-node
       - name: Get Version of Checkout CN Codebase
@@ -483,14 +480,36 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
+  build-block-node-slack-payload:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
+    runs-on: hl-cn-bn-regression-lin-sm
+    needs:
+      - block-node-regression
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: ${{secrets.GITHUB_TOKEN}}
+          setup-gomplate: "true"
+          setup-jq: "true"
+
       - name: Build Slack Payload Message
         id: build-payload
-        if: ${{ !cancelled() && always() }} # always run unless cancelled
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report"
           STATUS_TEXT: "*Block Node Regression Panel was executed. See status below.*"
           PANEL_LABEL: "Block Node Regression Panel Result"
-          RESULT: ${{ needs.job.status }}
+          RESULT: ${{ needs.block-node-regression.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -501,8 +520,9 @@ jobs:
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-bn-regression-lin-sm
-    needs: block-node-regression
-    if: ${{ always() }}
+    needs:
+      - build-block-node-slack-payload
+    if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -514,4 +534,4 @@ jobs:
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload: ${{ needs.block-node-regression.outputs.slack_payload }}
+          payload: ${{ needs.build-block-node-slack-payload.outputs.slack_payload }}
