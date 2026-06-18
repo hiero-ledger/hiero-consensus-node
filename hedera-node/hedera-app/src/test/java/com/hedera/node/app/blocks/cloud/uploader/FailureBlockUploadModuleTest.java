@@ -17,12 +17,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Verifies the {@link BlockUploader} selection in {@link IssBlockUploadModule#provideBlockUploader}: both upload paths
- * disabled falls back to {@link NoOpBlockUploader}; either path enabled yields the Bucky-backed {@link
+ * Verifies the {@link BlockUploader} selection in {@link FailureBlockUploadModule#provideBlockUploader}: both upload
+ * paths disabled falls back to {@link NoOpBlockUploader}; either path enabled yields the Bucky-backed {@link
  * BuckyBlockUploader}.
  */
 @ExtendWith(MockitoExtension.class)
-class IssBlockUploadModuleTest {
+class FailureBlockUploadModuleTest {
 
     @Mock
     private ConfigProvider configProvider;
@@ -49,7 +49,7 @@ class IssBlockUploadModuleTest {
         when(config.issBlockUploadEnabled()).thenReturn(false);
         when(config.triageUploadEnabled()).thenReturn(false);
 
-        assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
+        assertThat(FailureBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
                 .isInstanceOf(NoOpBlockUploader.class);
     }
 
@@ -58,7 +58,7 @@ class IssBlockUploadModuleTest {
         givenCredentials();
         when(config.issBlockUploadEnabled()).thenReturn(true);
 
-        assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
+        assertThat(FailureBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
                 .isInstanceOf(BuckyBlockUploader.class);
     }
 
@@ -68,7 +68,7 @@ class IssBlockUploadModuleTest {
         when(config.issBlockUploadEnabled()).thenReturn(false);
         when(config.triageUploadEnabled()).thenReturn(true);
 
-        assertThat(IssBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
+        assertThat(FailureBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
                 .isInstanceOf(BuckyBlockUploader.class);
     }
 

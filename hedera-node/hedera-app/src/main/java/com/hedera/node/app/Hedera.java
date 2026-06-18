@@ -727,8 +727,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 // them for triage), then wait (bounded) for that flush to complete before the node stops.
                 blockStreamManager().notifyFatalEvent();
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
-                // The ISS-relevant block(s) are now flushed to disk; upload them for triage (no-op unless enabled).
-                app.issBlockUploadCoordinator().uploadFlushedIssBlocks();
+                // The open/pending blocks are now flushed to disk; upload them to the triage/ folder (no-op unless
+                // failureBlockUpload.triageUploadEnabled). The exact ISS-round block is uploaded separately to iss/
+                // by IssDetectionUploadCoordinator when the ISS is detected.
+                app.triageBlockUploadCoordinator().uploadFlushedIssBlocks();
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {

@@ -34,8 +34,8 @@ import org.apache.logging.log4j.Logger;
  * separately (to the {@code iss/} folder) by {@code IssDetectionUploadCoordinator} when it is detected.
  */
 @Singleton
-public class IssBlockUploadCoordinator {
-    private static final Logger log = LogManager.getLogger(IssBlockUploadCoordinator.class);
+public class TriageBlockUploadCoordinator {
+    private static final Logger log = LogManager.getLogger(TriageBlockUploadCoordinator.class);
 
     /** Per-incident folder name: a UTC timestamp, key-safe and lexicographically sortable. */
     private static final DateTimeFormatter INCIDENT_FOLDER_FORMAT =
@@ -47,7 +47,7 @@ public class IssBlockUploadCoordinator {
     private final InstantSource instantSource;
 
     @Inject
-    public IssBlockUploadCoordinator(
+    public TriageBlockUploadCoordinator(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final BlockUploader uploader,

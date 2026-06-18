@@ -14,12 +14,12 @@ import java.nio.file.Path;
 import javax.inject.Singleton;
 
 /**
- * Dagger bindings for the ISS block-upload pipeline: the (Bucky-backed) {@link BlockUploader}, or a no-op when both
- * upload paths are disabled. The {@code IssBlockUploadCoordinator} and {@code IssDetectionUploadCoordinator} are bound
- * implicitly via their {@code @Inject} constructors.
+ * Dagger bindings for the failure block-upload pipeline: the (Bucky-backed) {@link BlockUploader}, or a no-op when both
+ * upload paths are disabled. The {@code TriageBlockUploadCoordinator} and {@code IssDetectionUploadCoordinator} are
+ * bound implicitly via their {@code @Inject} constructors.
  */
 @Module
-public interface IssBlockUploadModule {
+public interface FailureBlockUploadModule {
 
     @Provides
     @Singleton

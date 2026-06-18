@@ -28,7 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class IssBlockUploadCoordinatorTest {
+class TriageBlockUploadCoordinatorTest {
 
     @Mock
     private ConfigProvider configProvider;
@@ -49,7 +49,7 @@ class IssBlockUploadCoordinatorTest {
     private final InstantSource instantSource = InstantSource.fixed(Instant.parse("2026-06-16T14:32:05Z"));
     private static final String EXPECTED_FOLDER = "2026-06-16T14-32-05Z";
 
-    private IssBlockUploadCoordinator subject;
+    private TriageBlockUploadCoordinator subject;
 
     @BeforeEach
     void setUp() {
@@ -57,7 +57,7 @@ class IssBlockUploadCoordinatorTest {
         lenient()
                 .when(versionedConfiguration.getConfigData(FailureBlockUploadConfig.class))
                 .thenReturn(config);
-        subject = new IssBlockUploadCoordinator(configProvider, blockStreamManager, uploader, instantSource);
+        subject = new TriageBlockUploadCoordinator(configProvider, blockStreamManager, uploader, instantSource);
     }
 
     @Test

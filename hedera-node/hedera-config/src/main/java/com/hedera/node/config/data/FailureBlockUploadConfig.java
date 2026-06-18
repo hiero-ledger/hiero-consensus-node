@@ -30,7 +30,8 @@ import java.time.Duration;
  * @param storageClass the object storage class (e.g. {@code STANDARD})
  * @param objectKeyPrefix a prefix prepended to every uploaded object key
  * @param issBlockDir the node-local directory the detection path persists the captured ISS block into (and uploads
- * from); a node-scoped {@code block-<account>} subdir is created beneath it
+ * from); artifacts are written under a {@code block-<account>/<timestamp>} subdir per incident and retained (never
+ * pruned) so they stay available locally for triage
  * @param precedingBlocks how many blocks immediately before the ISS block to also capture and upload (0 = exactly the
  * ISS-round block); best-effort and clamped to what is actually retained
  * @param credentialsFileDir the directory containing the bucket credentials file

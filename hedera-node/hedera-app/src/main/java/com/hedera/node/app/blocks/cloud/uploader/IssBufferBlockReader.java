@@ -75,8 +75,13 @@ public class IssBufferBlockReader {
                 continue; // pruned mid-scan or a gap; tolerate it
             }
             final OptionalLong firstRound = firstRoundOf(state);
-            if (firstRound.isPresent() && firstRound.getAsLong() <= round) {
-                issBlockNumber = n;
+            if (firstRound.isEmpty()) {
+                continue;
+            }
+            if (firstRound.getAsLong() <= round) {
+                issBlockNumber = n; // best match so far
+            } else {
+                break; // first-round is monotonic across block numbers, so no later block can contain the round
             }
         }
         if (issBlockNumber < 0) {

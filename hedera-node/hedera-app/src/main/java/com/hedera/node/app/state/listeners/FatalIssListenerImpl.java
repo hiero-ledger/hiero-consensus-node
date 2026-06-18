@@ -18,7 +18,7 @@ import org.hiero.consensus.model.notification.IssNotification;
  * {@code iss/} bucket folder for triage (no-op unless {@code failureBlockUpload.issBlockUploadEnabled} is set). The block
  * stream manager is deliberately allowed to keep processing rounds normally; if the platform later reaches
  * {@code CATASTROPHIC_FAILURE}, the open/pending blocks flushed there are uploaded separately to the {@code triage/}
- * folder by {@code IssBlockUploadCoordinator}.
+ * folder by {@code TriageBlockUploadCoordinator}.
  */
 @Singleton
 public class FatalIssListenerImpl implements AsyncFatalIssListener {

@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>The {@link S3Client} is created lazily through {@link S3ClientFactory} — a seam that lets tests supply a stub
  * client without reaching a real bucket. Each file is retried up to {@code maxRetries} times with exponential backoff.
- * The overall hard deadline is enforced by {@code IssBlockUploadCoordinator} (which runs this on a bounded worker), so
+ * The overall hard deadline is enforced by the calling coordinator (which runs this on a bounded worker), so
  * this class does not time-box itself. All failures are logged and swallowed (the caller is on the shutdown path).
  *
  * <p>Object keys are {@code {prefix}/{node}/{category}/{incidentFolder}/{paddedBlockNumber}/{fileName}}: {@code category}

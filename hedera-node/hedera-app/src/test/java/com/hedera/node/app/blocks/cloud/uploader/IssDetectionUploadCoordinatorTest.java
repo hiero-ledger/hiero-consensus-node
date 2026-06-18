@@ -129,7 +129,9 @@ class IssDetectionUploadCoordinatorTest {
         subject.captureAndUpload(IssType.SELF_ISS, 9);
 
         verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
-        final Path copied = issBlockDir.resolve("block-0.0.3").resolve(base + ".blk.gz");
+        // Staged under a per-incident timestamp dir and kept on disk.
+        final Path copied =
+                issBlockDir.resolve("block-0.0.3").resolve(EXPECTED_FOLDER).resolve(base + ".blk.gz");
         assertThat(filesCaptor.getValue()).containsExactly(copied);
         assertThat(copied).exists();
         verifyNoInteractions(bufferReader);

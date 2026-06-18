@@ -36,12 +36,13 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  * <p>Invoked from {@code FatalIssListenerImpl.notify(...)} on the platform's async ISS-notification dispatcher (off the
  * consensus hot path). It locates the block containing the ISS round — from local disk in {@code FILE}/{@code
  * FILE_AND_GRPC} mode, or from the in-memory buffer in {@code GRPC} mode (where closed blocks are never written to
- * disk) — persists it into a node-local {@code issBlockDir}, and uploads it from there. Capturing at detection (rather
+ * disk) — persists it into a per-incident timestamp dir under the node-local {@code issBlockDir} (kept for local
+ * triage, mirroring the {@code iss/{timestamp}/} cloud layout), and uploads it from there. Capturing at detection (rather
  * than at the later catastrophic-failure flush) is what makes this work in pure-gRPC mode, where the ISS block can be
  * proven, acknowledged, and pruned from the buffer before any failure flush runs; it also covers a non-halting
  * {@code SELF_ISS} that never reaches {@code CATASTROPHIC_FAILURE} at all.
  *
- * <p>This is distinct from {@code IssBlockUploadCoordinator}, which uploads the open/pending blocks flushed at
+ * <p>This is distinct from {@code TriageBlockUploadCoordinator}, which uploads the open/pending blocks flushed at
  * {@code CATASTROPHIC_FAILURE} to the {@code triage/} folder. When both flags are on, a catastrophic ISS may produce
  * objects under both folders — intentional: {@code iss/} is the proven ISS-round block, {@code triage/} is everything
  * open/pending at the halt. The upload runs on a bounded worker capped by {@code uploadTimeout}; this method is
@@ -98,23 +99,27 @@ public class IssDetectionUploadCoordinator {
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
                     .writerMode();
-            final Path issDir = fileSystem
+            // One folder per ISS event. The captured block(s) are staged under a per-incident timestamp dir and kept
+            // there: they remain available locally for triage (mirroring the iss/{timestamp}/ cloud layout) and are
+            // never deleted between incidents.
+            final String incidentFolder = INCIDENT_FOLDER_FORMAT.format(instantSource.instant());
+            final Path incidentDir = fileSystem
                     .getPath(config.issBlockDir())
-                    .resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
+                    .resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()))
+                    .resolve(incidentFolder);
 
             final List<Path> files =
                     switch (writerMode) {
                         case FILE, FILE_AND_GRPC ->
-                            materializeFromDisk(diskResolver.resolve(issType, round, config.precedingBlocks()), issDir);
-                        case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), issDir);
+                            materializeFromDisk(
+                                    diskResolver.resolve(issType, round, config.precedingBlocks()), incidentDir);
+                        case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
                     };
             if (files.isEmpty()) {
                 log.warn("No ISS block located for round {} (writerMode={}); skipping upload", round, writerMode);
                 return;
             }
 
-            // One folder per ISS event, so a later event's blocks never intermix with this one's.
-            final String incidentFolder = INCIDENT_FOLDER_FORMAT.format(instantSource.instant());
             uploadBounded(config, incidentFolder, files);
         } catch (final Throwable t) {
             log.error("ISS detection-time block capture/upload failed for round {}", round, t);
