@@ -31,8 +31,9 @@ import org.apache.logging.log4j.Logger;
  * Central singleton for enhanced block-streaming observability.
  *
  * <p>Tracks the full lifecycle of every block from initialisation through acknowledgement, as well
- * as per-item buffering and send timing. Data is aggregated and logged at {@code INFO} level every
- * {@value #PERIOD_SECONDS} seconds by an internal scheduled task.
+ * as per-item buffering and send timing. Per-block stats are aggregated eagerly on the
+ * acknowledgement thread; the throughput buckets and the per-window report are then assembled and
+ * logged at {@code INFO} level every {@value #PERIOD_SECONDS} seconds by an internal scheduled task.
  *
  * <p>All public methods are no-ops when
  * {@link com.hedera.node.config.data.BlockStreamConfig#enhancedObservabilityEnabled()} is
