@@ -248,9 +248,15 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /**
-     * Called when a block is acknowledged by the block node. Per-block aggregation is deliberately
-     * NOT done here: it happens only on the gather thread, once the ack is older than the grace
-     * period, so the ack thread can never race the gather task inside the probes.
+     * Called when a block is acknowledged by the block node. Acknowledgement is terminal, so the
+     * per-block aggregation is done on the ack thread (this calling thread): it folds the
+     * block's items into the probes and frees the per-item {@code items} map immediately, which bounds
+     * memory when a block carries a very large number of items.
+     *
+     * <p>{@link BlockStats#markAcked}'s compare-and-set guarantees the aggregation runs at most once
+     * per block. The gather thread never aggregates — it only reads a block's already-computed result,
+     * and only once {@link BlockStats#isAggregated()} is set — so the ack thread (which does the work)
+     * and the gather thread (which only reads) never touch the probes concurrently.
      *
      * @param blockNumber the block number
      */
@@ -267,6 +273,7 @@ public class BlockStreamingObs implements AutoCloseable {
         final long nanosTick = nanoClock.getAsLong();
         if (stats.markAcked(nanosTick)) {
             getThroughputBucket(nanosTick).blocksAcked.increment();
+            stats.aggregate();
         }
     }
 
@@ -376,10 +383,9 @@ public class BlockStreamingObs implements AutoCloseable {
         // to submit their observations
         final long nanosTick = nanoClock.getAsLong();
         final long thresholdSecondTick = toSecondTick(nanosTick) - 2;
-        final long thresholdNanosTick = initialNanosTick + (NANOS_PER_SECOND * thresholdSecondTick);
 
         final List<ThroughputBucket> buckets = drainThroughputBuckets(thresholdSecondTick);
-        final BlockStatsAggregation blocksAggregation = drainBlocks(nanosTick, thresholdNanosTick);
+        final BlockStatsAggregation blocksAggregation = drainBlocks(nanosTick);
 
         if (buckets.isEmpty() && blocksAggregation.isEmpty()) {
             // nothing was recorded in this window; skip the report entirely
@@ -412,22 +418,23 @@ public class BlockStreamingObs implements AutoCloseable {
     }
 
     /**
-     * Removes terminal blocks from {@link #blockStatistics} and aggregates the acked ones.
+     * Removes terminal blocks from {@link #blockStatistics} and collects the aggregated ones. Blocks
+     * are aggregated eagerly on the ack thread, so this only reads the finished result (it never calls
+     * {@link BlockStats#aggregate()}); reading is gated on {@link BlockStats#isAggregated()}, whose
+     * volatile publish provides the happens-before with the ack thread's aggregation.
      *
      * @param nanosTick the current {@code nanoTime}, used to detect abandoned blocks
-     * @param thresholdNanosTick blocks acked at or before this tick are eligible to aggregate
-     * @return the aggregation of the acked blocks drained this cycle
+     * @return the aggregation of the blocks drained this cycle
      */
-    private BlockStatsAggregation drainBlocks(final long nanosTick, final long thresholdNanosTick) {
+    private BlockStatsAggregation drainBlocks(final long nanosTick) {
         final BlockStatsAggregation aggregation = new BlockStatsAggregation();
         final Iterator<Map.Entry<Long, BlockStats>> it =
                 blockStatistics.entrySet().iterator();
 
         while (it.hasNext()) {
             final BlockStats blockStats = it.next().getValue();
-            // only blocks acked before the threshold are eligible; the ack is terminal, so by now
-            // no other thread is still recording events for the block, and it is safe to aggregate
-            if (blockStats.isAckedAtOrBefore(thresholdNanosTick)) {
+            if (blockStats.isAggregated()) {
+                // aggregated eagerly at ack; collect its already-computed result and evict
                 it.remove();
                 aggregation.add(blockStats);
             } else if (blockStats.isUnackedOlderThan(nanosTick, ABANDONED_AFTER_NANOS)) {
@@ -604,6 +611,10 @@ public class BlockStreamingObs implements AutoCloseable {
 
         private long blockSize = 0;
         private long itemsNeverSent = 0;
+        private int itemCount = 0;
+        // Set as the LAST step of aggregate(); its volatile publish lets the gather thread read all of
+        // aggregate()'s results (sealed probes, blockSize, itemsNeverSent, itemCount) without racing it.
+        private volatile boolean aggregated = false;
 
         private BlockStats(final long initNanosTick) {
             this.initNanosTick = initNanosTick;
@@ -670,12 +681,11 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         /**
-         * @param thresholdNanosTick the newest ack {@code nanoTime} (inclusive) considered eligible
-         * @return {@code true} if the block was acked at or before {@code thresholdNanosTick}
+         * @return {@code true} once {@link #aggregate()} has completed (the block was acked and its
+         * results are published and safe for the gather thread to read)
          */
-        boolean isAckedAtOrBefore(final long thresholdNanosTick) {
-            final long acked = ackedNanosTick.get();
-            return acked != -1 && acked <= thresholdNanosTick;
+        boolean isAggregated() {
+            return aggregated;
         }
 
         /**
@@ -687,7 +697,15 @@ public class BlockStreamingObs implements AutoCloseable {
             return ackedNanosTick.get() == -1 && nowNanosTick - initNanosTick >= ageNanos;
         }
 
+        /**
+         * Folds every item into the per-item probes, seals them, then frees the {@code items} map.
+         * Called once, on the ack thread (guarded by {@link #markAcked}); the gather thread only reads
+         * the result after seeing {@link #aggregated}. Idempotent: a second call is a no-op.
+         */
         void aggregate() {
+            if (aggregated) {
+                return;
+            }
             for (final Map.Entry<Integer, BlockItemStats> itemStatsEntry : items.entrySet()) {
                 final BlockItemStats itemStats = itemStatsEntry.getValue();
                 final StartAndEndTicks sendTicks = itemStats.itemSendNanosTicks.get();
@@ -706,6 +724,10 @@ public class BlockStreamingObs implements AutoCloseable {
             itemIdleProbe.aggregate();
             itemSendLatencyProbe.aggregate();
             itemSizeProbe.aggregate();
+
+            itemCount = items.size(); // capture before clearing, since itemCount() can no longer read items
+            items.clear(); // free the per-item memory now — the point of aggregating eagerly at ack
+            aggregated = true; // volatile publish: must be the last write so the gather sees everything above
         }
 
         boolean hasOpened() {
@@ -805,7 +827,7 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         int itemCount() {
-            return items.size();
+            return itemCount;
         }
     }
 
@@ -839,10 +861,8 @@ public class BlockStreamingObs implements AutoCloseable {
         void add(final BlockStats blockStats) {
             ++blocksAggregated;
 
-            // computes the per-item probes and blockSize; must only ever run on the gather thread
-            blockStats.aggregate();
-
-            // a span gets a sample only when every tick it depends on was recorded; the availability
+            // The block was already aggregated eagerly on the ack thread; here we only read its results.
+            // A span gets a sample only when every tick it depends on was recorded; the availability
             // predicates keep the -1/null "not recorded" sentinel knowledge inside BlockStats, and skipping
             // an unavailable span avoids polluting the window with a garbage value
             if (blockStats.hasOpened()) {
