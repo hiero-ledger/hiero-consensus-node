@@ -21,9 +21,6 @@ public class TinybarValues {
     // Only non-null for a top-level transaction, since queries cannot have child transactions
     @Nullable
     private final FunctionalityResourcePrices childTransactionResourcePrices;
-    // When non-null, overrides gas price methods with this flat tinycent price (simple fees)
-    @Nullable
-    private final Long overrideGasPriceTinycents;
 
     /**
      * Creates a new instance of {@link TinybarValues} for a query; this throws {@link IllegalStateException}
@@ -35,7 +32,7 @@ public class TinybarValues {
      * @return a query-appropriate instance of {@link TinybarValues}
      */
     public static TinybarValues forQueryWith(@NonNull final ExchangeRate exchangeRate) {
-        return new TinybarValues(exchangeRate, PREPAID_RESOURCE_PRICES, null, null);
+        return new TinybarValues(exchangeRate, PREPAID_RESOURCE_PRICES, null);
     }
 
     /**
@@ -51,38 +48,16 @@ public class TinybarValues {
             @NonNull final ExchangeRate exchangeRate,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
-        return new TinybarValues(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices, null);
-    }
-
-    /**
-     * Creates a new instance of {@link TinybarValues} for a transaction using the simple fees schedule.
-     * Gas price methods use the given flat tinycent price; non-gas methods (e.g. RBH) still use the
-     * legacy resource prices.
-     *
-     * @param exchangeRate the current exchange rate
-     * @param gasPriceTinycents the flat gas price in tinycents from the simple fees GAS extra
-     * @param topLevelResourcePrices the current resource prices for non-gas calculations (e.g. RBH)
-     * @param childTransactionResourcePrices the resource prices for child transactions (non-gas costs)
-     * @return a transaction-appropriate instance of {@link TinybarValues} using simple fees gas pricing
-     */
-    public static TinybarValues forSimpleFeesTransactionWith(
-            @NonNull final ExchangeRate exchangeRate,
-            final long gasPriceTinycents,
-            @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
-            @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
-        return new TinybarValues(
-                exchangeRate, topLevelResourcePrices, childTransactionResourcePrices, gasPriceTinycents);
+        return new TinybarValues(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
 
     private TinybarValues(
             @NonNull final ExchangeRate exchangeRate,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
-            @Nullable final FunctionalityResourcePrices childTransactionResourcePrices,
-            @Nullable final Long overrideGasPriceTinycents) {
+            @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
         this.exchangeRate = Objects.requireNonNull(exchangeRate);
         this.topLevelResourcePrices = Objects.requireNonNull(topLevelResourcePrices);
         this.childTransactionResourcePrices = childTransactionResourcePrices;
-        this.overrideGasPriceTinycents = overrideGasPriceTinycents;
     }
 
     /**
@@ -107,9 +82,6 @@ public class TinybarValues {
      * @return the tinybar-denominated price of a unit of gas for the current operation
      */
     public long topLevelTinybarGasPrice() {
-        if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents * topLevelResourcePrices.congestionMultiplier());
-        }
         return asTinybars(
                 topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
                         / FEE_SCHEDULE_UNITS_PER_TINYCENT
@@ -123,11 +95,6 @@ public class TinybarValues {
      * @return the full precision tinybar price of a unit of gas for the current operation
      */
     public long topLevelTinybarGasPriceFullPrecision() {
-        if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents
-                    * FEE_SCHEDULE_UNITS_PER_TINYCENT
-                    * topLevelResourcePrices.congestionMultiplier());
-        }
         return asTinybars(
                 topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
                         * topLevelResourcePrices.congestionMultiplier());
@@ -138,11 +105,6 @@ public class TinybarValues {
      * @return the tinycents gas price
      */
     public long topLevelTinycentGasPrice() {
-        if (overrideGasPriceTinycents != null) {
-            return overrideGasPriceTinycents
-                    * FEE_SCHEDULE_UNITS_PER_TINYCENT
-                    * topLevelResourcePrices.congestionMultiplier();
-        }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
                 * topLevelResourcePrices.congestionMultiplier();
     }
@@ -158,9 +120,6 @@ public class TinybarValues {
         if (childTransactionResourcePrices == null) {
             throw new IllegalStateException("Cannot dispatch a child transaction from a query");
         }
-        if (overrideGasPriceTinycents != null) {
-            return asTinybars(overrideGasPriceTinycents * childTransactionResourcePrices.congestionMultiplier());
-        }
         return asTinybars(
                 childTransactionResourcePrices.basePrices().servicedataOrThrow().gas()
                         / FEE_SCHEDULE_UNITS_PER_TINYCENT
@@ -175,11 +134,6 @@ public class TinybarValues {
     public long childTransactionTinycentGasPrice() {
         if (childTransactionResourcePrices == null) {
             throw new IllegalStateException("Cannot dispatch a child transaction from a query");
-        }
-        if (overrideGasPriceTinycents != null) {
-            return overrideGasPriceTinycents
-                    * FEE_SCHEDULE_UNITS_PER_TINYCENT
-                    * childTransactionResourcePrices.congestionMultiplier();
         }
         return childTransactionResourcePrices.basePrices().servicedataOrThrow().gas()
                 * childTransactionResourcePrices.congestionMultiplier();

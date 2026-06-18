@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-008
 title: Replace nGen with a monotonic event sequence number and remove nGen
 topics: [event-intake, event-creation, hashgraph, gossip]

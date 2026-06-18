@@ -11,19 +11,15 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenGrantKycUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -128,17 +124,6 @@ public class TokenGrantKycToAccountHandler implements TransactionHandler {
         // Throws if the token is unusable
         TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
         return TokenHandlerHelper.getIfUsable(accountId, tokenId, tokenRelStore);
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj));
     }
 
     private FeeData usageGiven(final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj svo) {

@@ -23,8 +23,5 @@ public record FeesConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean createSimpleFeeSchedule,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean simpleFeesAreFree,
-
         @ConfigProperty(defaultValue = "380") @NetworkProperty
         int tokenTransferUsageMultiplier) {}

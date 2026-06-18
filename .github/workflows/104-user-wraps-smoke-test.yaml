@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "104: [USER] WRAPS Runner Smoke Test"
+# Validates that a runner pool exposes the WRAPS proving-key artifacts expected by the
+# hapi-tests-wraps job in zxc-execute-hapi-tests.yaml: four files at the mount path whose
+# SHA-384 hashes match the published artifact set (see
+# hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key/README.md).
+# Dispatch this against a candidate runner label before enabling the WRAPS HAPI tests.
+on:
+  workflow_dispatch:
+    inputs:
+      artifacts-path:
+        description: "Expected mount path of the WRAPS proving-key artifacts"
+        type: string
+        required: false
+        default: "/opt/wraps-v1.0.0"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: "WRAPS Artifacts Smoke Test"
+    runs-on: hl-cn-hapi-wraps-lin-lg
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Verify WRAPS proving-key artifacts
+        env:
+          ARTIFACTS_PATH: ${{ inputs.artifacts-path }}
+        run: |
+          status=0
+          echo "Checking ${ARTIFACTS_PATH}"
+          ls -la "${ARTIFACTS_PATH}" || { echo "::error::${ARTIFACTS_PATH} does not exist"; exit 1; }
+
+          declare -A expected_hashes=(
+            [decider_pp.bin]="8e9fbd68c7f28d56146857b52626185918162a1ecfce25856576465139d1bf4ef638dcbfaf15548d336e56206ae61dca"
+            [decider_vp.bin]="53e72141e4cf68f4b862daa4acc634d4f2220ecc2d44feca90b377fc5e786dad288dbf32722dd3e18217727a20666da2"
+            [nova_pp.bin]="18d89cfff6e5abebfa8d1740974ce0bd2b60449c67ef7d7de0d3ab377c4b265ab9a99c01fcd03d33da77c6dc47a8c467"
+            [nova_vp.bin]="c45e3146f4b3b093c3301ec42171d18f7015c01615d29ca1ab9354d790b5c7ca888f82f26a458366d3b1ff623c8d6c1f"
+          )
+
+          for f in decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin; do
+            path="${ARTIFACTS_PATH}/${f}"
+            if [[ ! -f "${path}" ]]; then
+              echo "::error::Missing artifact: ${path}"
+              status=1
+              continue
+            fi
+            actual="$(sha384sum "${path}" | awk '{print $1}')"
+            if [[ "${actual}" == "${expected_hashes[$f]}" ]]; then
+              echo "OK ${f} ($(stat -c%s "${path}" 2>/dev/null || stat -f%z "${path}") bytes)"
+            else
+              echo "::error::Hash mismatch for ${f}: expected ${expected_hashes[$f]}, got ${actual}"
+              status=1
+            fi
+          done
+          exit "${status}"
