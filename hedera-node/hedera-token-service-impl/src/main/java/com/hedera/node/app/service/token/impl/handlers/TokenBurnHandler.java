@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_BURN_META
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -103,7 +104,8 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var treasuryRel = validated.tokenTreasuryRel();
         final var token = validated.token();
 
-        if (token.hasKycKey()) {
+        // An empty key list (the HIP-540 removal sentinel) disables KYC, so it counts as "no KYC key".
+        if (!isEmpty(token.kycKey())) {
             validateTrue(treasuryRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
         }
 
@@ -171,7 +173,9 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         validator.validateBurn(fungibleBurnCount, nftSerialNums, tokensConfig);
 
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
-        validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the supply function is disabled; it
+        // must be treated as "no supply key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.supplyKey()), TOKEN_HAS_NO_SUPPLY_KEY);
 
         final var treasuryAcctId = token.treasuryAccountId();
         final var treasuryRel = TokenHandlerHelper.getIfUsable(treasuryAcctId, tokenId, tokenRelStore);
