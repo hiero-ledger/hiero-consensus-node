@@ -281,7 +281,7 @@ public class RecordCreationSuite {
                 createTopic("ofGeneralInterest").payingWith(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1_000L)).payingWith(PAYER),
                 submitMessageTo("ofGeneralInterest").message("I say!").payingWith(PAYER),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var payerId = spec.registry().getAccountID(PAYER);
                     final var subOp = getAccountRecords(PAYER).logged();
                     allRunFor(spec, subOp);
