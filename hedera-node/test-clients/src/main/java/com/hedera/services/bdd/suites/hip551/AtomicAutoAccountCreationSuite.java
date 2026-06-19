@@ -33,13 +33,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assumingNoStakingChildRecordCausesMaxChildRecordsExceeded;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -59,10 +53,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.A_T
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.B_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.CIVILIAN;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_ASSOCIATION_FEE;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_SIMPLE_AUTO_CREATION_FEE;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.HBAR_XFER;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.INITIAL_BALANCE;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_CREATE_SPONSOR;
@@ -306,14 +297,11 @@ class AtomicAutoAccountCreationSuite {
                         .andAllChildRecords()
                         .hasPriority(recordWith().autoAssociationCount(2))
                         .hasNonStakingChildRecordCount(1),
-                withOpContext((spec, opLog) -> {
-                    final var expectedFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
-                            : EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE;
+                doingContextual(spec -> {
                     final var childRecordsCheck = childRecordsCheck(
                             multiNftTransfer,
                             SUCCESS,
-                            recordWith().status(SUCCESS).fee(expectedFee));
+                            recordWith().status(SUCCESS).fee(EXPECTED_SIMPLE_AUTO_CREATION_FEE));
                     allRunFor(spec, childRecordsCheck);
                 }),
                 getAliasedAccountInfo(VALID_ALIAS)
@@ -442,14 +430,11 @@ class AtomicAutoAccountCreationSuite {
                 getAliasedAccountInfo(VALID_ALIAS)
                         .hasToken(relationshipWith(A_TOKEN).balance(10))
                         .hasToken(relationshipWith(B_TOKEN).balance(20)),
-                withOpContext((spec, opLog) -> {
-                    final var expectedFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
-                            : EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE;
+                doingContextual(spec -> {
                     final var childRecordsCheck = childRecordsCheck(
                             multiTokenXfer,
                             SUCCESS,
-                            recordWith().status(SUCCESS).fee(expectedFee));
+                            recordWith().status(SUCCESS).fee(EXPECTED_SIMPLE_AUTO_CREATION_FEE));
                     allRunFor(spec, childRecordsCheck);
                 }));
     }
@@ -514,7 +499,6 @@ class AtomicAutoAccountCreationSuite {
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
         final var approxSimpleTransferFee = 1083333L;
-        final long approxTransferFee = 1218008L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -565,12 +549,11 @@ class AtomicAutoAccountCreationSuite {
                 getAccountInfo(CIVILIAN)
                         .hasToken(relationshipWith(A_TOKEN).balance(90))
                         .has(accountWith().balanceLessThan(10 * ONE_HBAR)),
-                assertionsHold((spec, opLog) -> {
-                    final var transferRecordFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
-                            : EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE;
+                assertionsHold((spec, _) -> {
                     final var childRecordCheck = childRecordsCheck(
-                            sameTokenXfer, SUCCESS, recordWith().status(SUCCESS).fee(transferRecordFee));
+                            sameTokenXfer,
+                            SUCCESS,
+                            recordWith().status(SUCCESS).fee(EXPECTED_SIMPLE_AUTO_CREATION_FEE));
                     final var lookup = getTxnRecord(sameTokenXfer)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
@@ -581,9 +564,8 @@ class AtomicAutoAccountCreationSuite {
                     final var payer = spec.registry().getAccountID(CIVILIAN);
                     final var parent = lookup.getResponseRecord();
                     final var child = lookup.getFirstNonStakingChildRecord();
-                    final var expectedFee = spec.simpleFeesEnabled() ? approxSimpleTransferFee : approxTransferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, 0L, expectedFee, EXPECTED_ASSOCIATION_FEE);
+                            parent, child, sponsor, payer, 0L, approxSimpleTransferFee, EXPECTED_ASSOCIATION_FEE);
                 }),
                 /* --- transfer another token to create alias.
                 Alias created will have -1 as max-auto associations */
@@ -921,7 +903,6 @@ class AtomicAutoAccountCreationSuite {
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
         final var simpleTransferFee = 333333L;
-        final long transferFee = 190000L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
@@ -940,12 +921,9 @@ class AtomicAutoAccountCreationSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                assertionsHold((spec, opLog) -> {
-                    final var transferRecordFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_SIMPLE_AUTO_CREATION_FEE
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                assertionsHold((spec, _) -> {
                     final var childRecordsCheck = childRecordsCheck(
-                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(transferRecordFee));
+                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(EXPECTED_SIMPLE_AUTO_CREATION_FEE));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
@@ -958,9 +936,8 @@ class AtomicAutoAccountCreationSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, simpleTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)

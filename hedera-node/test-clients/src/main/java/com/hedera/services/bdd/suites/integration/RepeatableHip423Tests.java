@@ -99,7 +99,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePa
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withStatus;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -409,7 +408,7 @@ public class RepeatableHip423Tests {
                         .payingWith(CIVILIAN_PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SCHEDULE_EXPIRY_IS_BUSY)),
-                sourcingContextual(spec -> purgeExpiringWithin(maxLifetime.get())));
+                sourcingContextual(_ -> purgeExpiringWithin(maxLifetime.get())));
     }
 
     /**
@@ -1205,7 +1204,7 @@ public class RepeatableHip423Tests {
                         .adminKey(TOKEN_TREASURY),
                 uploadInitCode(ASSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
                         cryptoUpdate(SIGNER).key(CONTRACT_KEY),
@@ -1335,8 +1334,8 @@ public class RepeatableHip423Tests {
     @LeakyRepeatableHapiTest(
             value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
             overrides = {"scheduling.whitelist"})
-    @DisplayName("Schedules far in the future are more expensive")
-    final Stream<DynamicTest> longerScheduleShouldCostMore() {
+    @DisplayName("Schedule expiry length does not affect the fee with simple fees")
+    final Stream<DynamicTest> scheduleExpiryDoesNotAffectFee() {
         final var firstFee = new AtomicLong();
         final var secondFee = new AtomicLong();
         final var thirdFee = new AtomicLong();
@@ -1358,14 +1357,9 @@ public class RepeatableHip423Tests {
                 getTxnRecord("first").exposingTo(record -> firstFee.set(record.getTransactionFee())),
                 getTxnRecord("second").exposingTo(record -> secondFee.set(record.getTransactionFee())),
                 getTxnRecord("third").exposingTo(record -> thirdFee.set(record.getTransactionFee())),
-                withOpContext((spec, log) -> {
-                    if (spec.simpleFeesEnabled()) {
-                        assertEquals(firstFee.get(), secondFee.get());
-                        assertEquals(secondFee.get(), thirdFee.get());
-                    } else {
-                        assertEquals(firstFee.get(), secondFee.get());
-                        assertTrue(secondFee.get() < thirdFee.get());
-                    }
+                doingContextual(_ -> {
+                    assertEquals(firstFee.get(), secondFee.get());
+                    assertEquals(secondFee.get(), thirdFee.get());
                 }));
     }
 
@@ -1381,7 +1375,7 @@ public class RepeatableHip423Tests {
                 overriding("scheduling.whitelist", "ContractCall"),
                 uploadInitCode("AssociateDissociate"),
                 contractCreate("AssociateDissociate"),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         scheduleCreate(
                                         "fungibleTokenAssociate",
@@ -1603,7 +1597,7 @@ public class RepeatableHip423Tests {
                 uploadTestContracts(associateContract, nestedAssociatedContract),
                 contractCreate(associateContract),
                 // set addresses
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     associateContractAddress.set(asHeadlongAddress(getNestedContractAddress(associateContract, spec)));
                     accountAddress.set(
                             asHeadlongAddress(asAddress(spec.registry().getAccountID(account))));
@@ -1659,7 +1653,7 @@ public class RepeatableHip423Tests {
                 sleepFor(5000),
                 cryptoCreate("foo").via(TRIGGERING_TXN),
                 getScheduleInfo(BASIC_XFER).hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     var createTx = getTxnRecord(CREATE_TX);
                     var signTx = getTxnRecord(SIGN_TX);
                     var triggeringTx = getTxnRecord(TRIGGERING_TXN);
@@ -1894,7 +1888,7 @@ public class RepeatableHip423Tests {
             cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
             sleepForSeconds(1),
             // validate records
-            withOpContext((spec, opLog) -> {
+            doingContextual(spec -> {
                 final var ops = new ArrayList<HapiGetTxnRecord>();
                 List.of(scheduledTransactions).forEach(scheule -> {
                     ops.add(getTxnRecord(scheule).scheduled());
@@ -1968,7 +1962,7 @@ public class RepeatableHip423Tests {
     }
 
     private static SpecOperation viewScheduleState(@NonNull final ScheduleStateConsumer consumer) {
-        return withOpContext((spec, opLog) -> {
+        return doingContextual(spec -> {
             final var state = spec.embeddedStateOrThrow();
             final var readableStates = state.getReadableStates(ScheduleService.NAME);
             consumer.accept(
