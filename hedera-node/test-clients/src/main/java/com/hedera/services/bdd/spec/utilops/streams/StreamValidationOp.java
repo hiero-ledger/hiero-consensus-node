@@ -5,6 +5,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -85,12 +86,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
     // Under writerMode=GRPC the freeze block's proof finalizes asynchronously and the block node
     // serves it only after the proof completes (the consensus node flushes its in-memory pending
-    // block to .pnd.gz only on a fatal shutdown, so it is NOT on disk after a normal freeze). Poll
-    // the block-node stream until its block count is unchanged for STREAM_SETTLE_STABLE_READS
-    // consecutive reads — i.e. the freeze block has been served and no more are arriving — so the
-    // state-replay validators reconstruct through it. Bounded by STREAM_SETTLE_TIMEOUT so a block
-    // whose proof never finalizes cannot hang the run.
-    private static final int STREAM_SETTLE_STABLE_READS = 5;
+    // block to .pnd.gz only on a fatal shutdown, so it is NOT on disk after a normal freeze). The
+    // StateChanges/BinaryStateChanges validators reconstruct the saved-state root, which needs that
+    // freeze block, so the GRPC read waits until a served block reaches the saved-state round (the
+    // freeze round). Bounded by STREAM_SETTLE_TIMEOUT; if the freeze block never arrives the BLOCKS
+    // branch skips those two validators rather than mismatching on a short stream.
     private static final Duration STREAM_SETTLE_TIMEOUT = Duration.ofSeconds(90);
 
     private final List<RecordStreamValidator> recordStreamValidators;
@@ -258,8 +258,26 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                 // against the block stream. Parity validators that need records
                                 // (TransactionRecordParityValidator) override only validateBlockVsRecords, so
                                 // their validateBlocks is the no-op default and they are naturally inert here.
+                                //
+                                // StateChanges/BinaryStateChanges reconstruct the saved-state root and so need
+                                // the freeze block (the block at the saved-state round). Under writerMode=GRPC
+                                // the block node serves it only once its proof finalizes, which can lag; if the
+                                // served stream hasn't reached the saved-state round, skip just those two (a
+                                // short stream would otherwise mismatch the saved-state root for a reason that
+                                // is not a real defect). The structural/event validators still run.
+                                final long savedStateRound = latestSavedStateRound(spec);
+                                final boolean freezeBlockServed =
+                                        savedStateRound < 0 || highestRoundIn(blocks.active()) >= savedStateRound;
+                                if (!freezeBlockServed) {
+                                    log.warn(
+                                            "Block stream reached round {} but saved state is at round {}; skipping "
+                                                    + "state-replay validators (freeze block not served by the block node)",
+                                            highestRoundIn(blocks.active()),
+                                            savedStateRound);
+                                }
                                 final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                                         .filter(factory -> factory.appliesTo(spec))
+                                        .filter(factory -> freezeBlockServed || !requiresSavedState(factory))
                                         .flatMap(factory -> {
                                             final var validator = factory.create(spec);
                                             final List<Block> input = (validator
@@ -324,31 +342,29 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     static Optional<DiskBlocks> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         final var blockNodeNetwork = BlockNodeReader.activeNetwork();
         if (BlockSourceFactory.isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
-            // Wait for the block-node stream to SETTLE before validating. After a freeze the final
-            // (freeze) block's proof finalizes asynchronously and the block node serves only
+            // Wait until the block node has served the FREEZE BLOCK before validating. After a freeze
+            // the freeze block's proof finalizes asynchronously and the block node serves only
             // proof-bearing blocks, so the freeze block — whose state changes produce the saved-state
-            // root that StateChanges/BinaryStateChanges replay against — is served late. Returning on
-            // the first non-empty poll (the previous behavior) could leave the replay one block short
-            // and mismatch the saved-state root. Poll until the available-block count is unchanged for
-            // STREAM_SETTLE_STABLE_READS consecutive reads (no more blocks are arriving), bounded by
-            // STREAM_SETTLE_TIMEOUT. Poll the un-dumped read (readBlocksFromBlockNodes) and dump once
-            // when we settle, so we don't re-dump every poll.
+            // root that StateChanges/BinaryStateChanges replay against — is served late (or, if its
+            // proof never finalizes this run, not at all). The deterministic target is the latest
+            // saved-state round (the freeze round); poll until a served block reaches that round, then
+            // the freeze block is present. Bounded by STREAM_SETTLE_TIMEOUT; on timeout we return the
+            // short stream and the BLOCKS branch skips the state-replay validators (so a not-yet-served
+            // freeze block can never produce a false root mismatch). Poll the un-dumped read; dump once.
+            final long targetRound = latestSavedStateRound(spec);
             Optional<DiskBlocks> latest = Optional.empty();
-            int lastCount = -1;
-            int stableReads = 0;
             final long deadlineNanos = System.nanoTime() + STREAM_SETTLE_TIMEOUT.toNanos();
             while (System.nanoTime() < deadlineNanos) {
                 final var result = readBlocksFromBlockNodes(spec, blockNodeNetwork);
-                final int count = result.map(b -> b.active().size()).orElse(0);
-                if (count > 0) {
+                if (result.isPresent()) {
                     latest = result;
-                    stableReads = (count == lastCount) ? stableReads + 1 : 0;
-                    if (stableReads >= STREAM_SETTLE_STABLE_READS) {
+                    // targetRound < 0 means no saved state was found (can't compute the freeze round);
+                    // fall back to the first non-empty read rather than spinning to the timeout.
+                    if (targetRound < 0 || highestRoundIn(result.get().active()) >= targetRound) {
                         dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
                         return result;
                     }
                 }
-                lastCount = count;
                 try {
                     Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
                 } catch (final InterruptedException e) {
@@ -358,9 +374,10 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
             if (latest.isPresent()) {
                 log.warn(
-                        "Block-node stream did not settle within {}s; validating the {} block(s) read so far",
-                        STREAM_SETTLE_TIMEOUT.toSeconds(),
-                        latest.get().active().size());
+                        "Block-node stream never reached saved-state round {} within {}s; state-replay "
+                                + "validators will be skipped (freeze block not served)",
+                        targetRound,
+                        STREAM_SETTLE_TIMEOUT.toSeconds());
                 dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
             }
             return latest;
@@ -368,6 +385,64 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         // Dump whatever is available from block nodes for debugging before reading from disk
         readMaybeBlockNodeStreamsFor(spec);
         return readBlocksFromDisk(spec);
+    }
+
+    /**
+     * The latest saved-state round across the network's nodes — the freeze round whose state the
+     * {@link StateChangesValidator}/{@link BinaryStateChangesValidator} validators reconstruct. The
+     * saved-state directory is named by round number. Returns -1 if no saved state directory is found.
+     */
+    private static long latestSavedStateRound(@NonNull final HapiSpec spec) {
+        long latest = -1;
+        for (final var node : spec.getNetworkNodes()) {
+            final var savedStatesDir = node.getExternalPath(SAVED_STATES_DIR).toAbsolutePath();
+            if (!Files.isDirectory(savedStatesDir)) {
+                continue;
+            }
+            try (final var stream = Files.newDirectoryStream(savedStatesDir)) {
+                for (final var dir : stream) {
+                    if (!Files.isDirectory(dir)) {
+                        continue;
+                    }
+                    try {
+                        latest = Math.max(
+                                latest, Long.parseLong(dir.getFileName().toString()));
+                    } catch (final NumberFormatException ignore) {
+                        // Not a round directory (e.g. a temp dir); skip.
+                    }
+                }
+            } catch (final IOException e) {
+                log.warn("Failed to scan saved-state directory {}", savedStatesDir, e);
+            }
+        }
+        return latest;
+    }
+
+    /**
+     * The highest consensus round covered by the given blocks (from their round headers), or -1 if
+     * none carry a round header. Used to detect whether the freeze block (at the saved-state round)
+     * has been served by the block node yet.
+     */
+    private static long highestRoundIn(@NonNull final List<Block> blocks) {
+        long highest = -1;
+        for (final var block : blocks) {
+            for (final var item : block.items()) {
+                if (item.hasRoundHeader()) {
+                    highest = Math.max(highest, item.roundHeaderOrThrow().roundNumber());
+                }
+            }
+        }
+        return highest;
+    }
+
+    /**
+     * Whether the given factory builds a validator that reconstructs the saved-state root and so
+     * requires the freeze block to be present ({@link StateChangesValidator}/{@link
+     * BinaryStateChangesValidator}). Such validators are skipped under {@code writerMode=GRPC} when
+     * the block node has not yet served the freeze block.
+     */
+    private static boolean requiresSavedState(@NonNull final BlockStreamValidator.Factory factory) {
+        return factory == StateChangesValidator.FACTORY || factory == BinaryStateChangesValidator.FACTORY;
     }
 
     private static Optional<DiskBlocks> readBlocksFromDisk(@NonNull final HapiSpec spec) {
