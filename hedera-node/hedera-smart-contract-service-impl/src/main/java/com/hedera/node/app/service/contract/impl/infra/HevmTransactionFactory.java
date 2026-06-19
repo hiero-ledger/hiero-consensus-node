@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_VALUE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -158,13 +159,14 @@ public class HevmTransactionFactory {
     private HederaEvmTransaction fromHapiCreate(
             @NonNull final AccountID payer, @NonNull final ContractCreateTransactionBody body) {
         assertValidCreation(body);
-        final var payload = initcodeFor(body);
+        final var initcode = initcodeFor(body);
+        assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 payer,
                 null,
                 null,
                 NOT_APPLICABLE,
-                payload,
+                initcode,
                 null,
                 body.initialBalance(),
                 body.gas(),
@@ -258,12 +260,14 @@ public class HevmTransactionFactory {
             @NonNull final AccountID senderId,
             @NonNull final EthTxData ethTxData,
             final long maxGasAllowance) {
+        final var initcode = Bytes.wrap(ethTxData.callData());
+        assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 senderId,
                 relayerId,
                 null,
                 ethTxData.nonce(),
-                Bytes.wrap(ethTxData.callData()),
+                initcode,
                 Bytes.wrap(ethTxData.chainId()),
                 ethTxData.effectiveTinybarValue(),
                 ethTxData.gasLimit(),
@@ -413,6 +417,10 @@ public class HevmTransactionFactory {
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+    }
+
+    private void assertInitcodeSize(@NonNull final Bytes initcode) {
+        validateTrue(initcode.length() <= contractsConfig.maxInitcodeSize(), CONTRACT_SIZE_LIMIT_EXCEEDED);
     }
 
     private Bytes initcodeFor(@NonNull final ContractCreateTransactionBody body) {
