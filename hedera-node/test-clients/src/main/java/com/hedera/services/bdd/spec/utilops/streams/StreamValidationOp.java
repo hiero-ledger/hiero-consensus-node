@@ -82,8 +82,16 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long MIN_GZIP_SIZE_IN_BYTES = 26;
     private static final String ERROR_PREFIX = "\n  - ";
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
-    private static final int BLOCK_NODE_READ_MAX_ATTEMPTS = 5;
     private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
+    // Under writerMode=GRPC the freeze block's proof finalizes asynchronously and the block node
+    // serves it only after the proof completes (the consensus node flushes its in-memory pending
+    // block to .pnd.gz only on a fatal shutdown, so it is NOT on disk after a normal freeze). Poll
+    // the block-node stream until its block count is unchanged for STREAM_SETTLE_STABLE_READS
+    // consecutive reads — i.e. the freeze block has been served and no more are arriving — so the
+    // state-replay validators reconstruct through it. Bounded by STREAM_SETTLE_TIMEOUT so a block
+    // whose proof never finalizes cannot hang the run.
+    private static final int STREAM_SETTLE_STABLE_READS = 5;
+    private static final Duration STREAM_SETTLE_TIMEOUT = Duration.ofSeconds(90);
 
     private final List<RecordStreamValidator> recordStreamValidators;
     private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
@@ -316,27 +324,46 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     static Optional<DiskBlocks> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
         final var blockNodeNetwork = BlockNodeReader.activeNetwork();
         if (BlockSourceFactory.isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
-            // Retry reading from block nodes — blocks may still be in-flight after freeze,
-            // especially with TSS/state proofs enabled where block finalization is async
-            for (int attempt = 1; attempt <= BLOCK_NODE_READ_MAX_ATTEMPTS; attempt++) {
-                final var result = readMaybeBlockNodeStreamsFor(spec);
-                if (result.isPresent()) {
-                    return result;
-                }
-                if (attempt < BLOCK_NODE_READ_MAX_ATTEMPTS) {
-                    log.info(
-                            "No blocks from block nodes on attempt {}, retrying in {}ms",
-                            attempt,
-                            BLOCK_NODE_READ_RETRY_MS);
-                    try {
-                        Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
+            // Wait for the block-node stream to SETTLE before validating. After a freeze the final
+            // (freeze) block's proof finalizes asynchronously and the block node serves only
+            // proof-bearing blocks, so the freeze block — whose state changes produce the saved-state
+            // root that StateChanges/BinaryStateChanges replay against — is served late. Returning on
+            // the first non-empty poll (the previous behavior) could leave the replay one block short
+            // and mismatch the saved-state root. Poll until the available-block count is unchanged for
+            // STREAM_SETTLE_STABLE_READS consecutive reads (no more blocks are arriving), bounded by
+            // STREAM_SETTLE_TIMEOUT. Poll the un-dumped read (readBlocksFromBlockNodes) and dump once
+            // when we settle, so we don't re-dump every poll.
+            Optional<DiskBlocks> latest = Optional.empty();
+            int lastCount = -1;
+            int stableReads = 0;
+            final long deadlineNanos = System.nanoTime() + STREAM_SETTLE_TIMEOUT.toNanos();
+            while (System.nanoTime() < deadlineNanos) {
+                final var result = readBlocksFromBlockNodes(spec, blockNodeNetwork);
+                final int count = result.map(b -> b.active().size()).orElse(0);
+                if (count > 0) {
+                    latest = result;
+                    stableReads = (count == lastCount) ? stableReads + 1 : 0;
+                    if (stableReads >= STREAM_SETTLE_STABLE_READS) {
+                        dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
+                        return result;
                     }
                 }
+                lastCount = count;
+                try {
+                    Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
-            return Optional.empty();
+            if (latest.isPresent()) {
+                log.warn(
+                        "Block-node stream did not settle within {}s; validating the {} block(s) read so far",
+                        STREAM_SETTLE_TIMEOUT.toSeconds(),
+                        latest.get().active().size());
+                dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
+            }
+            return latest;
         }
         // Dump whatever is available from block nodes for debugging before reading from disk
         readMaybeBlockNodeStreamsFor(spec);
