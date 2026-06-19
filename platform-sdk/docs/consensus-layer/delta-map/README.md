@@ -29,7 +29,7 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 | `signed-state-management.md`         | not-started | Execution ownership not begun; state types extracted within the consensus layer. |
 | `restart-and-pces.md`                | partial     | PCES done and permanently its own module by decision; restart and ISS ownership not yet moved. |
 | `freeze-and-upgrade.md`              | not-started | Proposal-silent; Execution ownership only implied. Orchestration still consensus-side; metadata handling predates the proposal. |
-| `reconnect.md`                       | partial     | Execution ownership not started; interim work tracks the reconnect-refactor proposal. |
+| `reconnect.md`                       | not-started | Execution ownership not begun. |
 | `iss-detection.md`                   | not-started | Detection and response still platform-owned; the proposal implies they move with the state lifecycle. |
 | `quiescence.md`                      | divergent   | Postdates the proposal; the proposed public API has no quiescence operation. |
 | `sheriff.md`                         | partial     | Proposal-only module; nothing exists beyond precursors already in code (sender attribution, branch detection). |
