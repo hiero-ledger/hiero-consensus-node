@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
@@ -18,9 +19,11 @@ import com.hedera.node.config.data.TssConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Registers the states needed for the {@link HistoryService}; these are,
@@ -106,12 +109,30 @@ public class V071HistorySchema extends Schema<SemanticVersion> {
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis() && ctx.appConfig().getConfigData(TssConfig.class).historyEnabled()) {
-            final var activeConstruction = ctx.newStates()
-                    .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                    .get();
-            if (activeConstruction != null && activeConstruction.hasTargetProof()) {
-                historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
-            }
+            restoreLatestHistoryProof(ctx.newStates(), historyService);
         }
+    }
+
+    /**
+     * Restores the in-memory latest history proof on restart from persisted state. Prefers the
+     * ACTIVE construction's target proof (the proof the node was actively proving with), falling
+     * back to the NEXT construction's; both are filtered on {@code hasChainOfTrustProof()} so the
+     * restored proof actually satisfies {@link HistoryService#isReady()}. Without this, a node that
+     * restarts while its ACTIVE construction has no usable proof leaves the block-hash signer stuck
+     * returning {@code WAITING_FOR_LEDGER_ID} even though a usable proof is present in state (#24896).
+     *
+     * @param states the (writable) states to read the construction singletons from
+     * @param historyService the history service whose in-memory proof to restore
+     */
+    public static void restoreLatestHistoryProof(
+            @NonNull final WritableStates states, @NonNull final HistoryService historyService) {
+        Stream.of(ACTIVE_PROOF_CONSTRUCTION_STATE_ID, NEXT_PROOF_CONSTRUCTION_STATE_ID)
+                .map(id -> states.<HistoryProofConstruction>getSingleton(id).get())
+                .filter(Objects::nonNull)
+                .filter(HistoryProofConstruction::hasTargetProof)
+                .map(HistoryProofConstruction::targetProofOrThrow)
+                .filter(HistoryProof::hasChainOfTrustProof)
+                .findFirst()
+                .ifPresent(historyService::setLatestHistoryProof);
     }
 }

@@ -73,12 +73,7 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
                             .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                             .put(HistoryProofConstruction.DEFAULT);
                 }
-                final var activeConstruction = writableStates
-                        .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                        .get();
-                if (activeConstruction != null && activeConstruction.hasTargetProof()) {
-                    historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
-                }
+                V071HistorySchema.restoreLatestHistoryProof(writableStates, historyService);
             }
             final var hashState = ctx.newStates().<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
             final var currentProtoBytes = hashState.get();
