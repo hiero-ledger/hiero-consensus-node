@@ -16,7 +16,6 @@ import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
-import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -30,7 +29,6 @@ import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -40,10 +38,10 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
@@ -56,8 +54,7 @@ public record PlatformComponents(
         HashgraphModule hashgraphModule,
         GossipModule gossipModule,
         IssDetectionModule issDetectionModule,
-        ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
-                applicationTransactionPrehandlerWiring,
+        TransactionHandlingModule transactionHandlingModule,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
         ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
         ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
@@ -99,7 +96,6 @@ public record PlatformComponents(
         stateSignerWiring.bind(builder::buildStateSigner);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
-        applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
         transactionHandlerWiring.bind(builder::buildTransactionHandler);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
         hashLoggerWiring.bind(builder::buildHashLogger);
@@ -127,7 +123,8 @@ public record PlatformComponents(
             @NonNull final PcesModule pcesModule,
             @NonNull final HashgraphModule hashgraphModule,
             @NonNull final GossipModule gossipModule,
-            @NonNull final IssDetectionModule issDetectionModule) {
+            @NonNull final IssDetectionModule issDetectionModule,
+            @NonNull final TransactionHandlingModule transactionHandlingModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -143,7 +140,7 @@ public record PlatformComponents(
                 hashgraphModule,
                 gossipModule,
                 issDetectionModule,
-                new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
+                transactionHandlingModule,
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
                 new ComponentWiring<>(model, StateSigner.class, config.stateSigner()),

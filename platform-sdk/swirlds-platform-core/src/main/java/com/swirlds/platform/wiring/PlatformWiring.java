@@ -16,7 +16,6 @@ import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
-import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -130,12 +129,12 @@ public class PlatformWiring {
         // pre-handle gets pre-consensus events from the consensus engine
         // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
         consEngineAddedEvents.solderTo(components
-                .applicationTransactionPrehandlerWiring()
-                .getInputWire(TransactionPrehandler::prehandleApplicationTransactions));
+                .transactionHandlingModule()
+                .preHandleEventInputWire());
 
         components
-                .applicationTransactionPrehandlerWiring()
-                .getOutputWire()
+                .transactionHandlingModule()
+                .preHandleSignaturesOutputWire()
                 .solderTo(components
                         .stateSignatureCollectorWiring()
                         .getInputWire(StateSignatureCollector::handlePreconsensusSignatures));

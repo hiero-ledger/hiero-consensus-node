@@ -54,7 +54,8 @@ module com.swirlds.platform.core {
             com.hedera.node.test.clients;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.state.nexus to
-            org.hiero.consensus.reconnect.impl;
+            org.hiero.consensus.reconnect.impl,
+            org.hiero.consensus.transaction.handling; // temporary until state management extracted
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.state.snapshot;
@@ -101,6 +102,7 @@ module com.swirlds.platform.core {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires org.hiero.consensus.transaction.handling;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;

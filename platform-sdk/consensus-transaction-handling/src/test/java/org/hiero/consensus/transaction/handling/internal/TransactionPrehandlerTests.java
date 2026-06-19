@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -8,19 +8,22 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.transaction.handling.PreHandleCallback;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +54,7 @@ class TransactionPrehandlerTests {
         when(signedState.getState()).thenReturn(stateRoot);
 
         final SignedStateNexus latestImmutableStateNexus = mock(SignedStateNexus.class);
-        final ConsensusStateEventHandler consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
+        final PreHandleCallback preHandleCallback = mock(PreHandleCallback.class);
         // return null until returnValidState is set to true. keep track of when the first state retrieval is attempted,
         // so we can assert that prehandle hasn't happened before the state is available
         when(latestImmutableStateNexus.getState(any())).thenAnswer(i -> {
@@ -61,8 +64,10 @@ class TransactionPrehandlerTests {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
         final TransactionPrehandler transactionPrehandler = new DefaultTransactionPrehandler(
-                platformContext, () -> latestImmutableStateNexus.getState("test"), consensusStateEventHandler);
+                metrics, time, () -> latestImmutableStateNexus.getState("test"), preHandleCallback);
 
         final PlatformEvent platformEvent = new TestingEventBuilder(random).build();
 

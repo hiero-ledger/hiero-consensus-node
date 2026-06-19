@@ -51,7 +51,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.pcesModule().flush();
         components.gossipModule().flush();
         components.hashgraphModule().flush();
-        components.applicationTransactionPrehandlerWiring().flush();
+        components.transactionHandlingModule().flush();
         components.eventCreatorModule().flush();
     }
 

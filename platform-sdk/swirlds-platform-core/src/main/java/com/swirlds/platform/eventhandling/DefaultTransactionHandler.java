@@ -55,6 +55,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 
 /**
  * A standard implementation of {@link TransactionHandler}.
@@ -167,12 +168,14 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         final PlatformSchedulersConfig schedulersConfig =
                 platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
+        final TransactionHandlingWiringConfig wiringConfig =
+                platformContext.getConfiguration().getConfigData(TransactionHandlingWiringConfig.class);
 
         // If the CES is using a no-op scheduler then the legacy running event hash won't be computed.
         writeLegacyRunningEventHash = schedulersConfig.consensusEventStream().type() != TaskSchedulerType.NO_OP;
 
         // If the application transaction prehandler is a no-op then we don't need to wait for it.
-        waitForPrehandle = schedulersConfig.applicationTransactionPrehandler().type() != TaskSchedulerType.NO_OP;
+        waitForPrehandle = wiringConfig.prehandler().type() != TaskSchedulerType.NO_OP;
     }
 
     /**

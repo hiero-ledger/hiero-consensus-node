@@ -7,9 +7,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
-import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
-import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -60,7 +58,6 @@ public class PlatformComponentBuilder {
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
-    private TransactionPrehandler transactionPrehandler;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -258,42 +255,6 @@ public class PlatformComponentBuilder {
             signedStateSentinel = new DefaultSignedStateSentinel(blocks.platformContext());
         }
         return signedStateSentinel;
-    }
-
-    /**
-     * Provide a transaction prehandler in place of the platform's default transaction prehandler.
-     *
-     * @param transactionPrehandler the transaction prehandler to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionPrehandler(
-            @NonNull final TransactionPrehandler transactionPrehandler) {
-        throwIfAlreadyUsed();
-        if (this.transactionPrehandler != null) {
-            throw new IllegalStateException("Transaction prehandler has already been set");
-        }
-        this.transactionPrehandler = Objects.requireNonNull(transactionPrehandler);
-        return this;
-    }
-
-    /**
-     * Build the transaction prehandler if it has not yet been built. If one has been provided via
-     * {@link #withTransactionPrehandler(TransactionPrehandler)}, that transaction prehandler will be used. If this
-     * method is called more than once, only the first call will build the transaction prehandler. Otherwise, the
-     * default transaction prehandler will be created and returned.
-     *
-     * @return the transaction prehandler
-     */
-    @NonNull
-    public TransactionPrehandler buildTransactionPrehandler() {
-        if (transactionPrehandler == null) {
-            transactionPrehandler = new DefaultTransactionPrehandler(
-                    blocks.platformContext(),
-                    () -> blocks.latestImmutableStateProviderReference().get().apply("transaction prehandle"),
-                    blocks.consensusStateEventHandler());
-        }
-        return transactionPrehandler;
     }
 
     /**

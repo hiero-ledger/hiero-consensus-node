@@ -22,7 +22,9 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -50,6 +52,8 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.transaction.handling.PreHandleCallback;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 public class ConsensusNoOpModules {
     /**
@@ -265,5 +269,30 @@ public class ConsensusNoOpModules {
                 initialStateRound,
                 latestFreezeRound,
                 fatalErrorConsumer);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link TransactionHandlingModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code TransactionHandlingModule}
+     */
+    @NonNull
+    public static TransactionHandlingModule createNoOpTransactionHandlingModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference = new AtomicReference<>();
+        final PreHandleCallback preHandCallback = (_, _, _) -> {};
+
+        return new TransactionHandlingModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                latestImmutableStateProviderReference,
+                preHandCallback);
     }
 }
