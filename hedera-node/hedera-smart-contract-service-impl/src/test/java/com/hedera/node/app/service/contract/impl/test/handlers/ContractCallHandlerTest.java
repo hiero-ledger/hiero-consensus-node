@@ -23,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -203,7 +204,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
 
@@ -238,7 +240,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);

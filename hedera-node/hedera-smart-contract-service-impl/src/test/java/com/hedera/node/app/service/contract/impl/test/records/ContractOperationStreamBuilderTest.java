@@ -163,7 +163,8 @@ class ContractOperationStreamBuilderTest {
                         List.of(new StorageAccesses(
                                 ContractID.DEFAULT,
                                 List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
-                        null));
+                        null),
+                CodeDelegationResult.EMPTY);
         given(context.configuration()).willReturn(blocksOnlyConfig);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
