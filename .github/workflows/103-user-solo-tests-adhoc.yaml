@@ -23,6 +23,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
           - "075-to-076-tss"
+          - "076-to-077-cutover"
       cluster-target:
         description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
         required: true
@@ -53,6 +54,11 @@ on:
         default: ""
       tss-upgrade-tag:
         description: "[075-to-076-tss] Consensus-node release tag to upgrade the 0.75 network to. Blank → v0.76.0-rc.1; 'local' → the local build from the checked-out ref; or any release tag."
+        required: false
+        type: string
+        default: ""
+      cutover-076-to-077-starting-tag:
+        description: "[076-to-077-cutover] Consensus-node release tag for the initial 0.76 network deploy. The 0.77 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.76.0-rc.1."
         required: false
         type: string
         default: ""
@@ -592,6 +598,142 @@ jobs:
           path: |
             ${{ runner.temp }}/075-to-076-tss-script.log
             ${{ runner.temp }}/075-to-076-tss-diagnostics/**
+            hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() && inputs.cluster-target == 'kind' }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+  solo-076-to-077-cutover:
+    name: "Solo 0.76 -> 0.77 BLOCKS Cutover"
+    needs:
+      - extract-jdk-version
+    if: ${{ inputs.scenario == '076-to-077-cutover' }}
+    runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 120
+    env:
+      SOLO_CLUSTER_NAME: "cutover-076-to-077"
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "22"
+
+      - name: Checkout Block Node (main)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hiero-ledger/hiero-block-node
+          ref: main
+          path: hiero-block-node
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          kubectl version --client=true
+
+      - name: Install grpcurl
+        run: |
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
+          rm grpcurl.tar.gz
+          grpcurl --version
+
+      - name: Build Consensus Node Local Artifacts
+        # The 0.77 cutover always upgrades to the local build, so a build is always required.
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Run 0.76 -> 0.77 BLOCKS Cutover Scenario
+        run: |
+          set -eo pipefail
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-076-to-077-cutover.sh"
+          chmod +x "${SCRIPT_PATH}"
+          timeout --signal=SIGINT --kill-after=5m 100m \
+            env \
+              BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
+              DEPLOY_RELEASE_TAG="${{ inputs.cutover-076-to-077-starting-tag || 'v0.76.0-rc.1' }}" \
+            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/076-to-077-cutover-script.log"
+
+      - name: Collect Diagnostics On Failure
+        if: ${{ !cancelled() && failure() }}
+        run: |
+          set +e
+          OUT_DIR="${RUNNER_TEMP}/076-to-077-cutover-diagnostics"
+          mkdir -p "${OUT_DIR}"
+
+          kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
+          kubectl get svc -A > "${OUT_DIR}/kubectl-services.txt" 2>&1
+          kubectl get events -A --sort-by=.lastTimestamp > "${OUT_DIR}/kubectl-events.txt" 2>&1
+          kubectl -n "${SOLO_NAMESPACE}" logs "pod/block-node-1-0" --all-containers --tail=-1 \
+            > "${OUT_DIR}/block-node-1-0.log" 2>&1
+
+          for node in node1 node2 node3 node4; do
+            pod="network-${node}-0"
+            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" -c root-container --tail=-1 > "${OUT_DIR}/${pod}-root-container.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
+              > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+          done
+
+          if [[ -d "${HOME}/.solo/logs" ]]; then
+            mkdir -p "${OUT_DIR}/solo-logs"
+            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+          fi
+
+      - name: Upload 076-to-077 Cutover Failure Artifacts
+        if: ${{ !cancelled() && failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: 076-to-077-Cutover-Failure-Artifacts
+          path: |
+            ${{ runner.temp }}/076-to-077-cutover-script.log
+            ${{ runner.temp }}/076-to-077-cutover-diagnostics/**
             hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
           if-no-files-found: warn
           retention-days: 7
