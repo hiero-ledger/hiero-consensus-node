@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newReadableStoreWithTokens;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.DELETED_TOKEN;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.KNOWN_TOKEN_IMMUTABLE;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY;
@@ -28,11 +29,15 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -317,6 +322,48 @@ class TokenAssociateToAccountHandlerTest {
             Assertions.assertThat(nextToHeadTokenRel.previousToken()).isEqualTo(toPbj(KNOWN_TOKEN_WITH_WIPE));
             Assertions.assertThat(nextToHeadTokenRel.tokenId()).isEqualTo(toPbj(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY));
             Assertions.assertThat(nextToHeadTokenRel.nextToken()).isNull();
+        }
+
+        @Test
+        void emptyKeyListKycAndFreezeKeysCountAsAbsentForNewRelations() {
+            // A token whose KYC and freeze keys are the empty key list (the HIP-540 removal
+            // sentinel, i.e. the functions are disabled) must yield the same relation defaults as
+            // a token without those keys: KYC granted and unfrozen. Otherwise the new relation
+            // would start frozen or KYC-revoked with no key ever able to unfreeze it or grant KYC.
+            final var sentinel = Key.newBuilder().keyList(KeyList.DEFAULT).build();
+            readableTokenStore = newReadableStoreWithTokens(Token.newBuilder()
+                    .tokenId(TOKEN_300)
+                    .tokenType(TokenType.FUNGIBLE_COMMON)
+                    .treasuryAccountId(ACCOUNT_888)
+                    .kycKey(sentinel)
+                    .freezeKey(sentinel)
+                    .accountsFrozenByDefault(true)
+                    .build());
+            mockContext();
+            given(context.storeFactory()).willReturn(storeFactory);
+            final var newAcctId = AccountID.newBuilder().accountNum(12345L).build();
+            writableAccountStore.put(Account.newBuilder()
+                    .accountId(newAcctId)
+                    .headTokenId(TokenID.DEFAULT)
+                    .build());
+            final var txn = TransactionBody.newBuilder()
+                    .transactionID(
+                            TransactionID.newBuilder().accountID(ACCOUNT_888).build())
+                    .tokenAssociate(TokenAssociateTransactionBody.newBuilder()
+                            .account(newAcctId)
+                            .tokens(TOKEN_300)
+                            .build())
+                    .build();
+            given(context.body()).willReturn(txn);
+            given(storeFactory.writableStore(WritableAccountStore.class)).willReturn(writableAccountStore);
+            given(storeFactory.writableStore(WritableTokenRelationStore.class)).willReturn(writableTokenRelStore);
+
+            subject.handle(context);
+
+            final var newRel = writableTokenRelStore.get(newAcctId, TOKEN_300);
+            Assertions.assertThat(newRel).isNotNull();
+            Assertions.assertThat(newRel.kycGranted()).isTrue();
+            Assertions.assertThat(newRel.frozen()).isFalse();
         }
 
         @Test

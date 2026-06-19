@@ -18,7 +18,6 @@ import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -118,13 +117,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     @Override
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
-        // If fees are turned off globally then return empty FeeResult
-        if (simpleFeeContext.feeContext() != null && simpleFeeContext.configuration() != null) {
-            final var config = simpleFeeContext.configuration().getConfigData(FeesConfig.class);
-            if (config != null && config.simpleFeesAreFree()) {
-                return new FeeResult();
-            }
-        }
         // Extract primitive counts (no allocations)
         final long signatures = simpleFeeContext.numTxnSignatures();
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
@@ -142,10 +134,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
             result.setNetworkMultiplier(multiplier);
         }
-        // If this service is free then return just what we have so far (node + network)
-        if (serviceFeeDefinition != null && serviceFeeDefinition.free()) {
-            return result;
-        }
+
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
@@ -219,10 +208,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Returns {@code true} when the high-volume feature is fully enabled, by checking both the
-     * {@code fees.simpleFeesEnabled} and {@code networkAdmin.highVolumeThrottlesEnabled} flags
-     * against the current configuration.  This mirrors the ingest-time guard in {@code IngestChecker}
-     * so that a config change between ingest and consensus cannot silently bypass the feature gate.
+     * Returns {@code true} when the high-volume feature is enabled, by checking the
+     * {@code networkAdmin.highVolumeThrottlesEnabled} flag against the current configuration.  This
+     * mirrors the ingest-time guard in {@code IngestChecker} so that a config change between ingest
+     * and consensus cannot silently bypass the feature gate.
      * Returns {@code false} when no {@link FeeContext} is available (standalone calculator).
      */
     private boolean isHighVolumeFeatureEnabled(@NonNull final SimpleFeeContext simpleFeeContext) {
@@ -231,8 +220,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             return false;
         }
         final var config = feeContext.configuration();
-        return config.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                && config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+        return config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
     }
 
     @Override
@@ -242,8 +230,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             return DEFAULT_HIGH_VOLUME_MULTIPLIER;
         }
         final var config = feeContext.configuration();
-        if (!(config.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                && config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled())) {
+        if (!config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled()) {
             return DEFAULT_HIGH_VOLUME_MULTIPLIER;
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);

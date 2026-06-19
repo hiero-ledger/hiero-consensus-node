@@ -51,9 +51,10 @@ public interface QueryModule {
     static SystemContractGasCalculator provideSystemContractGasCalculator(
             @NonNull final CanonicalDispatchPrices canonicalDispatchPrices,
             @NonNull final TinybarValues tinybarValues) {
-        return new SystemContractGasCalculator(tinybarValues, canonicalDispatchPrices, (body, payerId) -> {
-            throw new IllegalStateException("Queries should fail before dispatching a child transaction");
-        });
+        return new SystemContractGasCalculator(
+                tinybarValues, canonicalDispatchPrices, (body, payerId, signatureMap) -> {
+                    throw new IllegalStateException("Queries should fail before dispatching a child transaction");
+                });
     }
 
     @Provides
@@ -95,7 +96,6 @@ public interface QueryModule {
         // as neither is usable by any operation permitted in a static context
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
-                true,
                 true,
                 hederaEvmBlocks,
                 tinybarValues,

@@ -1,7 +1,10 @@
+{{- $result := getenv "RESULT" | required "RESULT must be set" -}}
+{{- $color := "#FF0000" -}}
+{{- if eq $result "success" -}}{{- $color = "#00FF00" -}}{{- else if eq $result "cancelled" -}}{{- $color = "#555555" -}}{{- end -}}
 {
   "attachments": [
     {
-      "color": {{ getenv "SLACK_COLOR" | required "SLACK_COLOR must be set" | data.ToJSON }},
+      "color": {{ $color | data.ToJSON }},
       "blocks": [
         {
           "type": "header",

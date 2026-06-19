@@ -1,7 +1,7 @@
 ---
+type: concept
 title: Stale events
-kind: concept
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Stale events

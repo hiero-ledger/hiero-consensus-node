@@ -5,8 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -50,11 +48,5 @@ public class NetworkUncheckedSubmitHandler implements TransactionHandler {
         // because preHandle will always throw
         requireNonNull(context);
         throw new HandleException(NOT_SUPPORTED);
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(final FeeContext feeContext) {
-        return Fees.FREE;
     }
 }
