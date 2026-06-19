@@ -685,6 +685,25 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void acceptsSentinelWipeKey() {
+        // The empty-KeyList sentinel is accepted on TokenCreate and stored verbatim; it counts as
+        // "no key" so the wipe function is disabled (the privileged handlers treat an empty key as
+        // absent and cannot re-add it, matching HIP-540's treatment of a removed key).
+        setUpTxnContext();
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
+                .willReturn(new ExpiryMeta(
+                        consensusInstant.plusSeconds(autoRenewSecs).getEpochSecond(),
+                        autoRenewSecs,
+                        autoRenewAccountId));
+        txn = new TokenCreateBuilder().withWipeKey(IMMUTABILITY_SENTINEL_KEY).build();
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+        assertThat(writableTokenStore.get(newTokenId).wipeKey()).isEqualTo(IMMUTABILITY_SENTINEL_KEY);
+    }
+
+    @Test
     void failsForInvalidFreezeKey() {
         setUpTxnContext();
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
@@ -711,6 +730,21 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenCreateBuilder().withFreezeDefault().build();
         given(pureChecksContext.body()).willReturn(txn);
         assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    void failsIfFreezeDefaultAndEmptyKeyListFreezeKey() {
+        // An empty key list freeze key (the HIP-540 removal sentinel) counts as "no freeze key":
+        // a freeze-default token would otherwise create relations no key could ever unfreeze.
+        setUpTxnContext();
+        txn = new TokenCreateBuilder()
+                .withFreezeDefault()
+                .withFreezeKey(IMMUTABILITY_SENTINEL_KEY)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_HAS_NO_FREEZE_KEY));
     }
 
     @Test
@@ -815,6 +849,21 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         txn = new TokenCreateBuilder().withUniqueToken().build();
         given(pureChecksContext.body()).willReturn(txn);
         assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    void failsOnEmptyKeyListSupplyKeyOnNftCreateInPureChecks() {
+        // An empty key list supply key (the HIP-540 removal sentinel) counts as "no supply key":
+        // an NFT created with it could never be minted.
+        setUpTxnContext();
+        txn = new TokenCreateBuilder()
+                .withUniqueToken()
+                .withSupplyKey(IMMUTABILITY_SENTINEL_KEY)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_HAS_NO_SUPPLY_KEY));
     }
 
     @Test

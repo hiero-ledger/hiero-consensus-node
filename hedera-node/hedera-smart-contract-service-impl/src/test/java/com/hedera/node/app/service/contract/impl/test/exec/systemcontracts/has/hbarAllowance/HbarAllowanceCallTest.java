@@ -11,19 +11,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator.FeeCalculatorFunction;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.math.BigInteger;
-import java.util.function.ToLongBiFunction;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -43,7 +41,7 @@ class HbarAllowanceCallTest extends CallTestBase {
     private CanonicalDispatchPrices dispatchPrices;
 
     @Mock
-    private ToLongBiFunction<TransactionBody, AccountID> feeCalculator;
+    private FeeCalculatorFunction feeCalculator;
 
     @Test
     void revertsWithNoOwner() {

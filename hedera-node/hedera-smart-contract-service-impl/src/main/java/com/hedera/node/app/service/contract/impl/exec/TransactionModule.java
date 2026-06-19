@@ -86,8 +86,8 @@ public interface TransactionModule {
             @NonNull final CanonicalDispatchPrices canonicalDispatchPrices,
             @NonNull final TinybarValues tinybarValues) {
         return new SystemContractGasCalculator(
-                tinybarValues, canonicalDispatchPrices, (body, payerId) -> context.dispatchComputeFees(
-                                body, payerId, ComputeDispatchFeesAsTopLevel.NO)
+                tinybarValues, canonicalDispatchPrices, (body, payerId, signatureMap) -> context.dispatchComputeFees(
+                                body, payerId, ComputeDispatchFeesAsTopLevel.NO, signatureMap)
                         .totalFee());
     }
 

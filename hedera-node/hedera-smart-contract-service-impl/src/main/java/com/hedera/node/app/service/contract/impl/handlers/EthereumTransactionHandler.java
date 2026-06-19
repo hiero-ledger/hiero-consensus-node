@@ -5,10 +5,11 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.getTransactionType;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
@@ -19,8 +20,11 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.nonNull;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
@@ -38,8 +42,7 @@ import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStre
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -90,11 +93,22 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // Ignore the return value; we just want to cache the signature for use in handle()
-        computeEthTxSigsFor(
-                context.body().ethereumTransactionOrThrow(),
-                context.createStore(ReadableFileStore.class),
-                context.configuration());
+        final var config = context.configuration().getConfigData(HederaConfig.class);
+        final var fileStore = context.createStore(ReadableFileStore.class);
+        final var accountStore = context.createStore(ReadableAccountStore.class);
+        final var ethSigs = computeEthTxSigsFor(context.body().ethereumTransactionOrThrow(), fileStore, config);
+        final var account = accountStore.getAliasedAccountById(AccountID.newBuilder()
+                .shardNum(config.shard())
+                .realmNum(config.realm())
+                .alias(Bytes.wrap(ethSigs.address()))
+                .build());
+
+        // If there is no account at the sender alias, the sender may be completing a hollow account.
+        // Otherwise, for finalized accounts with a top-level ECDSA key, verify the signature matches.
+        if (account != null && !isHollow(account)) {
+            final var adminKey = account.keyOrThrow();
+            validateTruePreCheck(adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_SIGNATURE);
+        }
         // Also validate the transaction type
         validateTransactionType(context.body().ethereumTransactionOrThrow(), context.configuration());
     }
@@ -178,7 +192,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         requireNonNull(config);
         requireNonNull(fileStore);
         try {
-            return computeEthTxSigsFor(op, fileStore, config);
+            return computeEthTxSigsFor(op, fileStore, config.getConfigData(HederaConfig.class));
         } catch (PreCheckException ignore) {
             return null;
         }
@@ -231,23 +245,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
     }
 
-    @Override
-    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(
-                        sigValueObj -> usageEstimator.getEthereumTransactionFeeMatrices(fromPbj(body), sigValueObj));
-    }
-
     private EthTxSigs computeEthTxSigsFor(
             @NonNull final EthereumTransactionBody op,
             @NonNull final ReadableFileStore fileStore,
-            @NonNull final Configuration config)
+            @NonNull final HederaConfig hederaConfig)
             throws PreCheckException {
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
         final var hydratedTx = callDataHydration.tryToHydrate(op, fileStore, hederaConfig.firstUserEntity());
         validateTruePreCheck(hydratedTx.status() == OK, hydratedTx.status());
         final var ethTxData = hydratedTx.ethTxData();
@@ -258,6 +260,24 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             // Ignore and translate any signature computation exception
             throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
         }
+    }
+
+    @VisibleForTesting
+    public static boolean adminKeyMatchesEcdsaPubKey(
+            @NonNull final Key adminKey, @NonNull final byte[] compressedPubKey) {
+        if (adminKey.key().kind() != KeyOneOfType.ECDSA_SECP256K1) {
+            return false;
+        }
+        final var adminBytes = adminKey.ecdsaSecp256k1();
+        if (adminBytes.length() != compressedPubKey.length) {
+            return false;
+        }
+        for (int i = 0; i < compressedPubKey.length; i++) {
+            if (adminBytes.getByte(i) != compressedPubKey[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

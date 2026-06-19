@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTED_RANDOM_NUMBER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PRECOMPILE_CONTRACT_FAILED_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PRECOMPILE_CONTRACT_SUCCESS_RESULT;
@@ -27,6 +26,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhance
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import org.apache.tuweni.bytes.Bytes;
@@ -43,6 +44,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PrngSystemContractTest {
 
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
     private static final long GAS_REQUIRED = 200L;
 
     @Mock
@@ -196,7 +200,7 @@ class PrngSystemContractTest {
                 .willReturn(systemContractGasCalculator);
         lenient()
                 .when(initialFrame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
-                .thenReturn(DEFAULT_CONFIG);
+                .thenReturn(BOTH_MODE_CONFIG);
         stack.push(initialFrame);
         stack.addFirst(messageFrame);
         given(messageFrame.getMessageFrameStack()).willReturn(stack);

@@ -5,10 +5,13 @@ import static java.lang.System.Logger.Level.WARNING;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import org.hiero.metrics.core.DoubleMeasurementSnapshot;
 import org.hiero.metrics.core.Label;
 import org.hiero.metrics.core.LabelValues;
@@ -59,7 +62,9 @@ class OpenMetricsWriter {
     private final DecimalFormat formatter;
 
     public OpenMetricsWriter(String decimalFormat) {
-        formatter = new DecimalFormat(decimalFormat);
+        formatter = new DecimalFormat(decimalFormat, DecimalFormatSymbols.getInstance(Locale.ROOT));
+        formatter.setGroupingUsed(false);
+        formatter.setRoundingMode(RoundingMode.HALF_UP);
     }
 
     public final void write(MetricRegistrySnapshot registrySnapshot, OutputStream output) throws IOException {

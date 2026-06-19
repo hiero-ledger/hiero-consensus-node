@@ -23,7 +23,6 @@ import static org.mockito.Mockito.when;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.fungibletokeninfo.FungibleTokenInfoCall;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.Collections;
 import org.apache.tuweni.bytes.Bytes;
@@ -38,14 +37,10 @@ class FungibleTokenInfoCallTest extends CallTestBase {
     @Mock
     private Configuration config;
 
-    @Mock
-    private LedgerConfig ledgerConfig;
-
     @Test
     void returnsFungibleTokenInfoStatusForPresentToken() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject = new FungibleTokenInfoCall(
                 gasCalculator,
@@ -91,9 +86,8 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
     @Test
     void returnsFungibleTokenInfoStatusForPresentTokenV2() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject = new FungibleTokenInfoCall(
                 gasCalculator,
@@ -141,9 +135,8 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
     @Test
     void returnsFungibleTokenInfoStatusForMissingToken() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject = new FungibleTokenInfoCall(
                 gasCalculator, mockEnhancement(), false, null, config, FUNGIBLE_TOKEN_INFO.function());
@@ -184,9 +177,6 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
     @Test
     void returnsFungibleTokenInfoStatusForMissingTokenStaticCall() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
-        when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
-
         final var subject = new FungibleTokenInfoCall(
                 gasCalculator, mockEnhancement(), true, null, config, FUNGIBLE_TOKEN_INFO.function());
 
@@ -198,9 +188,6 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
     @Test
     void returnsFungibleTokenInfoStatusForMissingTokenStaticCallV2() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
-        when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
-
         final var subject = new FungibleTokenInfoCall(
                 gasCalculator, mockEnhancement(), true, null, config, FUNGIBLE_TOKEN_INFO_16C.function());
 

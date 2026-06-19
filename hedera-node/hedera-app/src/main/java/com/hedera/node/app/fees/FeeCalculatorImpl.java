@@ -26,8 +26,6 @@ import com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -36,7 +34,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
@@ -233,15 +230,6 @@ public class FeeCalculatorImpl implements FeeCalculator {
             usage.reset();
         }
         return this;
-    }
-
-    @NonNull
-    @Override
-    public Fees legacyCalculate(@NonNull Function<SigValueObj, com.hederahashgraph.api.proto.java.FeeData> callback) {
-        final var sigValueObject = new SigValueObj(sigUsage.numSigs(), sigUsage.numPayerKeys(), sigUsage.sigsSize());
-        final var matrix = callback.apply(sigValueObject);
-        final var feeObject = FeeBuilder.getFeeObject(feeData, matrix, currentRate, 1);
-        return new Fees(feeObject.nodeFee(), feeObject.networkFee(), feeObject.serviceFee());
     }
 
     @Override

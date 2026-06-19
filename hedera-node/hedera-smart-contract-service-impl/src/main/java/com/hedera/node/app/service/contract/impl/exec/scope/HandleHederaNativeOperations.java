@@ -266,6 +266,12 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
         return context.configuration();
     }
 
+    @NonNull
+    @Override
+    public Bytes ledgerId() {
+        return context.ledgerId();
+    }
+
     /**
      * {@inheritDoc}
      */

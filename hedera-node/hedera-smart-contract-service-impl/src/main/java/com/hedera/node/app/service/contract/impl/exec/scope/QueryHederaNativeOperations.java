@@ -197,6 +197,12 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
         return context.configuration();
     }
 
+    @NonNull
+    @Override
+    public Bytes ledgerId() {
+        return context.ledgerId();
+    }
+
     @Override
     public <T> T createNewChildRecordBuilder(
             @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {

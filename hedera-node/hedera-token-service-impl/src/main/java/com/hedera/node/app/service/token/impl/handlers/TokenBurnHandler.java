@@ -9,20 +9,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_BURN_META
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TREASURY_MUST_OWN_BURNED_NFT;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator.verifyTokenInstanceAmounts;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -32,8 +29,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenBurnStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -109,7 +104,8 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         final var treasuryRel = validated.tokenTreasuryRel();
         final var token = validated.token();
 
-        if (token.hasKycKey()) {
+        // An empty key list (the HIP-540 removal sentinel) disables KYC, so it counts as "no KYC key".
+        if (!isEmpty(token.kycKey())) {
             validateTrue(treasuryRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
         }
 
@@ -165,22 +161,6 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         tokenBurnStreamBuilderRecord.tokenType(token.tokenType());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenBurnUsageFrom(CommonPbjConverters.fromPbj(op));
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(
-                        meta.getSerialNumsCount() > 0
-                                ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE
-                                : SubType.TOKEN_FUNGIBLE_COMMON)
-                .addBytesPerTransaction(meta.getBpt())
-                .addNetworkRamByteSeconds(meta.getTransferRecordDb() * USAGE_PROPERTIES.legacyReceiptStorageSecs())
-                .calculate();
-    }
-
     private ValidationResult validateSemantics(
             @NonNull final TokenID tokenId,
             final long fungibleBurnCount,
@@ -193,7 +173,9 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         validator.validateBurn(fungibleBurnCount, nftSerialNums, tokensConfig);
 
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
-        validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the supply function is disabled; it
+        // must be treated as "no supply key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.supplyKey()), TOKEN_HAS_NO_SUPPLY_KEY);
 
         final var treasuryAcctId = token.treasuryAccountId();
         final var treasuryRel = TokenHandlerHelper.getIfUsable(treasuryAcctId, tokenId, tokenRelStore);
@@ -204,5 +186,6 @@ public final class TokenBurnHandler extends BaseTokenHandler implements Transact
         return ownerID == null;
     }
 
-    private record ValidationResult(@NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
+    private record ValidationResult(
+            @NonNull Token token, @NonNull TokenRelation tokenTreasuryRel) {}
 }

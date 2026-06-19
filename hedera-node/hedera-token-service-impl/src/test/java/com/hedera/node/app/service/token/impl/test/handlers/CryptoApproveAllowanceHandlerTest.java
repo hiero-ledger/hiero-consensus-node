@@ -21,10 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
@@ -37,17 +34,12 @@ import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoApproveAllowanceHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -596,67 +588,6 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_PAYER_ACCOUNT_ID));
-    }
-
-    @Test
-    void calculateFeesHappyPath() {
-        final var txn = cryptoApproveAllowanceTransaction(
-                payerId,
-                Timestamp.newBuilder().seconds(account.expirationSecond() - 1).build(),
-                false,
-                List.of(cryptoAllowance),
-                List.of(tokenAllowance),
-                List.of(nftAllowance));
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-        given(feeCtx.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-        given(feeCtx.payer()).willReturn(payerId);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(128);
-        verify(feeCalc).addRamByteSeconds(112);
-    }
-
-    @Test
-    void calculateFeesAccountNotFound() {
-        final var txn = cryptoApproveAllowanceTransaction(
-                payerId,
-                Timestamp.newBuilder().seconds(account.expirationSecond() - 1).build(),
-                false,
-                List.of(cryptoAllowance),
-                List.of(tokenAllowance),
-                List.of(nftAllowance));
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-        given(feeCtx.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-        given(feeCtx.payer())
-                .willReturn(AccountID.newBuilder().accountNum(Long.MAX_VALUE).build());
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(128);
-        verify(feeCalc).addRamByteSeconds(0);
     }
 
     @Test

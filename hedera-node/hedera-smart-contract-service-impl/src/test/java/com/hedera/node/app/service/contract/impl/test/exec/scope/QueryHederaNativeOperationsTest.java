@@ -145,6 +145,13 @@ class QueryHederaNativeOperationsTest {
     }
 
     @Test
+    void ledgerId_delegatesToContext() {
+        final var expected = Bytes.fromHex("deadbeef");
+        given(context.ledgerId()).willReturn(expected);
+        assertEquals(expected, subject.ledgerId());
+    }
+
+    @Test
     void createNewChildRecordBuilderTest() {
         assertThrows(
                 UnsupportedOperationException.class,

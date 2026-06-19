@@ -19,9 +19,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -89,7 +89,8 @@ public class Evm38ValidationSuite {
         final var function = getABIFor(FUNCTION, "getIndirect", CREATE_TRIVIAL);
 
         return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.5555"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 5555L))),
                 contractCallWithFunctionAbi("invalid", function).hasKnownStatus(INVALID_CONTRACT_ID));
     }
 
@@ -145,7 +146,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, BALANCE_OF, asHeadlongAddress(INVALID_ADDRESS))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(ACCOUNT);
                     final var contractID = spec.registry().getContractId(contract);
 
@@ -189,7 +190,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, "callCode", asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var solidityAddress = asHexedSolidityAddress(id);
 
@@ -213,7 +214,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, "call", asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(ACCOUNT);
 
                     final var contractCall = contractCall(
@@ -249,7 +250,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, "delegateCall", asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var solidityAddress = asHexedSolidityAddress(id);
 
@@ -277,7 +278,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, codeCopyOf, asHeadlongAddress(invalidAddress))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountID = spec.registry().getAccountID(account);
                     final var contractID = spec.registry().getContractId(contract);
                     final var accountSolidityAddress = asHexedSolidityAddress(accountID);
@@ -326,7 +327,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, sizeOf, asHeadlongAddress(invalidAddress))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountID = spec.registry().getAccountID(account);
                     final var contractID = spec.registry().getContractId(contract);
                     final var accountSolidityAddress = asHexedSolidityAddress(accountID);
@@ -383,7 +384,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, hashOf, asHeadlongAddress(invalidAddress))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountID = spec.registry().getAccountID(account);
                     final var contractID = spec.registry().getContractId(contract);
                     final var accountSolidityAddress = asHexedSolidityAddress(accountID);
@@ -429,7 +430,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, STATIC_CALL, asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var solidityAddress = asHexedSolidityAddress(id);
 
@@ -486,7 +487,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS)
                         .payingWith(GENESIS)
                         .via(mirrorCall)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var mirrorLookup = getTxnRecord(mirrorCall);
                     allRunFor(spec, mirrorLookup);
                     final var mirrorResult = mirrorLookup

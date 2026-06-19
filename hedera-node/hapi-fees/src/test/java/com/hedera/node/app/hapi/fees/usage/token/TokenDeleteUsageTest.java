@@ -27,7 +27,7 @@ class TokenDeleteUsageTest {
     private final int sigSize = 100;
     private final int numPayerKeys = 1;
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
-    private final TokenID id = IdUtils.asToken("0.0.75231");
+    private final TokenID id = IdUtils.asToken(75231L);
 
     private TokenDeleteTransactionBody op;
     private TransactionBody txn;

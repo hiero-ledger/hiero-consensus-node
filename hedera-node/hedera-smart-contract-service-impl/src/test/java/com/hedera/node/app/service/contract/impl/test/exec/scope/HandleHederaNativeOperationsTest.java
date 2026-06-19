@@ -396,6 +396,13 @@ class HandleHederaNativeOperationsTest {
     }
 
     @Test
+    void ledgerId_delegatesToContext() {
+        final var expected = Bytes.fromHex("deadbeef");
+        given(context.ledgerId()).willReturn(expected);
+        assertEquals(expected, subject.ledgerId());
+    }
+
+    @Test
     void createNewChildRecordBuilderUsesSavepointStack() {
         @SuppressWarnings("unchecked")
         final var savepointStack = mock(com.hedera.node.app.spi.workflows.HandleContext.SavepointStack.class);

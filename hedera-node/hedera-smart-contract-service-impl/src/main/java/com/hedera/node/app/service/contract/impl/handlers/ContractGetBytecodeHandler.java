@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
@@ -26,7 +25,6 @@ import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -108,20 +106,6 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         return Response.newBuilder()
                 .contractGetBytecodeResponse(contractGetBytecode)
                 .build();
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        var effectiveBytecode = bytecodeFrom(context);
-        if (effectiveBytecode == null) {
-            effectiveBytecode = Bytes.EMPTY;
-        }
-        final var op = getOperation(context);
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var usage = feeBuilder.getContractByteCodeQueryFeeMatrices(
-                (int) effectiveBytecode.length(), fromPbjResponseType(responseType));
-        return context.feeCalculator().legacyCalculate(_ -> usage);
     }
 
     /**

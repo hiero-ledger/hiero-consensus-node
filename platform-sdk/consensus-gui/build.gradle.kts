@@ -11,3 +11,6 @@ testModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("com.swirlds.config.extensions.test.fixtures")
 }
+
+// TODO add real tests to 'src/test/java' or remove 'src/test/java'
+tasks.test { failOnNoDiscoveredTests = false }

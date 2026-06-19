@@ -29,7 +29,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.NftTokenInfoCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.nfttokeninfo.address_0x167.NftTokenInfoTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.Collections;
 import org.apache.tuweni.bytes.Bytes;
@@ -44,14 +43,10 @@ class NftTokenInfoCallTest extends CallTestBase {
     @Mock
     private Configuration config;
 
-    @Mock
-    private LedgerConfig ledgerConfig;
-
     @Test
     void returnsNftTokenInfoStatusForPresentToken() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
         when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN.tokenId(), 2L)).thenReturn(CIVILIAN_OWNED_NFT);
 
         when(nativeOperations.getAccount(CIVILIAN_OWNED_NFT.ownerIdOrThrow())).thenReturn(SOMEBODY);
@@ -107,9 +102,8 @@ class NftTokenInfoCallTest extends CallTestBase {
 
     @Test
     void returnsNftTokenInfoStatusForPresentTokenV2() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
         when(nativeOperations.getNft(FUNGIBLE_EVERYTHING_TOKEN_16C.tokenId(), 2L))
                 .thenReturn(CIVILIAN_OWNED_NFT);
 
@@ -168,9 +162,8 @@ class NftTokenInfoCallTest extends CallTestBase {
 
     @Test
     void returnsNftTokenInfoStatusForMissingToken() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject = new NftTokenInfoCall(
                 gasCalculator, mockEnhancement(), false, null, 0L, config, NON_FUNGIBLE_TOKEN_INFO.function());

@@ -14,7 +14,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import java.io.IOException;
@@ -49,9 +48,6 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @Test
     @DisplayName("Test rehash is skipped if first leaf hash matches")
     void testRehashSkippedIfHashMatches() throws IOException {
-        final int chunkHeight =
-                CONFIGURATION.getConfigData(VirtualMapConfig.class).hashChunkHeight();
-
         VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
         metadata.setLastLeafPath(1);
@@ -61,7 +57,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
         // Prepare data in data source
         VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
         Hash hash1 = hash(leaf1);
-        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
+        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, dataSource.getHashChunkHeight());
         chunk0.setHashAtPath(1, hash1);
         dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
 
@@ -75,9 +71,6 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @Test
     @DisplayName("Test rehash is triggered if first leaf hash does not match")
     void testRehashTriggeredIfHashMismatches() throws IOException {
-        final int chunkHeight =
-                CONFIGURATION.getConfigData(VirtualMapConfig.class).hashChunkHeight();
-
         VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
         metadata.setLastLeafPath(2);
@@ -95,7 +88,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
         VirtualLeafBytes<TestValue> leaf2 = bananaLeaf(2);
         Hash correctHash2 = hash(leaf2);
 
-        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
+        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, dataSource.getHashChunkHeight());
         chunk0.setHashAtPath(1, wrongHash);
         chunk0.setHashAtPath(2, wrongHash);
         // Save with wrong hashes. Using a separate dataSource instance and builder to avoid any caching issues.
@@ -140,9 +133,8 @@ class VirtualMapRehashTest extends VirtualTestBase {
         chunk0.setHashAtPath(1, wrongHash);
         dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
 
-        // This should throw MerkleSynchronizationException caused by TimeoutException
-        final MerkleSynchronizationException exception =
-                assertThrows(MerkleSynchronizationException.class, vm::fullLeafRehashIfNecessary);
+        // This should throw RuntimeException caused by TimeoutException
+        final RuntimeException exception = assertThrows(RuntimeException.class, vm::fullLeafRehashIfNecessary);
         assertInstanceOf(
                 TimeoutException.class,
                 exception.getCause(),

@@ -32,11 +32,6 @@ import java.time.Duration;
  *                                               then there is no limit.
  * @param teacherRateLimiterSleep                The amount of time that a teacher will sleep when throttling is
  *                                               engaged
- * @param pullLearnerRootResponseTimeout         In pull-based reconnect implementations, the timeout on the learner
- *                                               side to get a virtual root node response from teacher
- * @param allMessagesReceivedTimeout             In pull-based reconnect implementations, the timeout on the learner
- *                                               side to wait until all virtual view messages are completely processed,
- *                                               after the teacher sent a final response
  */
 @ConfigData("reconnect")
 public record ReconnectConfig(
@@ -49,6 +44,4 @@ public record ReconnectConfig(
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
         @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
         @ConfigProperty(defaultValue = "0") int teacherMaxNodesPerSecond,
-        @ConfigProperty(defaultValue = "1us") Duration teacherRateLimiterSleep,
-        @ConfigProperty(defaultValue = "60s") Duration pullLearnerRootResponseTimeout,
-        @ConfigProperty(defaultValue = "300s") Duration allMessagesReceivedTimeout) {}
+        @ConfigProperty(defaultValue = "1us") Duration teacherRateLimiterSleep) {}

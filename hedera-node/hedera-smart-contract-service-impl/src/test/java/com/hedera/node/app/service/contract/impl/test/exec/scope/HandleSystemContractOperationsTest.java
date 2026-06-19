@@ -196,7 +196,10 @@ class HandleSystemContractOperationsTest {
                 AccountID.newBuilder().build());
 
         // given
-        given(context.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("blockStream.streamMode", "BOTH")
+                        .getOrCreateConfig());
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL))
                 .willReturn(streamBuilder);

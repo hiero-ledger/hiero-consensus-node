@@ -27,6 +27,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -290,6 +291,18 @@ public interface HederaNativeOperations {
      * @return the {@link Configuration}
      */
     Configuration configuration();
+
+    /**
+     * Returns the ledger id to use when encoding system contract responses. By default this is the configured ledger
+     * id; implementations may override it with an externalized ledger id from state when one is available so that EVM
+     * precompiles agree with the {@code ledgerId} returned by GRPC query responses.
+     *
+     * @return the ledger id to surface
+     */
+    @NonNull
+    default Bytes ledgerId() {
+        return configuration().getConfigData(LedgerConfig.class).id();
+    }
 
     /**
      * Creates a new child record builder for the given functionality.
