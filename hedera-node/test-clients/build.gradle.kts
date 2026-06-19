@@ -219,21 +219,18 @@ val prCheckPropOverrides =
         "hapiTestCryptoSerial" to
             "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        // hapiTestRestart runs history-enabled (the production default), like every other GRPC job.
-        // With
-        // forceMockSignatures=false the block proofs are real hinTS signatures, and the real block
-        // node can
-        // only verify them once it learns the network's ledger ID — which the consensus node
-        // publishes (a
-        // LedgerIdPublication) ONLY when history is enabled. With historyEnabled=false the ledger
-        // ID is never
-        // published, the block node rejects every proof as BAD_BLOCK_PROOF, the block buffer
-        // saturates and
-        // the network wedges. forceHandoffs keeps the chain-of-trust handoffs progressing across
-        // this test's
-        // DAB roster changes (nodeDelete/nodeCreate) under restart pressure.
+        // hapiTestRestart exercises the PRODUCTION restart path end to end: tss.historyEnabled=true
+        // +
+        // tss.forceMockSignatures=false (real hinTS/history proofs) with writerMode=GRPC streaming
+        // to a
+        // real block node — exactly what production runs. This is the condition issue #24896
+        // reports as
+        // stuck in WAITING_FOR_LEDGER_ID after a freeze/restart (the in-memory history proof not
+        // restored from state); under GRPC it also surfaces as the block node rejecting proofs
+        // (BAD_BLOCK_PROOF) when no ledger ID is published. forceHandoffs keeps the chain-of-trust
+        // handoffs progressing across this test's DAB roster changes (nodeDelete/nodeCreate).
         "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.historyEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.historyEnabled=true,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWrapsDownload" to
             "tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
