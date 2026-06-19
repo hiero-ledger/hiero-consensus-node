@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -113,8 +114,9 @@ public class TokenFreezeAccountHandler implements TransactionHandler {
         final var tokenMeta = tokenStore.getTokenMeta(tokenId);
         validateTrue(tokenMeta != null, INVALID_TOKEN_ID);
 
-        // Check that the token has a freeze key
-        validateTrue(tokenMeta.hasFreezeKey(), TOKEN_HAS_NO_FREEZE_KEY);
+        // Check that the token has a freeze key. An empty key list (the HIP-540 removal sentinel)
+        // means the freeze function is disabled and must be treated as "no freeze key".
+        validateTrue(!isEmpty(tokenMeta.freezeKey()), TOKEN_HAS_NO_FREEZE_KEY);
 
         // Check that the account exists
         final var accountId = op.accountOrElse(AccountID.DEFAULT);
