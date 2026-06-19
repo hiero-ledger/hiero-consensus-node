@@ -210,6 +210,40 @@ class EthTxDataType4TransactionTest {
     }
 
     @Test
+    void extractCodeDelegationsThrowsWhenAddressIsNotTwentyBytes() {
+        final byte[] chainId = {0x01};
+        final byte[] address = repeat((byte) 0x11, 17);
+        final int nonce = 5;
+        final int yParity = 1;
+        final byte[] r = repeat((byte) 0x22, 32);
+        final byte[] s = repeat((byte) 0x33, 32);
+
+        final byte[] authorizationList = rlpList(
+                rlpBytes(chainId), rlpBytes(address), rlpUInt(nonce), rlpUInt(yParity), rlpBytes(r), rlpBytes(s));
+
+        final byte[] raw = buildType4Raw(
+                fillBytes(2, 0x01),
+                1,
+                fillBytes(3, 0x02),
+                fillBytes(3, 0x03),
+                100,
+                fillBytes(20, 0x04),
+                0L,
+                new byte[] {},
+                new Object[] {},
+                authorizationList,
+                27,
+                fillBytes(32, 0x05),
+                fillBytes(32, 0x06));
+
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+        assertNotNull(tx);
+
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
+        assertEquals("Authorization list item address is not 20 bytes length", thrown.getMessage());
+    }
+
+    @Test
     void extractCodeDelegationsWithValidAuthorizationListYieldsOneDelegation() {
         final byte[] chainId = {0x01};
         final byte[] address = repeat((byte) 0x11, 20);

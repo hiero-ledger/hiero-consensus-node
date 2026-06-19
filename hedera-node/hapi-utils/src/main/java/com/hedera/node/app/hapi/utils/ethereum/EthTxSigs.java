@@ -18,11 +18,14 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Optional;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
+    private static final Logger logger = LogManager.getLogger(EthTxSigs.class);
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
@@ -41,6 +44,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
             final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
             return Optional.of(new EthTxSigs(compressedKey, address));
         } catch (final Exception e) {
+            logger.warn("Exception thrown extracting code delegation authority signatures!", e);
             return Optional.empty();
         }
     }

@@ -21,6 +21,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
@@ -43,7 +44,7 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
  */
 @Singleton
 public class FrameRunner {
-    private final HederaGasCalculatorImpl gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final EntityIdFactory entityIdFactory;
 
     /**

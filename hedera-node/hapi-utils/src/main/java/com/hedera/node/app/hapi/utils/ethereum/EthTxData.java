@@ -549,6 +549,7 @@ public record EthTxData(
      * because we do not want to deal with nulls elsewhere
      * @throws IllegalArgumentException if RLP item of the Authorization list is not a list
      * @throws IllegalArgumentException if RLP list does not contain expected number of elements
+     * @throws IllegalArgumentException if RLP item of the Authorization list address is not 20 bytes length
      */
     @NonNull
     public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
@@ -565,9 +566,13 @@ public record EthTxData(
                             "Authorization list item does not contain expected number of elements");
                 }
                 final var elements = rlpItem.asRLPList().elements();
+                final var address = elements.get(1).data();
+                if (address.length != EVM_ADDRESS_LENGTH) {
+                    throw new IllegalArgumentException("Authorization list item address is not 20 bytes length");
+                }
                 codeDelegations.add(new CodeDelegation(
                         elements.get(0).data(), // chainId)
-                        elements.get(1).data(), // address
+                        address,
                         asLong(elements.get(2)), // nonce
                         asByte(elements.get(3)), // yParity
                         elements.get(4).data(), // r
