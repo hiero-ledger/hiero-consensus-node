@@ -27,6 +27,7 @@ class FailureBlockUploadConfigTest {
         assertThat(config.issBlockDir()).isEqualTo("data/iss-blocks");
         assertThat(config.precedingBlocks()).isZero();
         assertThat(config.credentialsFileName()).isEqualTo("iss-bucket-credentials.properties");
+        assertThat(config.captureTimeout()).isEqualTo(Duration.ofSeconds(30));
         assertThat(config.uploadTimeout()).isEqualTo(Duration.ofSeconds(60));
         assertThat(config.maxRetries()).isEqualTo(3);
     }

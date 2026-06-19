@@ -37,6 +37,8 @@ import java.time.Duration;
  * @param credentialsFileDir the directory containing the bucket credentials file
  * @param credentialsFileName the name of the bucket credentials properties file (keys {@code accessKey} and
  * {@code secretKey})
+ * @param captureTimeout how long the detection path waits for the ISS-round block to become a durable on-disk artifact
+ * (it may still be the open, in-progress block at detection); once it elapses the capture is abandoned
  * @param uploadTimeout the hard overall deadline for the entire ISS upload; once it elapses the node abandons the
  * upload and continues its shutdown
  * @param maxRetries the maximum number of retries per object on a transient upload failure
@@ -73,6 +75,8 @@ public record FailureBlockUploadConfig(
 
         @ConfigProperty(defaultValue = "iss-bucket-credentials.properties") @NodeProperty
         String credentialsFileName,
+
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration captureTimeout,
 
         @ConfigProperty(defaultValue = "60s") @NodeProperty Duration uploadTimeout,
 

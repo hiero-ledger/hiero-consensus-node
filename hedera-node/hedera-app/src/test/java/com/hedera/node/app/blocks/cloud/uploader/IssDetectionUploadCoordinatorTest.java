@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -91,6 +92,7 @@ class IssDetectionUploadCoordinatorTest {
                 .thenReturn(blockStreamConfig);
         lenient().when(issConfig.issBlockDir()).thenReturn(issBlockDir.toString());
         lenient().when(issConfig.precedingBlocks()).thenReturn(0);
+        lenient().when(issConfig.captureTimeout()).thenReturn(Duration.ofSeconds(5));
         lenient().when(issConfig.uploadTimeout()).thenReturn(Duration.ofSeconds(5));
         lenient()
                 .when(selfNodeAccountIdManager.getSelfNodeAccountId())
@@ -135,6 +137,28 @@ class IssDetectionUploadCoordinatorTest {
         assertThat(filesCaptor.getValue()).containsExactly(copied);
         assertThat(copied).exists();
         verifyNoInteractions(bufferReader);
+    }
+
+    @Test
+    void fileModePollsUntilTheIssBlockBecomesDurable() throws IOException {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+
+        final String base = FileBlockItemWriter.longToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        // The ISS-round block isn't durable on disk yet (resolver empty), then it appears on a later poll.
+        when(diskResolver.resolve(IssType.SELF_ISS, 9, 0))
+                .thenReturn(List.of())
+                .thenReturn(List.of(new IssBlockRef(IssType.SELF_ISS, 9, 7, List.of(sourceBlk))));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of("uri"));
+
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+
+        verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
+        final Path copied =
+                issBlockDir.resolve("block-0.0.3").resolve(EXPECTED_FOLDER).resolve(base + ".blk.gz");
+        assertThat(filesCaptor.getValue()).containsExactly(copied);
     }
 
     @Test
@@ -195,5 +219,59 @@ class IssDetectionUploadCoordinatorTest {
         final long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
 
         assertThat(elapsedMs).isLessThan(2_000L);
+    }
+
+    @Test
+    void uploadDetectedIssOnFailureNoOpWhenNoIssRecorded() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+
+        subject.uploadDetectedIssOnFailure();
+
+        verifyNoInteractions(diskResolver, bufferReader, uploader);
+    }
+
+    @Test
+    void uploadDetectedIssOnFailureUploadsTheRecordedBlockSynchronously() throws IOException {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(issConfig.captureTimeout()).thenReturn(Duration.ofMillis(100));
+        // Detection runs first but the block is not yet durable on disk → nothing uploaded, but the ISS is recorded.
+        when(diskResolver.resolve(IssType.SELF_ISS, 9, 0)).thenReturn(List.of());
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+        verify(uploader, never()).uploadBlockFiles(any(), anyString(), any());
+
+        // The fatal flush has now made the block durable; the synchronous failure path resolves it once and uploads.
+        final String base = FileBlockItemWriter.longToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        when(diskResolver.resolve(IssType.SELF_ISS, 9, 0))
+                .thenReturn(List.of(new IssBlockRef(IssType.SELF_ISS, 9, 7, List.of(sourceBlk))));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of("uri"));
+
+        subject.uploadDetectedIssOnFailure();
+
+        verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
+        final Path copied =
+                issBlockDir.resolve("block-0.0.3").resolve(EXPECTED_FOLDER).resolve(base + ".blk.gz");
+        assertThat(filesCaptor.getValue()).containsExactly(copied);
+    }
+
+    @Test
+    void failurePathSkipsWhenDetectionAlreadyUploaded() throws IOException {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+
+        final String base = FileBlockItemWriter.longToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        when(diskResolver.resolve(IssType.SELF_ISS, 9, 0))
+                .thenReturn(List.of(new IssBlockRef(IssType.SELF_ISS, 9, 7, List.of(sourceBlk))));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of("uri"));
+
+        // Detection uploads the round; the later failure path must de-duplicate and not upload again.
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+        subject.uploadDetectedIssOnFailure();
+
+        verify(uploader, times(1)).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any());
     }
 }

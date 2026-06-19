@@ -49,6 +49,8 @@ public class IssBlockResolver {
     private static final String PENDING_EXT = ".pnd.gz";
     private static final String INCOMPLETE_EXT = ".open.gz";
     private static final String PENDING_PROOF_EXT = ".pnd.json";
+    /** Written by {@code FileBlockItemWriter} only after a block is fully written and closed. */
+    private static final String MARKER_EXT = ".mf";
 
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -138,8 +140,14 @@ public class IssBlockResolver {
                 final BlockKind kind;
                 final String numberPart;
                 if (name.endsWith(COMPLETE_EXT)) {
-                    kind = BlockKind.COMPLETE;
                     numberPart = name.substring(0, name.length() - COMPLETE_EXT.length());
+                    // A .blk.gz is a finished, readable block only once its .mf completion marker exists. Without it,
+                    // this is the currently-open block still being written (a partial, unterminated gzip that would
+                    // fail to parse and abort the search), so skip it.
+                    if (!Files.exists(nodeDir.resolve(numberPart + MARKER_EXT))) {
+                        return;
+                    }
+                    kind = BlockKind.COMPLETE;
                 } else if (name.endsWith(PENDING_EXT)) {
                     kind = BlockKind.PENDING;
                     numberPart = name.substring(0, name.length() - PENDING_EXT.length());

@@ -124,6 +124,22 @@ class IssBlockResolverTest {
     }
 
     @Test
+    void ignoresCurrentlyOpenBlkGzWithoutCompletionMarker() throws IOException {
+        writeBlock(1, 1, ".blk.gz");
+        writeBlock(2, 5, ".blk.gz");
+        // The currently-open block: a partial/garbage ".blk.gz" with NO ".mf" marker (as on disk while it is being
+        // written). It is the newest file, so a naive gallop would read it first and abort; it must be skipped.
+        final Path nodeDir = tempDir.resolve("block-0.0.3");
+        Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".blk.gz"), new byte[] {1, 2, 3});
+
+        // round 6 is in block 2; the unmarked open block 3 must not break the search
+        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+
+        assertThat(refs).hasSize(1);
+        assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
+    }
+
+    @Test
     void returnsEmptyWhenRoundPrecedesEarliestRetainedBlock() throws IOException {
         writeBlock(10, 100, ".blk.gz");
         writeBlock(11, 104, ".blk.gz");
@@ -169,7 +185,10 @@ class IssBlockResolverTest {
                 new GZIPOutputStream(Files.newOutputStream(nodeDir.resolve(baseName + ext)))) {
             out.write(raw);
         }
-        if (".pnd.gz".equals(ext)) {
+        if (".blk.gz".equals(ext)) {
+            // A completed block has its ".mf" marker; the resolver only treats a marked ".blk.gz" as complete.
+            Files.createFile(nodeDir.resolve(baseName + ".mf"));
+        } else if (".pnd.gz".equals(ext)) {
             Files.writeString(nodeDir.resolve(baseName + ".pnd.json"), "{}");
         }
     }
