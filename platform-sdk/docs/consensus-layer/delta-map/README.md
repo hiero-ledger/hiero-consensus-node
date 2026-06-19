@@ -2,7 +2,7 @@
 
 Per-topic record of how the current code aligns with the proposed future-state design in `../../proposals/consensus-layer/Consensus-Layer.md`. The KB treats current code as canonical; the delta map is where the future shape and the work it implies are tracked.
 
-One file per architecture topic. Each file states the topic's status, then enumerates what aligns, what doesn't, and (where known) why. For topics the proposal does not name (`iss-detection`, `quiescence`), rows record implied deltas and proposal-staleness gaps, marked as such in the file. `sheriff.md` is the reverse case: a proposal-only module with no current code and hence no architecture topic yet.
+One file per architecture topic. Each file states the topic's status, then enumerates what aligns, what doesn't, and (where known) why. For topics the proposal does not name (`iss-detection`, `quiescence`), rows record implied deltas and proposal-staleness gaps, marked as such in the file. `sheriff.md` is the reverse case: a proposal-only module with no current code and hence no architecture topic yet. `consensus-boundary.md` is a further exception: it mirrors an architecture *interface* (`../architecture/interfaces/consensus-execution-boundary.md`), not a `topics/` file, and catalogues the Consensus/Execution public-API seam. The `wiring-framework` topic has no delta-map — the proposal disclaims the wiring framework as implementation detail, so its genuine seam deltas live in `consensus-boundary.md`.
 
 - Entry format: see `FORMAT.md`.
 
@@ -19,7 +19,7 @@ A file's index status rolls up its rows: `divergent` if any row is divergent, el
 
 |                Topic                 |   Status    | Summary |
 |--------------------------------------|-------------|---------|
-| `wiring-framework.md`                | not-started | Proposal specifies only the seam (`nextRound`, module pairs, lifecycle), none begun; internal mechanics it doesn't address are flagged open. |
+| `consensus-boundary.md`              | not-started | The overarching Consensus/Execution seam — API/impl module pair, unified API surface, and the `initialize` / `destroy` instance lifecycle. |
 | `gossip.md`                          | partial     | Extraction and sync behaviour done; Sheriff discipline not started. |
 | `event-intake.md`                    | partial     | Pipeline and persistence done (PCES permanently its own module); branch detection remains partial. |
 | `event-creator.md`                   | partial     | Tipset and transaction pull done; the public Consensus API surface is missing. |

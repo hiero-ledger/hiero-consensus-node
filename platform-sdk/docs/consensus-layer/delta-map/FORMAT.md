@@ -3,8 +3,9 @@
 Specification for `delta-map/<topic>.md` entries. This file defines the
 structure only; the allowed topics are those listed in `README.md`,
 each matching an architecture topic file under `../architecture/topics/`
-(exception: `sheriff.md` covers a proposal-only module that has no
-architecture topic yet).
+(exceptions: `sheriff.md` covers a proposal-only module that has no
+architecture topic yet, and `consensus-boundary.md` mirrors an architecture
+*interface* under `../architecture/interfaces/`, not a topic).
 What counts as a delta-map entry — a discrete change the consensus-layer
 proposal calls for, scored against current code — is defined in `README.md`.
 
@@ -12,7 +13,9 @@ proposal calls for, scored against current code — is defined in `README.md`.
 
 - `delta-map/<topic>.md`
 - The topic slug is identical to the corresponding
-  `../architecture/topics/<topic>.md` file. No ID prefix.
+  `../architecture/topics/<topic>.md` file. No ID prefix. (`consensus-boundary.md`
+  is the exception: it maps to
+  `../architecture/interfaces/consensus-execution-boundary.md`.)
 - Cross-references from other files use the topic slug (e.g., "see the
   gossip delta map").
 
@@ -101,7 +104,8 @@ Scoring rules:
 
 ### `## Cross-references`
 
-- Topic: `../architecture/topics/<topic>.md`.
+- Topic: `../architecture/topics/<topic>.md`. (`consensus-boundary.md` instead cites
+  `Interface: ../architecture/interfaces/consensus-execution-boundary.md`.)
 - Proposal: the section(s) of
   `../../proposals/consensus-layer/Consensus-Layer.md` covering this topic.
 - Invariants: `[TBD: INV-NNN once invariants.md catalog populates]` until
