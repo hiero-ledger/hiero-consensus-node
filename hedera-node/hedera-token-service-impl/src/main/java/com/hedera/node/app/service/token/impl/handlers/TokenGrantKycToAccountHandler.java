@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -50,7 +51,9 @@ public class TokenGrantKycToAccountHandler implements TransactionHandler {
         if (tokenMeta == null) {
             throw new PreCheckException(INVALID_TOKEN_ID);
         }
-        validateTruePreCheck(tokenMeta.hasKycKey(), TOKEN_HAS_NO_KYC_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the KYC function is disabled; it
+        // must be treated as "no KYC key" rather than a key that requires no signature.
+        validateTruePreCheck(!isEmpty(tokenMeta.kycKey()), TOKEN_HAS_NO_KYC_KEY);
         context.requireKey(tokenMeta.kycKey());
     }
 

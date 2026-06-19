@@ -30,7 +30,6 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -130,7 +129,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /**
      * Hash chunk height. When an empty MerkleDb data source is created, the height is
-     * read from {@link VirtualMapConfig#hashChunkHeight()}. When an existing
+     * read from {@link MerkleDbConfig#hashChunkHeight()}. When an existing
      * data source is loaded from disk, the value from the config is ignored, and the
      * height is loaded from the data source metadata file.
      */
@@ -273,12 +272,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean diskBasedIndices)
             throws IOException {
         this.tableName = tableName;
-        this.preferDiskBasedIndices =
-                diskBasedIndices || config.getConfigData(MerkleDbConfig.class).useDiskIndices();
-
-        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
-        this.hashChunkHeight = virtualMapConfig.hashChunkHeight();
         this.merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
+
+        this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
+        this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
 
         // create thread group with label
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
