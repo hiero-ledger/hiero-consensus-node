@@ -15,10 +15,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
@@ -77,7 +77,7 @@ public class TargetNetworkPrep {
                                 .memo("")
                                 .noAlias()
                                 .noAllowances()),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var genesisInfo = getAccountInfo("2");
                     allRunFor(spec, genesisInfo);
                     final var key = genesisInfo
@@ -145,7 +145,7 @@ public class TargetNetworkPrep {
                                 .memo("")
                                 .noAlias()
                                 .noAllowances()),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var genesisInfo = getAccountInfo("2");
                     allRunFor(spec, genesisInfo);
                     final var key = genesisInfo

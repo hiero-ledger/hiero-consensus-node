@@ -33,7 +33,13 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assumingNoStakingChildRecordCausesMaxChildRecordsExceeded;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -124,7 +130,7 @@ class AtomicAutoAccountCreationSuite {
                 newKeyNamed("alias2"),
                 cryptoCreate("payer").balance(INITIAL_BALANCE * ONE_HBAR),
                 cryptoTransfer(tinyBarsFromToWithAlias("payer", ALIAS, 2 * ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, ALIAS)),
+                doingContextual(spec -> updateSpecFor(spec, ALIAS)),
                 getAliasedAccountInfo(ALIAS)
                         .has(accountWith().expectedBalanceWithChargedUsd((2 * ONE_HUNDRED_HBARS), 0, 0)),
                 // pay with aliased id
@@ -218,7 +224,7 @@ class AtomicAutoAccountCreationSuite {
                         .payingWith(CIVILIAN)
                         .signedBy(CIVILIAN, SPONSOR, VALID_ALIAS)
                         .via(TRANSFER_TXN),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, VALID_ALIAS)),
+                doingContextual(spec -> updateSpecFor(spec, VALID_ALIAS)),
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords().hasNonStakingChildRecordCount(1),
                 cryptoUpdateAliased(VALID_ALIAS).maxAutomaticAssociations(10).signedBy(VALID_ALIAS, DEFAULT_PAYER),
                 cryptoTransfer(movingUnique(NFT_INFINITE_SUPPLY_TOKEN, 1, 2).between(SPONSOR, VALID_ALIAS))
@@ -399,7 +405,7 @@ class AtomicAutoAccountCreationSuite {
                                 .signedBy(CIVILIAN, VALID_ALIAS)
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator"),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, VALID_ALIAS)),
+                doingContextual(spec -> updateSpecFor(spec, VALID_ALIAS)),
                 // auto-creation and token association
                 getTxnRecord(multiTokenXfer)
                         .andAllChildRecords()
@@ -606,7 +612,7 @@ class AtomicAutoAccountCreationSuite {
                 cryptoTransfer(
                         moving(10, A_TOKEN).between(TOKEN_TREASURY, CIVILIAN),
                         movingUnique(NFT_INFINITE_SUPPLY_TOKEN, 1L, 2L).between(TOKEN_TREASURY, CIVILIAN)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry()
                             .getKey(SECP_256K1_SOURCE_KEY)
                             .getECDSASecp256K1()
@@ -614,7 +620,7 @@ class AtomicAutoAccountCreationSuite {
                     final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
                     evmAddress.set(evmAddressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     /* hollow account created with transfer as expected */
                     final var cryptoTransferWithLazyCreate = atomicBatch(cryptoTransfer(
                                             movingHbar(ONE_HUNDRED_HBARS)
@@ -679,7 +685,7 @@ class AtomicAutoAccountCreationSuite {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(LAZY_CREATE_SPONSOR).balance(INITIAL_BALANCE * ONE_HBAR),
                 cryptoCreate(underfunded).balance(10 * ONE_HBAR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry()
                             .getKey(SECP_256K1_SOURCE_KEY)
                             .getECDSASecp256K1()
@@ -743,8 +749,8 @@ class AtomicAutoAccountCreationSuite {
                                 .batchKey("batchOperator")
                                 .via(autoCreation))
                         .payingWith("batchOperator"),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, ed25519SourceKey)),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, secp256k1SourceKey)),
+                doingContextual(spec -> updateSpecFor(spec, ed25519SourceKey)),
+                doingContextual(spec -> updateSpecFor(spec, secp256k1SourceKey)),
                 getTxnRecord(autoCreation)
                         .andAllChildRecords()
                         .hasNoAliasInChildRecord(0)
@@ -827,7 +833,7 @@ class AtomicAutoAccountCreationSuite {
                 cryptoCreate(PAYER_1).balance(INITIAL_BALANCE * ONE_HBAR),
                 cryptoTransfer(tinyBarsFromToWithAlias(PAYER_1, ALIAS, 2 * ONE_HUNDRED_HBARS))
                         .via("txn"),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, ALIAS)),
+                doingContextual(spec -> updateSpecFor(spec, ALIAS)),
                 getAliasedAccountInfo(ALIAS)
                         .has(accountWith().expectedBalanceWithChargedUsd((2 * ONE_HUNDRED_HBARS), 0, 0)),
                 /* transfer from an alias that was auto created to a new alias, validate account is created */
@@ -846,9 +852,9 @@ class AtomicAutoAccountCreationSuite {
                 cryptoCreate(PAYER_1).balance(INITIAL_BALANCE * ONE_HBAR),
                 cryptoTransfer(tinyBarsFromToWithAlias(PAYER_1, ALIAS, ONE_HUNDRED_HBARS))
                         .via("txn"),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, ALIAS)),
+                doingContextual(spec -> updateSpecFor(spec, ALIAS)),
                 /* get the account associated with alias and transfer */
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var aliasAccount = spec.registry()
                             .getAccountID(
                                     spec.registry().getKey(ALIAS).toByteString().toStringUtf8());
@@ -995,7 +1001,7 @@ class AtomicAutoAccountCreationSuite {
         return hapiTest(
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -1004,7 +1010,7 @@ class AtomicAutoAccountCreationSuite {
                     partyAlias.set(asSolidityAddress(partyId.get()));
                     counterAlias.set(addressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     var op1 = atomicBatch(cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                             .addAccountAmounts(Utils.aaWith(spec, partyAlias.get(), -2 * ONE_HBAR))
                                             .addAccountAmounts(Utils.aaWith(spec, counterAlias.get(), +2 * ONE_HBAR))))
@@ -1048,14 +1054,14 @@ class AtomicAutoAccountCreationSuite {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(PAYER_1).balance(10 * ONE_HBAR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
                     evmAddress.set(addressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var evmAddressStr = ByteString.copyFrom(evmAddress.get());
                     final var validTransfer = atomicBatch(
                                     cryptoTransfer(tinyBarsFromTo(PAYER_1, evmAddressStr, ONE_HBAR))
@@ -1074,7 +1080,7 @@ class AtomicAutoAccountCreationSuite {
 
                     allRunFor(spec, validTransfer, invalidTransferToLongZero);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(_ -> {
                     final var evmAddressStr = ByteString.copyFrom(evmAddress.get());
                     getTxnRecord("passedTxn")
                             .hasNonStakingChildRecordCount(1)

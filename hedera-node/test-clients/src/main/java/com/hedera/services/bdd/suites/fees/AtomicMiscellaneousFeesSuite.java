@@ -23,8 +23,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-// These test cases wrap misc (PRNG) operations in an atomic batch to confirm the simple fees are
-// the same as when the operations run outside a batch.
+// This test cases are direct copies of MiscellaneousFeesSuite. The difference here is that
+// we are wrapping the operations in an atomic batch to confirm the fees are the same
 @Tag(ATOMIC_BATCH)
 class AtomicMiscellaneousFeesSuite {
 

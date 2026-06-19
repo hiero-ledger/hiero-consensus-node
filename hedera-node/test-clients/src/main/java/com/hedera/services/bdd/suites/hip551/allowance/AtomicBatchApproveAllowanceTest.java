@@ -39,10 +39,10 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -196,7 +196,7 @@ class AtomicBatchApproveAllowanceTest {
                                 .via(transferFromOtherContractWithSignaturesTxn))),
                 getContractInfo(ERC_20_CONTRACT).saveToRegistry(ERC_20_CONTRACT),
                 getContractInfo(nestedContract).saveToRegistry(nestedContract),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var sender =
                             spec.registry().getContractInfo(ERC_20_CONTRACT).getContractID();
                     final var receiver =

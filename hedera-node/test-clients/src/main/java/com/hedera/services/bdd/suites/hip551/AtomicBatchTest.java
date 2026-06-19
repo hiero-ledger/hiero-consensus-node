@@ -44,6 +44,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -51,7 +52,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -906,7 +906,7 @@ public class AtomicBatchTest {
                     cryptoCreate(batchOperator),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                    withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                    doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                     cryptoCreate(receiver).balance(0L),
                     // submit a batch with Hapi and Ethereum txns
                     atomicBatch(
@@ -963,7 +963,7 @@ public class AtomicBatchTest {
                             .via("mint"),
 
                     // save precompile gas used
-                    withOpContext((spec, op) -> {
+                    doingContextual(spec -> {
                         final var callRecord = getTxnRecord("mint").andAllChildRecords();
                         allRunFor(spec, callRecord);
                         gasUsed.set(callRecord
@@ -1033,7 +1033,7 @@ public class AtomicBatchTest {
                             .via("associateTxn")),
 
                     // save precompile gas used
-                    withOpContext((spec, op) -> {
+                    doingContextual(spec -> {
                         final var callRecord = getTxnRecord("associateTxn")
                                 .andAllChildRecords()
                                 .logged();
@@ -1106,7 +1106,7 @@ public class AtomicBatchTest {
                             .gas(gasToOffer)),
 
                     // save precompile gas used
-                    withOpContext((spec, op) -> {
+                    doingContextual(spec -> {
                         final var callRecord = getTxnRecord("cryptoTransferTxn")
                                 .andAllChildRecords()
                                 .logged();

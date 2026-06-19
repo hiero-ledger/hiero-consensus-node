@@ -557,7 +557,7 @@ public class AutoAccountCreationSuite {
                         .signedBy(secondPayer)
                         .hasKnownStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)),
                 getAccountBalance(secondPayer)
-                        .hasTinyBars(_ ->
+                        .hasTinyBars(spec ->
                                 // Should only be charged a few hundred thousand
                                 // tinybar at most
                                 balance -> ((totalAutoCreationFees.get() - balance) > 500_000L)
