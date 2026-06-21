@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -83,8 +82,7 @@ public class StatisticsProbe extends Probe {
             stdDev = stdDev.add(bd1.pow(2));
         }
 
-        stdDev = stdDev.divide(new BigDecimal(numSamples), 10, RoundingMode.HALF_EVEN)
-                .sqrt(MATH_CONTEXT_10);
+        stdDev = stdDev.divide(new BigDecimal(numSamples), MATH_CONTEXT_10).sqrt(MATH_CONTEXT_10);
         statistics = new FixedStatistics(unit(), numSamples, sum, min, max, avg, stdDev);
 
         values = null; // clear values to reclaim memory
@@ -93,12 +91,17 @@ public class StatisticsProbe extends Probe {
     }
 
     /**
-     * Thread-safe via {@link ConcurrentLinkedQueue}.
+     * Thread-safe via {@link ConcurrentLinkedQueue}. Rejects the call once {@link #aggregate()} has
+     * sealed the probe.
      *
      * @param value the value to record
+     * @throws IllegalStateException if {@link #aggregate()} has already been called
      */
     @Override
-    protected void doAdd(final long value) {
+    public void add(final long value) {
+        if (isAggregated()) {
+            throw new IllegalStateException("Probe is already aggregated; cannot add more values");
+        }
         values.add(value);
     }
 

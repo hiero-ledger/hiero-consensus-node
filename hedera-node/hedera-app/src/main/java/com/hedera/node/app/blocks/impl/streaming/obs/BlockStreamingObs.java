@@ -104,9 +104,14 @@ public class BlockStreamingObs implements AutoCloseable {
                 .enhancedObservabilityEnabled();
     }
 
-    /** Stops the periodic gather-and-log task. The instance must not be used after closing. */
+    /**
+     * Disables recording and stops the periodic gather-and-log task. After this returns the public
+     * {@code on*} methods are no-ops, so no further data accumulates once the gather thread that
+     * drains the maps is gone.
+     */
     @Override
     public void close() {
+        isEnabled = false;
         scheduledExecutorService.shutdownNow();
     }
 

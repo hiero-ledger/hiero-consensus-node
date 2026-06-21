@@ -52,10 +52,12 @@ public interface Statistics {
     /**
      * Renders a statistics snapshot as the single-line form used in the log report.
      *
-     * @param stats the statistics to render
-     * @return the formatted {@code { (Unit:…|Samples:…|…) }} string
+     * @param stats the statistics to render, or {@code null} if not yet available
+     * @return the formatted {@code { (Unit:…|Samples:…|…) }} string, or {@code { <In Progress> }} when {@code stats} is null
      */
     static String toString(final Statistics stats) {
+        if (stats == null) return "{ <In Progress> }";
+
         String s = "{ (Unit:" + stats.unit();
 
         s += "|Samples:" + stats.numSamples();

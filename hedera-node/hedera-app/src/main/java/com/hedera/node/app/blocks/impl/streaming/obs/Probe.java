@@ -9,11 +9,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 /**
  * Base class for metric accumulators.
  *
- * <p>Owns the name/unit identity, the sealed-after-aggregate contract (enforced in the
- * {@code final} {@link #add} method via the template-method hooks {@link #isAggregated()} and
- * {@link #doAdd}), and the shared {@link #toString()} format.
+ * <p>Owns the name/unit identity and the shared {@link #toString()} format. Each subclass
+ * implements its own {@link #add} and must reject the call once {@link #aggregate()} has sealed the
+ * probe (throwing {@link IllegalStateException}); the {@link #isAggregated()} query is provided for
+ * that check.
  *
- * <p>Subclasses choose their accumulation strategy by implementing {@link #doAdd},
+ * <p>Subclasses choose their accumulation strategy by implementing {@link #add},
  * {@link #isAggregated}, {@link #statistics}, and {@link #aggregate}.
  */
 public abstract class Probe {
@@ -45,17 +46,13 @@ public abstract class Probe {
     }
 
     /**
-     * Records a single value.
+     * Records a single value. Implementations must reject the call once {@link #aggregate()} has
+     * been called.
      *
      * @param value the value to record
      * @throws IllegalStateException if {@link #aggregate()} has already been called
      */
-    public final void add(final long value) {
-        if (isAggregated()) {
-            throw new IllegalStateException("Probe is already aggregated; cannot add more values");
-        }
-        doAdd(value);
-    }
+    public abstract void add(long value);
 
     /**
      * @return the aggregated statistics, or {@code null} if {@link #aggregate()} has not yet been called
@@ -70,13 +67,6 @@ public abstract class Probe {
     public abstract @NonNull Statistics aggregate();
 
     /**
-     * Called by {@link #add} after the sealed-check passes. Subclasses record the value here.
-     *
-     * @param value the value to record
-     */
-    protected abstract void doAdd(long value);
-
-    /**
      * @return {@code true} once {@link #aggregate()} has been called and the probe is sealed
      */
     protected abstract boolean isAggregated();
@@ -88,6 +78,6 @@ public abstract class Probe {
     @Override
     public String toString() {
         final Statistics stats = statistics();
-        return name + " " + (stats == null ? "{ <In Progress> }" : Statistics.toString(stats));
+        return name + " " + Statistics.toString(stats);
     }
 }

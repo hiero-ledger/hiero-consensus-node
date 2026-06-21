@@ -76,12 +76,17 @@ public class BasicProbe extends Probe {
     }
 
     /**
-     * Lock-free and allocation-free; each accumulator is updated independently.
+     * Lock-free and allocation-free; each accumulator is updated independently. Rejects the call
+     * once {@link #aggregate()} has sealed the probe.
      *
      * @param value the value to record
+     * @throws IllegalStateException if {@link #aggregate()} has already been called
      */
     @Override
-    protected void doAdd(final long value) {
+    public void add(final long value) {
+        if (isAggregated()) {
+            throw new IllegalStateException("Probe is already aggregated; cannot add more values");
+        }
         count.increment();
         sum.add(value);
         min.accumulateAndGet(value, Math::min);
