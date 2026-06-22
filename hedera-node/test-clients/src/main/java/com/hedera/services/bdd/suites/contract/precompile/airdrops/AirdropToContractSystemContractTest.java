@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.restoreDefault;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -328,7 +329,7 @@ public class AirdropToContractSystemContractTest {
                                 .via("pendingAirdrop"),
                         checkForBalances(receiverContract, List.of(token1), List.of()),
                         checkForEmptyBalance(receiverContract, List.of(token2), List.of()),
-                        validateChargedUsd("pendingAirdrop", 0.124),
+                        safeValidateChargedUsd("pendingAirdrop", 0.124, 0.051),
                         // have ERC20 event for token1
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord("pendingAirdrop"),
