@@ -11,6 +11,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.cloud.uploader.IssDetectionUploadCoordinator;
+import com.hedera.node.app.blocks.cloud.uploader.TriageBlockUploadCoordinator;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -52,6 +54,12 @@ class HederaCatastrophicFailureOrderingTest {
     private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
+    private TriageBlockUploadCoordinator triageBlockUploadCoordinator;
+
+    @Mock
+    private IssDetectionUploadCoordinator issDetectionUploadCoordinator;
+
+    @Mock
     private QuiescenceController quiescenceController;
 
     @Mock
@@ -73,6 +81,8 @@ class HederaCatastrophicFailureOrderingTest {
         given(daggerApp.blockStreamManager()).willReturn(blockStreamManager);
         given(daggerApp.blockNodeConnectionManager()).willReturn(blockNodeConnectionManager);
         given(daggerApp.quiescenceController()).willReturn(quiescenceController);
+        given(daggerApp.triageBlockUploadCoordinator()).willReturn(triageBlockUploadCoordinator);
+        given(daggerApp.issDetectionUploadCoordinator()).willReturn(issDetectionUploadCoordinator);
 
         // streamToBlockNodes() is true whenever writerMode != FILE, so the connection shutdown is reached.
         final var config = HederaTestConfigBuilder.create()
