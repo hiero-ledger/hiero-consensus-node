@@ -33,12 +33,10 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -193,7 +191,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                 counter++;
             }
 
-            final File file = fileState.get(FileID.newBuilder().fileNum(entityId).build());
+            final File file =
+                    fileState.get(FileID.newBuilder().fileNum(entityId).build());
             if (file != null) {
                 counter++;
             }

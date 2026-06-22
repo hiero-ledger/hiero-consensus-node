@@ -217,6 +217,15 @@ public final class ReplayPcesWorkflow {
             blocks.platformComponents().pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
             // NOTE: deliberately NOT calling blocks.platformCoordinator().startGossip()
 
+            // Drain the downstream pipeline before capturing/dumping. replayPcesEvents returns once all events
+            // have been fed in, but consensus rounds continue through transaction handling -> block production
+            // asynchronously on the wiring threads. Without these flushes the process tears down before the last
+            // block is written and closed, leaving a 0-byte trailing block (the events for those rounds ARE
+            // present in the PCES; only the flush was missing). flushTransactionHandler drives round handling
+            // (which closes blocks via endRound); flushStateHasher ensures end-of-round state hashes complete.
+            blocks.platformCoordinator().flushTransactionHandler();
+            blocks.platformCoordinator().flushStateHasher();
+
             // --- Capture the resulting state and dump it to disk (ADR-003 steps 3-4) ---
             final long resultRound = dumpResultingState(blocks, outDir);
             log.info("PCES replay complete. Resulting state round: {}, written under {}", resultRound, outDir);

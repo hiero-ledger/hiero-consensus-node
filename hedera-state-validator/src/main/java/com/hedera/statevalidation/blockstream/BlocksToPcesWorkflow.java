@@ -311,17 +311,28 @@ public final class BlocksToPcesWorkflow {
 
     /**
      * Restricts the ordered block files to those overlapping the consensus-round window
-     * {@code [leftRound, targetRound]}, using whole-block granularity identical to the GCS
+     * {@code [leftRound, targetRound]}, plus <b>one extra block</b> beyond the last in-window block.
+     *
+     * <p>The window selection uses whole-block granularity identical to the GCS
      * {@code BlockRangeResolver}: a block's round span is taken from its {@code RoundHeader.roundNumber}
-     * items (min and max). A block is included if its round span intersects the window — i.e. its max round
-     * is {@code >= leftRound} and its min round is {@code <= targetRound}. Blocks with no round headers are
-     * skipped. This guarantees that for the same {@code --origin-round}/{@code --target-round}, a local
-     * directory yields the same block set the GCS path would download.
+     * items (min and max), and a block is included if its span intersects {@code [leftRound, targetRound]}
+     * (i.e. {@code maxRound >= leftRound && minRound <= targetRound}).
+     *
+     * <p>The one extra trailing block is required so that {@code replay-pces} can <i>close</i> the block
+     * containing the target round. Consensus on a round depends on events with higher <b>birth rounds</b>
+     * than that round's <b>consensus round</b> (later events vote to decide earlier rounds' fame). Those
+     * deciding events live in the next block. Without it, replay reaches consensus a few rounds short of
+     * the target block's final round, so the platform's {@code endRound} never hits the block-closing
+     * boundary and the last block is left open (0-byte, no {@code .mf} marker). Including the next whole
+     * block guarantees the deciding events are present and the target block closes. Blocks beyond the
+     * target block need not themselves close — they only supply the deciding events.
      */
     private static List<Path> filterByRoundWindow(
             @NonNull final List<Path> orderedFiles, final long leftRound, final long targetRound) {
+        int lastInWindow = -1;
         final List<Path> selected = new ArrayList<>();
-        for (final Path file : orderedFiles) {
+        for (int i = 0; i < orderedFiles.size(); i++) {
+            final Path file = orderedFiles.get(i);
             final long[] span = roundSpan(file);
             final long minRound = span[0];
             final long maxRound = span[1];
@@ -331,8 +342,18 @@ public final class BlocksToPcesWorkflow {
             // Include if [minRound, maxRound] intersects [leftRound, targetRound].
             if (maxRound >= leftRound && minRound <= targetRound) {
                 selected.add(file);
+                lastInWindow = i;
             }
         }
+
+        // Append one extra block immediately after the last in-window block, if present. Its events
+        // are what let the hashgraph decide consensus on the target block's final rounds, so the
+        // target block closes during replay. orderedBlockFiles guarantees contiguity, so index+1 is
+        // the next sequential block.
+        if (lastInWindow >= 0 && lastInWindow + 1 < orderedFiles.size()) {
+            selected.add(orderedFiles.get(lastInWindow + 1));
+        }
+
         return selected;
     }
 
@@ -355,7 +376,7 @@ public final class BlocksToPcesWorkflow {
                 }
             }
         }
-        return new long[] {minRound, maxRound};
+        return new long[]{minRound, maxRound};
     }
 
     /**

@@ -31,6 +31,16 @@ import picocli.CommandLine.Option;
  * {@code --origin-round} to reproduce the original block stream. Applying the files to a state is out
  * of scope for this command.
  *
+ * <p><b>Target-round semantics (whole-block).</b> {@code --target-round} identifies the <i>last
+ * block</i> to extract: the block that <i>contains</i> that round. That entire block is included —
+ * all of its rounds, including any after the target round — not truncated at the target round. This
+ * is the same whole-block meaning {@code replay-pces} uses, and it is the inverse of
+ * {@code apply-blocks}, where {@code --target-round} means "stop exactly at this round" and the last
+ * block may be applied only partially. Whole-block extraction is required so that {@code replay-pces}
+ * can drive the block's closing round and finalize the last block, rather than leaving it open. The
+ * resulting state therefore corresponds to the <i>last round of the block containing the target
+ * round</i> (>= the target round), not to the target round exactly.
+ *
  * <p><b>Limitations:</b> redacted or filtered block streams are not supported, and the full block
  * range is held in memory during reconstruction.
  */
@@ -100,8 +110,12 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
     @Option(
             names = {"-tr", "--target-round"},
             required = true,
-            description = "The last round whose events are extracted; events from higher rounds are ignored. "
-                    + "Default = extract all available rounds. Required when --block-stream-dir is a GCS path.")
+            description = "Identifies the last block to extract: the block that CONTAINS this round. The entire "
+                    + "block is extracted (all its rounds, including any after this round) — it is NOT truncated "
+                    + "at this round. This whole-block meaning matches replay-pces and is the inverse of "
+                    + "apply-blocks (where --target-round stops exactly at the round, applying the last block "
+                    + "partially). The replayed state will correspond to the last round of the block containing "
+                    + "this round, which may be greater than this round.")
     private void setTargetRound(final long targetRound) {
         this.targetRound = targetRound;
     }
@@ -196,11 +210,19 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         final BlockRangeResolver resolver = new BlockRangeResolver(gcpBlockStreamPath, billingProject, tempBlockDir);
         final BlockRangeResolver.BlockRange range = resolver.resolveByRounds(leftSearchRound, targetRound);
 
+        // Download one block PAST the resolved right boundary. replay-pces needs the events in the block
+        // after the target-containing block to decide consensus on (and thus close) the target block —
+        // see filterByRoundWindow. The resolver returns the block containing targetRound; the convert step
+        // selects that block plus the next one, so the next one must be downloaded too. The trailing block
+        // is best-effort: if the target is at the very end of the available stream it may not exist, in
+        // which case the target block simply cannot be closed (the caller must extend --target-round).
+        final long trailingBlock = range.rightBlock() + 1;
+
         log.info(
-                "Block range resolved: [{}, {}] ({} files). Starting download...",
+                "Block range resolved: [{}, {}] (+1 trailing block {}). Starting download...",
                 range.leftBlock(),
                 range.rightBlock(),
-                range.fileCount());
+                trailingBlock);
 
         final List<String> fileNames = new ArrayList<>();
         for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
@@ -210,11 +232,17 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
             }
             fileNames.add(blockFileName(blockNum));
         }
+        // Add the trailing block to the download list (best-effort; verified separately below).
+        final Path trailingLocal = tempBlockDir.resolve(blockFileName(trailingBlock));
+        if (!trailingLocal.toFile().exists() || trailingLocal.toFile().length() == 0) {
+            fileNames.add(blockFileName(trailingBlock));
+        }
 
         if (!fileNames.isEmpty()) {
             GcpPathHelper.downloadFiles(gcpBlockStreamPath, fileNames, tempBlockDir, billingProject, downloadThreads);
         }
 
+        // The resolved range [leftBlock, rightBlock] must be fully present.
         long missingCount = 0;
         for (long blockNum = range.leftBlock(); blockNum <= range.rightBlock(); blockNum++) {
             final Path localFile = tempBlockDir.resolve(blockFileName(blockNum));
@@ -224,6 +252,13 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         }
         if (missingCount > 0) {
             throw new IOException(missingCount + " block file(s) missing or empty after download.");
+        }
+        // The trailing block is optional: warn if absent so the user knows the last block may not close.
+        if (!trailingLocal.toFile().exists() || trailingLocal.toFile().length() == 0) {
+            log.warn(
+                    "Trailing block {} (needed to close the target block during replay) is not available; "
+                            + "the last block may remain open. Extend --target-round to include more blocks.",
+                    trailingBlock);
         }
 
         return tempBlockDir;
