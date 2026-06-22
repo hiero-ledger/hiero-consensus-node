@@ -23,7 +23,6 @@ import com.hedera.hapi.node.scheduled.ScheduleInfo;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -45,7 +44,7 @@ class ScheduleGetInfoHandlerTest extends ScheduleHandlerTestBase {
     @BeforeEach
     void setUp() throws PreCheckException, InvalidKeyException {
         setUpBase();
-        subject = new ScheduleGetInfoHandler(new ScheduleOpsUsage());
+        subject = new ScheduleGetInfoHandler();
         given(mockQueryContext.ledgerId())
                 .willReturn(testConfig.getConfigData(LedgerConfig.class).id());
     }
