@@ -25,6 +25,7 @@ import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
+import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,9 +54,7 @@ class PlatformStatusStateMachineTests {
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> FREEZE_COMPLETE")
     void freezeCompleteAfterReplayingEvents() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsAction()));
         assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
         assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
     }
