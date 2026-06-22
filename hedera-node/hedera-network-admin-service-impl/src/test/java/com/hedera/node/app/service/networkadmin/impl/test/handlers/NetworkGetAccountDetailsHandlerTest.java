@@ -35,7 +35,6 @@ import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetAccountDetailsHandler;
 import com.hedera.node.app.service.networkadmin.impl.utils.NetworkAdminServiceUtil;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -55,12 +54,10 @@ class NetworkGetAccountDetailsHandlerTest extends NetworkAdminHandlerTestBase {
     private QueryContext context;
 
     private NetworkGetAccountDetailsHandler networkGetAccountDetailsHandler;
-    private CryptoOpsUsage cryptoOpsUsage;
 
     @BeforeEach
     void setUp() {
-        this.cryptoOpsUsage = new CryptoOpsUsage();
-        networkGetAccountDetailsHandler = new NetworkGetAccountDetailsHandler(cryptoOpsUsage);
+        networkGetAccountDetailsHandler = new NetworkGetAccountDetailsHandler();
         final var configuration = HederaTestConfigBuilder.createConfig();
         lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(context.ledgerId()).thenReturn(ledgerId);

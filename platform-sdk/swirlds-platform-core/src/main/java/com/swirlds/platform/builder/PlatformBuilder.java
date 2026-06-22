@@ -14,7 +14,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePer
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -24,12 +23,12 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -44,7 +43,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,12 +62,12 @@ import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -137,9 +135,7 @@ public final class PlatformBuilder {
      */
     private PlatformContext platformContext;
 
-    private Consumer<PlatformEvent> preconsensusEventConsumer;
-    private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
-    private Consumer<PlatformEvent> staleEventConsumer;
+    private StaleEventConsumer staleEventConsumer;
     private ExecutionLayer execution;
 
     /**
@@ -248,7 +244,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withStaleEventCallback(@NonNull final Consumer<PlatformEvent> staleEventConsumer) {
+    public PlatformBuilder withStaleEventConsumer(@NonNull final StaleEventConsumer staleEventConsumer) {
         throwIfAlreadyUsed();
         this.staleEventConsumer = requireNonNull(staleEventConsumer);
         return this;
@@ -517,16 +513,9 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final Scratchpad<IssScratchpad> issScratchpad = Scratchpad.create(
-                platformContext.getConfiguration(),
-                platformContext.getFileSystemManager(),
-                selfId,
-                IssScratchpad.class,
-                "platform.iss");
+        final Scratchpad<IssScratchpad> issScratchpad =
+                Scratchpad.create(platformContext.getFileSystemManager(), selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
-
-        final ApplicationCallbacks callbacks =
-                new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
@@ -590,7 +579,7 @@ public final class PlatformBuilder {
                 hashgraphModule,
                 gossipModule);
 
-        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents, callbacks);
+        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
@@ -614,7 +603,7 @@ public final class PlatformBuilder {
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor);
 
-        PlatformWiring.wire(platformContext, execution, platformComponents, callbacks);
+        PlatformWiring.wire(platformContext, execution, platformComponents, staleEventConsumer);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponents,
@@ -627,9 +616,6 @@ public final class PlatformBuilder {
                 softwareVersion,
                 initialState,
                 rosterHistory,
-                callbacks,
-                preconsensusEventConsumer,
-                snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),

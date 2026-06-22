@@ -27,10 +27,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoDeleteAllowanceHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -40,7 +36,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -317,43 +312,6 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(writableNftStore.get(nftIdSl2).ownerId()).isEqualTo(payerId);
         assertThat(writableNftStore.get(nftIdSl1).spenderId()).isNull();
         assertThat(writableNftStore.get(nftIdSl2).spenderId()).isNull();
-    }
-
-    @Test
-    @DisplayName("check that fees are 1 for delete account allowance trx")
-    void testCalculateFeesReturnsCorrectFeeForDeleteAccountAllowance() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        final var txnBody = cryptoDeleteAllowanceTransaction(payerId);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCtx.body()).willReturn(txnBody);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
-    }
-
-    @Test
-    @DisplayName("calculate fees correctly considering bytes per transaction")
-    void testCalculateFeesConsideringBytesPerTransaction() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        final var txnBody = cryptoDeleteAllowanceTransaction(payerId);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCtx.body()).willReturn(txnBody);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        final var cryptoDeleteAllowanceTransactionBody = txnBody.cryptoDeleteAllowanceOrThrow();
-        final var longSize = 8L;
-        final var nftDeleteAllowanceSize = 6 * longSize;
-        final var bytesPerTransaction =
-                cryptoDeleteAllowanceTransactionBody.nftAllowances().size() * nftDeleteAllowanceSize + (2 * longSize);
-        given(feeCalc.addBytesPerTransaction(bytesPerTransaction)).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
     }
 
     private TransactionBody cryptoDeleteAllowanceTransaction(final AccountID txnPayer) {
