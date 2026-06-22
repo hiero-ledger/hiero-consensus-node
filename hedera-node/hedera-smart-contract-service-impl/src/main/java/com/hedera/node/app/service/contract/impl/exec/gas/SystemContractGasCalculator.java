@@ -28,7 +28,7 @@ public class SystemContractGasCalculator {
      */
     @FunctionalInterface
     public interface FeeCalculatorFunction {
-        /**ca
+        /**
          * @param body the transaction body to compute fees for
          * @param payer the synthetic payer account
          * @param signatureMap when non-null, its serialized size is used instead of the
