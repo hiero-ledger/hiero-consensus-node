@@ -5,6 +5,7 @@ import com.hedera.statevalidation.exporter.DiffExporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.io.File;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.NonNull;
@@ -45,6 +46,16 @@ public class DiffCommand implements Runnable {
             description = "Resulting diff directory path.")
     private String outputDirStr;
 
+    @Option(
+            names = {"-i", "--ignore-field"},
+            split = ",",
+            description = "Value field(s) to ignore when comparing entries. Entries that differ only in the "
+                    + "ignored fields are treated as identical and suppressed from the diff. Repeat the option or "
+                    + "provide a comma-separated list to ignore several fields. Paths use dotted notation with an "
+                    + "explicit array wildcard, e.g. 'accountId.accountNum', 'transfers[*].amount', 'tokens[*]'. "
+                    + "Only value fields are supported.")
+    private List<String> ignoreFields;
+
     @Override
     public void run() {
         final File outputDirectory = new File(outputDirStr);
@@ -65,7 +76,12 @@ public class DiffCommand implements Runnable {
         final VirtualMapState state2 = StateUtils.getState(STATE_2);
         log.debug("Second state has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
-        final DiffExporter exporter = new DiffExporter(outputDirectory, state1, state2, serviceName, stateKey);
+        if (ignoreFields != null && !ignoreFields.isEmpty()) {
+            log.info("Ignoring value fields during diff: {}", ignoreFields);
+        }
+
+        final DiffExporter exporter =
+                new DiffExporter(outputDirectory, state1, state2, serviceName, stateKey, ignoreFields);
         exporter.export();
     }
 

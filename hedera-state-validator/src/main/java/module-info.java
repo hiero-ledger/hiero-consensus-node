@@ -50,4 +50,5 @@ module com.hedera.state.validator {
     requires com.github.spotbugs.annotations;
     requires info.picocli;
     requires org.apache.logging.log4j;
+    requires org.json;
 }
