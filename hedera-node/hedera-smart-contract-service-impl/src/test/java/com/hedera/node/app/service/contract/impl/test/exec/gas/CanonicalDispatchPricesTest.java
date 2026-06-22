@@ -50,6 +50,31 @@ class CanonicalDispatchPricesTest {
     }
 
     @Test
+    void canonicalPricesReflectUpdatedFeeSchedule() {
+        final long initialFee = 500_000_000L;
+        final long updatedFee = 1_000_000_000L;
+
+        final var initialSchedule = FeeSchedule.newBuilder()
+                .node(NodeFee.newBuilder().baseFee(100_000L).build())
+                .network(NetworkFee.newBuilder().multiplier(1).build())
+                .services(makeService(
+                        "Token", makeServiceFee(HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT, initialFee)))
+                .build();
+        final var updatedSchedule = FeeSchedule.newBuilder()
+                .node(NodeFee.newBuilder().baseFee(100_000L).build())
+                .network(NetworkFee.newBuilder().multiplier(1).build())
+                .services(makeService(
+                        "Token", makeServiceFee(HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT, updatedFee)))
+                .build();
+
+        final var initialPrices = new CanonicalDispatchPrices(initialSchedule);
+        assertEquals(initialFee, initialPrices.canonicalPriceInTinycents(DispatchType.ASSOCIATE));
+
+        final var updatedPrices = new CanonicalDispatchPrices(updatedSchedule);
+        assertEquals(updatedFee, updatedPrices.canonicalPriceInTinycents(DispatchType.ASSOCIATE));
+    }
+
+    @Test
     void feeScheduleConstructorUsesBaseFeeForMatchingFunctionality() {
         final long associateBaseFee = 500_000_000L;
         final long cryptoCreateBaseFee = 499_000_000L;
