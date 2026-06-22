@@ -25,6 +25,7 @@ type Step = {
 export type Job = {
     name?: string,
     steps?: Array<Step>
+    uses?: string,
 }
 export type Workflow = {
     name: string,
