@@ -38,7 +38,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 OSHealthCheckConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
-                PlatformStatusConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,
