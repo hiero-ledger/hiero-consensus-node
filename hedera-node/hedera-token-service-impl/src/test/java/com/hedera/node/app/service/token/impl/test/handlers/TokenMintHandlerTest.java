@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_MINT_AMOU
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.METADATA_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -20,6 +21,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
@@ -90,6 +93,21 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
                 .isEqualTo(2);
         // supply of fungible token increases
         assertThat(writableTokenStore.get(fungibleTokenId).totalSupply()).isEqualTo(1010L);
+    }
+
+    @Test
+    void tokenHasEmptyKeyListSupplyKey() {
+        givenMintTxn(fungibleTokenId, null, 10L);
+        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+        writableTokenStore.put(writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .supplyKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build());
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TOKEN_HAS_NO_SUPPLY_KEY));
     }
 
     @Test

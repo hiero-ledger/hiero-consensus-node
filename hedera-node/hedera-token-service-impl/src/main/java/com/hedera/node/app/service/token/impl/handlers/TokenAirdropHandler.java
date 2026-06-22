@@ -337,8 +337,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      */
     private long associationHighVolumeScalingDelta(@NonNull final HandleContext feeContext) {
         final var context = (FeeContext) feeContext;
-        if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()
-                || !feeContext.body().highVolume()) {
+        if (!feeContext.body().highVolume()) {
             return 0L;
         }
 
