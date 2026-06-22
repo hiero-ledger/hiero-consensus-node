@@ -87,7 +87,7 @@ public final class HashgraphInfo {
     private int candCount; // how many candidates found so far during the pending round
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
     private EventInfo[] candEventInfo; // for each node, the list of candidate events
-    private long[] candStake; // the total stake of all votes for each candidate event
+    private long[] candStakeCollected; // the total stake of all votes for each candidate event
 
     // these define what each element in benchmarks currently means. Always at least 1. Element 0 must never change.
     public static final int NUM_BENCHMARKS = 9; // number of elements in long[] getBenchmarks()
@@ -180,8 +180,8 @@ public final class HashgraphInfo {
         return candEventInfo;
     }
 
-    public long[] getCandStake() {
-        return candStake;
+    public long[] getCandStakeCollected() {
+        return candStakeCollected;
     }
 
     public boolean isNodesChanged() {
@@ -632,7 +632,7 @@ public final class HashgraphInfo {
                     h.candCount = h.numNodes; // start with all the null votes
                     h.candIndex = new ArrayList<>(h.numNodes);
                     h.candEventInfo = new EventInfo[2 * h.numNodes];
-                    h.candStake = new long[2 * h.numNodes];
+                    h.candStakeCollected = new long[2 * h.numNodes];
                     for (int i = 0; i < h.numNodes; i++) {
                         ArrayList<Integer> list = new ArrayList<>(2);
                         h.candIndex.add(list);
@@ -645,8 +645,8 @@ public final class HashgraphInfo {
                     h.candIndex.get(m).clear(); // forget old list of candidates for node with index m
                     h.candIndex.get(m).add(m); // add back the entry for the null candidate
                     h.candEventInfo[m] = null; // index m represents a vote that node m have a judge of null
-                    Arrays.fill(h.candStake, 0L); // this could be skipped, but it's cheap and safer to do it
-                    h.candStake[m] = r.stake[m];
+                    Arrays.fill(h.candStakeCollected, 0L); // this could be skipped, but it's cheap and safer to do it
+                    h.candStakeCollected[m] = r.stake[m];
                 }
 
                 // if r.nodes changed this round (or it's the first time called), then store it, create nodeIdToIndex
@@ -930,8 +930,8 @@ public final class HashgraphInfo {
                 h.candCount++; // a new candidate has been found
                 eventCandIndex = h.candCount - 1; // the event remembers its index
                 h.candIndex.get(creator).add(eventCandIndex);
-                if (h.candCount > h.candStake.length) { // if too big for arrays, then double their sizes
-                    h.candStake = Arrays.copyOf(h.candStake, h.candCount * 2);
+                if (h.candCount > h.candStakeCollected.length) { // if too big for arrays, then double their sizes
+                    h.candStakeCollected = Arrays.copyOf(h.candStakeCollected, h.candCount * 2);
                     h.candEventInfo = Arrays.copyOf(h.candEventInfo, h.candCount * 2);
                 }
                 h.candEventInfo[eventCandIndex] = this;
@@ -940,13 +940,13 @@ public final class HashgraphInfo {
             // function stakeAgrees /-----------------------------------------------------------------------------
             // Instead of using the stakeAgrees function from the paper, use h.cand* fields for more efficiency.
             // Prepare for topVote by finding total stake for all votes for each candidate (including for null).
-            Arrays.fill(h.candStake, 0, h.candCount, 0L);
+            Arrays.fill(h.candStakeCollected, 0, h.candCount, 0L);
             for (int voterCreator = 0; voterCreator < numNodes; voterCreator++) {
                 h.benchmarks[HashgraphInfo.BENCHMARK_LOOP5] -= System.nanoTime();
                 for (int candCreator = 0; candCreator < numNodes; candCreator++) {
                     EventInfo voter = stronglySeeP[voterCreator];
                     if (voter != null) {
-                        h.candStake[voter.voteIndex[candCreator]] += r.stake[candCreator];
+                        h.candStakeCollected[voter.voteIndex[candCreator]] += r.stake[candCreator];
                     }
                 }
                 h.benchmarks[HashgraphInfo.BENCHMARK_LOOP5] += System.nanoTime();
@@ -1004,7 +1004,7 @@ public final class HashgraphInfo {
                     int bestIndex = 0;
                     long bestStake = -1;
                     for (int index : h.candIndex.get(m)) {
-                        long stake = h.candStake[index];
+                        long stake = h.candStakeCollected[index];
                         if (stake > bestStake) {
                             bestStake = stake;
                             bestIndex = index;
