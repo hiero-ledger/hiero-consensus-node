@@ -53,14 +53,14 @@ Options are defined in
 [MetricsFileExportConfig](src/main/java/org/hiero/metrics/export/file/config/MetricsFileExportConfig.java),
 under the `metrics.exporter.file` prefix:
 
-| Property                  | Default   | Description                                                                 |
-|---------------------------|-----------|-----------------------------------------------------------------------------|
-| `enabled`                 | `true`    | Whether the exporter is enabled.                                            |
-| `directory`               | _(none)_  | Directory for the output file (required). File is `metrics.txt[.gz]`.       |
-| `snapshotIntervalSeconds` | `3`       | Interval between snapshots written to the file (must be positive).          |
-| `useGzip`                 | `true`    | Gzip the output. Metrics compress well due to repeated names and labels.    |
-| `bufferSize`              | `8192`    | Output buffer size in bytes (`0` disables buffering; max `2097152`).        |
-| `decimalFormat`           | `#.###`   | `DecimalFormat` pattern for numeric values (locale-independent `.`).        |
+|         Property          | Default  |                               Description                                |
+|---------------------------|----------|--------------------------------------------------------------------------|
+| `enabled`                 | `true`   | Whether the exporter is enabled.                                         |
+| `directory`               | _(none)_ | Directory for the output file (required). File is `metrics.txt[.gz]`.    |
+| `snapshotIntervalSeconds` | `3`      | Interval between snapshots written to the file (must be positive).       |
+| `useGzip`                 | `true`   | Gzip the output. Metrics compress well due to repeated names and labels. |
+| `bufferSize`              | `8192`   | Output buffer size in bytes (`0` disables buffering; max `2097152`).     |
+| `decimalFormat`           | `#.###`  | `DecimalFormat` pattern for numeric values (locale-independent `.`).     |
 
 ## gzip durability
 
