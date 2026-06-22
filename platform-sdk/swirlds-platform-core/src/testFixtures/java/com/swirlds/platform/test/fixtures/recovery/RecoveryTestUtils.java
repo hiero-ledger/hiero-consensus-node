@@ -32,8 +32,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
+import org.hiero.consensus.event.stream.config.EventStreamConfig_;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.counting.CounterType;
 import org.hiero.consensus.io.counting.CountingInputStream;
@@ -139,9 +139,9 @@ public final class RecoveryTestUtils {
             throws IOException {
 
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.ENABLE_EVENT_STREAMING, true)
-                .withValue(EventConfig_.EVENTS_LOG_DIR, destination.toString())
-                .withValue(EventConfig_.EVENTS_LOG_PERIOD, secondsPerFile)
+                .withValue(EventStreamConfig_.ENABLE_EVENT_STREAMING, true)
+                .withValue(EventStreamConfig_.EVENTS_LOG_DIR, destination.toString())
+                .withValue(EventStreamConfig_.EVENTS_LOG_PERIOD, secondsPerFile)
                 .getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)

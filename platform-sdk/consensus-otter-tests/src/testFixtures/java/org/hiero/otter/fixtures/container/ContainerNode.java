@@ -41,8 +41,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.event.stream.config.EventStreamConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -541,8 +541,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void downloadEventStreamFiles() {
-        final EventConfig eventConfig = nodeConfiguration.current().getConfigData(EventConfig.class);
-        copyFolderFromContainer(eventConfig.eventsLogDir(), ContainerConstants.EVENT_STREAM_DIRECTORY);
+        final EventStreamConfig eventStreamConfig = nodeConfiguration.current().getConfigData(EventStreamConfig.class);
+        copyFolderFromContainer(eventStreamConfig.eventsLogDir(), ContainerConstants.EVENT_STREAM_DIRECTORY);
     }
 
     private void downloadConsensusFiles() throws IOException {

@@ -24,7 +24,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
-import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.stream.config.EventStreamConfig;
 import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStreamConfiguration;
@@ -102,11 +102,11 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
 
         eventAfterFreezeLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
-        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
-        final boolean enableEventStreaming = eventConfig.enableEventStreaming();
-        final String eventsLogDir = eventConfig.eventsLogDir();
-        final long eventsLogPeriod = eventConfig.eventsLogPeriod();
-        final int eventStreamQueueCapacity = eventConfig.eventStreamQueueCapacity();
+        final EventStreamConfig eventStreamConfig = configuration.getConfigData(EventStreamConfig.class);
+        final boolean enableEventStreaming = eventStreamConfig.enableEventStreaming();
+        final String eventsLogDir = eventStreamConfig.eventsLogDir();
+        final long eventsLogPeriod = eventStreamConfig.eventsLogPeriod();
+        final int eventStreamQueueCapacity = eventStreamConfig.eventStreamQueueCapacity();
 
         if (enableEventStreaming) {
             // the directory to which event stream files are written

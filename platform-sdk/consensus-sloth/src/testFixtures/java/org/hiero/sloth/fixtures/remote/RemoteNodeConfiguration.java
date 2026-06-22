@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.event.stream.config.EventStreamConfig_;
 import org.hiero.sloth.fixtures.NodeConfiguration;
 import org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.sloth.fixtures.internal.AbstractNodeConfiguration;
@@ -36,7 +36,7 @@ public class RemoteNodeConfiguration extends AbstractNodeConfiguration {
         super(lifecycleSupplier, overrideProperties);
         requireNonNull(remoteWorkDir, "remoteWorkDir must not be null");
         this.overrideProperties.withConfigValue(
-                EventConfig_.EVENTS_LOG_DIR, Path.of(remoteWorkDir, EVENT_STREAM_DIRECTORY));
+                EventStreamConfig_.EVENTS_LOG_DIR, Path.of(remoteWorkDir, EVENT_STREAM_DIRECTORY));
     }
 
     /**

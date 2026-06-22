@@ -11,8 +11,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.event.stream.config.EventStreamConfig;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -65,7 +65,7 @@ public final class CleanCommand extends AbstractCommand {
         FileUtils.deleteDirectory(
                 sdkPath.resolve(configuration.getConfigData(PathsConfig.class).savedStateDir()));
         // event streams
-        FileUtils.deleteDirectory(
-                sdkPath.resolve(configuration.getConfigData(EventConfig.class).eventsLogDir()));
+        FileUtils.deleteDirectory(sdkPath.resolve(
+                configuration.getConfigData(EventStreamConfig.class).eventsLogDir()));
     }
 }

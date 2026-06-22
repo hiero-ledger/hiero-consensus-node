@@ -80,8 +80,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.event.stream.config.EventStreamConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
@@ -111,7 +111,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(BasicConfig.class)
                 .withConfigDataType(BasicCommonConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
-                .withConfigDataType(EventConfig.class)
+                .withConfigDataType(EventStreamConfig.class)
                 .withConfigDataType(OSHealthCheckConfig.class)
                 .withConfigDataType(PathsConfig.class)
                 .withConfigDataType(SocketConfig.class)

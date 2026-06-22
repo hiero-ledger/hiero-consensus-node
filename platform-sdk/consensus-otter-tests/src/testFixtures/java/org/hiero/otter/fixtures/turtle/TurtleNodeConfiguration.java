@@ -6,8 +6,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
 import org.hiero.consensus.config.BasicConfig_;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.config.PathsConfig_;
+import org.hiero.consensus.event.stream.config.EventStreamConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
@@ -40,7 +40,7 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         this.overrideProperties.withConfigValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, 100_000L);
         this.overrideProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
         this.overrideProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);
-        this.overrideProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
+        this.overrideProperties.withConfigValue(EventStreamConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
         this.overrideProperties.withConfigValue(PathsConfig_.SAVED_STATE_DIR, outputDirectory.resolve("data/saved"));
         this.overrideProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
         this.overrideProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));

@@ -13,7 +13,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.stream.Stream;
-import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.stream.config.EventStreamConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
@@ -58,8 +58,8 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
         this.eventStreamDir = baseDir.resolve("events_" + nodeId.id());
         this.reconnectResult = requireNonNull(reconnectResult);
 
-        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
-        if (!eventConfig.enableEventStreaming()) {
+        final EventStreamConfig eventStreamConfig = configuration.getConfigData(EventStreamConfig.class);
+        if (!eventStreamConfig.enableEventStreaming()) {
             throw new IllegalStateException("Event streaming is not enabled");
         }
     }
