@@ -12,6 +12,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Context of a single query. Contains all query specific information.
@@ -86,4 +87,14 @@ public interface QueryContext {
      */
     @NonNull
     FeeCalculator feeCalculator();
+
+    /**
+     * Returns the current simple fees schedule.
+     *
+     * @return the current {@link FeeSchedule} for simple fees
+     */
+    @NonNull
+    default FeeSchedule simpleFeesSchedule() {
+        return feeCalculator().getSimpleFeesSchedule();
+    }
 }

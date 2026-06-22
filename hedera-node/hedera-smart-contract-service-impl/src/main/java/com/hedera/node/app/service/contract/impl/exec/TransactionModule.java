@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ChildTransactionRes
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TopLevelResourcePrices;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -89,6 +90,17 @@ public interface TransactionModule {
             }
         }
         return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
+    }
+
+    @Provides
+    @TransactionScope
+    static CanonicalDispatchPrices provideCanonicalDispatchPrices(
+            @NonNull final HandleContext context, @NonNull final AssetsLoader assetsLoader) {
+        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
+        if (feesConfig.simpleFeesEnabled()) {
+            return new CanonicalDispatchPrices(context.simpleFeesSchedule());
+        }
+        return new CanonicalDispatchPrices(assetsLoader);
     }
 
     @Provides

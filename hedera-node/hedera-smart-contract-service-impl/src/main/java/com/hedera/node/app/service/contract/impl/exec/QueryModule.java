@@ -4,8 +4,10 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
@@ -38,6 +40,17 @@ public interface QueryModule {
     @QueryScope
     static HederaConfig provideHederaConfig(@NonNull final QueryContext context) {
         return requireNonNull(context).configuration().getConfigData(HederaConfig.class);
+    }
+
+    @Provides
+    @QueryScope
+    static CanonicalDispatchPrices provideCanonicalDispatchPrices(
+            @NonNull final QueryContext context, @NonNull final AssetsLoader assetsLoader) {
+        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
+        if (feesConfig.simpleFeesEnabled()) {
+            return new CanonicalDispatchPrices(context.simpleFeesSchedule());
+        }
+        return new CanonicalDispatchPrices(assetsLoader);
     }
 
     @Provides

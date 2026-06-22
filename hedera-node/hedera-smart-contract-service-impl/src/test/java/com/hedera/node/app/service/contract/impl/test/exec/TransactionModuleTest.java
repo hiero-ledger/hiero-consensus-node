@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideCanonicalDispatchPrices;
 import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideEvmActionTracer;
 import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideHederaEvmContext;
 import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideSenderEcdsaKey;
@@ -24,6 +25,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.TransactionModule;
@@ -74,6 +76,9 @@ class TransactionModuleTest {
 
     @Mock
     private CanonicalDispatchPrices canonicalDispatchPrices;
+
+    @Mock
+    private AssetsLoader assetsLoader;
 
     @Mock
     private ExpiryValidator expiryValidator;
@@ -204,6 +209,27 @@ class TransactionModuleTest {
         given(context.body()).willReturn(body);
         assertNull(
                 TransactionModule.maybeProvideHydratedEthTxData(context, hydration, DEFAULT_HEDERA_CONFIG, fileStore));
+    }
+
+    @Test
+    void providesLegacyDispatchPricesWhenSimpleFeesDisabled() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("fees.simpleFeesEnabled", false)
+                .getOrCreateConfig();
+        given(context.configuration()).willReturn(config);
+        final var result = provideCanonicalDispatchPrices(context, assetsLoader);
+        assertNotNull(result);
+    }
+
+    @Test
+    void providesSimpleFeesDispatchPricesWhenSimpleFeesEnabled() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("fees.simpleFeesEnabled", true)
+                .getOrCreateConfig();
+        given(context.configuration()).willReturn(config);
+        given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
+        final var result = provideCanonicalDispatchPrices(context, assetsLoader);
+        assertNotNull(result);
     }
 
     @Test

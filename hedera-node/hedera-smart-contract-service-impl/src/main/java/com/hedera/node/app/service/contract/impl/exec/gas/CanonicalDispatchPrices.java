@@ -16,13 +16,12 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeScheduleUtils;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * A component providing the canonical prices in tinycents for each type of transaction dispatch.
  */
-@Singleton
 public class CanonicalDispatchPrices {
     private final Map<DispatchType, Long> pricesMap = new EnumMap<>(DispatchType.class);
     /**
@@ -33,7 +32,6 @@ public class CanonicalDispatchPrices {
     /**
      * @param assetsLoader used to load the fee schedule from resources
      */
-    @Inject
     public CanonicalDispatchPrices(@NonNull final AssetsLoader assetsLoader) {
         requireNonNull(assetsLoader);
         try {
@@ -57,6 +55,22 @@ public class CanonicalDispatchPrices {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Constructs a price map from a simple fees schedule, using the base fee of each
+     * service fee definition as the canonical price in tinycents for the matching dispatch type.
+     *
+     * @param feeSchedule the simple fees schedule to look up prices from
+     */
+    public CanonicalDispatchPrices(@NonNull final FeeSchedule feeSchedule) {
+        requireNonNull(feeSchedule);
+        Arrays.stream(DispatchType.class.getEnumConstants()).forEach(dispatchType -> {
+            final var def = FeeScheduleUtils.lookupServiceFee(feeSchedule, dispatchType.functionality());
+            if (def != null) {
+                pricesMap.put(dispatchType, def.baseFee());
+            }
+        });
     }
 
     /**

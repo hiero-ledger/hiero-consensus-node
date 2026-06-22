@@ -35,6 +35,7 @@ import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHan
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import dagger.Binds;
+import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoMap;
@@ -65,6 +66,12 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
 public interface ContractServiceModule {
+    @Provides
+    @Singleton
+    static AssetsLoader provideAssetsLoader() {
+        return new AssetsLoader();
+    }
+
     @Provides
     @Singleton
     static ContractHandlers provideHandlers(
