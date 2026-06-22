@@ -76,14 +76,11 @@ public final class VirtualHasher {
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
-    private final VirtualMapConfig virtualMapConfig;
-
     /**
      * @param virtualMapConfig platform configuration for VirtualMap
      */
     public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
-        this.virtualMapConfig = virtualMapConfig;
         hashingPool = new ForkJoinPool(
                 virtualMapConfig.getNumHashThreads(),
                 ForkJoinPool.defaultForkJoinWorkerThreadFactory,
@@ -442,7 +439,6 @@ public final class VirtualHasher {
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
-        requireNonNull(virtualMapConfig);
 
         this.defaultChunkHeight = hashChunkHeight;
 
