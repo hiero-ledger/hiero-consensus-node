@@ -16,7 +16,6 @@ import com.hedera.services.bdd.spec.infrastructure.providers.ops.BiasedDelegatin
 import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.suites.regression.UmbrellaRedux;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -34,9 +33,7 @@ import org.junit.jupiter.api.Tag;
 public class UniquePrefixesSmokeTest {
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @HapiTest
     @DisplayName("All major transaction types succeed with UNIQUE_PREFIXES")
