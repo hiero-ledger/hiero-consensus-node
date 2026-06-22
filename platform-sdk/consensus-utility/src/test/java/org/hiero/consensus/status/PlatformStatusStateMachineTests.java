@@ -12,7 +12,6 @@ import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
@@ -23,7 +22,6 @@ import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
@@ -361,15 +359,6 @@ class PlatformStatusStateMachineTests {
     void illegalAction() {
         // state machine must be robust to unexpected actions
         assertNull(stateMachine.submitStatusAction(new FallenBehindAction()));
-    }
-
-    @Test
-    @DisplayName("Unknown action")
-    void unknownAction() {
-        class UnknownAction implements PlatformStatusAction {}
-
-        final UnknownAction unknownAction = new UnknownAction();
-        assertThrows(IllegalArgumentException.class, () -> stateMachine.submitStatusAction(unknownAction));
     }
 
     @Test

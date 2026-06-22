@@ -94,9 +94,6 @@ public class StatusStateMachine {
                 case final StartedReplayingEventsAction a -> currentStatusLogic.processStartedReplayingEventsAction(a);
                 case final StateWrittenToDiskAction a -> currentStatusLogic.processStateWrittenToDiskAction(a);
                 case final TimeElapsedAction a -> currentStatusLogic.processTimeElapsedAction(a);
-                default ->
-                    throw new IllegalArgumentException(
-                            "Unknown action type: " + action.getClass().getName());
             };
         } catch (final IllegalPlatformStatusException e) {
             logger.error(EXCEPTION.getMarker(), e.getMessage(), e);

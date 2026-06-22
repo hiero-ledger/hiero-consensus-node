@@ -9,4 +9,13 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * A platform status action is an occurrence that has the potential to affect the
  * {@link PlatformStatus PlatformStatus}
  */
-public interface PlatformStatusAction {}
+public sealed interface PlatformStatusAction
+        permits CatastrophicFailureAction,
+                DoneReplayingEventsAction,
+                FallenBehindAction,
+                FreezePeriodEnteredAction,
+                ReconnectCompleteAction,
+                SelfEventReachedConsensusAction,
+                StartedReplayingEventsAction,
+                StateWrittenToDiskAction,
+                TimeElapsedAction {}
