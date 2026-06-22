@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.*;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
+import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.annotations.*;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -35,7 +36,6 @@ import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHan
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import dagger.Binds;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoMap;
