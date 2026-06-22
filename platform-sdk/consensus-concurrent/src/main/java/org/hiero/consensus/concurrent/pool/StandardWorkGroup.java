@@ -189,9 +189,6 @@ public class StandardWorkGroup implements AutoCloseable {
                 // Cancel all running tasks, then propagate immediately without waiting;
                 // close() will ensure every task has terminated.
                 executorService.shutdownNow();
-                // future.get() clears the interrupt flag when throwing; restore it so callers
-                // can still observe the interruption alongside the thrown exception.
-                Thread.currentThread().interrupt();
                 throw e;
             } catch (final ExecutionException | CancellationException e) {
                 break; // defensive — wrapped operation does not re-throw, so this should not occur

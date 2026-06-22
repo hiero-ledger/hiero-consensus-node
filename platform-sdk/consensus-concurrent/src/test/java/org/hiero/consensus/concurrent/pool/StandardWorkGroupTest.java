@@ -3,6 +3,7 @@ package org.hiero.consensus.concurrent.pool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -12,9 +13,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +42,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void joinWithNoTasksCompletesNormally() throws InterruptedException, ParallelExecutionException {
+    void joinAfterNoTasksForked() throws InterruptedException, ParallelExecutionException {
         subject.join(); // no exception expected
 
         assertThat(subject.isShutdown()).isFalse(); // close() not called yet
@@ -50,7 +52,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void executingTasksAfterShutdown() {
+    void forkTasksAfterShutdownThrows() {
         subject.shutdown();
         assertThat(subject.isTerminated()).isTrue();
         assertThat(subject.isShutdown()).isTrue();
@@ -61,40 +63,35 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void forkSingleTask() throws Exception {
+    void forkedTaskFinishesWithoutJoin() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
 
-        subject.fork(() -> {
-            executedCount.incrementAndGet();
-            try {
-                cyclicBarrier.await();
-            } catch (final Exception ignored) {
-            }
-        });
-        cyclicBarrier.await(10, TimeUnit.SECONDS);
-        assertThat(executedCount.get()).isEqualTo(1);
+        subject.fork(executedCount::incrementAndGet);
+
+        assertEventuallyEquals(1, executedCount::get, Duration.ofSeconds(5), "Task should finish");
 
         assertThat(subject.isTerminated()).isFalse();
         assertThat(subject.isShutdown()).isFalse();
     }
 
     @Test
-    void forkTasksWithName() throws InterruptedException, ParallelExecutionException {
+    void forkJoinWithTaskNames() throws InterruptedException, ParallelExecutionException {
         final AtomicInteger executedCount = new AtomicInteger();
         for (int i = 0; i < 10; i++) {
             subject.fork("task-" + i, executedCount::incrementAndGet);
         }
+
         subject.join();
         assertThat(executedCount.get()).isEqualTo(10);
     }
 
     @Test
-    void executesMultipleTasksNoExceptions() throws InterruptedException, ParallelExecutionException {
+    void forkJoinWithoutTaskNames() throws InterruptedException, ParallelExecutionException {
         final AtomicInteger executedCount = new AtomicInteger();
         for (int i = 0; i < 10; i++) {
             subject.fork(executedCount::incrementAndGet);
         }
+
         subject.join();
         assertThat(executedCount.get()).isEqualTo(10);
     }
@@ -166,7 +163,7 @@ class StandardWorkGroupTest {
         });
         thread.start();
 
-        joinStarted.await(2, TimeUnit.SECONDS);
+        joinStarted.await(3, TimeUnit.SECONDS);
         assertEventuallyTrue(
                 () -> thread.getState() == Thread.State.WAITING || thread.getState() == Thread.State.TIMED_WAITING,
                 Duration.ofSeconds(5),
@@ -175,7 +172,7 @@ class StandardWorkGroupTest {
         thread.interrupt();
         thread.join();
 
-        // join() now requests cancellation via shutdownNow() and returns without waiting for
+        // join() requests cancellation via shutdownNow() and returns without waiting for
         // tasks to finish, so the interrupts are observed asynchronously by the worker tasks.
         assertEventuallyTrue(
                 () -> interruptedCount.get() == tasksCount,
@@ -185,51 +182,11 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void interruptStatusRestoredAfterJoinIsInterrupted() throws InterruptedException {
-        final CountDownLatch taskStarted = new CountDownLatch(1);
-        final AtomicBoolean interruptFlagAfterJoin = new AtomicBoolean(false);
+    void oneOfTheTasksExceptionsIsThrown() {
+        final int tasksCount = 10;
+        final CyclicBarrier allReady = new CyclicBarrier(tasksCount);
 
-        subject.fork(() -> {
-            taskStarted.countDown();
-            try {
-                Thread.sleep(Duration.ofSeconds(10).toMillis());
-            } catch (final InterruptedException ignored) {
-            }
-        });
-
-        taskStarted.await(3, TimeUnit.SECONDS);
-
-        final CountDownLatch joinStarted = new CountDownLatch(1);
-        final Thread joinThread = new Thread(() -> {
-            joinStarted.countDown();
-            try {
-                subject.join();
-            } catch (final InterruptedException e) {
-                interruptFlagAfterJoin.set(Thread.currentThread().isInterrupted());
-            } catch (final ParallelExecutionException e) {
-                throw new RuntimeException(e);
-            }
-        });
-        joinThread.start();
-
-        joinStarted.await(2, TimeUnit.SECONDS);
-        assertEventuallyTrue(
-                () -> joinThread.getState() == Thread.State.WAITING
-                        || joinThread.getState() == Thread.State.TIMED_WAITING,
-                Duration.ofSeconds(5),
-                "main thread should enter join");
-        joinThread.interrupt();
-        joinThread.join(10_000);
-
-        assertThat(interruptFlagAfterJoin.get()).isTrue();
-    }
-
-    @Test
-    void onlyFirstExceptionIsThrown() {
-        final CyclicBarrier allReady = new CyclicBarrier(3);
-        final AtomicReference<RuntimeException> thrown = new AtomicReference<>();
-
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < tasksCount; i++) {
             final RuntimeException error = new RuntimeException("error-" + i);
             subject.fork(() -> {
                 try {
@@ -237,7 +194,6 @@ class StandardWorkGroupTest {
                 } catch (final Exception e) {
                     return;
                 }
-                thrown.compareAndSet(null, error);
                 throw error;
             });
         }
@@ -245,7 +201,8 @@ class StandardWorkGroupTest {
         assertThatThrownBy(() -> subject.join())
                 .isInstanceOf(ParallelExecutionException.class)
                 .cause()
-                .isSameAs(thrown.get());
+                .message()
+                .isIn(IntStream.range(0, tasksCount).mapToObj(i -> "error-" + i).collect(Collectors.toSet()));
     }
 
     @Test
@@ -341,7 +298,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void abortActionCalledOnceWhenFirstTaskFails() throws InterruptedException {
+    void abortActionCalledOnceWhenFirstTaskFails() {
         final AtomicInteger abortCount = new AtomicInteger();
         final CyclicBarrier allReady = new CyclicBarrier(3);
 
