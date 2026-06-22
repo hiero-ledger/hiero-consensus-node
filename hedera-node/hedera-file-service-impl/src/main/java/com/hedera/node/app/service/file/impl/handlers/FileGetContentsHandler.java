@@ -17,13 +17,11 @@ import com.hedera.hapi.node.file.FileGetContentsResponse;
 import com.hedera.hapi.node.file.FileGetContentsResponse.FileContents;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.base.FileQueryBase;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
@@ -77,21 +75,6 @@ public class FileGetContentsHandler extends FileQueryBase {
         if (!op.hasFileID()) {
             throw new PreCheckException(INVALID_FILE_ID);
         }
-    }
-
-    @Override
-    public @NonNull Fees computeFees(@NonNull QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var fileStore = queryContext.createStore(ReadableFileStore.class);
-        final var nodeStore = queryContext.createStore(ReadableNodeStore.class);
-        final var op = query.fileGetContentsOrThrow();
-        final var fileId = op.fileIDOrElse(FileID.DEFAULT);
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final FileContents fileContents = contentFile(fileId, fileStore, queryContext.configuration(), nodeStore);
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj ->
-                        usageGivenType(fileContents, CommonPbjConverters.fromPbjResponseType(responseType)));
     }
 
     @Override

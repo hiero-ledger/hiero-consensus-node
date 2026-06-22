@@ -11,10 +11,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -27,19 +25,14 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.HookDispatchUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -50,7 +43,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -62,7 +54,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ContractUpdateHandler implements TransactionHandler {
-    private final SmartContractFeeBuilder usageEstimator = new SmartContractFeeBuilder();
     private final EntityIdFactory entityIdFactory;
 
     /**
@@ -345,30 +336,5 @@ public class ContractUpdateHandler implements TransactionHandler {
             builder.maxAutoAssociations(op.maxAutomaticTokenAssociationsOrThrow());
         }
         return builder;
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body();
-        final var contractId = op.contractUpdateInstanceOrThrow().contractIDOrElse(ContractID.DEFAULT);
-        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
-        final var contract = accountStore.getContractById(contractId);
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(fromPbj(op), sigValueObj, contract));
-    }
-
-    private FeeData usageGiven(
-            @NonNull com.hederahashgraph.api.proto.java.TransactionBody txn,
-            @NonNull SigValueObj sigUsage,
-            @Nullable Account contract) {
-        if (contract == null) {
-            return CONSTANT_FEE_DATA;
-        }
-        return usageEstimator.getContractUpdateTxFeeMatrices(
-                txn, fromPbj(new com.hedera.hapi.node.base.Timestamp(contract.expirationSecond(), 0)), sigUsage);
     }
 }

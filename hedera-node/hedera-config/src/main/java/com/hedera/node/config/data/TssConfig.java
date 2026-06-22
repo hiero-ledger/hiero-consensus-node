@@ -40,13 +40,13 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean useDeterministicHintsSignatures,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean hintsEnabled,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean historyEnabled,
         // Whether to switch to the WrapsHistoryProver after the genesis block
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
@@ -70,15 +70,21 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean forceMockSignatures,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean wrapsProvingKeyDownloadEnabled,
 
-        @ConfigProperty(defaultValue = "data/keys/wraps") @NodeProperty
+        @ConfigProperty(defaultValue = "data/keys/wraps.tar.gz") @NodeProperty
         String wrapsProvingKeyPath,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
+        @ConfigProperty(
+                defaultValue =
+                        "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3")
+        @NetworkProperty
+        String wrapsProvingKeyHash,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl,
+        @ConfigProperty(defaultValue = "https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz")
+        @NetworkProperty
+        String wrapsProvingKeyDownloadUrl,
 
         @ConfigProperty(defaultValue = "300s") @NetworkProperty
         Duration wrapsProvingKeyRetryInterval) {}

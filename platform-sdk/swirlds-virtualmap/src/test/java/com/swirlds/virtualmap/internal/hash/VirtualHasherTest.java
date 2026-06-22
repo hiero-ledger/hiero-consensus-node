@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,10 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualTestBase;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
@@ -402,17 +400,12 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     void listenerCallCounts() throws Exception {
         // This test relies on hash chunk height to be 5
         final int hashChunkHeight = 5;
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(VirtualMapConfig.class)
-                .withValue("virtualMap.hashChunkHeight", "" + hashChunkHeight)
-                .build();
-        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
 
         final long firstLeafPath = 52L;
         final long lastLeafPath = firstLeafPath * 2;
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, hashChunkHeight);
         final HashingListener listener = new HashingListener();
-        final VirtualHasher hasher = new VirtualHasher(virtualMapConfig);
+        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
         hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);

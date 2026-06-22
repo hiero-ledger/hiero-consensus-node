@@ -31,7 +31,6 @@ import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.handlers.FileCreateHandler;
@@ -84,9 +83,6 @@ class FileCreateTest extends FileTestBase {
     private HandleContext.SavepointStack stack;
 
     @Mock
-    private FileOpsUsage fileOpsUsage;
-
-    @Mock
     private EntityNumGenerator entityNumGenerator;
 
     @Mock
@@ -124,7 +120,7 @@ class FileCreateTest extends FileTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new FileCreateHandler(fileOpsUsage);
+        subject = new FileCreateHandler();
         fileStore = new WritableFileStore(writableStates, writableEntityCounters);
         config = HederaTestConfigBuilder.createConfig().getConfigData(FilesConfig.class);
         lenient().when(handleContext.configuration()).thenReturn(configuration);

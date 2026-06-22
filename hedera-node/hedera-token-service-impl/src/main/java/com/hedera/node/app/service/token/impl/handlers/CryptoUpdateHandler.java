@@ -38,7 +38,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -52,7 +51,6 @@ import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -367,27 +365,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 op.stakedNodeId(),
                 accountStore,
                 context.networkInfo());
-    }
-
-    /**
-     * This method calculates the fees for the CryptoUpdate transaction.
-     * Currently, it just duplicates all the logic from mono-service
-     *
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the calculated fees
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // Variable bytes plus two additional longs for balance and auto-renew period; plus a boolean for receiver sig
-        // required.
-        final var body = feeContext.body();
-        final var accountStore = feeContext.readableStore(ReadableAccountStore.class);
-        return cryptoUpdateFees(
-                body,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT),
-                accountStore,
-                feeContext.configuration());
     }
 
     /**

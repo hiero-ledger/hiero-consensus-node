@@ -18,7 +18,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.consensus.state;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.logging;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl.test.fixtures;
@@ -38,8 +37,6 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.recovery;
     exports com.swirlds.platform.test.fixtures.roster;
     exports com.swirlds.platform.test.fixtures.simulated;
-    exports com.swirlds.platform.test.fixtures.utils;
-    exports com.swirlds.platform.test.fixtures.resource;
     exports com.swirlds.platform.test.fixtures.state;
     exports com.swirlds.platform.test.fixtures.state.manager;
 }
