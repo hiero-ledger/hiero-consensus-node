@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.scratchpad;
+package org.hiero.consensus.scratchpad;
 
 /**
  * Defines a {@link Scratchpad} type. Implementations must be enums.

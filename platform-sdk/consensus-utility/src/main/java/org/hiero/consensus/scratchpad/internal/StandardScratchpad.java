@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.scratchpad.internal;
+package org.hiero.consensus.scratchpad.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.scratchpad.Scratchpad;
-import com.swirlds.platform.scratchpad.ScratchpadType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedInputStream;
@@ -25,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +34,8 @@ import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.scratchpad.Scratchpad;
+import org.hiero.consensus.scratchpad.ScratchpadType;
 
 /**
  * A utility for "taking notes" that are preserved across restart boundaries.
@@ -66,7 +64,6 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
 
     private final Set<K> fields;
     private final String id;
-    private final Configuration configuration;
     private final FileSystemManager fileSystemManager;
 
     private final Map<K, SelfSerializable> data = new HashMap<>();
@@ -79,7 +76,6 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     /**
      * Create a new scratchpad.
      *
-     * @param configuration the configuration to use
      * @param selfId the ID of this node
      * @param clazz the enum class that defines the scratchpad fields
      * @param id the unique ID of this scratchpad (creating multiple scratchpad instances on the same node with the same
@@ -87,12 +83,10 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
      * with the exception of the following characters: "_", "-", and ".". Must not be empty.
      */
     public StandardScratchpad(
-            @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
-        this.configuration = configuration;
         this.fileSystemManager = fileSystemManager;
         scratchpadDirectory = fileSystemManager
                 .resolve(SCRATCHPAD_DIRECTORY_NAME)
@@ -166,17 +160,6 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             final V previous = (V) data.put(key, value);
             flush();
             return previous;
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void atomicOperation(@NonNull final Consumer<Map<K, SelfSerializable>> operation) {
-        try (final Locked ignored = lock.lock()) {
-            operation.accept(data);
-            flush();
         }
     }
 
