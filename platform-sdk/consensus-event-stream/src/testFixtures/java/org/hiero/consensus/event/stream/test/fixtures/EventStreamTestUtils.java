@@ -9,8 +9,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
@@ -32,6 +31,7 @@ import org.hiero.consensus.event.stream.EventStreamType;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -139,14 +139,11 @@ public final class EventStreamTestUtils {
                 .withValue(EventConfig_.EVENTS_LOG_DIR, destination.toString())
                 .withValue(EventConfig_.EVENTS_LOG_PERIOD, secondsPerFile)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
         final DefaultConsensusEventStream eventStreamManager = new DefaultConsensusEventStream(
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
+                Time.getCurrent(),
+                configuration,
+                new NoOpMetrics(),
                 NodeId.of(0L),
                 x -> randomSignature(random),
                 "test",
