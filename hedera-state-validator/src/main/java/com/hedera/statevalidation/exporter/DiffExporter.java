@@ -30,6 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * collects the entries that are absent in the second state (modifications and deletions), then iterates over the second state
  * and collects the entries that are absent in the first state (additions). Then the collected results are sorted by key
  * and written to JSON files.
+ *
+ * <p>When one or more ignore-fields are configured, value pairs that differ only in those fields are treated as
+ * identical and suppressed from the diff. The ignore comparison runs only on entries whose raw bytes already differ,
+ * so the common (equal) case keeps the fast byte-level comparison and never parses the value.
  */
 public class DiffExporter {
 
@@ -39,6 +43,11 @@ public class DiffExporter {
     private final VirtualMapState state1;
     private final VirtualMapState state2;
     private final int expectedStateId;
+
+    /** Field masker built from the configured ignore-field paths, or {@code null} when none are configured. */
+    @Nullable
+    private final FieldMasker fieldMasker;
+
     private final AtomicLong objectsProcessed = new AtomicLong(0);
 
     public DiffExporter(
@@ -47,6 +56,16 @@ public class DiffExporter {
             @NonNull final VirtualMapState state2,
             @Nullable final String serviceName,
             @Nullable final String stateKey) {
+        this(resultDir, state1, state2, serviceName, stateKey, null);
+    }
+
+    public DiffExporter(
+            @NonNull final File resultDir,
+            @NonNull final VirtualMapState state1,
+            @NonNull final VirtualMapState state2,
+            @Nullable final String serviceName,
+            @Nullable final String stateKey,
+            @Nullable final List<String> ignoreFields) {
         this.resultDir = resultDir;
         this.state1 = state1;
         this.state2 = state2;
@@ -56,6 +75,7 @@ public class DiffExporter {
             Objects.requireNonNull(serviceName);
             expectedStateId = StateUtils.stateIdFor(serviceName, stateKey);
         }
+        this.fieldMasker = FieldMasker.fromPaths(ignoreFields);
     }
 
     /**
@@ -74,7 +94,7 @@ public class DiffExporter {
         // Traverse the first state (old)
         final CompletableFuture<Void> firstRunFuture =
                 CompletableFuture.runAsync(() -> traverseAndCompare(vm1, vm2, true, state1Entries, state2Entries));
-        // Traverse the second state (ne)
+        // Traverse the second state (new)
         final CompletableFuture<Void> secondRunFuture =
                 CompletableFuture.runAsync(() -> traverseAndCompare(vm2, vm1, false, state1Entries, state2Entries));
         CompletableFuture.allOf(firstRunFuture, secondRunFuture).join();
@@ -159,12 +179,13 @@ public class DiffExporter {
                                 state1Entries.add(new DiffEntry(path, keyBytes, sourceValueBytes));
                             } else {
                                 final Bytes targetValueBytes = targetLeaf.valueBytes();
-                                if (!Objects.equals(sourceValueBytes, targetValueBytes)) {
+                                if (!Objects.equals(sourceValueBytes, targetValueBytes)
+                                        && !equalIgnoringFields(sourceValueBytes, targetValueBytes)) {
                                     state1Entries.add(new DiffEntry(path, keyBytes, sourceValueBytes));
                                     final long targetPath = targetLeaf.path();
                                     state2Entries.add(new DiffEntry(targetPath, keyBytes, targetValueBytes));
                                 }
-                                // Equal: skip
+                                // Equal (possibly after masking): skip
                             }
                         } else {
                             if (targetLeaf == null) {
@@ -177,6 +198,36 @@ public class DiffExporter {
                     }
                 })
                 .join();
+    }
+
+    /**
+     * Returns {@code true} if the two value byte arrays are equal once all configured ignore-fields have been
+     * removed from each side. Returns {@code false} when no masker is configured (so the caller falls back to the
+     * raw-bytes-differ verdict it already computed), or when the masked forms still differ.
+     *
+     * <p>This is only invoked for entries whose raw bytes already differ, so the parsing cost is paid only on the
+     * (expected to be small) set of differing entries.
+     */
+    private boolean equalIgnoringFields(@NonNull final Bytes sourceValueBytes, @NonNull final Bytes targetValueBytes)
+            throws Exception {
+        if (fieldMasker == null) {
+            return false;
+        }
+        return fieldMasker.equalAfterMasking(valueJson(sourceValueBytes), valueJson(targetValueBytes));
+    }
+
+    /**
+     * Converts raw state-value bytes into the value JSON document (the same representation written by
+     * {@link #buildDiffRecord}), which is what the ignore-field paths are addressed against.
+     */
+    private String valueJson(@NonNull final Bytes valueBytes) throws Exception {
+        final StateValue stateValue = StateValue.PROTOBUF.parse(
+                valueBytes.toReadableSequentialData(),
+                false,
+                false,
+                Codec.DEFAULT_MAX_DEPTH,
+                getVirtualMapValueParseMaxSizeBytes());
+        return StateUtils.valueToJson(stateValue.value());
     }
 
     private String buildDiffRecord(long path, final Bytes keyBytes, final Bytes valueBytes)
