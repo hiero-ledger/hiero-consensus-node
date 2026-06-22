@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.status.logic;
 
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertException;
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertNoTransition;
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertTransition;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertException;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertNoTransition;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertTransition;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
@@ -40,26 +40,20 @@ class StartingUpStatusLogicTests {
     @Test
     @DisplayName("Go to REPLAYING_EVENTS")
     void toReplayingEvents() {
-        triggerActionAndAssertTransition(
-                logic::processStartedReplayingEventsAction,
-                new StartedReplayingEventsAction(),
-                PlatformStatus.REPLAYING_EVENTS);
+        assertTransition(logic, new StartedReplayingEventsAction(), PlatformStatus.REPLAYING_EVENTS);
     }
 
     @Test
     @DisplayName("Go to CATASTROPHIC_FAILURE")
     void toCatastrophicFailure() {
-        triggerActionAndAssertTransition(
-                logic::processCatastrophicFailureAction,
-                new CatastrophicFailureAction(),
-                PlatformStatus.CATASTROPHIC_FAILURE);
+        assertTransition(logic, new CatastrophicFailureAction(), PlatformStatus.CATASTROPHIC_FAILURE);
     }
 
     @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
+        assertNoTransition(
+                logic,
                 new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
                 logic.getStatus());
     }
@@ -67,20 +61,12 @@ class StartingUpStatusLogicTests {
     @Test
     @DisplayName("Unexpected actions should cause exceptions")
     void unexpectedActions() {
-        triggerActionAndAssertException(
-                logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processSelfEventReachedConsensusAction,
-                new SelfEventReachedConsensusAction(time.now()),
-                logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processFreezePeriodEnteredAction, new FreezePeriodEnteredAction(0), logic.getStatus());
-        triggerActionAndAssertException(logic::processFallenBehindAction, new FallenBehindAction(), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processReconnectCompleteAction, new ReconnectCompleteAction(0), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, true), logic.getStatus());
+        assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
+        assertException(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
+        assertException(logic, new FallenBehindAction(), logic.getStatus());
+        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
+        assertException(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertException(logic, new StateWrittenToDiskAction(0, true), logic.getStatus());
     }
 }
