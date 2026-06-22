@@ -37,12 +37,9 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
-    exports com.swirlds.platform.scratchpad;
     exports com.swirlds.platform.system;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system.state.notifications;
-    exports com.swirlds.platform.system.status;
-    exports com.swirlds.platform.system.status.actions;
     exports com.swirlds.platform.util;
 
     /* Targeted Exports to External Libraries */
