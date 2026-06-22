@@ -7,15 +7,15 @@ import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertTransi
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,33 +37,33 @@ class FreezingStatusLogicTests {
     @Test
     @DisplayName("Go to CATASTROPHIC_FAILURE")
     void toCatastrophicFailure() {
-        assertTransition(logic, new CatastrophicFailureAction(), PlatformStatus.CATASTROPHIC_FAILURE);
+        assertTransition(logic, new CatastrophicFailureTrigger(), PlatformStatus.CATASTROPHIC_FAILURE);
     }
 
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new StateWrittenToDiskAction(testFreezeRound, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new StateWrittenToDiskTrigger(testFreezeRound, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
-    @DisplayName("Irrelevant actions shouldn't cause transitions")
-    void irrelevantActions() {
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
-        assertNoTransition(logic, new FallenBehindAction(), logic.getStatus());
+    @DisplayName("Irrelevant triggers shouldn't cause transitions")
+    void irrelevantTriggers() {
+        assertNoTransition(logic, new SelfEventReachedConsensusTrigger(time.now()), logic.getStatus());
+        assertNoTransition(logic, new FallenBehindTrigger(), logic.getStatus());
         assertNoTransition(
                 logic,
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now())),
                 logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new StateWrittenToDiskTrigger(0, false), logic.getStatus());
     }
 
     @Test
-    @DisplayName("Unexpected actions should cause exceptions")
-    void unexpectedActions() {
-        assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
-        assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
+    @DisplayName("Unexpected triggers should cause exceptions")
+    void unexpectedTriggers() {
+        assertException(logic, new StartedReplayingEventsTrigger(), logic.getStatus());
+        assertException(logic, new DoneReplayingEventsTrigger(time.now()), logic.getStatus());
+        assertException(logic, new FreezePeriodEnteredTrigger(0), logic.getStatus());
+        assertException(logic, new ReconnectCompleteTrigger(0), logic.getStatus());
     }
 }

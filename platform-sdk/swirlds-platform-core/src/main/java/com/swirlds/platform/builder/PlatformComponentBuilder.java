@@ -574,7 +574,7 @@ public class PlatformComponentBuilder {
             transactionHandler = new DefaultTransactionHandler(
                     blocks.platformContext(),
                     blocks.stateLifecycleManager(),
-                    blocks.statusActionSubmitterReference().get(),
+                    blocks.triggerSubmitterReference().get(),
                     blocks.appVersion(),
                     blocks.consensusStateEventHandler(),
                     blocks.selfId(),

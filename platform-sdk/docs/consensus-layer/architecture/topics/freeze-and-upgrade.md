@@ -178,7 +178,7 @@ orchestrator class.
 2. The first consensus round whose timestamp falls in the freeze
    period is detected in
    [`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#handleConsensusRound`.
-   The handler submits a `FreezePeriodEnteredAction(round)` and sets a
+   The handler submits a `FreezePeriodEnteredTrigger(round)` and sets a
    `freezeRoundReceived` flag; subsequent rounds are then ignored by
    the same handler.
 3. In parallel, the hashgraph engine keeps the first freeze round,

@@ -19,16 +19,16 @@ import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.StatusStateMachine;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.TriggerSubmitter;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components) implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components) implements TriggerSubmitter {
 
     /**
      * Constructor
@@ -169,12 +169,12 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * @see StatusStateMachine#submitStatusAction
+     * @see StatusStateMachine#submitTrigger
      */
-    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
+    public void submitTrigger(@NonNull final StatusMachineTrigger action) {
         components
                 .platformMonitorWiring()
-                .getInputWire(PlatformMonitor::submitStatusAction)
+                .getInputWire(PlatformMonitor::submitTrigger)
                 .put(action);
     }
 

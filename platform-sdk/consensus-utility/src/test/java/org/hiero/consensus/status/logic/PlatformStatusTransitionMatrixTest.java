@@ -26,25 +26,25 @@ import java.util.stream.Stream;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Data-driven test pinning the full (status &times; action) transition table of the platform status state machine.
+ * Data-driven test pinning the full (status &times; trigger) transition table of the platform status state machine.
  * <p>
- * Each case asserts the status produced by {@link PlatformStatusLogic#process(PlatformStatusAction)} for a freshly
- * constructed logic instance, or that the action is illegal and throws. The genuinely <i>conditional</i> cells (the
+ * Each case asserts the status produced by {@link PlatformStatusLogic#process(StatusMachineTrigger)} for a freshly
+ * constructed logic instance, or that the trigger is illegal and throws. The genuinely <i>conditional</i> cells (the
  * timed {@code TimeElapsed} transitions of OBSERVING/CHECKING/ACTIVE and the round-gated non-freeze
  * {@code StateWrittenToDisk} of RECONNECT_COMPLETE) depend on timing/round inputs and are covered by the per-status
  * {@code *StatusLogicTests}; they are intentionally omitted here.
@@ -56,18 +56,18 @@ class PlatformStatusTransitionMatrixTest {
 
     private static final Instant T = Instant.EPOCH;
 
-    // one immutable instance of each action; logic instances are built fresh per case
-    private static final CatastrophicFailureAction CAT = new CatastrophicFailureAction();
-    private static final DoneReplayingEventsAction DONE = new DoneReplayingEventsAction(T);
-    private static final FallenBehindAction FALLEN = new FallenBehindAction();
-    private static final FreezePeriodEnteredAction FREEZE = new FreezePeriodEnteredAction(0);
-    private static final ReconnectCompleteAction RECONNECT = new ReconnectCompleteAction(0);
-    private static final SelfEventReachedConsensusAction SELF = new SelfEventReachedConsensusAction(T);
-    private static final StartedReplayingEventsAction STARTED = new StartedReplayingEventsAction();
-    private static final StateWrittenToDiskAction WRITTEN_FREEZE = new StateWrittenToDiskAction(0, true);
-    private static final StateWrittenToDiskAction WRITTEN_NON_FREEZE = new StateWrittenToDiskAction(0, false);
-    private static final TimeElapsedAction TIME =
-            new TimeElapsedAction(T, new TimeElapsedAction.QuiescingStatus(false, T));
+    // one immutable instance of each trigger; logic instances are built fresh per case
+    private static final CatastrophicFailureTrigger CAT = new CatastrophicFailureTrigger();
+    private static final DoneReplayingEventsTrigger DONE = new DoneReplayingEventsTrigger(T);
+    private static final FallenBehindTrigger FALLEN = new FallenBehindTrigger();
+    private static final FreezePeriodEnteredTrigger FREEZE = new FreezePeriodEnteredTrigger(0);
+    private static final ReconnectCompleteTrigger RECONNECT = new ReconnectCompleteTrigger(0);
+    private static final SelfEventReachedConsensusTrigger SELF = new SelfEventReachedConsensusTrigger(T);
+    private static final StartedReplayingEventsTrigger STARTED = new StartedReplayingEventsTrigger();
+    private static final StateWrittenToDiskTrigger WRITTEN_FREEZE = new StateWrittenToDiskTrigger(0, true);
+    private static final StateWrittenToDiskTrigger WRITTEN_NON_FREEZE = new StateWrittenToDiskTrigger(0, false);
+    private static final TimeElapsedTrigger TIME =
+            new TimeElapsedTrigger(T, new TimeElapsedTrigger.QuiescingStatus(false, T));
 
     static Stream<Arguments> matrix() {
         return Stream.of(
@@ -152,14 +152,14 @@ class PlatformStatusTransitionMatrixTest {
     void transitionMatrix(
             final String name,
             @NonNull final Supplier<PlatformStatusLogic> logicSupplier,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger trigger,
             @Nullable final PlatformStatus expected) {
 
         final PlatformStatusLogic logic = logicSupplier.get();
         if (expected == null) {
-            assertThrows(IllegalPlatformStatusException.class, () -> logic.process(action));
+            assertThrows(IllegalPlatformStatusException.class, () -> logic.process(trigger));
         } else {
-            assertEquals(expected, logic.process(action).getStatus());
+            assertEquals(expected, logic.process(trigger).getStatus());
         }
     }
 
@@ -180,30 +180,30 @@ class PlatformStatusTransitionMatrixTest {
             this.supplier = supplier;
         }
 
-        /** The action transitions to the given status. */
-        StatusCases on(final PlatformStatusAction action, final PlatformStatus expected) {
-            rows.add(arguments(label(action, expected.name()), supplier, action, expected));
+        /** The trigger transitions to the given status. */
+        StatusCases on(final StatusMachineTrigger trigger, final PlatformStatus expected) {
+            rows.add(arguments(label(trigger, expected.name()), supplier, trigger, expected));
             return this;
         }
 
-        /** The actions are processed without changing the status. */
-        StatusCases stays(final PlatformStatusAction... actions) {
-            for (final PlatformStatusAction action : actions) {
-                rows.add(arguments(label(action, "stays"), supplier, action, status));
+        /** The triggers are processed without changing the status. */
+        StatusCases stays(final StatusMachineTrigger... triggers) {
+            for (final StatusMachineTrigger trigger : triggers) {
+                rows.add(arguments(label(trigger, "stays"), supplier, trigger, status));
             }
             return this;
         }
 
-        /** The actions are illegal for this status and throw. */
-        StatusCases illegal(final PlatformStatusAction... actions) {
-            for (final PlatformStatusAction action : actions) {
-                rows.add(arguments(label(action, "illegal"), supplier, action, null));
+        /** The triggers are illegal for this status and throw. */
+        StatusCases illegal(final StatusMachineTrigger... triggers) {
+            for (final StatusMachineTrigger trigger : triggers) {
+                rows.add(arguments(label(trigger, "illegal"), supplier, trigger, null));
             }
             return this;
         }
 
-        private String label(final PlatformStatusAction action, final String outcome) {
-            return status + " + " + action.getClass().getSimpleName() + " -> " + outcome;
+        private String label(final StatusMachineTrigger trigger, final String outcome) {
+            return status + " + " + trigger.getClass().getSimpleName() + " -> " + outcome;
         }
 
         Stream<Arguments> stream() {

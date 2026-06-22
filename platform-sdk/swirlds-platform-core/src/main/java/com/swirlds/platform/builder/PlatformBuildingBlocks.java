@@ -30,7 +30,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.TriggerSubmitter;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
@@ -60,7 +60,7 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  *                                               written
  * @param issScratchpad                          scratchpad storage for ISS recovery
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
- * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
+ * @param triggerSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
  * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
  *                                               reconnect
@@ -97,7 +97,7 @@ public record PlatformBuildingBlocks(
         @NonNull String consensusEventStreamName,
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
-        @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
+        @NonNull AtomicReference<TriggerSubmitter> triggerSubmitterReference,
         @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
         boolean firstPlatform,
@@ -126,7 +126,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(consensusEventStreamName);
         requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
-        requireNonNull(statusActionSubmitterReference);
+        requireNonNull(triggerSubmitterReference);
         requireNonNull(stateLifecycleManager);
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(consensusStateEventHandler);

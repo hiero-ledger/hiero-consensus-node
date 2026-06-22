@@ -53,8 +53,8 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.TriggerSubmitter;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
 
 /**
  * A standard implementation of {@link TransactionHandler}.
@@ -92,7 +92,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Enables submitting platform status actions.
      */
-    private final StatusActionSubmitter statusActionSubmitter;
+    private final TriggerSubmitter triggerSubmitter;
 
     private final SemanticVersion softwareVersion;
 
@@ -136,13 +136,13 @@ public class DefaultTransactionHandler implements TransactionHandler {
      *
      * @param platformContext       contains various platform utilities
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param statusActionSubmitter enables submitting of platform status actions
+     * @param triggerSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
+            @NonNull final TriggerSubmitter triggerSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final NodeId selfId,
@@ -150,7 +150,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         this.platformContext = requireNonNull(platformContext);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
-        this.statusActionSubmitter = requireNonNull(statusActionSubmitter);
+        this.triggerSubmitter = requireNonNull(triggerSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.selfId = requireNonNull(selfId);
@@ -209,7 +209,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
-            statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
+            triggerSubmitter.submitTrigger(new FreezePeriodEnteredTrigger(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
                     STARTUP.getMarker(),

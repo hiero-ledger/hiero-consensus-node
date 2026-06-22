@@ -11,7 +11,7 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Monitors the platform and updates the platform's status state machine.
@@ -53,8 +53,8 @@ public interface PlatformMonitor {
      * @return the new status after processing the action, or null if the status did not change
      */
     @Nullable
-    @InputWireLabel("PlatformStatusAction")
-    PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action);
+    @InputWireLabel("StatusMachineTrigger")
+    PlatformStatus submitTrigger(@NonNull final StatusMachineTrigger action);
 
     /**
      * Inform the monitor that a round has reached consensus

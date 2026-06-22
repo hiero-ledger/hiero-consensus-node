@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Utility methods for testing {@link PlatformStatusLogic} implementations.
@@ -19,52 +19,53 @@ public class StatusLogicTestUtils {
     private StatusLogicTestUtils() {}
 
     /**
-     * Process an action and assert that the new status is as expected.
+     * Process a trigger and assert that the new status is as expected.
      *
      * @param logic          the logic to test
-     * @param action         the action to process
-     * @param expectedStatus the expected status after the action is processed
+     * @param trigger         the trigger to process
+     * @param expectedStatus the expected status after the trigger is processed
      */
     public static void assertTransition(
             @NonNull final PlatformStatusLogic logic,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger trigger,
             @NonNull final PlatformStatus expectedStatus) {
 
-        final PlatformStatus newStatus = logic.process(action).getStatus();
+        final PlatformStatus newStatus = logic.process(trigger).getStatus();
         assertEquals(expectedStatus, newStatus);
     }
 
     /**
-     * Process an action and assert that the status does not change.
+     * Process a trigger and assert that the status does not change.
      *
      * @param logic          the logic to test
-     * @param action         the action to process
-     * @param originalStatus the original status before the action is processed
+     * @param trigger         the trigger to process
+     * @param originalStatus the original status before the trigger is processed
      */
     public static void assertNoTransition(
             @NonNull final PlatformStatusLogic logic,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger trigger,
             @NonNull final PlatformStatus originalStatus) {
 
-        final PlatformStatus newStatus = logic.process(action).getStatus();
+        final PlatformStatus newStatus = logic.process(trigger).getStatus();
         assertEquals(originalStatus, newStatus);
     }
 
     /**
-     * Process an action and assert that an exception is thrown.
+     * Process a trigger and assert that an exception is thrown.
      *
      * @param logic          the logic to test
-     * @param action         the action to process
-     * @param originalStatus the original status before the action is processed
+     * @param trigger         the trigger to process
+     * @param originalStatus the original status before the trigger is processed
      */
     public static void assertException(
             @NonNull final PlatformStatusLogic logic,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger trigger,
             @NonNull final PlatformStatus originalStatus) {
 
         assertThrows(
                 IllegalPlatformStatusException.class,
-                () -> logic.process(action),
-                "Expected an exception to be thrown when processing action " + action + " in status " + originalStatus);
+                () -> logic.process(trigger),
+                "Expected an exception to be thrown when processing trigger " + trigger + " in status "
+                        + originalStatus);
     }
 }

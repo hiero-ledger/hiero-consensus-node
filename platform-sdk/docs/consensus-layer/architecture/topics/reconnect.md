@@ -94,7 +94,7 @@ configured thresholds are exceeded. Each attempt walks five phases.
    [Post-reconnect resumption](#post-reconnect-resumption).
 
 5. **Resumption.** `ReconnectController` submits a
-   `ReconnectCompleteAction`; the status machine moves the node to
+   `ReconnectCompleteTrigger`; the status machine moves the node to
    `RECONNECT_COMPLETE`, then to `CHECKING` once the state is
    persisted to disk, and the loop returns to phase 1.
 
@@ -192,7 +192,7 @@ see that method for the exact set of overrides and injections it
 performs.
 
 Status transitions follow loading in two stages.
-`ReconnectController` submits a `ReconnectCompleteAction` once a
+`ReconnectController` submits a `ReconnectCompleteTrigger` once a
 valid state has been learned, and the platform status machine moves
 the node to `RECONNECT_COMPLETE`. The node only advances from
 `RECONNECT_COMPLETE` to `CHECKING` — the status at which it is

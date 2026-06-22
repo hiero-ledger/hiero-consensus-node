@@ -19,7 +19,7 @@ In a very simplistic explanation, the current reconnect logic is implemented in 
 
 Gossip component initiates protocols, which are running continuously, interleaved, and are executed only when certain conditions apply. Protocols owns the lifecycle of the connections to other peers.
 SyncProtocol, which is one of our gossip implementations, compares the current hashgraph status against the peer's, and uses a mutable shared class (`FallenBehindManager`) to determine and keep track if the node has fallen behind.
-If it detects that the node has fallen behind it will submit a FallenBehindAction to the platform status machine which in turn will update Gossip's internal state with the new status.
+If it detects that the node has fallen behind it will submit a FallenBehindTrigger to the platform status machine which in turn will update Gossip's internal state with the new status.
 ReconnectProtocol contains part of the logic of syncing the state, the logic of the reconnect protocol is separated depending upon the node will act as a teacher or learner.
 The different code paths are selected based on which of the node initiated the connection and using the `FallenBehindManager` to reject connections on some scenarios (For example, reject teaching when we are falling behind, or reject learning when we are teaching).
 When acting as learner, the logic consist on sharing the connection using a blocking queue to an external class that will handle the reconnect logic.
@@ -88,7 +88,7 @@ If anything on the process goes wrong the code will retry until a configured max
 
 3. Refactoring Gossip:
    The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
-   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines.
+   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, triggerSubmitter, or callbacks for loading state and clearing pipelines.
    It will work with the FallenBehindMonitor directly which will be shared with the protocols to be able to inform and query the status.
 
 4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class, and it blocks until it gets the value,
@@ -99,7 +99,7 @@ If anything on the process goes wrong the code will retry until a configured max
    Given that the actual logic of a reconnect now happens outside the scope of gossip and the protocols, the new responsibility of the protocol becomes to retrieve a valid state from a peer.
    StateSyncProtocol better reflects this change of scope. It now operates when requested by `PlatformReconnecter` through the shared ReservedSignedStatePromise object.
 
-6. `PlatformCoordinator` repurposing: This object currently only knows how to flush and clean the pipelines. IT will become the instance to hold all operations against the platform (e.g: start stop pause and resume gossip, submit a status action, push a roster update, etc. )
+6. `PlatformCoordinator` repurposing: This object currently only knows how to flush and clean the pipelines. It will become the instance to hold all operations against the platform (e.g: start stop pause and resume gossip, submit a status machine trigger, push a roster update, etc. )
 
 ### Class diagram
 
@@ -117,7 +117,7 @@ If anything on the process goes wrong the code will retry until a configured max
 
 ### Benefits
 
-* Simplified Gossip component instantiation:  It no longer requires dependencies for loading state, submitting status actions, or clearing pipelines.
+* Simplified Gossip component instantiation:  It no longer requires dependencies for loading state, submitting status machine triggers, or clearing pipelines.
 * Clear dependencies: moving away from indirect references (through lambdas, callbacks and atomic references) to direct object dependencies makes relationship between classes easier to follow.
 * Simplify Lerner logic by removing helper classes and reorganizing code: Responsibility is not scattered all over, the steps of the process becomes more clear.
 * Provide better refactor capabilities: This change enables the future plan of making the gossip component our network layer.

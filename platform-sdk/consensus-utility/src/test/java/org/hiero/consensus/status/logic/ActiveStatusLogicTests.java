@@ -14,16 +14,16 @@ import java.time.temporal.ChronoUnit;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.config.PlatformStatusConfig_;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction.QuiescingStatus;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger.QuiescingStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,7 @@ class ActiveStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZING")
     void toFreezing() {
-        assertTransition(logic, new FreezePeriodEnteredAction(0), PlatformStatus.FREEZING);
+        assertTransition(logic, new FreezePeriodEnteredTrigger(0), PlatformStatus.FREEZING);
     }
 
     @Test
@@ -56,52 +56,52 @@ class ActiveStatusLogicTests {
     void toChecking() {
         final QuiescingStatus neutralQuiescingStatus =
                 new QuiescingStatus(false, time.now().minus(Duration.of(1, ChronoUnit.HOURS)));
-        assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
+        assertNoTransition(logic, new TimeElapsedTrigger(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         time.tick(Duration.ofSeconds(2));
-        assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
+        assertNoTransition(logic, new TimeElapsedTrigger(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         // restart the timer that will trigger the status change to checking
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusTrigger(time.now()), logic.getStatus());
 
         // if the self event reaching consensus successfully restarted the timer, then the status should still be active
         time.tick(Duration.ofSeconds(4));
-        assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
+        assertNoTransition(logic, new TimeElapsedTrigger(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         time.tick(Duration.ofSeconds(2));
-        assertTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), PlatformStatus.CHECKING);
+        assertTransition(logic, new TimeElapsedTrigger(time.now(), neutralQuiescingStatus), PlatformStatus.CHECKING);
     }
 
     @Test
     @DisplayName("Go to BEHIND")
     void toBehind() {
-        assertTransition(logic, new FallenBehindAction(), PlatformStatus.BEHIND);
+        assertTransition(logic, new FallenBehindTrigger(), PlatformStatus.BEHIND);
     }
 
     @Test
     @DisplayName("Go to CATASTROPHIC_FAILURE")
     void toCatastrophicFailure() {
-        assertTransition(logic, new CatastrophicFailureAction(), PlatformStatus.CATASTROPHIC_FAILURE);
+        assertTransition(logic, new CatastrophicFailureTrigger(), PlatformStatus.CATASTROPHIC_FAILURE);
     }
 
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        assertTransition(logic, new StateWrittenToDiskAction(0, true), PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new StateWrittenToDiskTrigger(0, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
-    @DisplayName("Irrelevant actions shouldn't cause transitions")
-    void irrelevantActions() {
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
+    @DisplayName("Irrelevant triggers shouldn't cause transitions")
+    void irrelevantTriggers() {
+        assertNoTransition(logic, new StateWrittenToDiskTrigger(0, false), logic.getStatus());
     }
 
     @Test
-    @DisplayName("Unexpected actions should cause exceptions")
-    void unexpectedActions() {
-        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
-        assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
+    @DisplayName("Unexpected triggers should cause exceptions")
+    void unexpectedTriggers() {
+        assertException(logic, new ReconnectCompleteTrigger(0), logic.getStatus());
+        assertException(logic, new DoneReplayingEventsTrigger(time.now()), logic.getStatus());
+        assertException(logic, new StartedReplayingEventsTrigger(), logic.getStatus());
     }
 
     @Test
@@ -109,7 +109,7 @@ class ActiveStatusLogicTests {
     void remainActiveWhenQuiescing() {
         // Even with time elapsed, should remain ACTIVE when quiescing
         assertNoTransition(
-                logic, new TimeElapsedAction(time.now(), new QuiescingStatus(true, time.now())), logic.getStatus());
+                logic, new TimeElapsedTrigger(time.now(), new QuiescingStatus(true, time.now())), logic.getStatus());
     }
 
     @Test
@@ -120,7 +120,7 @@ class ActiveStatusLogicTests {
         // Should remain ACTIVE when not enough time has passed since quiescence command (2s < 5s delay)
         assertNoTransition(
                 logic,
-                new TimeElapsedAction(time.now(), new QuiescingStatus(false, quiescenceActiveTime)),
+                new TimeElapsedTrigger(time.now(), new QuiescingStatus(false, quiescenceActiveTime)),
                 logic.getStatus());
     }
 
@@ -130,16 +130,16 @@ class ActiveStatusLogicTests {
         final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
         time.tick(Duration.ofSeconds(6));
         // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
-        assertTransition(logic, new TimeElapsedAction(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
+        assertTransition(logic, new TimeElapsedTrigger(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
     }
 
     @Test
     @DisplayName("Go to CHECKING when sufficient time since quiescence command and consensus")
     void toCheckingWhenSufficientTimeSinceBothQuiescenceCommandAndConsensus() {
         final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), PlatformStatus.ACTIVE);
+        assertNoTransition(logic, new SelfEventReachedConsensusTrigger(time.now()), PlatformStatus.ACTIVE);
         time.tick(Duration.ofSeconds(6));
         // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
-        assertTransition(logic, new TimeElapsedAction(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
+        assertTransition(logic, new TimeElapsedTrigger(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
     }
 }

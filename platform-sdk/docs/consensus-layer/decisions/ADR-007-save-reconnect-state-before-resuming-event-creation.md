@@ -93,7 +93,7 @@ path is described in [`../architecture/topics/reconnect.md`](../architecture/top
 - In `RECONNECT_COMPLETE` the platform **gossips but does not create events**. The event-creation gate permits creation
   only in `ACTIVE`, `CHECKING`, or `FREEZING` (the last only to emit the freeze-state signature)
   (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
-- The node leaves `RECONNECT_COMPLETE` only when a `StateWrittenToDiskAction` reports that the **reconnect state (or a
+- The node leaves `RECONNECT_COMPLETE` only when a `StateWrittenToDiskTrigger` reports that the **reconnect state (or a
   later state) has been written to disk**. A disk write for a round *prior* to the reconnect state is treated as stale
   and the node keeps waiting. Once the reconnect state is persisted, the node transitions to `CHECKING` — or to
   `FREEZING` if a freeze boundary was crossed — and event creation resumes
@@ -112,7 +112,7 @@ advancing consensus.
 - **The guarantee is enforced where it matters.** Tying it to the event-creation gate makes "contributes to consensus"
   and "is crash resilient" the same condition for every node, rather than relying on the normal state-save cadence to
   happen to land in time.
-- **Reuses existing machinery.** The status state machine, the saved-state controller, and the `StateWrittenToDiskAction`
+- **Reuses existing machinery.** The status state machine, the saved-state controller, and the `StateWrittenToDiskTrigger`
   signal already exist; the guarantee is expressed as a status that withholds event creation until a disk write it
   already requested completes.
 - **The wait is exactly as long as the write takes.** Unlike `OBSERVING`, which exits after a fixed delay (see
@@ -129,7 +129,7 @@ advancing consensus.
 ### Neutral
 
 - **A persistence fault holds the node in `RECONNECT_COMPLETE`.** If the disk write never succeeds (e.g. a full or
-  failing disk), the node never receives the `StateWrittenToDiskAction` that advances it, so it stays in
+  failing disk), the node never receives the `StateWrittenToDiskTrigger` that advances it, so it stays in
   `RECONNECT_COMPLETE` — gossiping but not creating events — until the disk problem is resolved. The failure is logged
   by `SignedStateFileWriter` at the `EXCEPTION` marker, so a node lingering in `RECONNECT_COMPLETE` is a useful signal
   of a persistence problem.
@@ -189,5 +189,5 @@ See **Decision** above.
 - `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
   — the event-creation gate; creation is withheld in `RECONNECT_COMPLETE`.
 - `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ReconnectCompleteStatusLogic.java:156-187`
-  — exit from `RECONNECT_COMPLETE` on `StateWrittenToDiskAction`: wait while the persisted round is below the reconnect
+  — exit from `RECONNECT_COMPLETE` on `StateWrittenToDiskTrigger`: wait while the persisted round is below the reconnect
   round, then transition to `CHECKING` (or `FREEZING`).

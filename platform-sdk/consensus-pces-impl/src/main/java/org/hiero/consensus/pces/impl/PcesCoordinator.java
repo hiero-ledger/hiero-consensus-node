@@ -14,9 +14,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * The {@link PcesCoordinator} is responsible for coordinating the replay of events from the preconsensus event stream
@@ -31,7 +31,7 @@ public class PcesCoordinator {
     private final Time time;
     private final PcesFileTracker initialPcesFiles;
     private final PcesReplayerWiring pcesReplayerWiring;
-    private final Consumer<PlatformStatusAction> statusActionConsumer;
+    private final Consumer<StatusMachineTrigger> triggerConsumer;
     private final Runnable stateHasherFlusher;
     private final Runnable signalEndOfPcesReplay;
 
@@ -41,7 +41,7 @@ public class PcesCoordinator {
      * @param time the time source
      * @param initialPcesFiles the {@link PcesFileTracker} to read the PCES files from
      * @param pcesReplayerWiring the wiring for the {@link PcesReplayer}
-     * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
+     * @param triggerConsumer a consumer for {@link StatusMachineTrigger}s to report status updates to the platform
      * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
      * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector
      */
@@ -49,13 +49,13 @@ public class PcesCoordinator {
             @NonNull final Time time,
             @NonNull final PcesFileTracker initialPcesFiles,
             @NonNull final PcesReplayerWiring pcesReplayerWiring,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Consumer<StatusMachineTrigger> triggerConsumer,
             @NonNull final Runnable stateHasherFlusher,
             @NonNull final Runnable signalEndOfPcesReplay) {
         this.time = requireNonNull(time);
         this.initialPcesFiles = requireNonNull(initialPcesFiles);
         this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
-        this.statusActionConsumer = requireNonNull(statusActionConsumer);
+        this.triggerConsumer = requireNonNull(triggerConsumer);
         this.stateHasherFlusher = requireNonNull(stateHasherFlusher);
         this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
     }
@@ -68,7 +68,7 @@ public class PcesCoordinator {
      */
     public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
         requireNonNull(initialPcesFiles, "Not initialized");
-        statusActionConsumer.accept(new StartedReplayingEventsAction());
+        triggerConsumer.accept(new StartedReplayingEventsTrigger());
 
         final IOIterator<PlatformEvent> iterator =
                 initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
@@ -84,6 +84,6 @@ public class PcesCoordinator {
         stateHasherFlusher.run();
         signalEndOfPcesReplay.run();
 
-        statusActionConsumer.accept(new DoneReplayingEventsAction(time.now()));
+        triggerConsumer.accept(new DoneReplayingEventsTrigger(time.now()));
     }
 }

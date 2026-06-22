@@ -154,11 +154,11 @@ that observes the new work and responds by sending `DONT_QUIESCE` (or
 A quiescing node holds platform status `ACTIVE`; no dedicated quiescence
 status exists. The mechanism:
 [`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)`#heartbeat`
-stamps each `TimeElapsedAction` with a
-[`TimeElapsedAction.QuiescingStatus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/actions/TimeElapsedAction.java)
+stamps each `TimeElapsedTrigger` with a
+[`TimeElapsedTrigger.QuiescingStatus`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/triggers/TimeElapsedTrigger.java)
 record (`isQuiescing = lastQuiescenceCommand == QUIESCE`, plus the instant
 the command last changed). In
-[`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`,
+[`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#onTimeElapsed`,
 while `isQuiescing` is true the node stays `ACTIVE` regardless of how long
 it has been since one of its own events reached consensus — which would
 otherwise drop it to `CHECKING`.
@@ -185,7 +185,7 @@ The QB is built on a **single self-parent only**, with no other-parent —
 the simplest event that still propagates the waiting transactions.
 
 On exit, platform status returns to normal via the grace period in
-[`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`:
+[`ActiveStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ActiveStatusLogic.java)`#onTimeElapsed`:
 once `isQuiescing` is false, the node still stays `ACTIVE` until
 `activeStatusDelay` (TUN-020) has elapsed since the stop command — giving a
 freshly created post-quiescence event time to reach consensus — after which

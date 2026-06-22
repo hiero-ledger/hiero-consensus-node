@@ -5,15 +5,15 @@ import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertNoTran
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.temporal.ChronoUnit;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,26 +32,26 @@ class CatastrophicFailureStatusLogicTests {
     }
 
     @Test
-    @DisplayName("Irrelevant actions shouldn't cause transitions")
-    void irrelevantActions() {
-        assertNoTransition(logic, new StartedReplayingEventsAction(), logic.getStatus());
-        assertNoTransition(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
-        assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
-        assertNoTransition(logic, new FallenBehindAction(), logic.getStatus());
-        assertNoTransition(logic, new ReconnectCompleteAction(0), logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        assertNoTransition(logic, new StateWrittenToDiskAction(0, true), logic.getStatus());
-        assertNoTransition(logic, new CatastrophicFailureAction(), logic.getStatus());
+    @DisplayName("Irrelevant triggers shouldn't cause transitions")
+    void irrelevantTriggers() {
+        assertNoTransition(logic, new StartedReplayingEventsTrigger(), logic.getStatus());
+        assertNoTransition(logic, new DoneReplayingEventsTrigger(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusTrigger(time.now()), logic.getStatus());
+        assertNoTransition(logic, new FreezePeriodEnteredTrigger(0), logic.getStatus());
+        assertNoTransition(logic, new FallenBehindTrigger(), logic.getStatus());
+        assertNoTransition(logic, new ReconnectCompleteTrigger(0), logic.getStatus());
+        assertNoTransition(logic, new StateWrittenToDiskTrigger(0, false), logic.getStatus());
+        assertNoTransition(logic, new StateWrittenToDiskTrigger(0, true), logic.getStatus());
+        assertNoTransition(logic, new CatastrophicFailureTrigger(), logic.getStatus());
         assertNoTransition(
                 logic,
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now())),
                 logic.getStatus());
         assertNoTransition(
                 logic,
-                new TimeElapsedAction(
+                new TimeElapsedTrigger(
                         time.now(),
-                        new TimeElapsedAction.QuiescingStatus(true, time.now().minus(5, ChronoUnit.MINUTES))),
+                        new TimeElapsedTrigger.QuiescingStatus(true, time.now().minus(5, ChronoUnit.MINUTES))),
                 logic.getStatus());
     }
 }

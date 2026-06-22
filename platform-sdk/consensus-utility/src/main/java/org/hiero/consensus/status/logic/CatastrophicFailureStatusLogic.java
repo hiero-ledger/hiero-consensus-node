@@ -3,17 +3,17 @@ package org.hiero.consensus.status.logic;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#CATASTROPHIC_FAILURE} status.
  * <p>
- * This status is terminal: no action can cause the status to transition from it.
+ * This status is terminal: no trigger can cause the status to transition from it.
  */
 public class CatastrophicFailureStatusLogic implements PlatformStatusLogic {
     @NonNull
     @Override
-    public PlatformStatusLogic process(@NonNull final PlatformStatusAction action) {
+    public PlatformStatusLogic process(@NonNull final StatusMachineTrigger trigger) {
         return this;
     }
 
