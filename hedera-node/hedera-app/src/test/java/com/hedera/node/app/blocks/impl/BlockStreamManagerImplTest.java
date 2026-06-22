@@ -2337,6 +2337,61 @@ class BlockStreamManagerImplTest {
         assertTrue(pendingProofsFuture.isDone());
     }
 
+    @Test
+    void awaitFatalShutdownCapturesOpenBlockWhenEndRoundThrew() {
+        // Regression guard for the roundInProgress bookkeeping: if endRound throws partway (here the normal block
+        // close fails), the round is over but its in-progress flag must still be cleared. Otherwise a later
+        // awaitFatalShutdown would treat the (now dead) handler as still mid-round, block for the entire timeout, and
+        // flush pending blocks only — silently dropping the open block it exists to capture. With the flag cleared in
+        // endRound's finally, awaitFatalShutdown takes the race-free direct path and captures the open block.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Make the normal block close throw, after startRound has already set roundInProgress = true.
+        doThrow(new RuntimeException("boom")).when(lifecycle).onCloseBlock(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        assertThrows(RuntimeException.class, () -> subject.endRound(state, ROUND_NO));
+
+        subject.notifyFatalEvent();
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter).flushIncompleteBlock();
+    }
+
+    @Test
+    void awaitFatalShutdownCapturesOpenBlockWhenStartRoundThrew() {
+        // The same regression guard from the open side: a new block's writer is created before lifecycle.onOpenBlock,
+        // so a throw there leaves an open, assigned writer with roundInProgress = true. The flag must be cleared on the
+        // failed start (startRound's catch) so awaitFatalShutdown still captures that open block for triage rather than
+        // waiting out the timeout and flushing pending-only.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        doThrow(new RuntimeException("boom")).when(lifecycle).onOpenBlock(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        assertThrows(RuntimeException.class, () -> subject.startRound(round, state));
+
+        subject.notifyFatalEvent();
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter).flushIncompleteBlock();
+    }
+
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))
