@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.scratchpad;
+package org.hiero.consensus.scratchpad;
 
 /**
  * A scratchpad type for testing.

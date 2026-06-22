@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
@@ -19,6 +18,7 @@ import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.network.transactions.HashPartition;
@@ -54,7 +54,7 @@ public class IssService implements OtterService {
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final VirtualMapState state) {
         this.selfId = selfId;
-        this.scratchPad = Scratchpad.create(configuration, fileSystemManager, selfId, IssServiceScratchpad.class, NAME);
+        this.scratchPad = Scratchpad.create(fileSystemManager, selfId, IssServiceScratchpad.class, NAME);
 
         log.info(STARTUP.getMarker(), "IssService initialized");
     }
