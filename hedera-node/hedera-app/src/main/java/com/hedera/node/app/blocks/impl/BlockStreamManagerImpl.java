@@ -448,6 +448,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void startRound(@NonNull final Round round, @NonNull final State state) {
+        try {
+            startRoundInternal(round, state);
+        } catch (final RuntimeException e) {
+            // A failed start means no matching endRound will run for this round; clear the in-progress flag so a
+            // concurrent fatal-shutdown waiter does not block on a round boundary that will never arrive.
+            roundInProgress = false;
+            throw e;
+        }
+    }
+
+    private void startRoundInternal(@NonNull final Round round, @NonNull final State state) {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
@@ -662,6 +673,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
+        try {
+            return endRoundInternal(state, roundNum);
+        } finally {
+            // Always clear the in-progress flag, even if endRoundInternal threw, so a concurrent fatal-shutdown
+            // waiter does not block on a round boundary that will never arrive.
+            roundInProgress = false;
+        }
+    }
+
+    private boolean endRoundInternal(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
@@ -671,7 +692,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // and issues no new signing request during shutdown.
         if (fatalShutdownRequested) {
             flushOpenAndPendingBlocksForTriage();
-            roundInProgress = false;
             return false;
         }
         if (closesBlock) {
@@ -887,8 +907,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndexInBlock.clear();
             eventIndex = 0;
         }
-        // The round is finished; the handler is no longer mutating the writer/worker until the next startRound.
-        roundInProgress = false;
+        // The round is finished; the handler is no longer mutating the writer/worker until the next startRound
+        // (the in-progress flag is cleared by the endRound wrapper's finally).
         return closesBlock;
     }
 

@@ -5,6 +5,7 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 
@@ -21,6 +22,10 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * 	    which we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram
  * 	    and the upper larger less changing layers are on disk. IMPORTANT: This can only be set before a new database is
  * 	    created, changing on an existing database will break it.
+ * @param hashChunkHeight
+ *      Hash chunk height. The height is used to store hashes on disk in chunks rather than individually.
+ *      This config is also used by virtual hasher to create hashing tasks, so they are mostly aligned
+ *      with hash chunks on disk.
  * @param hashStoreRamBufferSize
  *      Number of hashes to store in a single buffer in HashListByteBuffer.
  * @param hashStoreRamOffHeapBuffers
@@ -90,6 +95,7 @@ public record MerkleDbConfig(
         @Deprecated @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
         @Deprecated @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
         @Min(0) @ConfigProperty(defaultValue = "262144") int hashChunkCacheThreshold,
+        @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int hashChunkHeight,
         @Deprecated @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,

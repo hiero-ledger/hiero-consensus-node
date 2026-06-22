@@ -30,7 +30,7 @@ import org.junit.jupiter.params.provider.Arguments;
 
 class VirtualHasherTestBase extends VirtualTestBase {
 
-    protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.hashChunkHeight();
+    protected static final int CHUNK_HEIGHT = 6;
 
     protected VirtualHasher defaultHasher;
 
