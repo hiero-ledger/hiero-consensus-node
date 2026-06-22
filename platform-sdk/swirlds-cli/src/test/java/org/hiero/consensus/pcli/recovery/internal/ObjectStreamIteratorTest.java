@@ -5,6 +5,7 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.generateRandomEvents;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getFirstEventStreamFile;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
+import static org.hiero.consensus.pcli.recovery.internal.StreamFileTestUtils.truncateFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -118,7 +119,7 @@ class ObjectStreamIteratorTest {
 
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
-        final int validObjectCount = StreamFileTestUtils.truncateFile(eventStreamFile, false);
+        final int validObjectCount = truncateFile(eventStreamFile, false);
 
         try (final IOIterator<SelfSerializable> iterator = new ObjectStreamIterator<>(eventStreamFile, true)) {
             assertTrue(iterator.next() instanceof Hash, "expected first object to be a hash");
@@ -167,7 +168,7 @@ class ObjectStreamIteratorTest {
 
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
-        final int validObjectCount = StreamFileTestUtils.truncateFile(eventStreamFile, false);
+        final int validObjectCount = truncateFile(eventStreamFile, false);
 
         boolean exceptionThrown = false;
         int count = 1;

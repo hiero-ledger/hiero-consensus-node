@@ -6,6 +6,7 @@ import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtil
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getLastEventStreamFile;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getMiddleEventStreamFile;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
+import static org.hiero.consensus.pcli.recovery.internal.StreamFileTestUtils.truncateFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -227,7 +228,7 @@ class EventStreamRoundIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         final Path lastFile = getLastEventStreamFile(directory);
-        StreamFileTestUtils.truncateFile(lastFile, false);
+        truncateFile(lastFile, false);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
                 mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, true, 0L)) {
@@ -281,7 +282,7 @@ class EventStreamRoundIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         final Path lastFile = getLastEventStreamFile(directory);
-        StreamFileTestUtils.truncateFile(lastFile, false);
+        truncateFile(lastFile, false);
 
         try (final IOIterator<StreamedRound> iterator = new EventStreamRoundIterator(
                 mock(Roster.class), directory, EventStreamPathIterator.FIRST_ROUND_AVAILABLE, false, 0L)) {

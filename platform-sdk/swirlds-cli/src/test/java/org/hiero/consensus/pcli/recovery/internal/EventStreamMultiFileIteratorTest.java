@@ -7,6 +7,7 @@ import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtil
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getMiddleEventStreamFile;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
 import static org.hiero.consensus.pcli.recovery.internal.EventStreamLowerBound.UNBOUNDED;
+import static org.hiero.consensus.pcli.recovery.internal.StreamFileTestUtils.truncateFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -201,7 +202,7 @@ class EventStreamMultiFileIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         final Path lastFile = getLastEventStreamFile(directory);
-        StreamFileTestUtils.truncateFile(lastFile, false);
+        truncateFile(lastFile, false);
 
         try (final IOIterator<CesEvent> iterator = new EventStreamMultiFileIterator(directory, UNBOUNDED)) {
 
@@ -247,7 +248,7 @@ class EventStreamMultiFileIteratorTest {
         writeRandomEventStream(random, directory, secondsPerFile, events);
 
         final Path fileToTruncate = getMiddleEventStreamFile(directory);
-        StreamFileTestUtils.truncateFile(fileToTruncate, false);
+        truncateFile(fileToTruncate, false);
 
         boolean readFailed = false;
         try (final IOIterator<CesEvent> iterator = new EventStreamMultiFileIterator(directory, UNBOUNDED)) {

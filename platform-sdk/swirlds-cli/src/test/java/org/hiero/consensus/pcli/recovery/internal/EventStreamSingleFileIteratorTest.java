@@ -5,6 +5,7 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.generateRandomEvents;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.getFirstEventStreamFile;
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRandomEventStream;
+import static org.hiero.consensus.pcli.recovery.internal.StreamFileTestUtils.truncateFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -88,7 +89,7 @@ class EventStreamSingleFileIteratorTest {
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
 
-        StreamFileTestUtils.truncateFile(eventStreamFile, false);
+        truncateFile(eventStreamFile, false);
 
         try (final EventStreamSingleFileIterator iterator = new EventStreamSingleFileIterator(eventStreamFile, true)) {
             assertNotNull(iterator.getStartHash(), "starting hash should be known");
@@ -124,7 +125,7 @@ class EventStreamSingleFileIteratorTest {
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
 
-        final int validObjectCount = StreamFileTestUtils.truncateFile(eventStreamFile, false);
+        final int validObjectCount = truncateFile(eventStreamFile, false);
 
         boolean exceptionThrown = false;
         int count = 0;
@@ -168,7 +169,7 @@ class EventStreamSingleFileIteratorTest {
         writeRandomEventStream(random, directory, 2, events);
         final Path eventStreamFile = getFirstEventStreamFile(directory);
 
-        final int validObjectCount = StreamFileTestUtils.truncateFile(eventStreamFile, true);
+        final int validObjectCount = truncateFile(eventStreamFile, true);
 
         boolean exceptionThrown = false;
         int count = 0;
