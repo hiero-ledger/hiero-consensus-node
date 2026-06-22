@@ -192,8 +192,7 @@ public class HistoryServiceImpl implements HistoryService {
             logger.warn("Initializing dev-only history genesis state and runtime from startup network JSON");
             final var activeConstruction =
                     TssStartupNetworks.initializeHistoryState(writableStates, maybeGenesisNetwork.orElseThrow());
-            if (activeConstruction.hasTargetProof()
-                    && activeConstruction.targetProofOrThrow().hasChainOfTrustProof()) {
+            if (activeConstruction.hasTargetProof()) {
                 setLatestHistoryProof(activeConstruction.targetProofOrThrow());
             }
             return true;

@@ -150,10 +150,8 @@ class V0730HistorySchemaTest {
     void migrateInitializesLatestHistoryProofFromActiveConstruction() {
         givenNonGenesisMigrate(null, "");
         given(tssConfig.historyEnabled()).willReturn(true);
-        final var targetProof = com.hedera.hapi.node.state.history.HistoryProof.newBuilder()
-                .chainOfTrustProof(com.hedera.hapi.node.state.history.ChainOfTrustProof.newBuilder()
-                        .build())
-                .build();
+        final var targetProof =
+                com.hedera.hapi.node.state.history.HistoryProof.newBuilder().build();
         final var activeConstruction =
                 HistoryProofConstruction.newBuilder().targetProof(targetProof).build();
         given(writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID)).willReturn(ledgerIdState);
