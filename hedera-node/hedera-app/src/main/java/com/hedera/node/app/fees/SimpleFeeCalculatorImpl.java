@@ -18,6 +18,7 @@ import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
