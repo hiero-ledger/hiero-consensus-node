@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.iss.detection.internal;
 
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -8,8 +10,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
-import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -28,8 +28,8 @@ class IssMetricsTests {
         final Roster roster =
                 RandomRosterBuilder.create(randotron).withSize(100).build();
         final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), roster);
-        final Hash hashA = CryptoRandomUtils.randomHash();
-        final Hash hashB = CryptoRandomUtils.randomHash();
+        final Hash hashA = randomHash();
+        final Hash hashB = randomHash();
         final NodeId nodeId = NodeId.of(Integer.MAX_VALUE);
 
         assertThrows(
@@ -41,10 +41,10 @@ class IssMetricsTests {
     @Test
     @DisplayName("Update Test")
     void updateTest() {
-        final Random random = RandomUtils.getRandomPrintSeed();
+        final Random random = getRandomPrintSeed();
 
-        final Hash hashA = CryptoRandomUtils.randomHash(random);
-        final Hash hashB = CryptoRandomUtils.randomHash(random);
+        final Hash hashA = randomHash(random);
+        final Hash hashB = randomHash(random);
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(100).build();
 
