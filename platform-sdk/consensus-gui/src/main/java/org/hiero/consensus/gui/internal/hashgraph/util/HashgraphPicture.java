@@ -36,6 +36,7 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -279,10 +280,25 @@ public class HashgraphPicture extends JPanel {
                     : event.getRoundCreated());
         }
         if (options.writeVote() && event.isWitness()) {
-            for (int i = 0; i < event.getVotesSize(); i++) {
-                // showing T or F from true/false for readability on the picture
-                final String vote = event.getVote(i) ? "T" : "F";
-                s += vote;
+            if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
+                //final HashgraphInfo.EventInfo[] votes = event.getEventInfo().getVoteE();
+                final int[] votes = event.getEventInfo().getVoteIndex();
+                if (votes == null) {
+                    s += " NULL";
+                } else {
+                    s += " < ";
+                    for (int vi : votes) {
+                        HashgraphInfo.EventInfo ve = event.getEventInfo().getHashgraph().getCandEventInfo()[vi];
+                         s += (ve == null) ? " -" : (" " + ve.getEventID());
+                    }
+                    s += " >";
+                }
+            } else {
+                for (int i = 0; i < event.getVotesSize(); i++) {
+                    // showing T or F from true/false for readability on the picture
+                    final String vote = event.getVote(i) ? "T" : "F";
+                    s += vote;
+                }
             }
         }
         if (options.writeEventHash()) {

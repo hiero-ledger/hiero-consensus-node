@@ -74,7 +74,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelConsOrderCheckbox = new Checkbox("Labels: Order (consensus)");
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
         labelNGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                ? "Labels: EventId (nGen)" : "Labels: NGen (non-deterministic generation)");
+                ? "Labels: EventID (nGen)" : "Labels: NGen (non-deterministic generation)");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
         labelDeGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
