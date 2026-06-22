@@ -70,7 +70,6 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -375,8 +374,7 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
-        final var feesConfig = configuration.getConfigData(FeesConfig.class);
-        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig, feesConfig);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -388,14 +386,11 @@ public final class IngestChecker {
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final HooksConfig hooksConfig,
-            @NonNull final NetworkAdminConfig networkAdminConfig,
-            @NonNull final FeesConfig feesConfig)
+            @NonNull final NetworkAdminConfig networkAdminConfig)
             throws PreCheckException {
         final var function = txInfo.functionality();
-        // Reject transactions with highVolume=true if the feature is not enabled.
-        // High volume entity creation HIP depends on simple fees to be enabled.
-        if (txInfo.txBody().highVolume()
-                && (!feesConfig.simpleFeesEnabled() || !networkAdminConfig.highVolumeThrottlesEnabled())) {
+        // Reject transactions with highVolume=true if the high-volume feature is not enabled.
+        if (txInfo.txBody().highVolume() && !networkAdminConfig.highVolumeThrottlesEnabled()) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (UNSUPPORTED_TRANSACTIONS.contains(function)) {

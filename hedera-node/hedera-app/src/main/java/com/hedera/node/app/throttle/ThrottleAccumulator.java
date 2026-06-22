@@ -64,7 +64,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -522,11 +521,10 @@ public class ThrottleAccumulator {
         }
 
         // Check if this is a high-volume transaction and use appropriate throttle bucket.
-        // Verify feature flags here (mirrors the ingest-time guard in IngestChecker) so a config
+        // Verify the feature flag here (mirrors the ingest-time guard in IngestChecker) so a config
         // toggle between ingest and consensus does not silently route to the wrong throttle bucket.
         final boolean highVolumeEnabled =
-                configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                        && configuration.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+                configuration.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
         final boolean isHighVolumeTxn = txBody.highVolume() && highVolumeEnabled;
         final boolean isHighVolumeFunction = HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function);
         final boolean useHighVolumeBucket = shouldUseHighVolumeBucket(
