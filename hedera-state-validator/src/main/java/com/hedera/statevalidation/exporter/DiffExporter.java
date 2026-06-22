@@ -5,6 +5,7 @@ import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyO
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.StateUtils;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * so the common (equal) case keeps the fast byte-level comparison and never parses the value.
  */
 public class DiffExporter {
+    private static final int VIRTUAL_MAP_VALUE_PARSE_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB, adjust as needed
 
     private static final String STATE_1_DIFF_JSON = "state1-diff.json";
     private static final String STATE_2_DIFF_JSON = "state2-diff.json";
@@ -106,6 +108,11 @@ public class DiffExporter {
         createOutputFile(state2Entries, STATE_2_DIFF_JSON);
 
         System.out.printf("Diff time: %d seconds%n", (System.currentTimeMillis() - startTimestamp) / 1000);
+        if(state1Entries.isEmpty() && state2Entries.isEmpty()) {
+            System.exit(0);
+        } else {
+            System.exit(1);
+        }
     }
 
     private void createOutputFile(List<DiffEntry> diffEntries, String fileName) {
@@ -226,7 +233,7 @@ public class DiffExporter {
                 false,
                 false,
                 Codec.DEFAULT_MAX_DEPTH,
-                getVirtualMapValueParseMaxSizeBytes());
+                VIRTUAL_MAP_VALUE_PARSE_MAX_SIZE_BYTES);
         return StateUtils.valueToJson(stateValue.value());
     }
 
