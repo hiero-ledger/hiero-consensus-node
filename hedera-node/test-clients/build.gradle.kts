@@ -522,15 +522,10 @@ tasks.register<Test>("testSubprocessConcurrent") {
         systemProperty("hapi.spec.test.overrides", testOverrides)
     }
 
-    // Gather platform-level overrides (settings.txt) into a single comma-separated list.
-    // Concurrent execution puts transient pressure on the shared fork-join pool at startup
-    // (signature verification is a known CPU hotspot), which briefly stalls wiring schedulers
-    // and trips the HealthMonitor WARN at the tight 1s config default, failing LogValidationOp.
-    // The stall is non-critical and self-recovers, so raise the threshold to 5s (the platform's
-    // own builder default) for all concurrent checks; genuine multi-second stalls still log.
+    // Gather platform-level overrides (settings.txt) into a single comma-separated list
     val platformOverrides =
-        (listOf("platform.wiring.healthLogThreshold=5s") +
-                gradle.startParameter.taskNames.mapNotNull { prCheckPlatformOverrides[it] })
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPlatformOverrides[it] }
             .joinToString(separator = ",")
     if (platformOverrides.isNotBlank()) {
         systemProperty("hapi.spec.platform.overrides", platformOverrides)
