@@ -10,13 +10,13 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.uptime.UptimeConfig;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.status.PlatformStatusConfig;
 
 /**
  * Registers configuration types for the platform.

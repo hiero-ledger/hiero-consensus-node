@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -31,6 +30,7 @@ import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

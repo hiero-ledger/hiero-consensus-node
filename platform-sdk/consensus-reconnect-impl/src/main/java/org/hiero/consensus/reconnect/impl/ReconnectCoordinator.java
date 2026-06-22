@@ -12,7 +12,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
@@ -29,6 +28,7 @@ import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusStateMachine;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
