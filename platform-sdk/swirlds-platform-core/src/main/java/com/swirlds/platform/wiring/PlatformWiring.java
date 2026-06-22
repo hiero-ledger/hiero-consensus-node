@@ -34,6 +34,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -42,7 +43,6 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
-import org.hiero.consensus.status.PlatformStatusConfig;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.

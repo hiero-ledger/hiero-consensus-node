@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;

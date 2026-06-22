@@ -8,8 +8,8 @@ import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActio
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.PlatformStatusConfig;
 import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;

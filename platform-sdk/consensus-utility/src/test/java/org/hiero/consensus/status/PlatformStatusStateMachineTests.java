@@ -17,6 +17,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
+import org.hiero.consensus.config.PlatformStatusConfig_;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;

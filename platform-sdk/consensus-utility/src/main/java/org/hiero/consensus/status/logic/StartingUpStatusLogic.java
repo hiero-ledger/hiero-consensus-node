@@ -3,9 +3,9 @@ package org.hiero.consensus.status.logic;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.PlatformStatusConfig;
 import org.hiero.consensus.status.actions.CatastrophicFailureAction;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;
