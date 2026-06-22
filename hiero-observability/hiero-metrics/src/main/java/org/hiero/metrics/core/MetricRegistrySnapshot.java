@@ -6,7 +6,8 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * A snapshot of all metrics in a {@link MetricRegistry} at a specific point in time, allowing iteration over {@link MetricSnapshot}s.
+ * A snapshot of all metrics in a {@link MetricRegistry} at a specific point in time,
+ * allowing iteration over {@link MetricSnapshot}s with consistent repetitive order (new metrics are appended).
  */
 public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
 
