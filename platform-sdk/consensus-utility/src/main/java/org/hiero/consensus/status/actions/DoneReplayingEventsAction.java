@@ -3,7 +3,6 @@ package org.hiero.consensus.status.actions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 
 /**
  * An action that is triggered when the platform is done replaying events from the preconsensus event stream.

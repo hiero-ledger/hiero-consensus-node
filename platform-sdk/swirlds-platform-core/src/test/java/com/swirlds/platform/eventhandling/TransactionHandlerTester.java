@@ -25,12 +25,12 @@ import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

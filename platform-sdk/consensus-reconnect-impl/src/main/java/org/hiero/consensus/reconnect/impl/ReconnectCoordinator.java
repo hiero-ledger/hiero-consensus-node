@@ -18,7 +18,6 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -29,6 +28,7 @@ import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.

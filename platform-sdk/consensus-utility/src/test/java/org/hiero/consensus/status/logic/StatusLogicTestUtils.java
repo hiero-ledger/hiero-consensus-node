@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Utility methods for testing {@link PlatformStatusLogic} implementations.

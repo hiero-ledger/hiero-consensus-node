@@ -3,7 +3,7 @@ package org.hiero.consensus.status;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * An exception thrown when an illegal {@link PlatformStatusAction} is received
