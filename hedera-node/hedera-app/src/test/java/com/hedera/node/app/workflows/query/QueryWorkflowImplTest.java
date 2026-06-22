@@ -77,7 +77,6 @@ import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
@@ -93,7 +92,6 @@ import io.grpc.StatusRuntimeException;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Stream;
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,7 +100,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -642,7 +639,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     @Test
     void testSuccessIfCostOnly() throws ParseException {
         // given
-        disableSimpleFees();
+        mockQueryContext();
         final var queryHeader =
                 QueryHeader.newBuilder().responseType(COST_ANSWER).build();
         final var query = Query.newBuilder()
@@ -652,28 +649,17 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(dispatcher.getHandler(query)).thenReturn(handler);
         when(handler.extractHeader(query)).thenReturn(queryHeader);
         when(handler.needsAnswerOnlyCost(COST_ANSWER)).thenReturn(true);
-        final var fees = new Fees(1L, 20L, 300L);
-        when(handler.computeFees(any())).thenReturn(fees);
-        final var responseHeader = ResponseHeader.newBuilder()
-                .responseType(COST_ANSWER)
-                .nodeTransactionPrecheckCode(OK)
-                .cost(321L)
-                .build();
-        final var expectedResponse = Response.newBuilder()
-                .fileGetInfo(FileGetInfoResponse.newBuilder().header(responseHeader))
-                .build();
-        when(handler.createEmptyResponse(responseHeader)).thenReturn(expectedResponse);
         final var responseBuffer = newEmptyBuffer();
 
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
 
-        // then
+        // then: cost is the simple-fee estimate (100_000 tinycents at rate 1/12)
         final var actualResponse = parseResponse(responseBuffer);
         final var header = actualResponse.fileGetInfoOrThrow().headerOrThrow();
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
         assertThat(header.responseType()).isEqualTo(COST_ANSWER);
-        assertThat(header.cost()).isEqualTo(fees.totalFee());
+        assertThat(header.cost()).isEqualTo(8333L);
         verifyMetricsSent();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
@@ -946,7 +932,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     @Test
     void testPaidQueryWithInsufficientBalanceFails() throws PreCheckException, ParseException {
         // given
-        disableSimpleFees();
+        mockQueryContext();
         doAnswer(invocationOnMock -> {
                     final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
                     result.setThrottleUsages(List.of());
@@ -955,14 +941,13 @@ class QueryWorkflowImplTest extends AppTestBase {
                 })
                 .when(ingestChecker)
                 .runAllChecks(any(), any(), any(), any());
-        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(1L, 20L, 300L));
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         when(queryChecker.estimateTxFees(
                         any(), any(), eq(transactionInfo), eq(ALICE.account().key()), any(Configuration.class)))
                 .thenReturn(4000L);
         doThrow(new InsufficientBalanceException(INSUFFICIENT_TX_FEE, 12345L))
                 .when(queryChecker)
-                .validateAccountBalances(any(), eq(transactionInfo), eq(ALICE.account()), eq(321L), eq(4000L));
+                .validateAccountBalances(any(), eq(transactionInfo), eq(ALICE.account()), eq(8333L), eq(4000L));
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -1106,28 +1091,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         @Mock
         private ExchangeRateInfo testExchangeRateInfo;
 
-        /**
-         * Provides test data for query types that use simple fees.
-         * <p><b>To enable a new query type:</b> Add a new Arguments entry here with:
-         * <ol>
-         *   <li>Descriptive name (for test display)</li>
-         *   <li>TransactionBody with the transaction type set</li>
-         * </ol>
-         */
-        static Stream<Arguments> simpleFeesEnabledTransactions() {
-            return Stream.of(Arguments.of(
-                    "CONSENSUS_GET_TOPIC_INFO",
-                    Query.newBuilder()
-                            .consensusGetTopicInfo(
-                                    ConsensusGetTopicInfoQuery.newBuilder().build())
-                            .build()));
-        }
-
         @Mock(strictness = LENIENT)
         private QueryContext queryContext;
-
-        @Mock
-        private FeesConfig feesConfig;
 
         @Mock(strictness = LENIENT)
         private SimpleFeeCalculator simpleFeeCalculator;
@@ -1146,8 +1111,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .consensusGetTopicInfo(
                             ConsensusGetTopicInfoQuery.newBuilder().header(queryHeader))
                     .build();
-            // Given: Simple fees are enabled
-            simpleFeesEnabled(true);
+            // Given
+            enableSimpleFees();
             given(queryContext.configuration()).willReturn(configuration);
             given(queryContext.exchangeRateInfo()).willReturn(testExchangeRateInfo);
 
@@ -1174,77 +1139,11 @@ class QueryWorkflowImplTest extends AppTestBase {
             verify(simpleFeeCalculator).calculateQueryFee(eq(query), any());
         }
 
-        @Test
-        @DisplayName("Simple fees not used when feature is disabled")
-        void testSimpleFeesNotUsedWhenFeatureDisabled() throws PreCheckException {
-            simpleFeesEnabled(false);
-            doAnswer(invocationOnMock -> {
-                        final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
-                        result.setThrottleUsages(List.of());
-                        result.setTxnInfo(transactionInfo);
-                        return null;
-                    })
-                    .when(ingestChecker)
-                    .runAllChecks(any(), any(), any(), any());
-
-            boolean shouldCharge = true;
-            workflow = new QueryWorkflowImpl(
-                    stateAccessor,
-                    submissionManager,
-                    queryChecker,
-                    ingestChecker,
-                    dispatcher,
-                    queryParser,
-                    configProvider,
-                    recordCache,
-                    authorizer,
-                    exchangeRateManager,
-                    feeManager,
-                    synchronizedThrottleAccumulator,
-                    instantSource,
-                    opWorkflowMetrics,
-                    shouldCharge);
-            given(handler.requiresNodePayment(any())).willReturn(true);
-            final var responseBuffer = newEmptyBuffer();
-            // when
-            workflow.handleQuery(requestBuffer, responseBuffer);
-            verify(feeManager, never()).getSimpleFeeCalculator();
-        }
-
-        private void simpleFeesEnabled(final boolean enabled) {
-            given(feesConfig.simpleFeesEnabled()).willReturn(enabled);
-            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
-
+        private void enableSimpleFees() {
             when(configProvider.getConfiguration())
-                    .thenReturn(new VersionedConfigImpl(configuration, DEFAULT_CONFIG_VERSION));
+                    .thenReturn(
+                            new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION));
         }
-    }
-
-    private void disableSimpleFees() {
-        final var configMock = mock(Configuration.class);
-        final var configProviderMock = mock(ConfigProvider.class);
-        final var feesConfigMock = mock(FeesConfig.class);
-        given(feesConfigMock.simpleFeesEnabled()).willReturn(false);
-        given(configMock.getConfigData(FeesConfig.class)).willReturn(feesConfigMock);
-
-        when(configProviderMock.getConfiguration())
-                .thenReturn(new VersionedConfigImpl(configMock, DEFAULT_CONFIG_VERSION));
-        workflow = new QueryWorkflowImpl(
-                stateAccessor,
-                submissionManager,
-                queryChecker,
-                ingestChecker,
-                dispatcher,
-                queryParser,
-                configProviderMock,
-                recordCache,
-                authorizer,
-                exchangeRateManager,
-                feeManager,
-                synchronizedThrottleAccumulator,
-                instantSource,
-                opWorkflowMetrics,
-                true);
     }
 
     private void mockTopicGetInfoHandler(Query query, QueryHeader queryHeader, Transaction payment)

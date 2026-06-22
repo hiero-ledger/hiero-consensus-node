@@ -107,7 +107,6 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
         final long simpleTransferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -129,9 +128,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
                 assertionsHold((spec, opLog) -> {
-                    final var expectedRecordsFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var expectedRecordsFee = EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES;
                     final var childRecordsCheck = childRecordsCheck(
                             TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedRecordsFee));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
@@ -146,7 +143,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
+                    final var expectedFee = simpleTransferFee;
                     assertAliasBalanceAndFeeInChildRecord(
                             parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
@@ -169,7 +166,6 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
         final var simpleTransferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
@@ -192,9 +188,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
                 assertionsHold((spec, opLog) -> {
-                    final var expectedRecordsFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var expectedRecordsFee = EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES;
                     final var childRecordsCheck = childRecordsCheck(
                             TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedRecordsFee));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
@@ -209,7 +203,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
+                    final var expectedFee = simpleTransferFee;
                     assertAliasBalanceAndFeeInChildRecord(
                             parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());

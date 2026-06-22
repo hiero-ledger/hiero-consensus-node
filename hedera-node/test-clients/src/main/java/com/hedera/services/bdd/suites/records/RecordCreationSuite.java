@@ -18,8 +18,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -81,36 +81,26 @@ public class RecordCreationSuite {
                         .memo(comfortingMemo)
                         .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        feeObs.set(new FeeObject(16666, 150000, 0));
-                        // this wants the transaction to fail due to lack of funds, but should still pay the node and
-                        // network fee.
-                        // the problem is that the service fee is zero, so if they don't have enough for the whole thing
-                        // they don't
-                        // have enough for the node and network fee.  to fix this we make the transfer bigger
-                        // so the service fee is non zero, by including an extra account.
-                        return cryptoTransfer(
-                                        movingHbar(1L).between(GENESIS, FUNDING),
-                                        movingHbar(1L).between(GENESIS, TO_ACCOUNT))
-                                .memo(comfortingMemo)
-                                .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
-                                .payingWith(PAYER)
-                                .via(TXN_ID)
-                                .hasKnownStatus(INSUFFICIENT_TX_FEE)
-                                .logged();
-                    } else {
-                        return cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
-                                .memo(comfortingMemo)
-                                .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
-                                .payingWith(PAYER)
-                                .via(TXN_ID)
-                                .hasKnownStatus(INSUFFICIENT_TX_FEE)
-                                .logged();
-                    }
+                sourcing(() -> {
+                    feeObs.set(new FeeObject(16666, 150000, 0));
+                    // this wants the transaction to fail due to lack of funds, but should still pay the node and
+                    // network fee.
+                    // the problem is that the service fee is zero, so if they don't have enough for the whole thing
+                    // they don't
+                    // have enough for the node and network fee.  to fix this we make the transfer bigger
+                    // so the service fee is non zero, by including an extra account.
+                    return cryptoTransfer(
+                                    movingHbar(1L).between(GENESIS, FUNDING),
+                                    movingHbar(1L).between(GENESIS, TO_ACCOUNT))
+                            .memo(comfortingMemo)
+                            .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
+                            .payingWith(PAYER)
+                            .via(TXN_ID)
+                            .hasKnownStatus(INSUFFICIENT_TX_FEE)
+                            .logged();
                 }),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) feeObs.set(new FeeObject(16666, 150000, 0));
+                sourcing(() -> {
+                    feeObs.set(new FeeObject(16666, 150000, 0));
                     return getTxnRecord(TXN_ID)
                             .assertingNothingAboutHashes()
                             .hasPriority(recordWith()
@@ -121,7 +111,7 @@ public class RecordCreationSuite {
                                     .transfers(including(spec -> {
                                         final var networkFee = feeObs.get().networkFee();
                                         final var nodeFee = feeObs.get().nodeFee();
-                                        var fudge = "true".equals(flag) ? 0 : 1;
+                                        var fudge = 0;
                                         return TransferList.newBuilder()
                                                 .addAllAccountAmounts(List.of(
                                                         AccountAmount.newBuilder()
@@ -222,8 +212,8 @@ public class RecordCreationSuite {
                         .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) feeObs.set(new FeeObject(100000, 150000, 0));
+                sourcing(() -> {
+                    feeObs.set(new FeeObject(100000, 150000, 0));
                     return uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                                     .memo(comfortingMemo)
                                     .fee(feeObs.get().networkFee() - 1L)
@@ -231,8 +221,8 @@ public class RecordCreationSuite {
                                     .txnId(TXN_ID))
                             .payingWith(GENESIS);
                 }),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) feeObs.set(new FeeObject(100000, 150000, 0));
+                sourcing(() -> {
+                    feeObs.set(new FeeObject(100000, 150000, 0));
                     return getTxnRecord(TXN_ID)
                             .assertingNothingAboutHashes()
                             .hasPriority(recordWith()
@@ -240,7 +230,7 @@ public class RecordCreationSuite {
                                             () -> 3L, feeObs.get().networkFee()))
                                     .transfers(including(spec -> {
                                         final var networkFee = feeObs.get().networkFee();
-                                        var fudge = "true".equals(flag) ? 0 : 1;
+                                        var fudge = 0;
                                         return TransferList.newBuilder()
                                                 .addAllAccountAmounts(List.of(
                                                         AccountAmount.newBuilder()

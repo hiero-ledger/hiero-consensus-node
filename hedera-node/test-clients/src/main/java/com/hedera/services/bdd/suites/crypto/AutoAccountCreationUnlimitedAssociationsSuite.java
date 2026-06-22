@@ -91,7 +91,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
         final var simpleTransferFee = 333333L;
-        final long transferFee = 188608L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -109,9 +108,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
                 assertionsHold((spec, opLog) -> {
-                    final var expectedFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_AUTO_CREATION_SIMPLE_FEE
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var expectedFee = EXPECTED_AUTO_CREATION_SIMPLE_FEE;
 
                     final var childRecordsCheck = childRecordsCheck(
                             TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedFee));
@@ -127,7 +124,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedTransferFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
+                    final var expectedTransferFee = simpleTransferFee;
                     assertAliasBalanceAndFeeInChildRecord(
                             parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
@@ -150,7 +147,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
         final var simpleTransferFee = 333333L;
-        final long transferFee = 188608L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
@@ -170,9 +166,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
                 assertionsHold((spec, opLog) -> {
-                    final var expectedFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_AUTO_CREATION_SIMPLE_FEE
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                    final var expectedFee = EXPECTED_AUTO_CREATION_SIMPLE_FEE;
                     final var childRecordsCheck = childRecordsCheck(
                             TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedFee));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
@@ -187,7 +181,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedTransferFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
+                    final var expectedTransferFee = simpleTransferFee;
                     assertAliasBalanceAndFeeInChildRecord(
                             parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
@@ -288,7 +282,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                             .hasKnownStatusFrom(SUCCESS);
                     allRunFor(spec, completion);
 
-                    final var expectedUsdCharged = spec.simpleFeesEnabled() ? 0.0002 : 0.00015;
+                    final var expectedUsdCharged = 0.0002;
                     // verify completed hollow account
                     var completedAccount = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .has(accountWith()

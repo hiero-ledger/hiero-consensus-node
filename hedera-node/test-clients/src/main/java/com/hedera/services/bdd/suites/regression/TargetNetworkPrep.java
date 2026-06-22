@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -60,28 +59,14 @@ public class TargetNetworkPrep {
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
                         .via("transferToStakingReward"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return getTxnRecord("transferToStakingReward")
-                                .hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR + simpleNetworkAndServiceFee * 0.1));
-                    } else {
-                        return getTxnRecord("transferToStakingReward").hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR
-                                + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)));
-                    }
-                }),
+                getTxnRecord("transferToStakingReward")
+                        .hasHbarAmount(STAKING_REWARD, (long) (ONE_HBAR + simpleNetworkAndServiceFee * 0.1)),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .via("transferToNodeReward"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return getTxnRecord("transferToNodeReward")
-                                .hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR + simpleNetworkAndServiceFee * 0.1));
-                    } else {
-                        return getTxnRecord("transferToNodeReward").hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR
-                                + ((feeObs.get().networkFee() + feeObs.get().serviceFee()) * 0.1)));
-                    }
-                }),
+                getTxnRecord("transferToNodeReward")
+                        .hasHbarAmount(NODE_REWARD, (long) (ONE_HBAR + simpleNetworkAndServiceFee * 0.1)),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -142,32 +127,16 @@ public class TargetNetworkPrep {
                         .signedBy(civilian)
                         .exposingFeesTo(feeObs)
                         .via("stakingRewardTransfer"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return getTxnRecord("stakingRewardTransfer")
-                                .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
-                                .hasHbarAmount(FEE_COLLECTOR, simpleCryptoTransferFee);
-                    } else {
-                        return getTxnRecord("stakingRewardTransfer")
-                                .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
-                                .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee());
-                    }
-                }),
+                getTxnRecord("stakingRewardTransfer")
+                        .hasHbarAmount(STAKING_REWARD, ONE_HBAR)
+                        .hasHbarAmount(FEE_COLLECTOR, simpleCryptoTransferFee),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .via("nodeRewardTransfer"),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return getTxnRecord("nodeRewardTransfer")
-                                .hasHbarAmount(NODE_REWARD, ONE_HBAR)
-                                .hasHbarAmount(FEE_COLLECTOR, simpleCryptoTransferFee);
-                    } else {
-                        return getTxnRecord("nodeRewardTransfer")
-                                .hasHbarAmount(NODE_REWARD, ONE_HBAR)
-                                .hasHbarAmount(FEE_COLLECTOR, feeObs.get().totalFee());
-                    }
-                }),
+                getTxnRecord("nodeRewardTransfer")
+                        .hasHbarAmount(NODE_REWARD, ONE_HBAR)
+                        .hasHbarAmount(FEE_COLLECTOR, simpleCryptoTransferFee),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

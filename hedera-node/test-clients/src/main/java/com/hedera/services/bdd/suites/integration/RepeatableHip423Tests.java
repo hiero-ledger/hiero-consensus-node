@@ -1359,13 +1359,8 @@ public class RepeatableHip423Tests {
                 getTxnRecord("second").exposingTo(record -> secondFee.set(record.getTransactionFee())),
                 getTxnRecord("third").exposingTo(record -> thirdFee.set(record.getTransactionFee())),
                 withOpContext((spec, log) -> {
-                    if (spec.simpleFeesEnabled()) {
-                        assertEquals(firstFee.get(), secondFee.get());
-                        assertEquals(secondFee.get(), thirdFee.get());
-                    } else {
-                        assertEquals(firstFee.get(), secondFee.get());
-                        assertTrue(secondFee.get() < thirdFee.get());
-                    }
+                    assertEquals(firstFee.get(), secondFee.get());
+                    assertEquals(secondFee.get(), thirdFee.get());
                 }));
     }
 

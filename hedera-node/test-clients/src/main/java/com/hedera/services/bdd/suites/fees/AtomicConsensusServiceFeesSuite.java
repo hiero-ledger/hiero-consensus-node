@@ -10,10 +10,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -42,12 +40,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(ATOMIC_BATCH)
 class AtomicConsensusServiceFeesSuite {
 
-    private static final double BASE_FEE_TOPIC_CREATE = 0.01;
-    private static final double BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE = 2.00;
-    private static final double TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES = 2.10;
-    private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
-    private static final double BASE_FEE_TOPIC_DELETE = 0.005;
-    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
@@ -78,18 +70,12 @@ class AtomicConsensusServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "topicCreate",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd("topicCreate", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE, 6);
-                    }
-                })));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "topicCreate",
+                        ATOMIC_BATCH,
+                        txnSize ->
+                                expectedTopicCreateFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001)));
     }
 
     @HapiTest
@@ -106,19 +92,12 @@ class AtomicConsensusServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "topicCreateWithCustomFee",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd(
-                                "topicCreateWithCustomFee", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 5);
-                    }
-                })));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "topicCreateWithCustomFee",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001)));
     }
 
     @HapiTest
@@ -139,22 +118,12 @@ class AtomicConsensusServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "topicCreateWithMultipleCustomFees",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd(
-                                "topicCreateWithMultipleCustomFees",
-                                ATOMIC_BATCH,
-                                TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES,
-                                5);
-                    }
-                })));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "topicCreateWithMultipleCustomFees",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001)));
     }
 
     @HapiTest
@@ -176,18 +145,12 @@ class AtomicConsensusServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "updateTopic",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicUpdateFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd("updateTopic", ATOMIC_BATCH, BASE_FEE_TOPIC_UPDATE, 10);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "updateTopic",
+                        ATOMIC_BATCH,
+                        txnSize ->
+                                expectedTopicUpdateFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     @HapiTest
@@ -205,18 +168,12 @@ class AtomicConsensusServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "topicDelete",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicDeleteFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd("topicDelete", ATOMIC_BATCH, BASE_FEE_TOPIC_DELETE, 10);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "topicDelete",
+                        ATOMIC_BATCH,
+                        txnSize ->
+                                expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 
     @HapiTest
@@ -239,20 +196,13 @@ class AtomicConsensusServiceFeesSuite {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 sleepFor(1000),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                "submitMessage",
-                                ATOMIC_BATCH,
-                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        STATE_BYTES, 100L,
-                                        PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd(
-                                "submitMessage", ATOMIC_BATCH, BASE_FEE_TOPIC_SUBMIT_MESSAGE, 6);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        "submitMessage",
+                        ATOMIC_BATCH,
+                        txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
+                                SIGNATURES, 1L,
+                                STATE_BYTES, 100L,
+                                PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 }

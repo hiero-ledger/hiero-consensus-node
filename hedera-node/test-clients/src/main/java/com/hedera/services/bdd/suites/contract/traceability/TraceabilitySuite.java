@@ -4704,7 +4704,7 @@ public class TraceabilitySuite {
                                             .setCallOperationType(CallOperationType.OP_CALL)
                                             .setCallingAccount(ethSenderAccountReference.get())
                                             .setGas(1_979_000)
-                                            .setGasUsed(spec.simpleFeesEnabled() ? 586854 : 554517)
+                                            .setGasUsed(586854)
                                             .setValue(valueToSend)
                                             .setRecipientAccount(lazyAccountIdReference.get())
                                             .setOutput(EMPTY)

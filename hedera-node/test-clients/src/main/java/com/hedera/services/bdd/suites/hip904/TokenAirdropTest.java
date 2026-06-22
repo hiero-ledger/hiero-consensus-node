@@ -1385,9 +1385,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                 .via("transferTx")
                                 .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
                                 .hasKnownStatus(INVALID_TOKEN_ID)));
-                if (!spec.simpleFeesEnabled()) {
-                    ops.add(validateChargedUsd("transferTx", 0.001, 10));
-                }
                 allRunFor(spec, ops);
             }));
         }

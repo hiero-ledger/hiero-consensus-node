@@ -71,7 +71,7 @@ public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
                         getAccountInfo(NODE_OPERATOR).payingWith(PAYER),
                         handleAnyRepeatableQueryPayment(),
                         withOpContext((spec, log) -> {
-                            final var queryCost = spec.simpleFeesEnabled() ? QUERY_COST_SIMPLE_FEES : QUERY_COST;
+                            final var queryCost = QUERY_COST_SIMPLE_FEES;
                             allRunFor(
                                     spec,
                                     // assert payer is charged
