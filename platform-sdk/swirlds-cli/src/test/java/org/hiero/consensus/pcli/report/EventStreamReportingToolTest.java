@@ -3,8 +3,10 @@ package org.hiero.consensus.pcli.report;
 
 import static org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils.writeRoundsToStream;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.simulated.RandomSigner;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -19,6 +21,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.GenerateConsensus;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.pcli.recovery.internal.EventStreamRoundLowerBound;
@@ -35,8 +38,9 @@ class EventStreamReportingToolTest {
         ConstructableRegistration.registerAllConstructables();
     }
 
-    private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
-            TestPlatformContextBuilder.create().build();
+    private static final Time DEFAULT_TIME = Time.getCurrent();
+    private static final Metrics DEFAULT_METRICS = new NoOpMetrics();
+    private static final Configuration DEFAULT_CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
 
     @TempDir
     Path tmpDir;
@@ -54,12 +58,7 @@ class EventStreamReportingToolTest {
 
         // generate consensus events
         final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
-                numNodes,
-                numEvents,
-                random.nextLong());
+                DEFAULT_CONFIGURATION, DEFAULT_METRICS, DEFAULT_TIME, numNodes, numEvents, random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
         }
@@ -101,12 +100,7 @@ class EventStreamReportingToolTest {
 
         // generate consensus events
         final Deque<ConsensusRound> rounds = GenerateConsensus.generateConsensusRounds(
-                DEFAULT_PLATFORM_CONTEXT.getConfiguration(),
-                DEFAULT_PLATFORM_CONTEXT.getMetrics(),
-                DEFAULT_PLATFORM_CONTEXT.getTime(),
-                numNodes,
-                numEvents,
-                random.nextLong());
+                DEFAULT_CONFIGURATION, DEFAULT_METRICS, DEFAULT_TIME, numNodes, numEvents, random.nextLong());
         if (rounds.isEmpty()) {
             Assertions.fail("events are excepted to reach consensus");
         }
