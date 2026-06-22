@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Function;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
@@ -20,53 +19,52 @@ public class StatusLogicTestUtils {
     private StatusLogicTestUtils() {}
 
     /**
-     * Trigger an action and assert that the new status is as expected.
+     * Process an action and assert that the new status is as expected.
      *
-     * @param actionHandler  the logic method to test
-     * @param action         the action to trigger
-     * @param expectedStatus the expected status after the action is triggered
+     * @param logic          the logic to test
+     * @param action         the action to process
+     * @param expectedStatus the expected status after the action is processed
      */
-    public static <T extends PlatformStatusAction> void triggerActionAndAssertTransition(
-            @NonNull final Function<T, PlatformStatusLogic> actionHandler,
-            @NonNull final T action,
+    public static void assertTransition(
+            @NonNull final PlatformStatusLogic logic,
+            @NonNull final PlatformStatusAction action,
             @NonNull final PlatformStatus expectedStatus) {
 
-        final PlatformStatus newStatus = actionHandler.apply(action).getStatus();
+        final PlatformStatus newStatus = logic.process(action).getStatus();
         assertEquals(expectedStatus, newStatus);
     }
 
     /**
-     * Trigger an action and assert that the status does not change.
+     * Process an action and assert that the status does not change.
      *
-     * @param actionHandler  the logic method to test
-     * @param action         the action to trigger
-     * @param originalStatus the original status before the action is triggered
+     * @param logic          the logic to test
+     * @param action         the action to process
+     * @param originalStatus the original status before the action is processed
      */
-    public static <T extends PlatformStatusAction> void triggerActionAndAssertNoTransition(
-            @NonNull final Function<T, PlatformStatusLogic> actionHandler,
-            @NonNull final T action,
+    public static void assertNoTransition(
+            @NonNull final PlatformStatusLogic logic,
+            @NonNull final PlatformStatusAction action,
             @NonNull final PlatformStatus originalStatus) {
 
-        final PlatformStatus newStatus = actionHandler.apply(action).getStatus();
-
+        final PlatformStatus newStatus = logic.process(action).getStatus();
         assertEquals(originalStatus, newStatus);
     }
 
     /**
-     * Trigger an action and assert that an exception is thrown.
+     * Process an action and assert that an exception is thrown.
      *
-     * @param actionHandler  the logic method to test
-     * @param action         the action to trigger
-     * @param originalStatus the original status before the action is triggered
+     * @param logic          the logic to test
+     * @param action         the action to process
+     * @param originalStatus the original status before the action is processed
      */
-    public static <T extends PlatformStatusAction> void triggerActionAndAssertException(
-            @NonNull final Function<T, PlatformStatusLogic> actionHandler,
-            @NonNull final T action,
+    public static void assertException(
+            @NonNull final PlatformStatusLogic logic,
+            @NonNull final PlatformStatusAction action,
             @NonNull final PlatformStatus originalStatus) {
 
         assertThrows(
                 IllegalPlatformStatusException.class,
-                () -> actionHandler.apply(action),
-                "Expected an exception to be thrown when triggering action " + action + " in status " + originalStatus);
+                () -> logic.process(action),
+                "Expected an exception to be thrown when processing action " + action + " in status " + originalStatus);
     }
 }

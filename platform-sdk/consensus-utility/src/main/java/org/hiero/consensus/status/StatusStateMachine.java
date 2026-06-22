@@ -19,16 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
 import org.hiero.consensus.status.logic.PlatformStatusLogic;
 import org.hiero.consensus.status.logic.StartingUpStatusLogic;
 
@@ -71,31 +62,18 @@ public class StatusStateMachine {
     }
 
     /**
-     * Passes the received action into the logic method that corresponds with the action type, and returns whatever that
-     * logic method returns.
+     * Passes the received action to the current status logic and returns whatever it returns.
      * <p>
-     * If the logic method throws an {@link IllegalPlatformStatusException}, this method will log the exception and
-     * return null.
+     * If the logic throws an {@link IllegalPlatformStatusException}, this method will log the exception and return null.
      *
      * @param action the action to process
-     * @return a new logic object, or null if the logic method threw an exception
+     * @return a new logic object, or null if the logic threw an exception
      */
     @Nullable
     private PlatformStatusLogic getNewLogic(@NonNull final PlatformStatusAction action) {
         requireNonNull(action);
         try {
-            return switch (action) {
-                case final CatastrophicFailureAction a -> currentStatusLogic.processCatastrophicFailureAction(a);
-                case final DoneReplayingEventsAction a -> currentStatusLogic.processDoneReplayingEventsAction(a);
-                case final FallenBehindAction a -> currentStatusLogic.processFallenBehindAction(a);
-                case final FreezePeriodEnteredAction a -> currentStatusLogic.processFreezePeriodEnteredAction(a);
-                case final ReconnectCompleteAction a -> currentStatusLogic.processReconnectCompleteAction(a);
-                case final SelfEventReachedConsensusAction a ->
-                    currentStatusLogic.processSelfEventReachedConsensusAction(a);
-                case final StartedReplayingEventsAction a -> currentStatusLogic.processStartedReplayingEventsAction(a);
-                case final StateWrittenToDiskAction a -> currentStatusLogic.processStateWrittenToDiskAction(a);
-                case final TimeElapsedAction a -> currentStatusLogic.processTimeElapsedAction(a);
-            };
+            return currentStatusLogic.process(action);
         } catch (final IllegalPlatformStatusException e) {
             logger.error(EXCEPTION.getMarker(), e.getMessage(), e);
             return null;
