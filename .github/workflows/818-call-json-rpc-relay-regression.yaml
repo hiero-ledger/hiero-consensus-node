@@ -24,6 +24,10 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
+      json-rpc-relay-version:
+        description: "The version of json-rpc-relay to use for the regression tests (if not specified, latest will be used):"
+        required: false
+        type: string
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -87,6 +91,21 @@ jobs:
           repository: hiero-ledger/hiero-json-rpc-relay
           fetch-depth: 0
           fetch-tags: true
+
+      # Checkout the specified version tag
+      - name: Checkout JSON-RPC Relay Tag
+        run: |
+          cd regression-tests/json-rpc-relay
+          git fetch --tags
+
+          # If ${{ inputs.json-rpc-relay-version }} is in the tags, check it out.
+          if git rev-parse "refs/tags/${{ inputs.json-rpc-relay-version  }}" >/dev/null 2>&1; then
+            echo "Checking out specified JSON-RPC Relay version: ${{ inputs.json-rpc-relay-version }}"
+            git checkout "tags/${{ inputs.json-rpc-relay-version }}"
+          else
+            echo "Specified JSON-RPC Relay version ${{ inputs.json-rpc-relay-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
