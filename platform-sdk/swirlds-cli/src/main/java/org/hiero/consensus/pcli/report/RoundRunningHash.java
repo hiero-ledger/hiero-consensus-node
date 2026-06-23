@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.report;
+package org.hiero.consensus.pcli.report;
 
 import org.hiero.base.crypto.Hash;
 
