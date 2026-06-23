@@ -34,7 +34,7 @@ platform-sdk/docs/consensus-layer/
 ├── architecture/
 │   ├── README.md
 │   ├── overview.md                        high-level shape; adapts from Consensus-Layer.md
-│   ├── topics/                            one file per topic (the 13)
+│   ├── topics/                            one file per topic
 │   │   ├── wiring-framework.md
 │   │   ├── gossip.md
 │   │   ├── event-intake.md
@@ -145,7 +145,7 @@ Single file. Controlled vocabulary of observable symptoms (`SYM-NNN`) referenced
 
 The topic-organized lens on the consensus layer.
 - `architecture/overview.md` — adapts the high-level shape from `Consensus-Layer.md` for KB use.
-- `architecture/topics/` — one file per topic (the 13). Each describes the topic's responsibilities, state, contracts, and links to related concepts, invariants, decisions, and scenarios.
+- `architecture/topics/` — one file per topic. Each describes the topic's responsibilities, state, contracts, and links to related concepts, invariants, decisions, and scenarios.
 - `architecture/interfaces/consensus-execution-boundary.md` — the Consensus public API (`initialize`, `destroy`, `nextRound`, `onBehind`, `onPreHandleEvent`, `getTransactionsForEvent`, etc.).
 
 ### `decisions/`
@@ -227,6 +227,53 @@ Type vocabulary:
 | `delta-map/*.md`               | `delta-map`              |
 | `symptoms.md`                  | `symptom-catalog`        |
 | `tunables.md`                  | `tunable-catalog`        |
+
+## Canonicalization and non-duplication
+
+Each fact has exactly one canonical home in this KB. Every other mention
+references that home — by ID, by link, or by name — rather than restating the
+fact. This is the structural rule that keeps the KB maintainable: when a fact
+changes, there is one place to change it, not a scattered set that must all be
+found and edited in lockstep.
+
+Canonical homes, by kind of fact:
+
+|              Kind of fact              |                          Canonical home                          |
+|----------------------------------------|------------------------------------------------------------------|
+| Term definition / mental model         | `glossary.md` (term), `concepts/` (model)                        |
+| Observable symptom                     | `symptoms.md` (`SYM-NNN`)                                        |
+| Configurable parameter, threshold      | `tunables.md`                                                    |
+| Why a load-bearing choice was made     | `decisions/` (`ADR-NNN`)                                         |
+| Property true under any correct impl   | `invariants/` (`INV-NNN`)                                        |
+| Property true of the code as it is     | `rules/` (`RUL-NNN`)                                             |
+| Catalog entry title + one-line summary | the entry file (mirrored into its `README.md` index — see below) |
+
+### Narrative restatement vs. duplicated source of truth
+
+Repetition is not absolutely forbidden — an ADR or rule may restate orienting
+context so a human can read it without chasing links, and that is fine. The
+line is between two kinds of repetition:
+
+- **Narrative restatement** — a prose summary that orients the reader. Allowed.
+  Keep it a summary, and link to the canonical home for the authoritative version.
+- **Duplicated source of truth** — a load-bearing value copied verbatim: a
+  parameter value or threshold, an ID, a file path, a `status`, a commit hash.
+  **Not allowed.** State it once in its canonical home and reference it.
+
+The test: *if this fact changes, must I also edit it here?* If yes, it is a
+duplicated source of truth and must become a reference instead.
+
+### Sanctioned duplication
+
+One duplication is built into the structure: each catalog entry's title and
+one-line summary appear both in the entry file and in its `README.md` index
+row. This is deliberate — the index is the navigable catalog. Because it is a
+duplication, it carries a sync obligation: the index row is updated in the same
+change as the entry it describes, never separately.
+
+The procedure a contributor (human or agent) follows to honor these rules —
+including how to find every existing reference before changing a fact — lives in
+[`CLAUDE.md`](CLAUDE.md). This section states the rule; that file states how to apply it.
 
 ## When to update this file
 
