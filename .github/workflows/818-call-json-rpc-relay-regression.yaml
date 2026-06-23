@@ -93,17 +93,17 @@ jobs:
           fetch-tags: true
 
       # Checkout the specified version tag
-      - name: Checkout JS-SDK Tag
+      - name: Checkout JSON-RPC Relay Tag
         run: |
           cd regression-tests/json-rpc-relay
           git fetch --tags
 
           # If ${{ inputs.json-rpc-relay-version }} is in the tags, check it out.
-          if git rev-parse "refs/tags/${{ inputs.regression-tests/json-rpc-relay }}" >/dev/null 2>&1; then
-            echo "Checking out specified JS-SDK version: ${{ inputs.json-rpc-relay-version }}"
+          if git rev-parse "refs/tags/${{ inputs.json-rpc-relay-version  }}" >/dev/null 2>&1; then
+            echo "Checking out specified JSON-RPC Relay version: ${{ inputs.json-rpc-relay-version }}"
             git checkout "tags/${{ inputs.json-rpc-relay-version }}"
           else
-            echo "Specified JS-SDK version ${{ inputs.json-rpc-relay-version }} not found in tags."
+            echo "Specified JSON-RPC Relay version ${{ inputs.json-rpc-relay-version }} not found in tags."
             exit 1 # fail the workflow if not present.
           fi
 
