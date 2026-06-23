@@ -9,26 +9,26 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
@@ -91,8 +91,6 @@ public class ReconnectCoordinator {
         components.stateHasherWiring().flush();
         components.stateSignatureCollectorWiring().flush();
         components.transactionHandlerWiring().flush();
-        components.branchDetectorWiring().flush();
-        components.branchReporterWiring().flush();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
@@ -109,8 +107,6 @@ public class ReconnectCoordinator {
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
         components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
-        components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
-        components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }
 
     /**
@@ -162,7 +158,9 @@ public class ReconnectCoordinator {
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
         platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
+        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         this.injectRosterHistory(rosterHistory);
 
         final int roundsNonAncient =

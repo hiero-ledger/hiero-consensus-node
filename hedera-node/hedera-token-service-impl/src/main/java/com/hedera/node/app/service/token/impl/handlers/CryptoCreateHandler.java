@@ -19,16 +19,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
-import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
@@ -50,25 +40,20 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -488,40 +473,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .build());
 
         return builder.build();
-    }
-
-    @Override
-    @NonNull
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // Variable bytes plus two additional longs for balance and auto-renew period; plus a boolean for receiver sig
-        // required.
-        final var op = feeContext.body().cryptoCreateAccountOrThrow();
-        final var keySize =
-                op.hasKey() ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(op.keyOrElse(Key.DEFAULT))) : 0L;
-        final var unlimitedAutoAssociations =
-                feeContext.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        final var maxAutoAssociationsSize =
-                !unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0 ? INT_SIZE : 0L;
-        final var baseSize = op.memo().length() + keySize + maxAutoAssociationsSize;
-        final var lifeTime = op.autoRenewPeriodOrElse(Duration.DEFAULT).seconds();
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        final var fee = feeCalculator
-                .addBytesPerTransaction(baseSize + (2 * LONG_SIZE) + BOOL_SIZE)
-                .addRamByteSeconds((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime)
-                .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        if (!unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0) {
-            fee.addRamByteSeconds(op.maxAutomaticTokenAssociations() * lifeTime * CREATE_SLOT_MULTIPLIER);
-        }
-        // Using SBS here because this part us not used in other calculations. It is a per hour cost
-        // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
-        if (!op.hookCreationDetails().isEmpty()) {
-            fee.addStorageBytesSeconds(op.hookCreationDetails().size() * HOUR_TO_SECOND_MULTIPLIER);
-        }
-        if (IMMUTABILITY_SENTINEL_KEY.equals(op.key())) {
-            final var lazyCreationFee = feeContext.dispatchComputeFees(UPDATE_TXN_BODY_BUILDER, feeContext.payer());
-            return fee.calculate().plus(lazyCreationFee);
-        }
-        return fee.calculate();
     }
 
     private boolean isSystemFile(final long entityNum) {

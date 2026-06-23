@@ -54,9 +54,9 @@ class ScheduleOpsUsageTest {
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
 
     private final Key adminKey = KeyUtils.A_COMPLEX_KEY;
-    private final ScheduleID id = IdUtils.asSchedule("0.0.1");
+    private final ScheduleID id = IdUtils.asSchedule(1L);
     private final String memo = "This is just a memo?";
-    private final AccountID payer = IdUtils.asAccount("0.0.2");
+    private final AccountID payer = IdUtils.asAccount(2L);
     private final SchedulableTransactionBody scheduledTxn = SchedulableTransactionBody.newBuilder()
             .setTransactionFee(1_234_567L)
             .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(payer))

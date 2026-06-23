@@ -1,7 +1,7 @@
 ---
+type: architecture-topic
 title: Event creator
-kind: architecture-topic
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Event creator
@@ -147,7 +147,7 @@ computed by `Tipset#getTipAdvancementWeight(NodeId selfId, Tipset that)`
 
 The snapshot is the moving baseline against which improvement is
 measured. `TipsetWeightCalculator` holds the current `snapshot` and a
-bounded `snapshotHistory` (default `tipsetSnapshotHistorySize = 10`).
+bounded `snapshotHistory` (sized by `tipsetSnapshotHistorySize`, TUN-136).
 Whenever `TipsetWeightCalculator#addEventAndGetAdvancementWeight`
 (lines 165–198) is called for a new self-event, it computes the
 partial-weighted score of that event's tipset against the current
@@ -192,7 +192,9 @@ the advancement score it would produce against the current snapshot,
 and keeps only the candidates whose advancement weight is non-zero. If
 no candidate qualifies and this is not a genesis event, no event is
 created. Otherwise the event creator builds the new event with the
-top-ranked candidate(s) up to `maxOtherParents`. This is the
+top-ranked candidates up to `maxOtherParents` (TUN-140). Selecting several
+other-parents per event advances more tipset slots at once, so
+consensus is reached in fewer rounds. This is the
 snapshot-improvement-score gate from the source doc.
 
 The gate is implemented in
@@ -269,7 +271,7 @@ rule agrees. The rules cover distinct concerns.
 - **`PlatformHealthRule`**
   (`consensus-event-creator-impl/.../rules/PlatformHealthRule.java`)
   blocks event creation whenever the duration reported via `reportUnhealthyDuration`
-  exceeds `maximumPermissibleUnhealthyDuration` (default `1s`),
+  exceeds `maximumPermissibleUnhealthyDuration` (TUN-138),
   giving slow downstream components room to catch up. The signal
   framework that produces the unhealthy-duration measurement lives
   in [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md).

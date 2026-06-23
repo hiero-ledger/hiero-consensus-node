@@ -41,7 +41,8 @@ import org.apache.logging.log4j.Logger;
  * is logged and a recurring retry is scheduled. The node continues startup regardless.
  *
  * <p>After successful hash verification, the proving key archive (.tar.gz) is extracted
- * to the parent directory of the proving key path.
+ * to the directory specified by the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable.
+ * The {@code tss.wrapsProvingKeyPath} config controls only where the archive file is stored on disk.
  */
 public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
@@ -217,7 +218,9 @@ public class WrapsProvingKeyVerification {
     /**
      * Validates that the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable (which the native
      * WRAPS library reads to locate unpacked artifacts) is consistent with the extraction directory
-     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file).
+     * derived from {@code tss.wrapsProvingKeyPath} (the packed tar file). Relative paths are resolved
+     * against the working directory before comparison, so the default relative
+     * {@code tss.wrapsProvingKeyPath} is compatible with an absolute env var value.
      *
      * @param provingKeyPath the configured path to the packed proving key archive
      * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
@@ -239,8 +242,8 @@ public class WrapsProvingKeyVerification {
                     WRAPS_ARTIFACTS_ENV_VAR);
             return;
         }
-        final var envPath = Paths.get(envArtifactsPath).normalize();
-        final var normalizedTarget = extractionTarget.normalize();
+        final var envPath = Paths.get(envArtifactsPath).toAbsolutePath().normalize();
+        final var normalizedTarget = extractionTarget.toAbsolutePath().normalize();
         if (!envPath.startsWith(normalizedTarget)) {
             throw new IllegalStateException(WRAPS_ARTIFACTS_ENV_VAR + " (" + envArtifactsPath
                     + ") is not under the extraction directory (" + normalizedTarget

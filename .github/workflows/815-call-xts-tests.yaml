@@ -1,0 +1,561 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "815: [CALL] Exec XTS Tests"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The commit sha, tag, or branch to check out"
+        type: string
+      branch-name:
+        type: string
+        description: "The branch name, for JRS Panel output"
+      enable-timing-sensitive-test-suite:
+        type: string
+        description: "Run Timing Sensitive Test Suite"
+        default: "false"
+      enable-hammer-test-suite:
+        type: string
+        description: "Run Hammer Test Suite"
+        default: "false"
+      enable-hapi-test-suite:
+        type: string
+        description: "Run HAPI Test Suite"
+        default: "false"
+      enable-otter-test-suite:
+        type: string
+        description: "Run Otter Test Suite"
+        default: "false"
+      enable-chaos-otter-test-suite:
+        type: string
+        description: "Run Chaos Otter Test Suite"
+        default: "false"
+      enable-hedera-node-jrs-panel:
+        type: string
+        description: "Run Hedera Node JRS Panel"
+        default: "false"
+      enable-sdk-tck-regression-panel:
+        type: string
+        description: "Run SDK TCK Regression Panel"
+        default: "false"
+      enable-mirror-node-regression-panel:
+        type: string
+        description: "Run Mirror Node Regression Panel"
+        default: "false"
+      enable-rpc-relay-regression-panel:
+        type: string
+        description: "Run JSON-RPC Relay Regression Panel"
+        default: "false"
+      enable-block-node-regression-panel:
+        type: string
+        description: "Run Block Node Regression Panel"
+        default: "false"
+      enable-migration-testing-panel:
+        type: string
+        description: "Run Migration Testing Panel"
+        default: "true"
+      enable-hapi-tests-blocks-suite:
+        type: string
+        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS (silent / non-promotion-gating)"
+        default: "false"
+      solo-version:
+        type: string
+        description: "The solo version to use for the regression panels"
+        default: "latest"
+      mirror-node-version:
+        type: string
+        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
+        default: "latest"
+      helm-release-name:
+        type: string
+        description: "The helm release name to use for the mirror node regression panel"
+        default: "mirror"
+      solo-ge-0440:
+        type: string
+        description: "Is solo version greater than or equal to 0.44.0"
+        default: "false"
+      custom-job-label:
+        description: "Custom Job Label"
+        type: string
+        required: false
+      java-version:
+        description: "Java version for the XTS tests"
+        type: string
+        required: false
+      java-distribution:
+        description: "Java distribution for the XTS tests"
+        type: string
+        required: false
+        default: "temurin"
+      tck-version:
+        description: "The TCK version to use for XTS Panels"
+        type: string
+        required: false
+      js-sdk-version:
+        description: "The JavaScript SDK version to use for XTS Panels"
+        type: string
+        required: false
+      bn-release-version:
+        description: "The Block Node release version to use for XTS Panels"
+        type: string
+        required: false
+      bn-mirror-node-version:
+        description: "The Mirror Node release version to use for Block Node XTS Panels"
+        type: string
+        required: false
+      json-rpc-relay-version:
+        description: "The JSON-RPC Relay release version to use for XTS Panels"
+        type: string
+        required: false
+    secrets:
+      access-token:
+        description: "Github Access Token"
+        required: false
+      platform-access-token:
+        description: "Platform Github Access Token"
+        required: false
+      regression-access-token:
+        description: "Regression Panel Access Token"
+        required: false
+      gcp-project-number:
+        description: "GCP Project Number"
+        required: false
+      gcp-sa-key-contents:
+        description: "GCP Service Account Key Contents"
+        required: false
+      gradle-cache-username:
+        description: "Gradle Cache Username"
+        required: false
+      gradle-cache-password:
+        description: "Gradle Cache Password"
+        required: false
+      grafana-agent-username:
+        description: "Grafana Agent Username"
+        required: false
+      grafana-agent-password:
+        description: "Grafana Agent Password"
+        required: false
+      jrs-ssh-user-name:
+        description: "JRS SSH User Name"
+        required: false
+      jrs-ssh-key-file:
+        description: "JRS SSH Key File"
+        required: false
+      slack-api-token:
+        description: "Slack API Token"
+        required: false
+      slack-citr-details-token:
+        description: "Slack CITR Detailed Reports Token"
+        required: false
+      slack-tck-report-webhook:
+        description: "Slack TCK Report Webhook"
+        required: false
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the workflow"
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+      failed-tests:
+        description: "List of failed jobs in the workflow"
+        value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
+
+permissions:
+  id-token: write
+  actions: write
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  commit-info:
+    name: Get Commit Info
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      sha: ${{ steps.commit-info.outputs.sha }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
+  build:
+    name: Compile and Spotless Check
+    uses: ./.github/workflows/802-call-compile-and-spotless-check.yaml
+    needs:
+      - commit-info
+    with:
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
+      ref: ${{ needs.commit-info.outputs.sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-timing-sensitive-tests:
+    name: XTS Timing Sensitive Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-timing-sensitive-test-suite == 'true' }}
+    uses: ./.github/workflows/806-call-execute-timing-sensitive-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hammer-tests:
+    name: XTS Hammer Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hammer-test-suite == 'true' }}
+    uses: ./.github/workflows/807-call-execute-hammer-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-tests:
+    name: XTS HAPI Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' }}
+    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      enable-hapi-tests-misc: "false"
+      enable-hapi-tests-misc-records-crypto-and-serial: "false"
+      enable-hapi-tests-token-and-time-consuming: "false"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "false"
+      enable-hapi-tests-atomic-batch: "false"
+      enable-hapi-tests-smart-contract-and-iss: "false"
+      enable-hapi-tests-state-throttling: "false"
+      enable-hapi-tests-bn-communication: "true"
+      # (FUTURE) Flip to "true" once the hl-cn-hapi-wraps-lin-lg runner pool exists with
+      # the WRAPS proving-key artifacts mounted at /opt/wraps-v1.0.0
+      enable-hapi-tests-wraps: "false"
+      enable-network-log-capture: "true"
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
+  # Mirrors the MATS HAPI matrix but forces blockStream.streamMode=BLOCKS. Excludes
+  # hapi-tests-misc-records-crypto-and-serial (records-mode by design); the non-records
+  # tasks from that group (Crypto / CryptoEmbedded / CryptoSerial / MiscSerial) are
+  # re-added separately via enable-hapi-tests-crypto-and-misc-serial. Excluded from set-failure-mode
+  # so failures stay silent while the BLOCKS transition stabilizes.
+  #
+  # MATS (800-call-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto-and-misc-serial
+  # defaults to false there, so MATS behavior is unchanged.
+  xts-hapi-tests-blocks:
+    name: XTS HAPI Tests (BLOCKS)
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-tests-blocks-suite == 'true' }}
+    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      enable-hapi-tests-misc: "true"
+      enable-hapi-tests-misc-records-crypto-and-serial: "false"
+      enable-hapi-tests-token-and-time-consuming: "true"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "true"
+      enable-hapi-tests-atomic-batch: "true"
+      enable-hapi-tests-smart-contract-and-iss: "true"
+      enable-hapi-tests-restart: "true"
+      enable-hapi-tests-state-throttling: "true"
+      enable-hapi-tests-crypto-and-misc-serial: "true"
+      enable-network-log-capture: "true"
+      stream-mode-override: "BLOCKS"
+      writer-mode-override: "FILE"
+      wrapped-record-blocks-override: "false"
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-otter-tests:
+    name: XTS Otter Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-otter-test-suite == 'true' }}
+    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
+    with:
+      enable-full-otter-tests: true
+      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
+      enable-network-log-capture: true
+      ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-chaos-otter-tests:
+    name: XTS Chaos Otter Tests
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-chaos-otter-test-suite == 'true' }}
+    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
+    with:
+      enable-chaos-otter-tests: true
+      enable-network-log-capture: true
+      ref: ${{ needs.commit-info.outputs.sha }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  hedera-node-jrs-panel:
+    name: Hedera Node JRS Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hedera-node-jrs-panel == 'true' }}
+    uses: ./.github/workflows/817-call-jrs-regression.yaml
+    with:
+      custom-job-name: "${{ inputs.custom-job-label }} Abbrev Update Test"
+      ref: ${{ needs.commit-info.outputs.sha }}
+      branch-name: ${{ inputs.branch-name }}
+      hedera-tests-enabled: true
+      use-branch-for-slack-channel: false
+      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.platform-access-token }}
+      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
+      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
+      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
+      slack-api-token: ${{ secrets.slack-api-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      grafana-agent-username: ${{ secrets.grafana-agent-username }}
+      grafana-agent-password: ${{ secrets.grafana-agent-password }}
+
+  sdk-tck-regression-panel:
+    name: SDK TCK Regression Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-sdk-tck-regression-panel == 'true' }}
+    uses: ./.github/workflows/819-call-tck-regression.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} SDK TCK Regression"
+      solo-version: "${{ inputs.solo-version }}"
+      java-version: "${{ inputs.java-version }}"
+      tck-version: "${{ inputs.tck-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  mirror-node-regression-panel:
+    name: Mirror Node Regression Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-mirror-node-regression-panel == 'true' }}
+    uses: ./.github/workflows/820-call-mirror-node-regression.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the MN panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
+      solo-version: "${{ inputs.solo-version }}"
+      helm-release-name: "${{ inputs.helm-release-name }}"
+      mirror-node-version: "${{ inputs.mirror-node-version || '0.145.2' }}"
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  json-rpc-relay-regression-panel:
+    name: JSON-RPC Relay Regression Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-rpc-relay-regression-panel == 'true' }}
+    uses: ./.github/workflows/818-call-json-rpc-relay-regression.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
+      solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
+      json-rpc-relay-version: "${{ inputs.json-rpc-relay-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  block-node-regression-panel:
+    name: Block Node Regression Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/821-call-block-node-regression.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the BN panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} Block Node Regression"
+      solo-version: "${{ inputs.solo-version }}"
+      java-version: "${{ inputs.java-version }}"
+      bn-release-version: "${{ inputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ inputs.bn-mirror-node-version }}"
+      tck-version: "${{ inputs.tck-version }}"
+      js-sdk-version: "${{ inputs.js-sdk-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  block-node-regression-skipped-notice:
+    name: Block Node Regression Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Block Node Regression Panel was requested (enable-block-node-regression-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Block Node Regression Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-block-node-regression-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  migration-testing-panel:
+    name: Migration Testing Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/825-call-migration-testing.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }} Migration Testing"
+      solo-version: ${{ inputs.solo-version }}
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  migration-testing-skipped-notice:
+    name: Migration Testing Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-migration-testing-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Migration Testing Panel was requested (enable-migration-testing-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Migration Testing Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-migration-testing-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  set-failure-mode:
+    name: Set Failure Mode
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    needs:
+      - commit-info
+      - build
+      - xts-timing-sensitive-tests
+      - xts-hammer-tests
+      - xts-hapi-tests
+      - xts-otter-tests
+      - hedera-node-jrs-panel
+      - sdk-tck-regression-panel
+      - mirror-node-regression-panel
+      - json-rpc-relay-regression-panel
+      - block-node-regression-panel
+      - migration-testing-panel
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          INPUT_JOB_STATUSES: >-
+            ${{ needs.commit-info.result }}
+            ${{ needs.build.result }}
+            ${{ needs.xts-timing-sensitive-tests.result }}
+            ${{ needs.xts-hammer-tests.result }}
+            ${{ needs.xts-hapi-tests.result }}
+            ${{ needs.xts-otter-tests.result }}
+            ${{ needs.hedera-node-jrs-panel.result }}
+            ${{ needs.sdk-tck-regression-panel.result }}
+            ${{ needs.mirror-node-regression-panel.result }}
+            ${{ needs.json-rpc-relay-regression-panel.result }}
+            ${{ needs.block-node-regression-panel.result }}
+            ${{ needs.migration-testing-panel.result }}
+          INPUT_JOB_FAILURE_MODES: >-
+            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
+            ${{ needs.build.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.hedera-node-jrs-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.sdk-tck-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.mirror-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
+          INPUT_JOB_NAMES: >-
+            commit-info
+            build
+            xts-timing-sensitive-tests
+            xts-hammer-tests
+            xts-hapi-tests
+            xts-otter-tests
+            hedera-node-jrs-panel
+            sdk-tck-regression-panel
+            mirror-node-regression-panel
+            json-rpc-relay-regression-panel
+            block-node-regression-panel
+            migration-testing-panel
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

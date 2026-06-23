@@ -1,7 +1,7 @@
 ---
+type: concept
 title: Stale events
-kind: concept
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Stale events
@@ -52,7 +52,7 @@ When the ancient threshold advances, the linker unlinks events that
 just became ancient and returns the list. The hashgraph engine
 partitions that list into events that reached consensus (no further
 action) and events that did not. The latter are reported as stale on
-the stale-events output wire; an application-layer consumer
+the stale-events output wire; an application-layer stale-event consumer
 registered with the platform builder receives them and may resubmit
 their transactions.
 
@@ -77,7 +77,7 @@ others) or because they had `s` but chose different other-parents.
 Eventually the ancient threshold advances past 50; the linker
 unlinks `s` as ancient, and because `s` never reached consensus the
 engine emits `s` on the stale-events output. A's stale-event
-callback receives `s` and resubmits its transactions on a new
+consumer receives `s` and resubmits its transactions on a new
 self-event.
 
 ## In current code
@@ -90,10 +90,13 @@ Stale events are produced by
 list and emitted via
 [
 `HashgraphModule.staleEventOutputWire`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/HashgraphModule.java).
-Application consumers register through
+Application consumers implement
 [
-`PlatformBuilder.withStaleEventCallback`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
-(line 250).
+`StaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/StaleEventConsumer.java)
+and register it through
+[
+`PlatformBuilder.withStaleEventConsumer`](../../../swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java)
+(line 247).
 
 No `StaleEventDetector` class exists in current code. The legacy
 [

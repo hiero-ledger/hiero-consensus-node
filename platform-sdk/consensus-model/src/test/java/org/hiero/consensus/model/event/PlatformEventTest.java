@@ -9,11 +9,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.swirlds.platform.event.EventSerializationUtils;
-import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
+import com.hedera.hapi.platform.event.GossipEvent;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Random;
+import org.hiero.base.crypto.test.fixtures.EqualsVerifier;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -28,7 +33,7 @@ class PlatformEventTest {
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final PlatformEvent platformEvent = new TestingEventBuilder(random).build();
-        final PlatformEvent copy = EventSerializationUtils.serializeDeserializePlatformEvent(platformEvent);
+        final PlatformEvent copy = serializeDeserializePlatformEvent(platformEvent);
         assertEquals(platformEvent, copy, "deserialized version should be the same");
     }
 
@@ -41,7 +46,7 @@ class PlatformEventTest {
                 .setSystemTransactionCount(0)
                 .setAppTransactionCount(0)
                 .build();
-        final PlatformEvent copy = EventSerializationUtils.serializeDeserializePlatformEvent(platformEvent);
+        final PlatformEvent copy = serializeDeserializePlatformEvent(platformEvent);
         assertEquals(platformEvent, copy, "deserialized version should be the same");
     }
 
@@ -54,7 +59,7 @@ class PlatformEventTest {
                 .setAppTransactionCount(0)
                 .setSystemTransactionCount(2)
                 .build();
-        final PlatformEvent copy = EventSerializationUtils.serializeDeserializePlatformEvent(platformEvent);
+        final PlatformEvent copy = serializeDeserializePlatformEvent(platformEvent);
         assertEquals(platformEvent, copy, "deserialized version should be the same");
     }
 
@@ -67,7 +72,7 @@ class PlatformEventTest {
                 .setAppTransactionCount(2)
                 .setSystemTransactionCount(2)
                 .build();
-        final PlatformEvent copy = EventSerializationUtils.serializeDeserializePlatformEvent(platformEvent);
+        final PlatformEvent copy = serializeDeserializePlatformEvent(platformEvent);
         assertEquals(platformEvent, copy, "deserialized version should be the same");
     }
 
@@ -158,5 +163,24 @@ class PlatformEventTest {
                 event.getTransactions().get(2).getConsensusTimestamp(),
                 "with zero offset, transaction 2 should be at event consensus time + "
                         + (MIN_TRANS_TIMESTAMP_INCR_NANOS * 2) + "ns");
+    }
+    /**
+     * Serialize and then deserialize the given {@link PlatformEvent}.
+     *
+     * @param original the original event
+     * @return the deserialized event
+     * @throws IOException if an I/O error occurs
+     */
+    @NonNull
+    private static PlatformEvent serializeDeserializePlatformEvent(@NonNull final PlatformEvent original)
+            throws IOException {
+        try (final ByteArrayOutputStream io = new ByteArrayOutputStream()) {
+            final SerializableDataOutputStream out = new SerializableDataOutputStream(io);
+            out.writePbjRecord(original.getGossipEvent(), GossipEvent.PROTOBUF);
+            out.flush();
+            final SerializableDataInputStream in =
+                    new SerializableDataInputStream(new ByteArrayInputStream(io.toByteArray()));
+            return new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF), original.getOrigin());
+        }
     }
 }

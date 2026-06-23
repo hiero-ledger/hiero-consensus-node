@@ -1,7 +1,7 @@
 ---
+type: architecture-topic
 title: Restart and PCES
-kind: architecture-topic
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Restart and PCES
@@ -66,8 +66,8 @@ writtenEventOutputWire.solderTo(components.eventCreatorModule().orderedEventInpu
 The general guarantee applies to every event: consensus never observes an event whose write has not returned. Applied
 specifically to self-events on the gossip path, the same guarantee also serves an anti-branching role. If a node
 gossiped a self-event and crashed before it was written, on restart the node would not know the event existed and could
-build a new self-event on the same self-parent — a hashgraph branch. Branches are an attack on consensus and are
-punishable; honest nodes must not branch. Persisting self-events before they reach gossip eliminates that gap.
+build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
+[`../concepts/branching.md`](../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
 
 The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
 node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any

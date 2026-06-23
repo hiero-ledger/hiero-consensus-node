@@ -15,6 +15,7 @@ import static com.hedera.hapi.node.base.TokenSupplyType.FINITE;
 import static com.hedera.hapi.node.base.TokenSupplyType.INFINITE;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -73,11 +74,14 @@ public class TokenCreateValidator {
         validateFalsePreCheck(maxSupply > 0 && initialSupply > maxSupply, INVALID_TOKEN_INITIAL_SUPPLY);
         validateTruePreCheck(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
 
+        // An empty key list (the HIP-540 removal sentinel) counts as "no key": an NFT with an empty
+        // supply key could never be minted, and a freeze-default token with an empty freeze key
+        // would create relations that no key could ever unfreeze.
         if (tokenType == NON_FUNGIBLE_UNIQUE) {
-            validateTruePreCheck(op.hasSupplyKey(), TOKEN_HAS_NO_SUPPLY_KEY);
+            validateTruePreCheck(!isEmpty(op.supplyKey()), TOKEN_HAS_NO_SUPPLY_KEY);
         }
         if (op.freezeDefault()) {
-            validateTruePreCheck(op.hasFreezeKey(), TOKEN_HAS_NO_FREEZE_KEY);
+            validateTruePreCheck(!isEmpty(op.freezeKey()), TOKEN_HAS_NO_FREEZE_KEY);
         }
     }
 

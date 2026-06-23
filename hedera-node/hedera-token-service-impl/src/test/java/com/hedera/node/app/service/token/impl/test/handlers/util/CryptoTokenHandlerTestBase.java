@@ -1252,7 +1252,7 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
         given(storeFactory.readableStore(ReadableEntityIdStore.class)).willReturn(readableEntityCounters);
         given(storeFactory.writableStore(WritableEntityIdStore.class)).willReturn(writableEntityCounters);
 
-        given(context.dispatchComputeFees(any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
+        given(context.dispatchComputeFees(any(), any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
 
         final var expiryValidator = mock(ExpiryValidator.class);
         lenient().when(context.expiryValidator()).thenReturn(expiryValidator);

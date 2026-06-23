@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeStep.validateSpenderHasAllowance;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsableForAliasedId;
@@ -187,8 +188,11 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
             boolean validAssociations = hasUnlimitedAutoAssociations(account, entitiesConfig)
                     || account.usedAutoAssociations() < account.maxAutoAssociations();
             validateTrue(validAssociations, NO_REMAINING_AUTOMATIC_ASSOCIATIONS);
-            validateFalse(token.hasKycKey(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
-            validateFalse(token.accountsFrozenByDefault(), ACCOUNT_FROZEN_FOR_TOKEN);
+            // An empty key list (the HIP-540 removal sentinel) disables the KYC/freeze function, so it
+            // counts as "no key" here: a token with an empty KYC key has no KYC requirement, and an
+            // empty freeze key cannot freeze the auto-associated account.
+            validateFalse(!isEmpty(token.kycKey()), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
+            validateFalse(!isEmpty(token.freezeKey()) && token.accountsFrozenByDefault(), ACCOUNT_FROZEN_FOR_TOKEN);
 
             // We only charge auto-association fees inline if this is a user dispatch; for internal dispatches,
             // the contract service will take the auto-association costs from the remaining EVM gas
@@ -218,7 +222,7 @@ public class AssociateTokenRecipientsStep extends BaseTokenHandler implements Tr
     }
 
     public static long associationFeeFor(@NonNull final HandleContext context, @NonNull final TransactionBody txnBody) {
-        return context.dispatchComputeFees(txnBody, context.payer(), ComputeDispatchFeesAsTopLevel.NO)
+        return context.dispatchComputeFees(txnBody, context.payer(), ComputeDispatchFeesAsTopLevel.NO, null)
                 .totalFee();
     }
 

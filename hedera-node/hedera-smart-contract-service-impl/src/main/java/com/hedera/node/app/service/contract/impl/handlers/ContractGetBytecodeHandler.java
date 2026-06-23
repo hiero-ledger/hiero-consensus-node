@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -19,12 +18,10 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -37,8 +34,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler<ContractGetBytecodeQuery> {
-
-    private final SmartContractFeeBuilder feeBuilder = new SmartContractFeeBuilder();
 
     /**
      * Default constructor for injection.
@@ -106,20 +101,6 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         return Response.newBuilder()
                 .contractGetBytecodeResponse(contractGetBytecode)
                 .build();
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        var effectiveBytecode = bytecodeFrom(context);
-        if (effectiveBytecode == null) {
-            effectiveBytecode = Bytes.EMPTY;
-        }
-        final var op = getOperation(context);
-        final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final var usage = feeBuilder.getContractByteCodeQueryFeeMatrices(
-                (int) effectiveBytecode.length(), fromPbjResponseType(responseType));
-        return context.feeCalculator().legacyCalculate(sigValueObj -> usage);
     }
 
     /**

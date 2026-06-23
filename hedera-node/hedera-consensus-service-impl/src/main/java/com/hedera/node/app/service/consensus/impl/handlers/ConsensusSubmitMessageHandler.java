@@ -13,10 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EX
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MESSAGE_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TX_HASH_SIZE;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
@@ -29,7 +25,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -47,8 +42,6 @@ import com.hedera.node.app.service.consensus.impl.handlers.customfee.ConsensusCu
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -323,7 +316,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         final var assessedCustomFees = new ArrayList<AssessedCustomFee>();
 
         // 2. Dispatch each synthetic body
-        for (final var entry : syntheticBodies.entrySet()) {
+        for (final var entry : syntheticBodies) {
             final var syntheticBody = entry.getValue();
             final var cryptoTransferBody =
                     TransactionBody.newBuilder().cryptoTransfer(syntheticBody).build();
@@ -500,38 +493,5 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
             validateTruePreCheck(
                     !htsLimitHasDuplicate && !hbarLimitsHasDuplicate, DUPLICATE_DENOMINATION_IN_MAX_CUSTOM_FEE_LIST);
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var op = feeContext.body().consensusSubmitMessageOrThrow();
-        final var calculatorFactory = feeContext.feeCalculatorFactory();
-        final var msgSize = op.message().length();
-
-        final var topic =
-                feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
-        if (topic != null && !topic.customFees().isEmpty()) {
-            final var calculator = calculatorFactory.feeCalculator(SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES);
-            calculator.resetUsage();
-            // Charges the canonical price of $0.05 for a message up to 512 bytes and scales up to $0.06 for 1KB
-            // The price will scale based on the number of signatures
-            final var largePart = Math.max(1, msgSize / LARGE_STEP_BYTES);
-            final var remainder = msgSize < LARGE_STEP_BYTES ? 0 : msgSize % LARGE_STEP_BYTES;
-            final var feeUnits = SMALL_STEP_BYTES
-                    + ((largePart - 1) * UNITS_PER_LARGE_STEP)
-                    + (remainder + SMALL_STEP_BYTES - 1) / SMALL_STEP_BYTES;
-            return calculator
-                    .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                    .addBytesPerTransaction(feeUnits)
-                    .calculate();
-        }
-
-        return calculatorFactory
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + msgSize)
-                .addNetworkRamByteSeconds((LONG_SIZE + TX_HASH_SIZE) * RECEIPT_STORAGE_TIME_SEC)
-                .calculate();
     }
 }

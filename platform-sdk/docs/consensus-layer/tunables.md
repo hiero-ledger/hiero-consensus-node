@@ -1,3 +1,10 @@
+---
+type: tunable-catalog
+title: Tunables — Catalog
+description: Catalog of consensus-layer configurable parameters (TUN-NNN) organised by config record, with key, type, default, effect, range, and fragility columns.
+last_reviewed: TBD
+---
+
 # Tunables — Catalog
 
 Catalog of consensus-layer configurable parameters, referenced from other KB
@@ -356,7 +363,7 @@ Module: `consensus-event-creator`. Source: [EventCreationConfig.java](../../cons
 | TUN-137 | `event.creation.eventIntakeThrottle`                 | int      | `1024`  | When the event intake queue equals or exceeds this size, new self-event creation is suspended.                                          |       | —         |
 | TUN-138 | `event.creation.maximumPermissibleUnhealthyDuration` | Duration | `1s`    | Maximum time the system can be unhealthy before event creation stops.                                                                   |       | —         |
 | TUN-139 | `event.creation.maxAllowedSyncLag`                   | int      | `15`    | If the node is lagging more than this many rounds on average, stop creating events; very large values effectively disable the rule.     |       | —         |
-| TUN-140 | `event.creation.maxOtherParents`                     | int      | `1`     | Maximum allowed number of other parents; `1` reproduces the classic single-self-parent / single-other-parent shape.                     |       | —         |
+| TUN-140 | `event.creation.maxOtherParents`                     | int      | `4`     | Maximum number of other parents an event may reference.                                                                                 |       | —         |
 
 ## `event.creation.wiring.*` — EventCreationWiringConfig
 
@@ -389,7 +396,7 @@ Module: `consensus-gossip`. Source: [GossipConfig.java](../../consensus-gossip/s
 |   ID    |                   Key                   |            Type             | Default |                                                                 Effect                                                                  | Range | Fragility |
 |---------|-----------------------------------------|-----------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
 | TUN-147 | `gossip.interfaceBindings`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node interface bindings used in `SocketFactory`; overrides default network behavior in specialized environments (containers, etc.). |       | —         |
-| TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionCreator`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
+| TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionManager`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
 | TUN-149 | `gossip.connectionServerThreadPriority` | int                         | `5`     | Priority for threads listening for incoming gossip connections.                                                                         |       | —         |
 | TUN-150 | `gossip.hangingThreadDuration`          | Duration                    | `60s`   | How long a gossip thread is allowed to wait on shutdown before logging an error.                                                        |       | —         |
 

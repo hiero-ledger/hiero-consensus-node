@@ -59,7 +59,7 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
         requireNonNull(bytes, "bytes cannot be null");
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         if (shouldForwardNormalBlockStreamToGrpc()) {
-            this.grpcBlockItemWriter.writePbjItem(item);
+            this.grpcBlockItemWriter.writePbjItemAndBytes(item, bytes);
         }
     }
 
@@ -75,6 +75,13 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
         this.fileBlockItemWriter.flushPendingBlock(pendingProof);
+    }
+
+    @Override
+    public void flushIncompleteBlock() {
+        // The file writer persists the open block as a ".open.gz" triage artifact. The gRPC buffer block is left as-is
+        // for the buffer service to discard on shutdown (closing it would make it eligible for buffer persistence).
+        this.fileBlockItemWriter.flushIncompleteBlock();
     }
 
     @Override

@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
@@ -234,7 +235,8 @@ public class ProofControllerImpl implements ProofController {
             switch (outcome) {
                 case HistoryProver.Outcome.InProgress ignored ->
                     construction = historyStore.getConstructionOrThrow(constructionId());
-                case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof(), now);
+                case HistoryProver.Outcome.Completed completed ->
+                    finishProof(historyStore, completed.proof(), now, tssConfig);
                 case HistoryProver.Outcome.Failed failed -> {
                     if (!retryIfRecoverableFailure(failed.reason(), historyStore, tssConfig)) {
                         log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
@@ -332,7 +334,7 @@ public class ProofControllerImpl implements ProofController {
                         .findFirst()
                         .map(Map.Entry::getValue)
                         .orElseThrow();
-                finishProof(historyStore, winningVote.historyProofVote().proofOrThrow(), now);
+                finishProof(historyStore, winningVote.historyProofVote().proofOrThrow(), now, tssConfig);
             }
         } else {
             category = NOT_RECURSIVE;
@@ -356,7 +358,7 @@ public class ProofControllerImpl implements ProofController {
                         .orElseThrow()
                         .historyProofVote()
                         .proofOrThrow();
-                finishProof(historyStore, proof, now);
+                finishProof(historyStore, proof, now, tssConfig);
             });
             thresholdCrossed = maybeWinningTag.isPresent();
         }
@@ -424,7 +426,8 @@ public class ProofControllerImpl implements ProofController {
     private void finishProof(
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final HistoryProof proof,
-            @NonNull final Instant now) {
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig) {
         construction = historyStore.completeProof(construction.constructionId(), proof);
         historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
         historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
@@ -433,7 +436,15 @@ public class ProofControllerImpl implements ProofController {
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
-        // In case we'll vote again on a conversion to a WRAPS proof
+        // Clear the in-memory votes so the network can re-vote to convert this into a
+        // WRAPS-extensible proof. Only purge the PERSISTED votes when such a re-vote actually
+        // follows (wrapsEnabled != isWrapsExtensible): purging then keeps a rebuilt controller from
+        // reloading stale votes and diverging (SELF_ISS); skipping it otherwise avoids a spurious
+        // PROOF_VOTES state change that breaks block-stream/record parity (they are purged at
+        // handoff regardless).
+        if (tssConfig.wrapsEnabled() != isWrapsExtensible(proof)) {
+            historyStore.clearProofVotes(constructionId(), new TreeSet<>(votes.keySet()));
+        }
         votes.clear();
     }
 

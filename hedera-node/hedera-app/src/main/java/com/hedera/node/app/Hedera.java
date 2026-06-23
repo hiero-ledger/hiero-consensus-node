@@ -135,6 +135,7 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
@@ -177,7 +178,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -220,8 +220,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera
-        implements SwirldMain, AppContext.Gossip, Consumer<PlatformEvent>, ConsensusStateEventHandler {
+public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventConsumer, ConsensusStateEventHandler {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -666,7 +665,7 @@ public final class Hedera
     }
 
     @Override
-    public void accept(@NonNull final PlatformEvent event) {
+    public void processStaleEvent(@NonNull final Event event) {
         requireNonNull(event);
         if (quiescenceEnabled) {
             final var app = requireNonNull(daggerApp);
@@ -719,13 +718,18 @@ public final class Hedera
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
                 shutdownGrpcServer();
+
+                // Stop the block stream and schedule a handler-thread flush of any open/pending blocks (we may need
+                // them for triage), then wait (bounded) for that flush to complete. This MUST run before the block
+                // node connections are shut down: their shutdown clears the in-memory block buffer that the gRPC
+                // writer flushes open/pending blocks from, so flushing afterwards would capture nothing.
+                blockStreamManager().notifyFatalEvent();
+                blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
+
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
-
-                // Wait for the block stream to close any pending or current blocks–-we may need them for triage
-                blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {
