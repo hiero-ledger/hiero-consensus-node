@@ -9,7 +9,6 @@ import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
@@ -29,6 +28,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform

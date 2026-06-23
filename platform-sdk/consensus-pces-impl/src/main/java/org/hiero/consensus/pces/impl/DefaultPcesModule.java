@@ -25,7 +25,6 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
@@ -40,6 +39,7 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Default implementation of the {@link PcesModule}.

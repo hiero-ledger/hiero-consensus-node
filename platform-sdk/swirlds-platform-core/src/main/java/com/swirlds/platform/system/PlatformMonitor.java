@@ -10,7 +10,7 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Monitors the platform and updates the platform's status state machine.
