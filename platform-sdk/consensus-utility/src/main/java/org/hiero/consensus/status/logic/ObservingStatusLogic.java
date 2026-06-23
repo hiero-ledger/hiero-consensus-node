@@ -7,9 +7,9 @@ import java.time.Instant;
 import java.util.Objects;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#OBSERVING} status.
@@ -44,23 +44,23 @@ public class ObservingStatusLogic extends AbstractStatusLogic {
 
     /**
      * {@link PlatformStatus#OBSERVING} status unconditionally transitions to {@link PlatformStatus#BEHIND} when a
-     * {@link FallenBehindAction} is processed.
+     * {@link FallenBehindTrigger} is processed.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindTrigger trigger) {
         return new BehindStatusLogic(config);
     }
 
     /**
-     * Receiving a {@link FreezePeriodEnteredAction} while in {@link PlatformStatus#OBSERVING} doesn't ever result in a
+     * Receiving a {@link FreezePeriodEnteredTrigger} while in {@link PlatformStatus#OBSERVING} doesn't ever result in a
      * status transition, but this logic method does record the freeze round, which will inform the status progression
      * once the observing period has elapsed.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
-        freezeRound = validateFreezeRound(freezeRound, action);
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredTrigger trigger) {
+        freezeRound = validateFreezeRound(freezeRound, trigger);
         return this;
     }
 
@@ -73,8 +73,8 @@ public class ObservingStatusLogic extends AbstractStatusLogic {
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedAction action) {
-        if (Duration.between(statusStartTime, action.instant()).compareTo(config.observingStatusDelay()) < 0) {
+    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedTrigger trigger) {
+        if (Duration.between(statusStartTime, trigger.instant()).compareTo(config.observingStatusDelay()) < 0) {
             // if the wait period hasn't elapsed, then stay in this status
             return this;
         }

@@ -395,7 +395,7 @@ public class PlatformWiring {
         components.issDetectorWiring().getInputWire(IssDetector::overridingState);
         components.issDetectorWiring().getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
-        components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
+        components.platformMonitorWiring().getInputWire(PlatformMonitor::submitTrigger);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
     }
 }

@@ -3,7 +3,7 @@ package org.hiero.consensus.status.logic;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.FallenBehindAction;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#FREEZING} status.
@@ -25,12 +25,12 @@ public class FreezingStatusLogic extends AbstractStatusLogic {
     }
 
     /**
-     * Receiving a {@link FallenBehindAction} while in {@link PlatformStatus#FREEZING} has no effect on the state
+     * Receiving a {@link FallenBehindTrigger} while in {@link PlatformStatus#FREEZING} has no effect on the state
      * machine.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindTrigger trigger) {
         return this;
     }
 }

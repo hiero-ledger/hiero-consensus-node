@@ -25,7 +25,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -170,7 +170,7 @@ class DefaultTransactionHandlerTests {
             assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
             // The freeze action is the first action submitted.
             assertEquals(
-                    FreezePeriodEnteredAction.class,
+                    FreezePeriodEnteredTrigger.class,
                     tester.getSubmittedActions().getFirst().getClass());
             assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
             assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should be the round we provided");

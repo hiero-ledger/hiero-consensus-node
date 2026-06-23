@@ -26,7 +26,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * No-op implementation of the {@link PcesModule}.
@@ -56,7 +56,7 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final Runnable flushIntake,
             @NonNull final Runnable flushTransactionHandling,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Consumer<StatusMachineTrigger> triggerConsumer,
             @NonNull final Runnable stateHasherFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -68,7 +68,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(flushIntake);
         requireNonNull(flushTransactionHandling);
         requireNonNull(latestImmutableStateSupplier);
-        requireNonNull(statusActionConsumer);
+        requireNonNull(triggerConsumer);
         requireNonNull(stateHasherFlusher);
         requireNonNull(signalEndOfPcesReplay);
 

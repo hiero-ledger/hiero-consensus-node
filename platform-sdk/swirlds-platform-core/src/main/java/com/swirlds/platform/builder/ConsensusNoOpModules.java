@@ -46,7 +46,7 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 public class ConsensusNoOpModules {
@@ -130,7 +130,7 @@ public class ConsensusNoOpModules {
         final Runnable flushIntake = () -> {};
         final Runnable flushTransactionHandling = () -> {};
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
-        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
+        final Consumer<StatusMachineTrigger> triggerConsumer = _ -> {};
         final Runnable stateHasherFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
@@ -149,7 +149,7 @@ public class ConsensusNoOpModules {
                 flushIntake,
                 flushTransactionHandling,
                 latestImmutableStateSupplier,
-                statusActionConsumer,
+                triggerConsumer,
                 stateHasherFlusher,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);

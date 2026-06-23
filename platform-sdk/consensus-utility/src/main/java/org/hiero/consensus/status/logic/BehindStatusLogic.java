@@ -4,8 +4,8 @@ package org.hiero.consensus.status.logic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#BEHIND} status.
@@ -32,24 +32,24 @@ public class BehindStatusLogic extends AbstractStatusLogic {
     }
 
     /**
-     * Receiving a {@link FreezePeriodEnteredAction} while in {@link PlatformStatus#BEHIND} doesn't ever result in a
+     * Receiving a {@link FreezePeriodEnteredTrigger} while in {@link PlatformStatus#BEHIND} doesn't ever result in a
      * status transition, but this logic method does record the freeze round, to be able to pass that information on to
      * the {@link ReconnectCompleteStatusLogic} once reconnect is complete.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
-        freezeRound = validateFreezeRound(freezeRound, action);
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredTrigger trigger) {
+        freezeRound = validateFreezeRound(freezeRound, trigger);
         return this;
     }
 
     /**
      * {@link PlatformStatus#BEHIND} status unconditionally transitions to {@link PlatformStatus#RECONNECT_COMPLETE} when
-     * a {@link ReconnectCompleteAction} is processed.
+     * a {@link ReconnectCompleteTrigger} is processed.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onReconnectComplete(@NonNull final ReconnectCompleteAction action) {
-        return new ReconnectCompleteStatusLogic(action.reconnectStateRound(), freezeRound, config);
+    protected PlatformStatusLogic onReconnectComplete(@NonNull final ReconnectCompleteTrigger trigger) {
+        return new ReconnectCompleteStatusLogic(trigger.reconnectStateRound(), freezeRound, config);
     }
 }

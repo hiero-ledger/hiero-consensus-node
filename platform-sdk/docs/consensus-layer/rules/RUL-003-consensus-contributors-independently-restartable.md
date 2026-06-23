@@ -90,7 +90,7 @@ persistence path, signed-state saving, and the reconnect gate.
   begins (`ReconnectController.java:247-250`), marks the learned state to be saved
   with reason `RECONNECT` (`DefaultSavedStateController.java:62-67`), gossips but
   does not create events while in that status (`PlatformStatusRule.java:37-45`),
-  and leaves it only when a `StateWrittenToDiskAction` reports the reconnect state
+  and leaves it only when a `StateWrittenToDiskTrigger` reports the reconnect state
   (or later) on disk (`ReconnectCompleteStatusLogic.java:156-187`). See
   [ADR-007](../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md).
 
