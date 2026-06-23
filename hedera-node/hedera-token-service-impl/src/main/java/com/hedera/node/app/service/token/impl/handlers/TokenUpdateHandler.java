@@ -150,9 +150,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 // If the token is fungible, transfer fungible balance to new treasury
                 // If it is non-fungible token transfer the ownership of the NFTs from old treasury to new treasury
                 transferTokensToNewTreasury(existingTreasury, newTreasury, token, tokenRelStore, accountStore);
-                // Stale allowances on the old treasury for this token are an exploit vector:
-                // if the old treasury later receives tokens/NFTs again as a normal account, a spender
-                // authorized before the treasury change could drain them. Clear them now.
                 clearStaleAllowancesForOldTreasury(existingTreasury, tokenId, token, accountStore);
             }
         }
