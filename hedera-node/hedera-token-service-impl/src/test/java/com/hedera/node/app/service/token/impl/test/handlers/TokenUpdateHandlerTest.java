@@ -1290,6 +1290,10 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 .build();
         writableAccountStore.put(treasuryWithAllowance);
 
+        // NFT treasury change requires the new treasury to have zero balance; zero it out
+        final var ownerNftRel = writableTokenRelStore.get(ownerId, nonFungibleTokenId);
+        writableTokenRelStore.put(ownerNftRel.copyBuilder().balance(0).build());
+
         txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();
         given(handleContext.body()).willReturn(txn);
         given(expiryValidator.resolveUpdateAttempt(any(), any()))
