@@ -4,6 +4,7 @@ package com.hedera.services.bdd.utils;
 import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegation.MAGIC;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.EIP7702;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1.CONTEXT;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -93,7 +94,7 @@ public final class Signing {
             final long nonce,
             byte[] privateKey,
             boolean flipRecId) {
-        final var byteAddress = delegationTarget.value().toByteArray();
+        final var byteAddress = asEvmAddress(delegationTarget.value().longValue());
         final var codeDelegation =
                 RLPEncoder.list(chainId, byteAddress, Bytes.minimalBytes(nonce).toArray());
 
