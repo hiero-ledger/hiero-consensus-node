@@ -212,27 +212,6 @@ class TransactionModuleTest {
     }
 
     @Test
-    void providesLegacyDispatchPricesWhenSimpleFeesDisabled() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("fees.simpleFeesEnabled", false)
-                .getOrCreateConfig();
-        given(context.configuration()).willReturn(config);
-        final var result = provideCanonicalDispatchPrices(context, assetsLoader);
-        assertNotNull(result);
-    }
-
-    @Test
-    void providesSimpleFeesDispatchPricesWhenSimpleFeesEnabled() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("fees.simpleFeesEnabled", true)
-                .getOrCreateConfig();
-        given(context.configuration()).willReturn(config);
-        given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
-        final var result = provideCanonicalDispatchPrices(context, assetsLoader);
-        assertNotNull(result);
-    }
-
-    @Test
     void providesSystemGasContractCalculator() {
         // Given a transaction-specific dispatch cost of 6 tinyBars which will be 12000 tinyCents...
         given(context.dispatchComputeFees(

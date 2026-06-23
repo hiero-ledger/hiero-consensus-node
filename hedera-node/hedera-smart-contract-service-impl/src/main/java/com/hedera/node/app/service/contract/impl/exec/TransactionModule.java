@@ -81,13 +81,10 @@ public interface TransactionModule {
             @ChildTransactionResourcePrices @NonNull final FunctionalityResourcePrices childTransactionResourcePrices,
             @NonNull final ExchangeRate exchangeRate,
             @NonNull final HandleContext context) {
-        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
-            final var gasExtra = FeeScheduleUtils.lookupExtraFee(context.simpleFeesSchedule(), Extra.GAS);
-            if (gasExtra != null) {
-                return TinybarValues.forSimpleFeesTransactionWith(
-                        exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
-            }
+        final var gasExtra = FeeScheduleUtils.lookupExtraFee(context.simpleFeesSchedule(), Extra.GAS);
+        if (gasExtra != null) {
+            return TinybarValues.forSimpleFeesTransactionWith(
+                    exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
         }
         return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
@@ -96,11 +93,7 @@ public interface TransactionModule {
     @TransactionScope
     static CanonicalDispatchPrices provideCanonicalDispatchPrices(
             @NonNull final HandleContext context, @NonNull final AssetsLoader assetsLoader) {
-        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
-            return new CanonicalDispatchPrices(context.simpleFeesSchedule());
-        }
-        return new CanonicalDispatchPrices(assetsLoader);
+        return new CanonicalDispatchPrices(context.simpleFeesSchedule());
     }
 
     @Provides
@@ -208,7 +201,7 @@ public interface TransactionModule {
 
     private static boolean shouldChargeSimpleFees(HandleContext context, HederaFunctionality functionality) {
         final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled() && feesConfig.simpleFeesAreFree()) {
+        if (feesConfig.simpleFeesAreFree()) {
             return false;
         }
         final var feeSchedule = context.simpleFeesSchedule();

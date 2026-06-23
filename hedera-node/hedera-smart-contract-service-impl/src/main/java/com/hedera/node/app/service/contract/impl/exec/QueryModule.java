@@ -46,11 +46,7 @@ public interface QueryModule {
     @QueryScope
     static CanonicalDispatchPrices provideCanonicalDispatchPrices(
             @NonNull final QueryContext context, @NonNull final AssetsLoader assetsLoader) {
-        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
-            return new CanonicalDispatchPrices(context.simpleFeesSchedule());
-        }
-        return new CanonicalDispatchPrices(assetsLoader);
+        return new CanonicalDispatchPrices(context.simpleFeesSchedule());
     }
 
     @Provides

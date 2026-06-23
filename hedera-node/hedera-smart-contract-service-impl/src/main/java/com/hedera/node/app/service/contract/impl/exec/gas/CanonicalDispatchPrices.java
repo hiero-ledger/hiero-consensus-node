@@ -30,34 +30,6 @@ public class CanonicalDispatchPrices {
     public static final BigDecimal USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
 
     /**
-     * @param assetsLoader used to load the fee schedule from resources
-     */
-    public CanonicalDispatchPrices(@NonNull final AssetsLoader assetsLoader) {
-        requireNonNull(assetsLoader);
-        try {
-            final var canonicalPrices = assetsLoader.loadCanonicalPrices().entrySet().stream()
-                    .collect(toMap(
-                            entry -> CommonPbjConverters.toPbj(entry.getKey()),
-                            entry -> entry.getValue().entrySet().stream()
-                                    .collect(toMap(
-                                            subEntry -> CommonPbjConverters.toPbj(subEntry.getKey()),
-                                            subEntry -> subEntry.getValue()
-                                                    .multiply(USD_TO_TINYCENTS)
-                                                    .longValue()))));
-            Arrays.stream(DispatchType.class.getEnumConstants())
-                    .map(dispatchType -> new AbstractMap.SimpleImmutableEntry<>(
-                            dispatchType,
-                            canonicalPrices
-                                    .getOrDefault(dispatchType.functionality(), Collections.emptyMap())
-                                    .get(dispatchType.subtype())))
-                    .filter(entry -> entry.getValue() != null)
-                    .forEach(entry -> pricesMap.put(entry.getKey(), entry.getValue()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    /**
      * Constructs a price map from a simple fees schedule, using the base fee of each
      * service fee definition as the canonical price in tinycents for the matching dispatch type.
      *

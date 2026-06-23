@@ -32,24 +32,6 @@ class CanonicalDispatchPricesTest {
     void setUp() {}
 
     @Test
-    void liveAssetsContainPricesForAllDispatchTypes() {
-        subject = new CanonicalDispatchPrices(new AssetsLoader());
-        for (DispatchType dispatchType : DispatchType.values()) {
-            assertDoesNotThrow(() -> subject.canonicalPriceInTinycents(dispatchType), "No price for " + dispatchType);
-        }
-        // Spot check for TokenAssociate ($0.05)
-        final long expectedTokenAssociateTinycentPrice = 5 * 100_000_000;
-        assertEquals(expectedTokenAssociateTinycentPrice, subject.canonicalPriceInTinycents(DispatchType.ASSOCIATE));
-    }
-
-    @Test
-    void propagatesAssetLoadingException() throws IOException {
-        given(assetsLoader.loadCanonicalPrices()).willThrow(IOException.class);
-
-        assertThrows(UncheckedIOException.class, () -> new CanonicalDispatchPrices(assetsLoader));
-    }
-
-    @Test
     void canonicalPricesReflectUpdatedFeeSchedule() {
         final long initialFee = 500_000_000L;
         final long updatedFee = 1_000_000_000L;
