@@ -12,6 +12,7 @@ import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.Snapshotable;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
+import com.swirlds.merkledb.collections.LongListDiskSegment;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -233,13 +234,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
                         ? new LongListDisk(indexFile, bucketIndexCapacity, configuration, fileSystemManager)
-                        : new LongListSegment(indexFile, bucketIndexCapacity, configuration);
+                        : new LongListDiskSegment(indexFile, bucketIndexCapacity, configuration, fileSystemManager);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
                 bucketIndexToBucketLocation = preferDiskBasedIndex
                         ? new LongListDisk(bucketIndexCapacity, configuration, fileSystemManager)
-                        : new LongListSegment(bucketIndexCapacity, configuration);
+                        : new LongListDiskSegment(bucketIndexCapacity, configuration, fileSystemManager);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
                     bucket.readFrom(bucketData);
@@ -256,7 +257,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // create new index
             bucketIndexToBucketLocation = preferDiskBasedIndex
                     ? new LongListDisk(bucketIndexCapacity, configuration, fileSystemManager)
-                    : new LongListSegment(bucketIndexCapacity, configuration);
+                    : new LongListDiskSegment(bucketIndexCapacity, configuration, fileSystemManager);
             // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;
             // write metadata

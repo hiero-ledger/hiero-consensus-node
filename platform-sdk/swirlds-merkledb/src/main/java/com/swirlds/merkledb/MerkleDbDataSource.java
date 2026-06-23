@@ -21,6 +21,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
+import com.swirlds.merkledb.collections.LongListDiskSegment;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
@@ -357,11 +358,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationHashChunks = preferDiskBasedIndices
                     ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(idToHashChunksFile, hashIndexCapacity, config);
+                    : new LongListDiskSegment(idToHashChunksFile, hashIndexCapacity, config, fileSystemManager);
         } else {
             idToDiskLocationHashChunks = preferDiskBasedIndices
                     ? new LongListDisk(hashIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(hashIndexCapacity, config);
+                    : new LongListDiskSegment(hashIndexCapacity, config, fileSystemManager);
         }
 
         // Hash chunk store (hash chunks)
@@ -419,11 +420,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
             pathToDiskLocationLeafNodes = preferDiskBasedIndices
                     ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
+                    : new LongListDiskSegment(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager);
         } else {
             pathToDiskLocationLeafNodes = preferDiskBasedIndices
                     ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(kvIndexCapacity, config);
+                    : new LongListDiskSegment(kvIndexCapacity, config, fileSystemManager);
         }
 
         // Leaves store (leaf nodes)
@@ -545,8 +546,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                                     hashIndexCapacity,
                                     config,
                                     fileSystemManager)
-                            : new LongListSegment(
-                                    dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config);
+                            : new LongListDiskSegment(
+                                    dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config, fileSystemManager);
                 } else {
                     throw new IOException("Rebuild hash chunks failed: pathToDiskLocationInternalNodes is missing");
                 }
