@@ -1,4 +1,4 @@
-{{- $xts_tag_exists := getenv "XTS_TAG_EXISTS" | required "XTS_TAG_EXISTS must be set" -}}
+{{- $xts_tag_exists := (getenv "XTS_TAG_EXISTS" | required "XTS_TAG_EXISTS must be set") -}}
 {
   "attachments": [
     {
@@ -12,7 +12,7 @@
           },
           "text": {
             "type": "mrkdwn",
-            "text": {{- if eq $xts_tag_exists "true" -}}{{ tag exists }}{{No new XTS Candidate available}}
+            "text": {{- if eq $xts_tag_exists "true" -}}{{ "tag exists" }}{{else}}{{"No new XTS Candidate available."}}{{end}}
           }
         }
       ]
