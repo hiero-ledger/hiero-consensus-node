@@ -41,7 +41,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
@@ -750,6 +749,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
             });
 
+            // Update valid key range in the metadata file
+            saveMetadata(dbPaths);
+
             // wait for the other threads in the rare case they are not finished yet. We need to
             // have all writing
             // done before we return as when we return the state version we are writing is deleted
@@ -1074,6 +1076,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
+                .append("storageDir", dbPaths.storageDir)
                 .append("initialCapacity", initialCapacity)
                 .append("preferDiskBasedIndexes", preferDiskBasedIndices)
                 .append("idToDiskLocationHashChunks.size", idToDiskLocationHashChunks.size())
@@ -1106,8 +1109,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private void saveMetadata(final MerkleDbPaths targetDir) throws IOException {
         final KeyRange leafRange = validLeafPathRange;
         final Path targetFile = targetDir.metadataFile;
-        try (final OutputStream fileOut =
-                Files.newOutputStream(targetFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+        // newOutputStream() overrides the file, if it exists, no need to delete explicitly
+        try (final OutputStream fileOut = Files.newOutputStream(targetFile)) {
             final WritableSequentialData out = new WritableStreamingData(fileOut);
             if (leafRange.getMinValidKey() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MINVALIDKEY);
@@ -1158,7 +1161,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
                 validLeafPathRange = new KeyRange(minValidKey, maxValidKey);
             }
-            Files.delete(sourceFile);
             return true;
         }
         return false;
