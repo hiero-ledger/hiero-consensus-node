@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.export.file;
 
+import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -96,20 +97,41 @@ public class MetricsFileExporter implements MetricsExporter {
 
     private void exportLoop() {
         logger.log(INFO, "Metrics file exporter started. directory={0}", config.directory());
+        int consecutiveFailures = 0;
+
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 writer.write(snapshotSupplier.get(), outputStream);
+                consecutiveFailures = 0;
+            } catch (IOException e) {
+                // Stream errors are unlikely to recover; stop the loop
+                logger.log(ERROR, "Metrics file export failed with I/O error, stopping exporter.", e);
+                break;
             } catch (Exception e) {
-                // Catch broadly (not just IOException) so a single failing cycle — e.g. a throwing
-                // snapshot supplier — is logged but does not kill the daemon thread permanently.
-                logger.log(WARNING, "Failed to export metrics to file", e);
+                consecutiveFailures++;
+                if (consecutiveFailures == 1 || (consecutiveFailures & (consecutiveFailures - 1)) == 0) {
+                    // Log on first failure, then on powers of 2 (1, 2, 4, 8...) to cap noise
+                    logger.log(
+                            WARNING,
+                            "Failed to export metrics to file ({0} consecutive failure(s)).",
+                            consecutiveFailures,
+                            e);
+                }
             }
             try {
                 Thread.sleep(Duration.ofSeconds(config.snapshotIntervalSeconds()));
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                break;
             }
         }
+
+        try {
+            // thread owns the stream, thread closes it
+            outputStream.close();
+        } catch (IOException e) {
+            logger.log(WARNING, "Failed to close metrics output stream", e);
+        }
+
         logger.log(INFO, "Metrics file exporter stopped.");
     }
 
@@ -123,9 +145,10 @@ public class MetricsFileExporter implements MetricsExporter {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-        }
-        if (outputStream != null) {
-            outputStream.close();
+
+            if (thread.isAlive()) {
+                throw new IOException("Metrics file exporter thread did not finish within 5 seconds");
+            }
         }
         logger.log(INFO, "Metrics file exporter closed.");
     }

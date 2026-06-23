@@ -113,11 +113,6 @@ public class MetricsFileWriter {
     }
 
     private static byte[] spaceTimestampAndNewLineBytes(long timestampMillis) {
-        final byte[] msBytes = Long.toString(timestampMillis).getBytes(StandardCharsets.UTF_8);
-        final byte[] buf = new byte[2 + msBytes.length];
-        buf[0] = ' ';
-        System.arraycopy(msBytes, 0, buf, 1, msBytes.length);
-        buf[buf.length - 1] = '\n';
-        return buf;
+        return (" " + timestampMillis + "\n").getBytes(StandardCharsets.UTF_8);
     }
 }

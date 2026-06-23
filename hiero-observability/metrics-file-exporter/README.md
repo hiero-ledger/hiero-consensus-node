@@ -70,3 +70,12 @@ flushed to disk and survives an abrupt process termination; the gzip footer (fin
 written on a clean shutdown. A file from a process that did not close cleanly still decompresses up
 to its last flushed snapshot. Successive process runs append additional gzip members to the same
 file, which standard gzip readers decompress transparently.
+
+## Known limitations
+
+**Log rotation is broken for gzip files.** Tools like `logrotate` that rotate by truncating or
+replacing the file mid-stream corrupt the gzip output: the stream header lives in the old file while
+new data goes to the new one, making both unreadable. If you need log rotation, either disable gzip
+(`useGzip=false`) or use a rotation strategy that moves the file and lets the process reopen it on
+the next run (e.g. `copytruncate` in logrotate is still unsafe — only a full restart picks up the
+new path).
