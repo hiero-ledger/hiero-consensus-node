@@ -68,12 +68,6 @@ public class IssDetectionModule {
             final long initialStateRound,
             final long latestFreezeRound,
             @NonNull final FatalErrorConsumer fatalErrorConsumer) {
-        // Only validate preconsensus signature transactions if we are not recovering from an ISS.
-        // ISS round == null means we haven't observed an ISS yet.
-        // ISS round < current round means there was an ISS prior to the saved state
-        //    that has already been recovered from.
-        // ISS round >= current round means that the ISS happens in the future relative the initial state, meaning
-        //    we may observe ISS-inducing signature transactions in the preconsensus event stream.
 
         // Set up wiring
         final IssDetectionWiringConfig wiringConfig = configuration.getConfigData(IssDetectionWiringConfig.class);
@@ -100,6 +94,12 @@ public class IssDetectionModule {
         final boolean forceIgnorePcesSignatures =
                 configuration.getConfigData(PcesConfig.class).forceIgnorePcesSignatures();
 
+        // Only validate preconsensus signature transactions if we are not recovering from an ISS.
+        // ISS round == null means we haven't observed an ISS yet.
+        // ISS round < current round means there was an ISS prior to the saved state
+        //    that has already been recovered from.
+        // ISS round >= current round means that the ISS happens in the future relative the initial state, meaning
+        //    we may observe ISS-inducing signature transactions in the preconsensus event stream.
         final boolean ignorePreconsensusSignatures;
         if (forceIgnorePcesSignatures) {
             // this is used FOR TESTING ONLY
@@ -108,7 +108,7 @@ public class IssDetectionModule {
             ignorePreconsensusSignatures = issRound != null && issRound.getValue() >= initialStateRound;
         }
 
-        // A round that we will completely skip ISS detection for. Needed for tests that do janky state modification
+        // A round that we will completely skip ISS detection for. Needed for tests that process state modification
         // without a software upgrade (in production this feature should not be used).
         final long roundToIgnore =
                 configuration.getConfigData(StateConfig.class).validateInitialState()
@@ -138,7 +138,7 @@ public class IssDetectionModule {
     @InputWireLabel("overriding state")
     @NonNull
     public InputWire<ReservedSignedState> overridingStateInputWire() {
-        return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::handleState);
+        return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::overridingState);
     }
 
     @NonNull
