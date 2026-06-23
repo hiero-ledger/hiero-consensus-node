@@ -1205,6 +1205,7 @@ public class TokenUpdateSpecs {
     final Stream<DynamicTest> staleFungibleAllowancesAreClearedOnTreasuryChange() {
         final String ADMIN_KEY = "adminKey";
         final String FUNGIBLE_TOKEN = "fungibleToken";
+        final String UNRELATED_TOKEN = "unrelatedToken";
         final String OLD_TREASURY = "oldTreasury";
         final String NEW_TREASURY = "newTreasury";
         final String SPENDER = "staleSpender";
@@ -1218,8 +1219,15 @@ public class TokenUpdateSpecs {
                 cryptoCreate(OLD_TREASURY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(1),
+                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(2),
                 tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(INITIAL_SUPPLY)
+                        .initialSupply(INITIAL_SUPPLY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                tokenCreate(UNRELATED_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .maxSupply(INITIAL_SUPPLY)
@@ -1228,39 +1236,47 @@ public class TokenUpdateSpecs {
                         .treasury(OLD_TREASURY),
                 tokenAssociate(NEW_TREASURY, FUNGIBLE_TOKEN),
 
-                // Old treasury grants spender an allowance before treasury change
+                // Old treasury grants spender allowances on both tokens before treasury change
                 cryptoApproveAllowance()
                         .addTokenAllowance(OLD_TREASURY, FUNGIBLE_TOKEN, SPENDER, APPROVED_AMOUNT)
+                        .addTokenAllowance(OLD_TREASURY, UNRELATED_TOKEN, SPENDER, APPROVED_AMOUNT)
                         .payingWith(OLD_TREASURY)
                         .signedBy(OLD_TREASURY, GENESIS),
 
-                // Confirm allowance is recorded on old treasury
+                // Confirm both allowances are recorded on old treasury
                 getAccountDetails(OLD_TREASURY)
                         .payingWith(GENESIS)
-                        .has(accountDetailsWith().tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, APPROVED_AMOUNT)),
+                        .has(accountDetailsWith().tokenAllowancesCount(2)),
 
                 // Treasury change — balance moves to new treasury
                 tokenUpdate(FUNGIBLE_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
                 getAccountBalance(OLD_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
                 getAccountBalance(NEW_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, INITIAL_SUPPLY),
 
-                // Allowance on old treasury must be cleared by the treasury change
+                // Only the changed token's allowance is cleared; the unrelated token's allowance remains
                 getAccountDetails(OLD_TREASURY)
                         .payingWith(GENESIS)
-                        .has(accountDetailsWith().tokenAllowancesCount(0)),
+                        .has(accountDetailsWith().tokenAllowancesCount(1)),
 
-                // Spender's allowance is gone — transfer fails even though balance check would pass separately
+                // Spender's allowance on the changed token is gone
                 cryptoTransfer(movingWithAllowance(DRAIN_AMOUNT, FUNGIBLE_TOKEN).between(OLD_TREASURY, RECEIVER))
                         .payingWith(SPENDER)
                         .signedBy(SPENDER)
                         .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
 
-                // Old treasury receives tokens again as a normal account
+                // Spender's allowance on the unrelated token is unaffected and still works
+                cryptoTransfer(movingWithAllowance(DRAIN_AMOUNT, UNRELATED_TOKEN)
+                                .between(OLD_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SUCCESS),
+
+                // Old treasury receives the changed token again as a normal account
                 cryptoTransfer(moving(APPROVED_AMOUNT * 2, FUNGIBLE_TOKEN).between(NEW_TREASURY, OLD_TREASURY))
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(OLD_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, APPROVED_AMOUNT * 2),
 
-                // Stale allowance is still gone
+                // Stale allowance for the changed token is still gone
                 cryptoTransfer(movingWithAllowance(DRAIN_AMOUNT, FUNGIBLE_TOKEN).between(OLD_TREASURY, RECEIVER))
                         .payingWith(SPENDER)
                         .signedBy(SPENDER)
@@ -1272,6 +1288,7 @@ public class TokenUpdateSpecs {
         final String SUPPLY_KEY = "supplyKey";
         final String ADMIN_KEY = "adminKey";
         final String NFT_TOKEN = "nftToken";
+        final String UNRELATED_NFT = "unrelatedNft";
         final String OLD_TREASURY = "oldTreasury";
         final String NEW_TREASURY = "newTreasury";
         final String SPENDER = "staleSpender";
@@ -1283,8 +1300,16 @@ public class TokenUpdateSpecs {
                 cryptoCreate(OLD_TREASURY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(1),
                 cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(1),
+                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(2),
                 tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                tokenCreate(UNRELATED_NFT)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyType(TokenSupplyType.FINITE)
                         .maxSupply(10L)
@@ -1294,34 +1319,42 @@ public class TokenUpdateSpecs {
                         .treasury(OLD_TREASURY),
                 mintToken(
                         NFT_TOKEN, List.of(ByteString.copyFromUtf8("metadata1"), ByteString.copyFromUtf8("metadata2"))),
+                mintToken(UNRELATED_NFT, List.of(ByteString.copyFromUtf8("unrelated_metadata1"))),
 
-                // Old treasury grants spender approveForAll before treasury change
+                // Old treasury grants spender approveForAll on both tokens before treasury change
                 cryptoApproveAllowance()
                         .addNftAllowance(OLD_TREASURY, NFT_TOKEN, SPENDER, true, List.of())
+                        .addNftAllowance(OLD_TREASURY, UNRELATED_NFT, SPENDER, true, List.of())
                         .payingWith(OLD_TREASURY)
                         .signedBy(OLD_TREASURY, GENESIS),
 
-                // Confirm approveForAll allowance is recorded
+                // Confirm both approveForAll allowances are recorded
                 getAccountDetails(OLD_TREASURY)
                         .payingWith(GENESIS)
-                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),
+                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(2)),
 
                 // Treasury change — NFT ownership moves to new treasury
                 tokenUpdate(NFT_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
                 getAccountBalance(OLD_TREASURY).hasTokenBalance(NFT_TOKEN, 0L),
                 getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 2L),
 
-                // approveForAll allowance on old treasury must be cleared by the treasury change
+                // Only the changed token's approveForAll is cleared; the unrelated NFT's approval remains
                 getAccountDetails(OLD_TREASURY)
                         .payingWith(GENESIS)
-                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(0)),
+                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),
+
+                // Spender's approveForAll on the unrelated NFT is unaffected and still works
+                cryptoTransfer(movingUniqueWithAllowance(UNRELATED_NFT, 1L).between(OLD_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SUCCESS),
 
                 // New treasury sends an NFT back to old treasury as a normal transfer
                 cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(NEW_TREASURY, OLD_TREASURY))
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(OLD_TREASURY).hasTokenBalance(NFT_TOKEN, 1L),
 
-                // Stale approveForAll is gone — spender cannot use it to drain old treasury
+                // Stale approveForAll for the changed token is gone — spender cannot use it to drain old treasury
                 cryptoTransfer(movingUniqueWithAllowance(NFT_TOKEN, 1L).between(OLD_TREASURY, RECEIVER))
                         .payingWith(SPENDER)
                         .signedBy(SPENDER)
