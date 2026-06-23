@@ -2,17 +2,10 @@
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.util.AbstractMap;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;

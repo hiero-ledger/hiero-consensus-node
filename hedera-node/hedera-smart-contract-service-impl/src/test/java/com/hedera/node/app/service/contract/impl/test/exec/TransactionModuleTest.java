@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideCanonicalDispatchPrices;
 import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideEvmActionTracer;
 import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideHederaEvmContext;
 import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideSenderEcdsaKey;
