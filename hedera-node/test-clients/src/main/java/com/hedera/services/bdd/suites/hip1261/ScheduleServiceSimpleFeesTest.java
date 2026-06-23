@@ -95,9 +95,7 @@ public class ScheduleServiceSimpleFeesTest {
     private static final String scheduleDeleteTxn = "scheduleDeleteTxn";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("ScheduleCreate Simple Fees Positive Test Cases")

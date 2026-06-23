@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -77,15 +76,13 @@ public class SimpleFeesCongestionPricingTest {
               ]
             }""";
 
-    @LeakyHapiTest(
-            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod", "fees.simpleFeesEnabled"})
+    @LeakyHapiTest(overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> simpleFeesApplyCongestionMultiplierToTransfers() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong congestedPrice = new AtomicLong();
         final int burstTxns = 24;
 
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)

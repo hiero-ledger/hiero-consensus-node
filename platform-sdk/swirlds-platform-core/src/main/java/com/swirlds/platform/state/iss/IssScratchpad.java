@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
-import com.swirlds.platform.scratchpad.ScratchpadType;
+import org.hiero.consensus.scratchpad.ScratchpadType;
 
 /**
  * Describes the data held in the ISS scratchpad.
