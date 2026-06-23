@@ -4,12 +4,15 @@ package com.hedera.services.bdd.suites.token;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -28,6 +31,8 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHbarFeeInSchedule;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUniqueWithAllowance;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
@@ -55,6 +60,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
@@ -78,6 +84,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
 import com.hederahashgraph.api.proto.java.TokenKycStatus;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
+import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.time.Instant;
 import java.util.List;
@@ -1192,5 +1199,132 @@ public class TokenUpdateSpecs {
                         .adminKey("adminKey")
                         .supplyKey("supplyKey"),
                 tokenUpdate("token").autoRenewAccount("autoRenewAccount").hasKnownStatus(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> staleFungibleAllowancesAreClearedOnTreasuryChange() {
+        final String ADMIN_KEY = "adminKey";
+        final String FUNGIBLE_TOKEN = "fungibleToken";
+        final String OLD_TREASURY = "oldTreasury";
+        final String NEW_TREASURY = "newTreasury";
+        final String SPENDER = "staleSpender";
+        final String RECEIVER = "receiver";
+        final long INITIAL_SUPPLY = 10_000L;
+        final long APPROVED_AMOUNT = 500L;
+        final long DRAIN_AMOUNT = 100L;
+
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(OLD_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(1),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(INITIAL_SUPPLY)
+                        .initialSupply(INITIAL_SUPPLY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                tokenAssociate(NEW_TREASURY, FUNGIBLE_TOKEN),
+
+                // Old treasury grants spender an allowance before treasury change
+                cryptoApproveAllowance()
+                        .addTokenAllowance(OLD_TREASURY, FUNGIBLE_TOKEN, SPENDER, APPROVED_AMOUNT)
+                        .payingWith(OLD_TREASURY)
+                        .signedBy(OLD_TREASURY, GENESIS),
+
+                // Confirm allowance is recorded on old treasury
+                getAccountDetails(OLD_TREASURY)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().tokenAllowancesContaining(FUNGIBLE_TOKEN, SPENDER, APPROVED_AMOUNT)),
+
+                // Treasury change — balance moves to new treasury
+                tokenUpdate(FUNGIBLE_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
+                getAccountBalance(OLD_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
+                getAccountBalance(NEW_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, INITIAL_SUPPLY),
+
+                // Allowance on old treasury must be cleared by the treasury change
+                getAccountDetails(OLD_TREASURY)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().tokenAllowancesCount(0)),
+
+                // Spender's allowance is gone — transfer fails even though balance check would pass separately
+                cryptoTransfer(movingWithAllowance(DRAIN_AMOUNT, FUNGIBLE_TOKEN).between(OLD_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+
+                // Old treasury receives tokens again as a normal account
+                cryptoTransfer(moving(APPROVED_AMOUNT * 2, FUNGIBLE_TOKEN).between(NEW_TREASURY, OLD_TREASURY))
+                        .hasKnownStatus(SUCCESS),
+                getAccountBalance(OLD_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, APPROVED_AMOUNT * 2),
+
+                // Stale allowance is still gone
+                cryptoTransfer(movingWithAllowance(DRAIN_AMOUNT, FUNGIBLE_TOKEN).between(OLD_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> staleNftApproveForAllAllowanceIsClearedOnTreasuryChange() {
+        final String SUPPLY_KEY = "supplyKey";
+        final String ADMIN_KEY = "adminKey";
+        final String NFT_TOKEN = "nftToken";
+        final String OLD_TREASURY = "oldTreasury";
+        final String NEW_TREASURY = "newTreasury";
+        final String SPENDER = "staleSpender";
+        final String RECEIVER = "receiver";
+
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(OLD_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(1),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(1),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                mintToken(
+                        NFT_TOKEN, List.of(ByteString.copyFromUtf8("metadata1"), ByteString.copyFromUtf8("metadata2"))),
+
+                // Old treasury grants spender approveForAll before treasury change
+                cryptoApproveAllowance()
+                        .addNftAllowance(OLD_TREASURY, NFT_TOKEN, SPENDER, true, List.of())
+                        .payingWith(OLD_TREASURY)
+                        .signedBy(OLD_TREASURY, GENESIS),
+
+                // Confirm approveForAll allowance is recorded
+                getAccountDetails(OLD_TREASURY)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),
+
+                // Treasury change — NFT ownership moves to new treasury
+                tokenUpdate(NFT_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
+                getAccountBalance(OLD_TREASURY).hasTokenBalance(NFT_TOKEN, 0L),
+                getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 2L),
+
+                // approveForAll allowance on old treasury must be cleared by the treasury change
+                getAccountDetails(OLD_TREASURY)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().nftApprovedForAllAllowancesCount(0)),
+
+                // New treasury sends an NFT back to old treasury as a normal transfer
+                cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(NEW_TREASURY, OLD_TREASURY))
+                        .hasKnownStatus(SUCCESS),
+                getAccountBalance(OLD_TREASURY).hasTokenBalance(NFT_TOKEN, 1L),
+
+                // Stale approveForAll is gone — spender cannot use it to drain old treasury
+                cryptoTransfer(movingUniqueWithAllowance(NFT_TOKEN, 1L).between(OLD_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
     }
 }

@@ -54,6 +54,8 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenKeyValidation;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
+import com.hedera.hapi.node.state.token.AccountFungibleTokenAllowance;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -80,6 +82,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -1246,6 +1249,57 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         final var token = writableTokenState.get(fungibleTokenId);
         assertThat(token.treasuryAccountId()).isEqualTo(zeroAccountId);
         assertThat(token.name()).isEqualTo("TestTokenUpdateDoesUpdateZeroTreasury");
+    }
+
+    @Test
+    void clearsFungibleAllowancesOnOldTreasuryAfterTreasuryChange() {
+        final var allowance = AccountFungibleTokenAllowance.newBuilder()
+                .tokenId(fungibleTokenId)
+                .spenderId(spenderId)
+                .amount(500L)
+                .build();
+        final var treasuryWithAllowance = writableAccountStore
+                .get(treasuryId)
+                .copyBuilder()
+                .tokenAllowances(List.of(allowance))
+                .build();
+        writableAccountStore.put(treasuryWithAllowance);
+
+        txn = new TokenUpdateBuilder().build();
+        given(handleContext.body()).willReturn(txn);
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        final var oldTreasury = writableAccountStore.get(treasuryId);
+        assertThat(oldTreasury.tokenAllowances().isEmpty()).isTrue();
+    }
+
+    @Test
+    void clearsApproveForAllNftAllowancesOnOldTreasuryAfterTreasuryChange() {
+        final var allowance = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(spenderId)
+                .build();
+        final var treasuryWithAllowance = writableAccountStore
+                .get(treasuryId)
+                .copyBuilder()
+                .approveForAllNftAllowances(List.of(allowance))
+                .build();
+        writableAccountStore.put(treasuryWithAllowance);
+
+        txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();
+        given(handleContext.body()).willReturn(txn);
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        final var oldTreasury = writableAccountStore.get(treasuryId);
+        assertThat(oldTreasury.approveForAllNftAllowances().isEmpty()).isTrue();
     }
 
     /* --------------------------------- Helpers --------------------------------- */

@@ -25,6 +25,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
@@ -46,6 +47,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -148,6 +150,10 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 // If the token is fungible, transfer fungible balance to new treasury
                 // If it is non-fungible token transfer the ownership of the NFTs from old treasury to new treasury
                 transferTokensToNewTreasury(existingTreasury, newTreasury, token, tokenRelStore, accountStore);
+                // Stale allowances on the old treasury for this token are an exploit vector:
+                // if the old treasury later receives tokens/NFTs again as a normal account, a spender
+                // authorized before the treasury change could drain them. Clear them now.
+                clearStaleAllowancesForOldTreasury(existingTreasury, tokenId, token, accountStore);
             }
         }
         final var tokenBuilder = customizeToken(token, resolvedExpiry, op, txn.hasTransactionID());
@@ -584,6 +590,39 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         accountStore.put(copyOldTreasury.build());
         accountStore.put(copyNewTreasury.build());
         tokenRelStore.put(newRelCopy.build());
+    }
+
+    private void clearStaleAllowancesForOldTreasury(
+            @NonNull final AccountID oldTreasury,
+            @NonNull final TokenID tokenId,
+            @NonNull final Token token,
+            @NonNull final WritableAccountStore accountStore) {
+        final var account = accountStore.getAccountById(oldTreasury);
+        if (account == null) return;
+        final var copy = account.copyBuilder();
+        boolean modified = false;
+        if (token.tokenType().equals(FUNGIBLE_COMMON)) {
+            final var current = account.tokenAllowances();
+            final var updated = current.stream()
+                    .filter(a -> !Objects.equals(a.tokenId(), tokenId))
+                    .toList();
+            if (updated.size() < current.size()) {
+                copy.tokenAllowances(updated);
+                modified = true;
+            }
+        } else {
+            final var current = account.approveForAllNftAllowances();
+            final var updated = current.stream()
+                    .filter(a -> !Objects.equals(a.tokenId(), tokenId))
+                    .toList();
+            if (updated.size() < current.size()) {
+                copy.approveForAllNftAllowances(updated);
+                modified = true;
+            }
+        }
+        if (modified) {
+            accountStore.put(copy.build());
+        }
     }
 
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {
