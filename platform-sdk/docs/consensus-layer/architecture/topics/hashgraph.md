@@ -172,10 +172,16 @@ buffered future events and emit several decided rounds.
 rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
-`r + 1` if a super-majority is reached. Events older than the latest
-decided ancient threshold are marked `ROUND_NEGATIVE_INFINITY` and
-skipped. The current code drives ancient-ness from birth round, not
-generation; for the conceptual background see
+`r + 1` if a super-majority is reached. As a performance short-circuit,
+any event older than the generation of the latest decided round's judges
+(`ConsensusRounds.isOlderThanDecidedRoundGeneration`, keyed off the judges'
+minimum `NGen`) — and any event already marked consensus — is assigned
+`ROUND_NEGATIVE_INFINITY` and skips the witness and strongly-seeing work
+entirely; the dependent graph walks then skip that event via
+`ConsensusImpl.notRelevantForConsensus`. Such an event can no longer
+affect consensus, so the exact round is irrelevant. This is a
+load-bearing correctness precondition, not just a speedup — see RUL-004.
+For the conceptual background see
 [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff
@@ -313,14 +319,20 @@ Conceptual background:
 - [`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
 - [`../concepts/stale-events.md`](../concepts/stale-events.md)
 
-**Invariants.** [TBD: INV-NNN once
-[`../invariants.md`](../invariants.md) catalog populates.]
+**Invariants.**
+
+- [INV-001](../../invariants/INV-001-roundcreated-monotonic-along-ancestry.md) — `roundCreated` is monotonic along ancestry.
+
+**Rules.**
+
+- [RUL-004](../../rules/RUL-004-mark-events-below-decided-round-irrelevant.md) — events below the latest decided round's judges are excluded from consensus calculation.
 
 **Decisions.** [TBD: ADR-NNN once
 [`../decisions/`](../decisions/) catalog populates.]
 
-**Scenarios.** [TBD: SCN-NNN once
-[`../scenarios/`](../scenarios/) catalog populates.]
+**Scenarios.**
+
+- [SCN-001](../../scenarios/SCN-001-same-round-judge-ancestry-stalls-consensus.md) — same-round judge ancestry stalls consensus after a roster change.
 
 **Sibling topics.**
 
