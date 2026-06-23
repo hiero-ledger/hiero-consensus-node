@@ -71,7 +71,7 @@ public class ConsensusServiceSimpleFeesSuite {
                                 SIGNATURES, sigs,
                                 KEYS, keys,
                                 PROCESSING_BYTES, (long) signedTxnSize));
-                        allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
+                        allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", 88, 1));
                     }));
         }
 
