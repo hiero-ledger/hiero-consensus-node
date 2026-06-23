@@ -31,6 +31,8 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.block-node-version }}
       bn-mirror-node-version:
         value: ${{ jobs.extract-citr-vars.outputs.bn-mirror-node-version }}
+      json-rpc-relay-version:
+        value: ${{ jobs.extract-citr-vars.outputs.json-rpc-relay-version }}
 
 permissions:
   contents: read
@@ -53,6 +55,7 @@ jobs:
       js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
       block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
       bn-mirror-node-version: ${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}
+      json-rpc-relay-version: ${{ steps.get-citr-vars.outputs.json-rpc-relay-version }}
     steps:
       - name: Initialize Job
         uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
@@ -84,7 +87,7 @@ jobs:
           steps.get-citr-vars.outputs.citr-mirror-node-version == '' || steps.get-citr-vars.outputs.citr-solo-version == '' ||
           steps.get-citr-vars.outputs.mqpt-cluster == '' || steps.get-citr-vars.outputs.tck-version == '' ||
           steps.get-citr-vars.outputs.js-sdk-version == '' || steps.get-citr-vars.outputs.block-node-version == '' ||
-          steps.get-citr-vars.outputs.bn-mirror-node-version == '' }}
+          steps.get-citr-vars.outputs.bn-mirror-node-version == '' || steps.get-citr-vars.outputs.json-rpc-relay-version == '' }}
         run: |
           echo "::error::One or more required CITR variables are missing or empty. Please ensure .citr-env contains all necessary variables."
           echo "::group::Extracted Variables"
@@ -97,5 +100,6 @@ jobs:
             echo "js-sdk-version: '${{ steps.get-citr-vars.outputs.js-sdk-version }}'"
             echo "block-node-version: '${{ steps.get-citr-vars.outputs.block-node-version }}'"
             echo "mirror-node-version: '${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}'"
+            echo "json-rpc-relay-version: '${{ steps.get-citr-vars.outputs.json-rpc-relay-version }}'"
           echo "::endgroup::"
           exit 1
