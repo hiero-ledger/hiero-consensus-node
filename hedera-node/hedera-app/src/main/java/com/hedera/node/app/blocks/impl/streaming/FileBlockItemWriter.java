@@ -521,32 +521,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    @Override
-    public void flushIncompleteBlock() {
-        // Persist the open, unproven block as a ".open.gz" triage artifact: close the stream and rename the
-        // partially-written ".blk.gz" to ".open.gz". We deliberately write no ".mf" completion marker and no
-        // ".pnd.json" proof sidecar, so this block is never treated as a finished block nor picked up by pending-block
-        // recovery. Best-effort: never throws.
-        if (state != State.OPEN) {
-            logger.warn("Cannot flush incomplete block #{} in non-OPEN state '{}'", blockNumber, state);
-            return;
-        }
-        try {
-            writableStreamingData.close();
-            Files.move(pathOf(blockNumber, completeFileName), pathOf(blockNumber, incompleteFileName));
-            logger.info(
-                    "Flushed incomplete block #{} for triage to {}",
-                    blockNumber,
-                    pathOf(blockNumber, incompleteFileName));
-        } catch (final Exception e) {
-            // Catch everything (not just IOException): per the BlockItemWriter contract this is best-effort and must
-            // not throw, since the caller is already on the catastrophic-failure path.
-            logger.error("Error flushing incomplete block #{}", blockNumber, e);
-        } finally {
-            state = State.CLOSED;
-        }
-    }
-
     /**
      * Get the path for a block file with the block number.
      *

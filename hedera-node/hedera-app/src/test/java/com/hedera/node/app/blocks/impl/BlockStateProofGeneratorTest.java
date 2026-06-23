@@ -379,10 +379,5 @@ class BlockStateProofGeneratorTest {
         public Path flushIncompleteBlock() {
             return null;
         }
-
-        @Override
-        public void flushIncompleteBlock() {
-            // No-op
-        }
     }
 }
