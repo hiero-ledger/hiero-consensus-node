@@ -109,7 +109,7 @@ public class DiffExporter {
 
         System.out.printf("Diff time: %d seconds%n", (System.currentTimeMillis() - startTimestamp) / 1000);
 
-        if(state1Entries.isEmpty() && state2Entries.isEmpty()) {
+        if (state1Entries.isEmpty() && state2Entries.isEmpty()) {
             System.exit(0);
         } else {
             System.exit(1);
