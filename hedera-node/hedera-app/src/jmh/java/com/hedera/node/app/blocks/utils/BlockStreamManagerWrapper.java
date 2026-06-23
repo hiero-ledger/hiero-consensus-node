@@ -107,6 +107,11 @@ public class BlockStreamManagerWrapper {
                 public Path flushIncompleteBlock() {
                     return original.flushIncompleteBlock();
                 }
+
+                @Override
+                public void flushIncompleteBlock() {
+                    original.flushIncompleteBlock();
+                }
             };
         };
 
