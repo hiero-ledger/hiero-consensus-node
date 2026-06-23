@@ -288,7 +288,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
         requireNonNull(syntheticPayerId);
-        return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO);
+        return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO, null);
     }
 
     @Override
@@ -430,7 +430,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody txBody,
             @NonNull final AccountID syntheticPayerId,
-            @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel) {
+            @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel,
+            @Nullable final SignatureMap overrideSignatureMap) {
         final var bodyToDispatch = ensureTxnId(txBody);
         var function = HederaFunctionality.NONE;
         try {
@@ -442,7 +443,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
+        final var chargeForSigVerification = shouldChargeForSigVerification(txBody);
+        // When an override is provided, use its size unconditionally so that externally-supplied
+        // signatures (e.g. from a system-contract parameter) are reflected in the fee.
+        final var effectiveSignatureMap = overrideSignatureMap != null ? overrideSignatureMap : txnInfo.signatureMap();
+        final var signatureMapSize = (overrideSignatureMap != null || chargeForSigVerification)
+                ? SignatureMap.PROTOBUF.measureRecord(effectiveSignatureMap)
+                : 0;
         return dispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,
@@ -452,8 +459,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 authorizer,
                 storeFactory.asReadOnly(),
                 consensusNow,
-                shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0,
+                chargeForSigVerification ? verifier : null,
+                signatureMapSize,
                 function));
     }
 
