@@ -75,6 +75,10 @@
             },
             {
               "type": "mrkdwn",
+              "text": {{ printf "*Run attempt*: %s" (getenv "RUN_ATTEMPT") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
               "text": "*Workflow run ID*:"
             },
             {
