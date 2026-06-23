@@ -18,7 +18,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
@@ -208,10 +207,12 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
         if (numberedBytecode == null) {
             return Bytes.EMPTY;
-        } else {
-            final var code = numberedBytecode.code();
-            return pbjToTuweniBytes(code);
         }
+        final var pbjCode = numberedBytecode.code();
+        if (pbjCode == null || pbjCode.length() == 0) {
+            return Bytes.EMPTY;
+        }
+        return codeCache.getTuweniBytecode(pbjCode);
     }
 
     /**
@@ -231,9 +232,11 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
         if (numberedBytecode == null) {
             return Hash.EMPTY;
-        } else {
-            return codeCache.getCode(numberedBytecode.code()).getCodeHash();
         }
+        final var pbjCode = numberedBytecode.code();
+        return codeCache
+                .getCode(pbjCode == null ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY : pbjCode)
+                .getCodeHash();
     }
 
     /**

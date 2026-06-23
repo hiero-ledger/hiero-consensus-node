@@ -46,6 +46,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.test.TestTransactionUtils;
@@ -109,7 +110,8 @@ class FrameBuilderTest {
     @Mock
     private Account contract;
 
-    private final FrameBuilder subject = new FrameBuilder();
+    private final ContractCodeCache codeCache = new ContractCodeCache();
+    private final FrameBuilder subject = new FrameBuilder(codeCache);
 
     @Test
     void constructsExpectedFrameForCallToExtantContractIncludingOptionalContextVariables() {
@@ -157,7 +159,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
+        assertEquals(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
@@ -211,7 +213,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
+        assertEquals(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
@@ -352,7 +354,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
+        assertEquals(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -455,8 +457,7 @@ class FrameBuilderTest {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .getOrCreateConfig();
-        final var expectedCode = new Code(transaction.evmPayload());
-
+        final var expectedCode = codeCache.getCodeFromTuweni(transaction.evmPayload());
         final var frame = subject.buildInitialFrameWith(
                 transaction,
                 worldUpdater,
@@ -490,7 +491,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(Bytes.EMPTY, frame.getInputData());
-        assertEquals(expectedCode, frame.getCode());
+        assertSame(expectedCode, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 

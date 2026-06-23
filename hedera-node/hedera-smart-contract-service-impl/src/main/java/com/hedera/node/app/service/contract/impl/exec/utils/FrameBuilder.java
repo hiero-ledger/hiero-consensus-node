@@ -21,6 +21,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TI
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -30,7 +31,10 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
@@ -48,7 +52,6 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
@@ -66,12 +69,14 @@ import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 public class FrameBuilder {
     private static final int MAX_STACK_SIZE = 1024;
 
+    private final ContractCodeCache codeCache;
+
     /**
      * Default constructor for injection.
      */
     @Inject
-    public FrameBuilder() {
-        // Dagger2
+    public FrameBuilder(@NonNull final ContractCodeCache codeCache) {
+        this.codeCache = requireNonNull(codeCache);
     }
 
     /**
@@ -199,7 +204,7 @@ public class FrameBuilder {
                 .address(to)
                 .contract(to)
                 .inputData(Bytes.EMPTY)
-                .code(new Code(transaction.evmPayload()))
+                .code(codeForInitCode(transaction.evmPayload()))
                 .build();
     }
 
@@ -240,17 +245,17 @@ public class FrameBuilder {
                 final var targetAddress =
                         Address.wrap(accountCode.slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
 
-                final Account targetAccount = worldUpdater.getHederaAccount(targetAddress);
+                final HederaEvmAccount targetAccount = worldUpdater.getHederaAccount(targetAddress);
                 if (targetAccount == null || gasCalculator.isPrecompile(targetAddress)) {
                     code = Code.EMPTY_CODE;
                 } else {
-                    code = new Code(targetAccount.getCode());
+                    code = codeFor(targetAccount);
                 }
             } else {
                 // No delegation, so try to resolve the code of the smart contract.
                 if (!accountCode.isEmpty()) {
                     // A non-delegation code is there (it must be a regular smart contract), so just use it.
-                    code = new Code(accountCode);
+                    code = codeFor(account);
                 } else {
                     // The code is empty.
                     // First validate if this is allowed, and if so, proceed.
@@ -303,5 +308,22 @@ public class FrameBuilder {
         // Empty code is allowed if the transaction is an Ethereum transaction or has a value or the contract does not
         // have to be present via config
         return transaction.isEthereumTransaction() || transaction.hasValue() || !contractMustBePresent;
+    }
+
+    private @NonNull Code codeForInitCode(@NonNull final Bytes initCode) {
+        return initCode.isEmpty() ? Code.EMPTY_CODE : codeCache.getCodeFromTuweni(initCode);
+    }
+
+    private @NonNull Code codeFor(@NonNull final HederaEvmAccount account) {
+        if (account instanceof AbstractMutableEvmAccount mutable) {
+            try {
+                final var pbjCode = mutable.getCodePBJ();
+                return pbjCode.length() == 0 ? Code.EMPTY_CODE : codeCache.getCode(pbjCode);
+            } catch (UnsupportedOperationException ignored) {
+                // Token/schedule facades without getCodePBJ — fall through
+            }
+        }
+        final var tuweniCode = account.getCode();
+        return tuweniCode.isEmpty() ? Code.EMPTY_CODE : codeCache.getCodeFromTuweni(tuweniCode);
     }
 }

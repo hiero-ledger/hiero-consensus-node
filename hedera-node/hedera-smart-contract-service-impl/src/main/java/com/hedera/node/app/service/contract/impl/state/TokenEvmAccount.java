@@ -30,6 +30,8 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
     public static final Bytes CODE = Bytes.concatenate(
             CODE_DELEGATION_PREFIX, Address.fromHexString(HTS_167_EVM_ADDRESS).getBytes());
     public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
+    public static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_PBJ =
+            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE.toArrayUnsafe());
 
     public TokenEvmAccount(@NonNull final Address address, @NonNull final DispatchingEvmFrameState state) {
         super(address, state);
@@ -48,5 +50,10 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
     @Override
     public Hash getCodeHash() {
         return CODE_HASH;
+    }
+
+    @Override
+    public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
+        return CODE_PBJ;
     }
 }
