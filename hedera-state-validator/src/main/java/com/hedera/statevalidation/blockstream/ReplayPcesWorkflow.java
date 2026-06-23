@@ -6,7 +6,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.pbj.runtime.ParseException;
@@ -36,8 +35,8 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -128,7 +127,8 @@ public final class ReplayPcesWorkflow {
         stagePcesFiles(pcesDir, platformConfig, fileSystemManager, selfId);
 
         // --- Load the initial state directly from the given path ---
-        final var stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
+        final var stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         log.info("Loading state from {}", stateDir);
         final DeserializedSignedState deserializedSignedState =

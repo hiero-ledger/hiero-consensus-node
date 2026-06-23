@@ -555,6 +555,7 @@ the resulting state and block hashes against the originals.
 - The state round must match the PCES stream origin, or the platform will discard the files.
 - The `--rounds-non-ancient` extension must have been used in `blocks-to-pces` (default 26),
   or the earliest events will be stuck in the orphan buffer and consensus will not advance.
+
 ### Usage
 
 ```shell
@@ -595,6 +596,7 @@ java -jar ./validator-<version>.jar replay-pces \
   to name an output subdirectory; does not affect replay correctness. Default = `0.0.3`.
 - `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
   real hinTS. No live TSS network required. Default = `true`.
+
 ### Notes
 
 - The command sets `event.preconsensus.intake.allowUnsignedPcesEvents=true` automatically.
