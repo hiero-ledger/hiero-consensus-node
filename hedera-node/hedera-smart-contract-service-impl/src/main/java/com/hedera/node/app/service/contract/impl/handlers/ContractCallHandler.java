@@ -12,8 +12,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
@@ -25,7 +23,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import javax.inject.Inject;
@@ -105,13 +102,5 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
             bumpExceptionMetrics(CONTRACT_CALL, e);
             throw e;
         }
-    }
-
-    @Override
-    protected /*abstract*/ @NonNull FeeData getFeeMatrices(
-            @NonNull final SmartContractFeeBuilder usageEstimator,
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
-            @NonNull final SigValueObj sigValObj) {
-        return usageEstimator.getContractCallTxFeeMatrices(txBody, sigValObj);
     }
 }

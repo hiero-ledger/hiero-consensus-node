@@ -25,8 +25,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -55,6 +53,8 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 
 /**
  * A standard implementation of {@link TransactionHandler}.

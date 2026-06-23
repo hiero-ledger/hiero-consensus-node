@@ -18,7 +18,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.consensus.state;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.logging;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl.test.fixtures;
