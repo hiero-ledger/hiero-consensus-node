@@ -234,8 +234,8 @@ of 14. Therefore, the snapshot is updated to [3, 2, 5, 7].
 
 # Optimizing Tipset Score
 
-When it comes time to create a new event, if there are multiple other parents to choose from, select the other parent
-that results in the greatest tipset score improvement.
+When it comes time to create a new event, rank the available other parents by the tipset score improvement each would
+produce and select the best ones, up to `maxOtherParents` (the `event.creation.maxOtherParents` config, default `4`).
 
 # Selfishness Scores
 
