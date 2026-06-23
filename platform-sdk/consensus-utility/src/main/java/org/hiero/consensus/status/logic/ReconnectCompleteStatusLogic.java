@@ -6,9 +6,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#RECONNECT_COMPLETE} status.
@@ -49,28 +49,28 @@ public class ReconnectCompleteStatusLogic extends AbstractStatusLogic {
 
     /**
      * {@link PlatformStatus#RECONNECT_COMPLETE} status unconditionally transitions to {@link PlatformStatus#BEHIND} when
-     * a {@link FallenBehindAction} is processed.
+     * a {@link FallenBehindTrigger} is processed.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindTrigger trigger) {
         return new BehindStatusLogic(config);
     }
 
     /**
-     * Receiving a {@link FreezePeriodEnteredAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} doesn't ever
+     * Receiving a {@link FreezePeriodEnteredTrigger} while in {@link PlatformStatus#RECONNECT_COMPLETE} doesn't ever
      * result in a status transition, but this logic method does record the freeze round, which will inform the status
      * progression once the reconnect state has been saved.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
-        freezeRound = validateFreezeRound(freezeRound, action);
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredTrigger trigger) {
+        freezeRound = validateFreezeRound(freezeRound, trigger);
         return this;
     }
 
     /**
-     * Receiving a {@link StateWrittenToDiskAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} causes a
+     * Receiving a {@link StateWrittenToDiskTrigger} while in {@link PlatformStatus#RECONNECT_COMPLETE} causes a
      * transition to {@link PlatformStatus#FREEZE_COMPLETE} if it's a freeze state.
      * <p>
      * For non-freeze states, if the state written to disk is prior to the reconnect state round, it's old, so we need to
@@ -81,12 +81,12 @@ public class ReconnectCompleteStatusLogic extends AbstractStatusLogic {
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskAction action) {
-        if (action.isFreezeState()) {
+    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskTrigger trigger) {
+        if (trigger.isFreezeState()) {
             return new FreezeCompleteStatusLogic();
         }
 
-        if (action.round() < reconnectStateRound) {
+        if (trigger.round() < reconnectStateRound) {
             // if the state written to disk is prior to the reconnect state round, it's old.
             // we need to wait until the reconnected state is written to disk (or a later state)
             return this;

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.status.actions;
+package org.hiero.consensus.status.triggers;
 
 /**
- * An action to indicate that the reconnect process has completed
+ * A trigger to indicate that the reconnect process has completed
  *
  * @param reconnectStateRound the round number of the state received in the reconnect that just completed
  */
-public record ReconnectCompleteAction(long reconnectStateRound) implements PlatformStatusAction {}
+public record ReconnectCompleteTrigger(long reconnectStateRound) implements StatusMachineTrigger {}

@@ -2,17 +2,17 @@
 package org.hiero.consensus.status;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
- * A functional interface for submitting status actions
+ * A functional interface for submitting status triggers
  */
 @FunctionalInterface
-public interface StatusActionSubmitter {
+public interface TriggerSubmitter {
     /**
-     * Submit a status action, which will be processed in the order received
+     * Submit a status trigger, which will be processed in the order received
      *
-     * @param action the action to submit
+     * @param trigger the trigger to submit
      */
-    void submitStatusAction(@NonNull final PlatformStatusAction action);
+    void submitTrigger(@NonNull final StatusMachineTrigger trigger);
 }

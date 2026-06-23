@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.status.actions;
+package org.hiero.consensus.status.triggers;
 
 /**
- * An action to indicate that consensus has advanced past a freeze timestamp
+ * A trigger to indicate that consensus has advanced past a freeze timestamp
  *
  * @param freezeRound the round number of the freeze state
  */
-public record FreezePeriodEnteredAction(long freezeRound) implements PlatformStatusAction {}
+public record FreezePeriodEnteredTrigger(long freezeRound) implements StatusMachineTrigger {}

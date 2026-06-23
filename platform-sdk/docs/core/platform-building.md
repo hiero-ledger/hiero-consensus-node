@@ -72,7 +72,7 @@ Other examples are:
         blocks.appVersion(),
         blocks.swirldStateManager(),
         () -> blocks.getLatestCompleteStateReference().get().get(),
-        x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
+        x -> blocks.triggerSubmitterReference().get().submitTrigger(x),
         state -> blocks.loadReconnectStateReference().get().accept(state),
         () -> blocks.clearAllPipelinesForReconnectReference()
         .get()

@@ -19,12 +19,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.logic.PlatformStatusLogic;
 import org.hiero.consensus.status.logic.StartingUpStatusLogic;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
- * A state machine that processes {@link PlatformStatusAction}s
+ * A state machine that processes {@link StatusMachineTrigger}s
  */
 public class StatusStateMachine {
     private static final Logger logger = LogManager.getLogger(StatusStateMachine.class);
@@ -62,18 +62,18 @@ public class StatusStateMachine {
     }
 
     /**
-     * Passes the received action to the current status logic and returns whatever it returns.
+     * Passes the received trigger to the current status logic and returns whatever it returns.
      * <p>
      * If the logic throws an {@link IllegalPlatformStatusException}, this method will log the exception and return null.
      *
-     * @param action the action to process
+     * @param trigger the trigger to process
      * @return a new logic object, or null if the logic threw an exception
      */
     @Nullable
-    private PlatformStatusLogic getNewLogic(@NonNull final PlatformStatusAction action) {
-        requireNonNull(action);
+    private PlatformStatusLogic getNewLogic(@NonNull final StatusMachineTrigger trigger) {
+        requireNonNull(trigger);
         try {
-            return currentStatusLogic.process(action);
+            return currentStatusLogic.process(trigger);
         } catch (final IllegalPlatformStatusException e) {
             logger.error(EXCEPTION.getMarker(), e.getMessage(), e);
             return null;
@@ -81,18 +81,18 @@ public class StatusStateMachine {
     }
 
     /**
-     * Process a platform status action.
+     * Process a platform status trigger.
      * <p>
      * Repeated calls of this method cause the platform state machine to be traversed
      *
-     * @param action the action to process
-     * @return the new status after processing the action, or null if the status did not change
+     * @param trigger the trigger to process
+     * @return the new status after processing the trigger, or null if the status did not change
      */
     @Nullable
-    public PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action) {
-        requireNonNull(action);
+    public PlatformStatus submitTrigger(@NonNull final StatusMachineTrigger trigger) {
+        requireNonNull(trigger);
 
-        final PlatformStatusLogic newLogic = getNewLogic(action);
+        final PlatformStatusLogic newLogic = getNewLogic(trigger);
 
         if (newLogic == null || newLogic == currentStatusLogic) {
             // if status didn't change, there isn't anything to do

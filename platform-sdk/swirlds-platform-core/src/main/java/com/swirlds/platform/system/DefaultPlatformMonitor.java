@@ -18,11 +18,11 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.StatusStateMachine;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 
 /**
  * The default implementation of the {@link PlatformMonitor}.
@@ -62,8 +62,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Nullable
     @Override
-    public PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action) {
-        return statusStateMachine.submitStatusAction(action);
+    public PlatformStatus submitTrigger(@NonNull final StatusMachineTrigger action) {
+        return statusStateMachine.submitTrigger(action);
     }
 
     /**
@@ -71,9 +71,9 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Override
     public PlatformStatus heartbeat(@NonNull final Instant time) {
-        return statusStateMachine.submitStatusAction(new TimeElapsedAction(
+        return statusStateMachine.submitTrigger(new TimeElapsedTrigger(
                 time,
-                new TimeElapsedAction.QuiescingStatus(
+                new TimeElapsedTrigger.QuiescingStatus(
                         lastQuiescenceCommand == QuiescenceCommand.QUIESCE, lastQuiescenceCommandTime)));
     }
 
@@ -87,7 +87,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
             return null;
         }
         // the action receives the wall clock time, NOT the consensus timestamp
-        return statusStateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now()));
+        return statusStateMachine.submitTrigger(new SelfEventReachedConsensusTrigger(time.now()));
     }
 
     /**
@@ -106,8 +106,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Override
     public PlatformStatus stateWrittenToDisk(@NonNull final StateSavingResult result) {
-        return statusStateMachine.submitStatusAction(
-                new StateWrittenToDiskAction(result.round(), result.freezeState()));
+        return statusStateMachine.submitTrigger(new StateWrittenToDiskTrigger(result.round(), result.freezeState()));
     }
 
     /**
@@ -117,7 +116,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     @Override
     public PlatformStatus issNotification(@NonNull final List<IssNotification> notifications) {
         if (notifications.stream().map(IssNotification::getIssType).anyMatch(CATASTROPHIC_ISS_TYPES::contains)) {
-            return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
+            return statusStateMachine.submitTrigger(new CatastrophicFailureTrigger());
         }
         // don't change status for other types of ISSs
         return null;

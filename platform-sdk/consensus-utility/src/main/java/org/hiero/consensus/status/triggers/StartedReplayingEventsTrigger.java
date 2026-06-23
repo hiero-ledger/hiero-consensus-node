@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.status.actions;
+package org.hiero.consensus.status.triggers;
 
 /**
- * An action that is triggered when the platform starts replaying events from the preconsensus event stream.
+ * A trigger fired when the platform starts replaying events from the preconsensus event stream.
  */
-public record StartedReplayingEventsAction() implements PlatformStatusAction {}
+public record StartedReplayingEventsTrigger() implements StatusMachineTrigger {}

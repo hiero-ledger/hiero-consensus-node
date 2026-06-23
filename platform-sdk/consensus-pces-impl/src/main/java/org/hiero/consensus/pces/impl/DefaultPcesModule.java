@@ -39,7 +39,7 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Default implementation of the {@link PcesModule}.
@@ -77,7 +77,7 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final Runnable flushIntake,
             @NonNull final Runnable flushTransactionHandling,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Consumer<StatusMachineTrigger> triggerConsumer,
             @NonNull final Runnable stateHasherFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -135,12 +135,7 @@ public class DefaultPcesModule implements PcesModule {
         pcesReplayerWiring.bind(pcesReplayer);
 
         this.pcesCoordinator = new PcesCoordinator(
-                time,
-                initialPcesFiles,
-                pcesReplayerWiring,
-                statusActionConsumer,
-                stateHasherFlusher,
-                signalEndOfPcesReplay);
+                time, initialPcesFiles, pcesReplayerWiring, triggerConsumer, stateHasherFlusher, signalEndOfPcesReplay);
     }
 
     /**

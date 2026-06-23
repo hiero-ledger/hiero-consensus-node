@@ -175,7 +175,7 @@ public class SwirldsPlatform implements Platform {
         this.platformCoordinator = blocks.platformCoordinator();
         this.latestImmutableStateNexus = blocks.latestImmutableStateNexus();
 
-        blocks.statusActionSubmitterReference().set(platformCoordinator);
+        blocks.triggerSubmitterReference().set(platformCoordinator);
 
         final Configuration configuration = platformContext.getConfiguration();
 

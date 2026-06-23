@@ -20,7 +20,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
@@ -43,7 +43,7 @@ public interface PcesModule {
      * @param flushTransactionHandling a {@link Runnable} that triggers flushing of the transaction handling wires
      * @param latestImmutableStateSupplier a supplier of the latest immutable state
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
-     * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
+     * @param triggerConsumer a consumer for {@link StatusMachineTrigger}s to report status updates to the platform
      * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
      * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector,
      */
@@ -59,7 +59,7 @@ public interface PcesModule {
             @NonNull Runnable flushIntake,
             @NonNull Runnable flushTransactionHandling,
             @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
-            @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull Consumer<StatusMachineTrigger> triggerConsumer,
             @NonNull Runnable stateHasherFlusher,
             @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);

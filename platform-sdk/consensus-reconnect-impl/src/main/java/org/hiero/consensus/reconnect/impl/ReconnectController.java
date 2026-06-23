@@ -44,8 +44,8 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
 
 /**
  * Orchestrates the reconnect process when a node falls behind.
@@ -137,7 +137,7 @@ public class ReconnectController implements Runnable {
             while (run.get()) {
                 fallenBehindMonitor.awaitFallenBehind(); // Block until the monitor notifies the node is behind
                 exitIf();
-                reconnectCoordinator.submitStatusAction(new FallenBehindAction());
+                reconnectCoordinator.submitTrigger(new FallenBehindTrigger());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
                 reconnectCoordinator.pauseGossip();
                 fallenBehindMonitor.awaitGossipPaused();
@@ -246,7 +246,7 @@ public class ReconnectController implements Runnable {
         stateLifecycleManager.initWithState(state);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-        reconnectCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
+        reconnectCoordinator.submitTrigger(new ReconnectCompleteTrigger(signedState.getRound()));
         savedStateController.reconnectStateReceived(signedState.reserve("savedStateController.reconnectStateReceived"));
         reconnectCoordinator.loadReconnectState(configuration, signedState);
     }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.status.actions;
+package org.hiero.consensus.status.triggers;
 
 /**
- * An action that is triggered when the platform experiences a catastrophic failure.
+ * A trigger fired when the platform experiences a catastrophic failure.
  */
-public record CatastrophicFailureAction() implements PlatformStatusAction {}
+public record CatastrophicFailureTrigger() implements StatusMachineTrigger {}

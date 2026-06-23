@@ -8,10 +8,10 @@ import java.util.Objects;
 import org.hiero.base.utility.DurationUtils;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#ACTIVE} status.
@@ -46,37 +46,37 @@ public class ActiveStatusLogic extends AbstractStatusLogic {
 
     /**
      * {@link PlatformStatus#ACTIVE} status unconditionally transitions to {@link PlatformStatus#BEHIND} when a
-     * {@link FallenBehindAction} is processed.
+     * {@link FallenBehindTrigger} is processed.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindTrigger trigger) {
         return new BehindStatusLogic(config);
     }
 
     /**
      * {@link PlatformStatus#ACTIVE} status unconditionally transitions to {@link PlatformStatus#FREEZING} when a
-     * {@link FreezePeriodEnteredAction} is processed.
+     * {@link FreezePeriodEnteredTrigger} is processed.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
-        return new FreezingStatusLogic(action.freezeRound());
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredTrigger trigger) {
+        return new FreezingStatusLogic(trigger.freezeRound());
     }
 
     /**
-     * Receiving a {@link SelfEventReachedConsensusAction} while in {@link PlatformStatus#ACTIVE} doesn't ever result in
+     * Receiving a {@link SelfEventReachedConsensusTrigger} while in {@link PlatformStatus#ACTIVE} doesn't ever result in
      * a status transition, but this logic method does record the wall clock time the event reached consensus.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusAction action) {
-        lastWallClockTimeSelfEventReachedConsensus = action.wallClockTime();
+    protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusTrigger trigger) {
+        lastWallClockTimeSelfEventReachedConsensus = trigger.wallClockTime();
         return this;
     }
 
     /**
-     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, this method evaluates whether
+     * When a {@link TimeElapsedTrigger} is received while in {@link PlatformStatus#ACTIVE}, this method evaluates whether
      * the platform should transition to {@link PlatformStatus#CHECKING} based on two timing conditions:
      * <ul>
      *   <li><b>Quiescing state check:</b> If the platform is currently quiescing, it remains in
@@ -91,17 +91,17 @@ public class ActiveStatusLogic extends AbstractStatusLogic {
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedAction action) {
-        final var isQuiescing = action.quiescingStatus().isQuiescing();
+    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedTrigger trigger) {
+        final var isQuiescing = trigger.quiescingStatus().isQuiescing();
         final boolean stopQuiesceGracePeriodElapsed = DurationUtils.isLonger(
-                Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
+                Duration.between(trigger.quiescingStatus().since(), trigger.instant()), config.activeStatusDelay());
 
         if (isQuiescing || !stopQuiesceGracePeriodElapsed) {
             return this;
         }
 
         final Duration timeSinceSelfEventReachedConsensus =
-                Duration.between(lastWallClockTimeSelfEventReachedConsensus, action.instant());
+                Duration.between(lastWallClockTimeSelfEventReachedConsensus, trigger.instant());
 
         if (DurationUtils.isLonger(timeSinceSelfEventReachedConsensus, config.activeStatusDelay())) {
             return new CheckingStatusLogic(config);

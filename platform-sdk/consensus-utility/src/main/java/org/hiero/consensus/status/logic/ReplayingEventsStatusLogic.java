@@ -5,8 +5,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#REPLAYING_EVENTS} status.
@@ -33,34 +33,34 @@ public class ReplayingEventsStatusLogic extends AbstractStatusLogic {
     }
 
     /**
-     * If a freeze boundary wasn't crossed while replaying events, then receiving a {@link DoneReplayingEventsAction}
+     * If a freeze boundary wasn't crossed while replaying events, then receiving a {@link DoneReplayingEventsTrigger}
      * causes a transition to {@link PlatformStatus#OBSERVING}.
      * <p>
-     * If a freeze boundary was crossed while replaying events, then the {@link DoneReplayingEventsAction} doesn't affect
+     * If a freeze boundary was crossed while replaying events, then the {@link DoneReplayingEventsTrigger} doesn't affect
      * the state machine. The status will remain in {@link PlatformStatus#REPLAYING_EVENTS} until the freeze state has
      * been saved.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onDoneReplayingEvents(@NonNull final DoneReplayingEventsAction action) {
+    protected PlatformStatusLogic onDoneReplayingEvents(@NonNull final DoneReplayingEventsTrigger trigger) {
         if (freezeRound != null) {
             // if a freeze boundary was crossed, we won't transition out of this state until the freeze state
             // has been saved
             return this;
         } else {
-            return new ObservingStatusLogic(action.instant(), config);
+            return new ObservingStatusLogic(trigger.instant(), config);
         }
     }
 
     /**
-     * Receiving a {@link FreezePeriodEnteredAction} while in {@link PlatformStatus#REPLAYING_EVENTS} doesn't ever result
+     * Receiving a {@link FreezePeriodEnteredTrigger} while in {@link PlatformStatus#REPLAYING_EVENTS} doesn't ever result
      * in a status transition, but this logic method does record the freeze round, which will inform the status
      * progression later.
      */
     @NonNull
     @Override
-    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
-        freezeRound = validateFreezeRound(freezeRound, action);
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredTrigger trigger) {
+        freezeRound = validateFreezeRound(freezeRound, trigger);
         return this;
     }
 }

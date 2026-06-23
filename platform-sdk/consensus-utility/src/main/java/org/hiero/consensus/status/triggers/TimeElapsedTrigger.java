@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.status.actions;
+package org.hiero.consensus.status.triggers;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 
 /**
- * An action that indicates an amount of wall clock time has elapsed.
+ * A trigger that indicates an amount of wall clock time has elapsed.
  * <p>
- * Triggered periodically when other actions aren't being processed.
+ * Triggered periodically when other triggers aren't being processed.
  *
- * @param instant          the instant when this action was triggered
+ * @param instant          the instant when this trigger fired
  * @param quiescingStatus  the current quiescing status
  */
-public record TimeElapsedAction(
-        @NonNull Instant instant, @NonNull QuiescingStatus quiescingStatus) implements PlatformStatusAction {
+public record TimeElapsedTrigger(
+        @NonNull Instant instant, @NonNull QuiescingStatus quiescingStatus) implements StatusMachineTrigger {
 
     /**
      * Encapsulates the quiescing state information.
