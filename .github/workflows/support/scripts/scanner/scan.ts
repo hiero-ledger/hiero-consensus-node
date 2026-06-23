@@ -58,4 +58,15 @@ for(let file of await findFiles(WORKFLOWS_DIR, isYaml)) {
             }
         }
     }
+
+    // find uses of install gomplate
+    for(let [key,job] of Object.entries(workflow.jobs)) {
+        if(job.steps) {
+            for(let step of job.steps) {
+                if(step.name === 'Install gomplate') {
+                    console.log(`workflow ${file.name} job: ${key} has a step to setup gomplate`)
+                }
+            }
+        }
+    }
 }
