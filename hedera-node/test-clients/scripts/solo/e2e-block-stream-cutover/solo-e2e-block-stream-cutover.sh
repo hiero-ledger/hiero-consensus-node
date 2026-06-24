@@ -655,13 +655,23 @@ seed_block_node_tss_parameters() {
   # to tar, which the distroless MinIO image does not ship). Discover block files recursively
   # to tolerate MinIO CLI layout differences (some variants keep a blockStreams/ level).
   # Stdout without a TTY is a raw binary stream, so compressed bytes survive intact.
-  local rel base dest pulled=0
+  local rel base dest pulled=0 pull_failures=0
   while IFS= read -r rel; do
     [[ -n "${rel}" ]] || continue
     base="$(basename "${rel}")"
     dest="${BN_BLOCK_FILES_DIR}/${base}"
-    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null
-    if [[ -s "${dest}" ]]; then ((pulled++)); else rm -f "${dest}"; fi
+    if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null; then
+      ((pull_failures++))
+      echo "  WARN: failed to copy MinIO block object '${rel}'"
+      rm -f "${dest}"
+      continue
+    fi
+    if [[ -s "${dest}" ]]; then
+      ((pulled++))
+    else
+      ((pull_failures++))
+      rm -f "${dest}"
+    fi
   done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
             "find '${in_pod_dir}' -type f \\( -name '*.blk.gz' -o -name '*.blk' \\) | sort" 2>/dev/null)
   kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
@@ -669,10 +679,10 @@ seed_block_node_tss_parameters() {
   local blk_files=()
   while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' \) | sort)
   if [[ "${#blk_files[@]}" -eq 0 ]]; then
-    echo "seed_block_node_tss_parameters: no .blk(.gz) files retrieved from MinIO (pulled=${pulled})" >&2
+    echo "seed_block_node_tss_parameters: no .blk(.gz) files retrieved from MinIO (pulled=${pulled}, pull_failures=${pull_failures})" >&2
     return 1
   fi
-  echo "Retrieved ${#blk_files[@]} block-stream files; extracting LedgerIdPublication"
+  echo "Retrieved ${#blk_files[@]} block-stream files (pull_failures=${pull_failures}); extracting LedgerIdPublication"
 
   require_cmd python3
   write_ledger_id_extractor || return 1
