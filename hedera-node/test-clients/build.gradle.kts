@@ -216,7 +216,7 @@ val prCheckPropOverrides =
         "hapiTestToken" to
             "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestCrypto" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestCryptoSerial" to
             "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
