@@ -330,7 +330,7 @@ jobs:
           [[ -f ./application.properties ]] && SOLO_PROPS_ARG="--application-properties ./application.properties"
           # shellcheck disable=SC2086
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --pvcs true --application-env ./application.env ${SOLO_PROPS_ARG}
-          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data          
+          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
 
