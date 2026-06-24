@@ -1,7 +1,7 @@
 ---
 type: invariant
 id: INV-002
-title: Consensus order is agreed by all nodes — any two nodes that order an event report the same order
+title: Consensus order is agreed by all nodes — any two honest nodes that order an event report the same order
 class: agreement
 topics: [hashgraph]
 related:
@@ -32,7 +32,7 @@ Agreement holds because consensus order is a deterministic function of inputs th
 
 The invariant is at risk whenever consensus order is made to depend on something not shared identically across nodes. Mechanisms to defend against:
 
-- **Node-local state in the ordering computation** — breaking ties in `before` with a value that differs between nodes (wall-clock arrival time, local receive sequence, peer identity). The tie-break must be a deterministic function of the events alone.
+- **Node-local state in the ordering computation** — breaking ties in `before` with a value that differs between nodes (wall-clock arrival time, local receive sequence, peer identity). The tie-break must be a deterministic function of the immutable event properties alone.
 - **Ordering an event before its round's judges are fully decided**, so nodes that decide at different times observe different predecessor sets.
 - **Counting predecessors against a per-node view of which events reached consensus**, rather than the agreed decided set.
 
