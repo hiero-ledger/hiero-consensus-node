@@ -77,7 +77,7 @@ jobs:
 
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
