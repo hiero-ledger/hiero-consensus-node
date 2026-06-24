@@ -346,8 +346,6 @@ jobs:
       enable-block-node-regression-panel: "true"
       enable-migration-testing-panel: "true"
       enable-chaos-otter-test-suite: "true"
-      # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
-      enable-hapi-tests-blocks-suite: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
