@@ -18,9 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithInvalidAmounts;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.uploadScheduledContractPrices;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.ED_25519_KEY;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.GOSSIP_ENDPOINTS_IPS;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.SERVICES_ENDPOINTS_IPS;
@@ -115,8 +113,6 @@ public class ScheduleLongTermExecutionTest {
     final Stream<DynamicTest> scheduleCreateIdenticalContractCall() {
         final var contract = "CallOperationsChecker";
         return hapiTest(
-                // upload fees for SCHEDULE_CREATE_CONTRACT_CALL
-                uploadScheduledContractPrices(GENESIS),
                 cryptoCreate("luckyYou").balance(0L).via("cryptoCreate"),
                 uploadInitCode(contract),
                 contractCreate(contract),

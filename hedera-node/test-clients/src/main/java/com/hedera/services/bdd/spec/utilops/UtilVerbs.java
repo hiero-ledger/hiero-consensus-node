@@ -129,7 +129,6 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumContractCr
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
-import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
 import com.hedera.services.bdd.spec.transactions.file.UploadProgress;
 import com.hedera.services.bdd.spec.transactions.system.HapiFreeze;
@@ -190,8 +189,6 @@ import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -214,7 +211,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.config.api.converter.ConfigConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -2064,33 +2060,6 @@ public class UtilVerbs {
             builder.getNetworkdataBuilder().setMax(maxNetworkFee);
             builder.getServicedataBuilder().setMax(maxServiceFee);
         }
-    }
-
-    public static HapiSpecOperation uploadScheduledContractPrices(@NonNull final String payer) {
-        return withOpContext((spec, opLog) -> {
-            allRunFor(spec, updateLargeFile(payer, FEE_SCHEDULE, feeSchedulesWith("scheduled-contract-fees.json")));
-            if (!spec.tryReinitializingFees()) {
-                throw new IllegalStateException("New fee schedules won't be available, dying!");
-            }
-        });
-    }
-
-    private static ByteString feeSchedulesWith(String feeSchedules) {
-        SysFileSerde<String> serde = new FeesJsonToGrpcBytes();
-        var baos = new ByteArrayOutputStream();
-        try {
-            var schedulesIn = HapiFileCreate.class.getClassLoader().getResourceAsStream(feeSchedules);
-            if (schedulesIn == null) {
-                throw new IllegalStateException("No " + feeSchedules + " resource available!");
-            }
-            schedulesIn.transferTo(baos);
-            baos.close();
-            baos.flush();
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-        var stylized = new String(baos.toByteArray());
-        return ByteString.copyFrom(serde.toRawFile(stylized, null));
     }
 
     public static HapiSpecOperation createLargeFile(String payer, String fileName, ByteString byteString) {
