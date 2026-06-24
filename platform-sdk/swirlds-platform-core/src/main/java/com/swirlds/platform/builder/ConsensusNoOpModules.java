@@ -23,6 +23,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -33,6 +34,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.stream.EventStreamModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
@@ -40,6 +42,7 @@ import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatusAction;
@@ -228,5 +231,30 @@ public class ConsensusNoOpModules {
                 fallenBehindMonitor,
                 stateLifecycleManager);
         return gossipModule;
+    }
+
+    public static EventStreamModule createNoOpEventStreamModule(@NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final NoOpMetrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final SecureRandom random = new SecureRandom();
+        final KeysAndCerts keysAndCerts;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(selfId, SigningSchema.ED25519, random, random);
+        } catch (final Exception e) {
+            throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
+        }
+        final String nodeName = "NoOpNode";
+        final Predicate<CesEvent> isLastEventInFreezeCheck = event -> false;
+
+        return new EventStreamModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                selfId,
+                keysAndCerts,
+                nodeName,
+                isLastEventInFreezeCheck);
     }
 }

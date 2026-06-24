@@ -35,9 +35,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.stream.ConsensusEventStream;
-import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
-import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
@@ -67,7 +64,6 @@ public class PlatformComponentBuilder {
     private final PlatformBuildingBlocks blocks;
 
     private StateGarbageCollector stateGarbageCollector;
-    private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private TransactionPrehandler transactionPrehandler;
@@ -164,48 +160,6 @@ public class PlatformComponentBuilder {
                     new DefaultStateGarbageCollector(blocks.platformContext().getMetrics());
         }
         return stateGarbageCollector;
-    }
-
-    /**
-     * Provide a consensus event stream in place of the platform's default consensus event stream.
-     *
-     * @param consensusEventStream the consensus event stream to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withConsensusEventStream(@NonNull final ConsensusEventStream consensusEventStream) {
-        throwIfAlreadyUsed();
-        if (this.consensusEventStream != null) {
-            throw new IllegalStateException("Consensus event stream has already been set");
-        }
-        this.consensusEventStream = Objects.requireNonNull(consensusEventStream);
-        return this;
-    }
-
-    /**
-     * Build the consensus event stream if it has not yet been built. If one has been provided via
-     * {@link #withConsensusEventStream(ConsensusEventStream)}, that stream will be used. If this method is called more
-     * than once, only the first call will build the consensus event stream. Otherwise, the default stream will be
-     * created and returned.
-     *
-     * @return the consensus event stream
-     */
-    @NonNull
-    public ConsensusEventStream buildConsensusEventStream() {
-        if (consensusEventStream == null) {
-            final PlatformContext platformContext = blocks.platformContext();
-            consensusEventStream = new DefaultConsensusEventStream(
-                    platformContext.getTime(),
-                    platformContext.getConfiguration(),
-                    platformContext.getMetrics(),
-                    blocks.selfId(),
-                    (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    blocks.consensusEventStreamName(),
-                    (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.freezeChecker()
-                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
-        }
-        return consensusEventStream;
     }
 
     /**

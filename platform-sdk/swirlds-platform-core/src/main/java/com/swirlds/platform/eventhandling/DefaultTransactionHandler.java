@@ -44,6 +44,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -165,13 +166,13 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
 
-        final PlatformSchedulersConfig schedulersConfig =
-                platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-
         // If the CES is using a no-op scheduler then the legacy running event hash won't be computed.
-        writeLegacyRunningEventHash = schedulersConfig.consensusEventStream().type() != TaskSchedulerType.NO_OP;
+        final EventStreamWiringConfig eventStreamConfig = platformContext.getConfiguration().getConfigData(EventStreamWiringConfig.class);
+        writeLegacyRunningEventHash = eventStreamConfig.consensusEventStream().type() != TaskSchedulerType.NO_OP;
 
         // If the application transaction prehandler is a no-op then we don't need to wait for it.
+        final PlatformSchedulersConfig schedulersConfig =
+                platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
         waitForPrehandle = schedulersConfig.applicationTransactionPrehandler().type() != TaskSchedulerType.NO_OP;
     }
 

@@ -3,6 +3,7 @@ package org.hiero.consensus.pcli;
 
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventStreamModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.stream.EventStreamModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.pces.PcesModule;
@@ -120,6 +122,8 @@ public final class DiagramCommand extends AbstractCommand {
         final GossipModule gossipModule =
                 createNoOpGossipModule(model, configuration, platformContext.getFileSystemManager());
 
+        final EventStreamModule eventStreamModule = createNoOpEventStreamModule(model, configuration);
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -127,7 +131,8 @@ public final class DiagramCommand extends AbstractCommand {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                eventStreamModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, null);
 

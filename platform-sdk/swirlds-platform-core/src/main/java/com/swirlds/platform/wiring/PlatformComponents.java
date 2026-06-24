@@ -35,7 +35,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
-import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.EventStreamModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -63,7 +63,7 @@ public record PlatformComponents(
         ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
         ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
         ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
-        ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
+        EventStreamModule eventStreamModule,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
@@ -104,7 +104,6 @@ public record PlatformComponents(
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
         transactionHandlerWiring.bind(builder::buildTransactionHandler);
-        consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
@@ -131,7 +130,8 @@ public record PlatformComponents(
             @NonNull final EventIntakeModule eventIntakeModule,
             @NonNull final PcesModule pcesModule,
             @NonNull final HashgraphModule hashgraphModule,
-            @NonNull final GossipModule gossipModule) {
+            @NonNull final GossipModule gossipModule,
+            @NonNull final EventStreamModule eventStreamModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -155,7 +155,7 @@ public record PlatformComponents(
                         TransactionHandler.class,
                         config.transactionHandler(),
                         TransactionHandlerDataCounter.create(config.transactionHandler())),
-                new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream()),
+                eventStreamModule,
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(
                         model,

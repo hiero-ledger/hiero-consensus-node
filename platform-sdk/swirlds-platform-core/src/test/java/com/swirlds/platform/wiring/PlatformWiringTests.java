@@ -3,6 +3,7 @@ package com.swirlds.platform.wiring;
 
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventStreamModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
@@ -48,7 +49,7 @@ import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
-import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.EventStreamModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -97,6 +98,8 @@ class PlatformWiringTests {
         final GossipModule gossipModule =
                 createNoOpGossipModule(model, configuration, new TestFileSystemManager(tempDir));
 
+        final EventStreamModule eventStreamModule = createNoOpEventStreamModule(model, configuration);
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -104,7 +107,8 @@ class PlatformWiringTests {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                eventStreamModule);
         PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents, null);
 
         final PlatformComponentBuilder componentBuilder =
@@ -113,7 +117,6 @@ class PlatformWiringTests {
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))

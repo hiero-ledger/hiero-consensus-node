@@ -35,7 +35,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -201,7 +200,7 @@ public class PlatformWiring {
 
         consensusRoundOutputWire
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
-                .solderTo(components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
+                .solderTo(components.eventStreamModule().consensusEventsInputWire());
 
         consensusRoundOutputWire.solderTo(
                 components.platformMonitorWiring().getInputWire(PlatformMonitor::consensusRound));
@@ -308,7 +307,7 @@ public class PlatformWiring {
                 .runningEventHashOverrideWiring()
                 .runningHashUpdateOutput()
                 .solderTo(
-                        components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
+                        components.eventStreamModule().legacyHashOverrideInputWire());
 
         final OutputWire<IssNotification> splitIssDetectorOutput =
                 components.issDetectorWiring().getSplitOutput();

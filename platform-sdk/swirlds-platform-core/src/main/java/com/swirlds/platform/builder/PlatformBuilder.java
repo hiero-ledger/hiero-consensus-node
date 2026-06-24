@@ -57,11 +57,14 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.stream.EventStreamModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -476,6 +479,20 @@ public final class PlatformBuilder {
                 stateLifecycleManager);
     }
 
+    private EventStreamModule createEventStreamModule(@NonNull final FreezePeriodChecker freezeChecker) {
+        return new EventStreamModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                selfId,
+                keysAndCerts,
+                consensusEventStreamName,
+                (CesEvent event) -> event.isLastInRoundReceived()
+                        && freezeChecker
+                        .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
+    }
+
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -574,6 +591,11 @@ public final class PlatformBuilder {
             this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
+        final FreezePeriodChecker freezePeriodChecker = instant -> isInFreezePeriod(instant,
+                stateLifecycleManager.getMutableState());
+
+        final EventStreamModule eventStreamModule = createEventStreamModule(freezePeriodChecker);
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -581,7 +603,8 @@ public final class PlatformBuilder {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                eventStreamModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
@@ -622,7 +645,7 @@ public final class PlatformBuilder {
                 rosterHistory,
                 intakeEventCounter,
                 secureRandomSupplier,
-                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
+                freezePeriodChecker,
                 new AtomicReference<>(),
                 consensusEventStreamName,
                 issScratchpad,
