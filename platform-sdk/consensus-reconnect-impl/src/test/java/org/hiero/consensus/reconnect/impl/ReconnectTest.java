@@ -40,7 +40,6 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -65,13 +64,6 @@ final class ReconnectTest {
     @TempDir
     Path tempDir;
 
-    private FileSystemManager fileSystemManager;
-
-    @BeforeEach
-    void setupFileSystemManager() {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-    }
-
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerSyncConstructables();
@@ -85,7 +77,9 @@ final class ReconnectTest {
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
-            executeReconnect(reconnectMetrics);
+            // Use a different data dir for every reconnect attempt
+            final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir.resolve("" + index));
+            executeReconnect(fileSystemManager, reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
             verify(reconnectMetrics, times(index)).incrementReceiverEndTimes();
@@ -93,7 +87,8 @@ final class ReconnectTest {
         }
     }
 
-    private void executeReconnect(final ReconnectMetrics reconnectMetrics) throws InterruptedException, IOException {
+    private void executeReconnect(final FileSystemManager fileSystemManager, final ReconnectMetrics reconnectMetrics)
+            throws InterruptedException, IOException {
         final long weightPerNode = 100L;
         final int numNodes = 4;
         final List<NodeId> nodeIds =

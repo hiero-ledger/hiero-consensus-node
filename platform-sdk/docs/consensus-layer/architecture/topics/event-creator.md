@@ -192,7 +192,9 @@ the advancement score it would produce against the current snapshot,
 and keeps only the candidates whose advancement weight is non-zero. If
 no candidate qualifies and this is not a genesis event, no event is
 created. Otherwise the event creator builds the new event with the
-top-ranked candidate(s) up to `maxOtherParents`. This is the
+top-ranked candidates up to `maxOtherParents` (TUN-140). Selecting several
+other-parents per event advances more tipset slots at once, so
+consensus is reached in fewer rounds. This is the
 snapshot-improvement-score gate from the source doc.
 
 The gate is implemented in
