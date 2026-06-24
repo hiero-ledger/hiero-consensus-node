@@ -83,7 +83,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -119,12 +119,12 @@ jobs:
           if [[ "${{ inputs.bn-release-version }}" != "latest" ]]; then
             bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/tags/${{ inputs.bn-release-version }}"
           fi
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
           BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${BN_RELEASE_TAG}" ]]; then
             echo "ERROR: Could not parse BN_RELEASE_TAG from response"
-            return 1
+            exit 1
           fi
 
           echo "Block Node Release tag: ${BN_RELEASE_TAG}"
@@ -136,12 +136,12 @@ jobs:
           if [[ "${{ inputs.bn-mirror-node-version }}" != "latest" ]]; then
             mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.bn-mirror-node-version }}"
           fi
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || exit 1
           MN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${MN_RELEASE_TAG}" ]]; then
             echo "ERROR: Could not parse MN_RELEASE_TAG from response"
-            return 1
+            exit 1
           fi
 
           echo "Mirror Node Release tag: ${MN_RELEASE_TAG}"
@@ -222,7 +222,7 @@ jobs:
 
           # Install with the extracted versions
           pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
-          pnpm install
+          pnpm install --no-frozen-lockfile
           nohup pnpm start &
           server_pid=$!
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
@@ -495,7 +495,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
