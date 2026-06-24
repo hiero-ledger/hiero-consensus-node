@@ -53,21 +53,23 @@ class PlatformStatusTransitionMatrixTest {
     private static final PlatformStatusConfig CONFIG =
             new TestConfigBuilder().getOrCreateConfig().getConfigData(PlatformStatusConfig.class);
 
-    private static final Instant T = Instant.EPOCH;
+    private static final Instant DEFAULT_INSTANT = Instant.EPOCH;
 
     // one immutable instance of each action; logic instances are built fresh per case
     private static final CatastrophicFailureAction CATASTROPHIC = new CatastrophicFailureAction();
-    private static final DoneReplayingEventsAction DONE_REPLAYING = new DoneReplayingEventsAction(T);
-    private static final FallenBehindAction FALLEN_BEHIN = new FallenBehindAction();
+    private static final DoneReplayingEventsAction DONE_REPLAYING = new DoneReplayingEventsAction(DEFAULT_INSTANT);
+    private static final FallenBehindAction FALLEN_BEHIND = new FallenBehindAction();
     private static final FreezePeriodEnteredAction FREEZE_ENTERED = new FreezePeriodEnteredAction(0);
     private static final ReconnectCompleteAction RECONNECT_COMPLETE = new ReconnectCompleteAction(0);
-    private static final SelfEventReachedConsensusAction SELF_EVENT_CONSENSUS = new SelfEventReachedConsensusAction(T);
+    private static final SelfEventReachedConsensusAction SELF_EVENT_CONSENSUS =
+            new SelfEventReachedConsensusAction(DEFAULT_INSTANT);
     private static final StartedReplayingEventsAction STARTED_REPLAYING = new StartedReplayingEventsAction();
     private static final StateWrittenToDiskAction FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, true);
     private static final StateWrittenToDiskAction NON_FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, false);
     private static final TimeElapsedAction TIME_ELAPSED =
-            new TimeElapsedAction(T, new TimeElapsedAction.QuiescingStatus(false, T));
+            new TimeElapsedAction(DEFAULT_INSTANT, new TimeElapsedAction.QuiescingStatus(false, DEFAULT_INSTANT));
 
+    @NonNull
     static Stream<Arguments> matrix() {
         return Stream.of(
                         cases(STARTING_UP, () -> new StartingUpStatusLogic(CONFIG))
@@ -76,7 +78,7 @@ class PlatformStatusTransitionMatrixTest {
                                 .stays(TIME_ELAPSED)
                                 .illegal(
                                         DONE_REPLAYING,
-                                        FALLEN_BEHIN,
+                                        FALLEN_BEHIND,
                                         FREEZE_ENTERED,
                                         RECONNECT_COMPLETE,
                                         SELF_EVENT_CONSENSUS,
@@ -87,24 +89,24 @@ class PlatformStatusTransitionMatrixTest {
                                 .on(DONE_REPLAYING, OBSERVING)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
                                 .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
-                                .illegal(FALLEN_BEHIN, RECONNECT_COMPLETE, STARTED_REPLAYING),
-                        cases(OBSERVING, () -> new ObservingStatusLogic(T, CONFIG))
+                                .illegal(FALLEN_BEHIND, RECONNECT_COMPLETE, STARTED_REPLAYING),
+                        cases(OBSERVING, () -> new ObservingStatusLogic(DEFAULT_INSTANT, CONFIG))
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
-                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FALLEN_BEHIND, BEHIND)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
                                 .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN)
                                 .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(CHECKING, () -> new CheckingStatusLogic(CONFIG))
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
-                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FALLEN_BEHIND, BEHIND)
                                 .on(FREEZE_ENTERED, FREEZING)
                                 .on(SELF_EVENT_CONSENSUS, ACTIVE)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
                                 .stays(NON_FREEZE_STATE_WRITTEN)
                                 .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
-                        cases(ACTIVE, () -> new ActiveStatusLogic(T, CONFIG))
+                        cases(ACTIVE, () -> new ActiveStatusLogic(DEFAULT_INSTANT, CONFIG))
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
-                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FALLEN_BEHIND, BEHIND)
                                 .on(FREEZE_ENTERED, FREEZING)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
                                 .stays(SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN)
@@ -112,19 +114,19 @@ class PlatformStatusTransitionMatrixTest {
                         cases(FREEZING, () -> new FreezingStatusLogic(0))
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
-                                .stays(FALLEN_BEHIN, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
+                                .stays(FALLEN_BEHIND, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
                                 .illegal(DONE_REPLAYING, FREEZE_ENTERED, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(BEHIND, () -> new BehindStatusLogic(CONFIG))
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
                                 .on(RECONNECT_COMPLETE, PlatformStatus.RECONNECT_COMPLETE)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
                                 .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
-                                .illegal(DONE_REPLAYING, FALLEN_BEHIN, STARTED_REPLAYING),
+                                .illegal(DONE_REPLAYING, FALLEN_BEHIND, STARTED_REPLAYING),
                         cases(
                                         PlatformStatus.RECONNECT_COMPLETE,
                                         () -> new ReconnectCompleteStatusLogic(0, null, CONFIG))
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
-                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FALLEN_BEHIND, BEHIND)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
                                 .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, TIME_ELAPSED)
                                 .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
@@ -132,7 +134,7 @@ class PlatformStatusTransitionMatrixTest {
                                 .stays(
                                         CATASTROPHIC,
                                         DONE_REPLAYING,
-                                        FALLEN_BEHIN,
+                                        FALLEN_BEHIND,
                                         FREEZE_ENTERED,
                                         RECONNECT_COMPLETE,
                                         SELF_EVENT_CONSENSUS,
@@ -144,7 +146,7 @@ class PlatformStatusTransitionMatrixTest {
                                 .stays(
                                         CATASTROPHIC,
                                         DONE_REPLAYING,
-                                        FALLEN_BEHIN,
+                                        FALLEN_BEHIND,
                                         FREEZE_ENTERED,
                                         RECONNECT_COMPLETE,
                                         SELF_EVENT_CONSENSUS,
@@ -171,7 +173,9 @@ class PlatformStatusTransitionMatrixTest {
         }
     }
 
-    private static StatusCases cases(final PlatformStatus status, final Supplier<PlatformStatusLogic> supplier) {
+    @NonNull
+    private static StatusCases cases(
+            @NonNull final PlatformStatus status, @NonNull final Supplier<PlatformStatusLogic> supplier) {
         return new StatusCases(status, supplier);
     }
 
@@ -183,19 +187,22 @@ class PlatformStatusTransitionMatrixTest {
         private final Supplier<PlatformStatusLogic> supplier;
         private final List<Arguments> rows = new ArrayList<>();
 
-        private StatusCases(final PlatformStatus status, final Supplier<PlatformStatusLogic> supplier) {
+        private StatusCases(
+                @NonNull final PlatformStatus status, @NonNull final Supplier<PlatformStatusLogic> supplier) {
             this.status = status;
             this.supplier = supplier;
         }
 
         /** The action transitions to the given status. */
-        StatusCases on(final PlatformStatusAction action, final PlatformStatus expected) {
+        @NonNull
+        StatusCases on(@NonNull final PlatformStatusAction action, @NonNull final PlatformStatus expected) {
             rows.add(arguments(label(action, expected.name()), supplier, action, expected));
             return this;
         }
 
         /** The actions are processed without changing the status. */
-        StatusCases stays(final PlatformStatusAction... actions) {
+        @NonNull
+        StatusCases stays(@NonNull final PlatformStatusAction... actions) {
             for (final PlatformStatusAction action : actions) {
                 rows.add(arguments(label(action, "stays"), supplier, action, status));
             }
@@ -203,17 +210,20 @@ class PlatformStatusTransitionMatrixTest {
         }
 
         /** The actions are illegal for this status and throw. */
-        StatusCases illegal(final PlatformStatusAction... actions) {
+        @NonNull
+        StatusCases illegal(@NonNull final PlatformStatusAction... actions) {
             for (final PlatformStatusAction action : actions) {
                 rows.add(arguments(label(action, "illegal"), supplier, action, null));
             }
             return this;
         }
 
-        private String label(final PlatformStatusAction action, final String outcome) {
+        @NonNull
+        private String label(@NonNull final PlatformStatusAction action, @NonNull final String outcome) {
             return status + " + " + action.getClass().getSimpleName() + " -> " + outcome;
         }
 
+        @NonNull
         Stream<Arguments> stream() {
             return rows.stream();
         }
