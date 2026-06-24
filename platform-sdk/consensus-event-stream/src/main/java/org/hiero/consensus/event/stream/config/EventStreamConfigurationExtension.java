@@ -15,6 +15,6 @@ public class EventStreamConfigurationExtension implements ConfigurationExtension
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(EventStreamConfig.class);
+        return Set.of(EventStreamConfig.class, EventStreamWiringConfig.class);
     }
 }
