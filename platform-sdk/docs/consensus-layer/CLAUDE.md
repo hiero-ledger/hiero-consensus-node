@@ -16,22 +16,28 @@ conventions, frontmatter, and the canonicalization rule — lives in
 
 ## Non-duplication is the prime directive
 
-`LAYOUT.md` defines the rule (one canonical home per fact; reference, don't
-restate; the narrative-restatement exception). This is the part that is easy to
-get wrong, so apply it deliberately:
+`LAYOUT.md` defines the rule: one canonical home per fact; reference, don't
+restate; the narrative-restatement exception. Easy to get wrong — apply it
+deliberately:
 
 - **Before changing any fact, find every place it already appears.** Search the
   whole KB for the ID, the term, the parameter value, and the file path before
   you edit. An agent that updates "4 of the 5" copies of a value silently
   corrupts the KB — the surviving stale copy is indistinguishable from the truth.
   Grepping first is not optional.
-- **The reason the rule exists is to make that search return one hit.** When you
-  add content, prefer a reference over a copy precisely so the next editor has
-  one place to change, not five. If you find yourself copying a load-bearing
-  value, stop and link instead.
+- **Prefer a reference over a copy.** The rule exists so the next editor's
+  search returns one hit, not five places to change in lockstep. If you find
+  yourself copying a load-bearing value, stop and link instead.
 - **When you do restate for the reader, restate the summary, not the value.**
   Link to the canonical home for the authoritative version. See `LAYOUT.md`,
   "Narrative restatement vs. duplicated source of truth."
+
+## Stop and ask on conflict
+
+If a grep surfaces two places that disagree — two values, two statuses, two
+accounts of one behavior — do not guess and do not silently reconcile. A
+conflict means a fact has two homes, or code moved under one of them; choosing
+at random can promote the stale copy. Surface it; let the curator adjudicate.
 
 ## Adding entries
 
@@ -44,13 +50,17 @@ get wrong, so apply it deliberately:
 - **Allocate the ID and write the index row in the same change.** The
   `README.md` index row is a sanctioned duplication with a sync obligation
   (`LAYOUT.md`). An entry without its row, or a row without its entry, is a bug.
+- **Single-file catalogs append, they do not get a new file.** A new symptom
+  is the next `SYM-NNN` row appended to `symptoms.md`, every column filled,
+  table kept in ID order. The file is its own index — there is no separate
+  `README.md` row. Never reuse or renumber an ID; retire by marking, not
+  deleting.
 
 ## Anchor every claim to code
 
-This is the single most important property of this KB and the easiest to let
-slip. The current entries hold a high bar: claims about how the system behaves
-are tied to the specific code that makes them true. Match that bar — it is what
-separates this KB from prose that rots.
+The single most important property of this KB, and the easiest to let slip.
+Behavioral claims tie to the specific code that makes them true. Match that bar
+— it is what separates this KB from prose that rots.
 
 - **Coverage, not just honesty.** A behavioral claim names the class, and where
   it matters the method, that realizes it — the way RUL-002 ties its ordering
@@ -62,16 +72,17 @@ separates this KB from prose that rots.
   under-anchor:**
   - *Rules* — `components:` frontmatter is required and lists full paths; the
     body names the guard, ordering, or structure the property rests on.
-    Enforced by `rules/FORMAT.md`; keep `last_verified_against` honest.
+    Enforced by `rules/FORMAT.md`. Rules carry no date marker; keep `status`
+    honest (mark `divergent` the moment the code no longer matches) and
+    `provenance` traceable.
   - *Invariants* — anchor the *basis* to the external `source` (paper/protocol)
     **and** the *enforcement* to the code site, in `verification` and the body,
     as INV-001 does (`ConsensusImpl.recalculateAndVote`). Do not conflate the
     two: the authority is permanent, the code site is contingent.
-  - *Architecture topics* — these carry the heaviest anchor load and have **no
-    `FORMAT.md` enforcing it**, so the discipline rests entirely here: name
-    every component with its class and file path. This is a de facto standard
-    held up by hand — a new or expanded topic that names components without
-    anchoring them is a regression, even though no schema will reject it.
+  - *Architecture topics* — the heaviest anchor load, with **no `FORMAT.md`
+    enforcing it**: name every component with its class and file path. The
+    standard is held up by hand — naming a component without anchoring it is a
+    regression no schema will catch.
   - *Concepts, ADRs, scenarios* — anchor proportionally. Concepts cite code only
     where a mental model touches it; ADRs anchor the mechanism, not every
     sentence of rationale; scenarios anchor the events and identifiers in the
@@ -85,19 +96,50 @@ separates this KB from prose that rots.
 - **Verify before you write; refresh on touch.** Confirm every class, method,
   path, and commit exists before citing it — never invent line numbers or
   commit hashes. When you change a claim, re-check that its anchors still
-  resolve and bump the file's freshness marker (`last_verified_against` for
-  rules, `last_reviewed` for narrative docs). **A stale-but-present anchor is
-  more dangerous than none** — it reads as verified. If you cannot verify an
-  anchor, say so in the entry rather than guessing.
+  resolve, then refresh the file's currency marker (see
+  [When to bump the freshness marker](#when-to-bump-the-freshness-marker)).
+  **A stale-but-present anchor is more dangerous than none** — it reads as
+  verified. If you cannot verify an anchor, say so rather than guessing.
+
+## When to bump the freshness marker
+
+`last_reviewed` (a date) is the freshness marker on narrative and
+single-file-catalog docs (`concepts/`, `architecture/**`, `glossary.md`,
+`symptoms.md`, `tunables.md`). It asserts one thing: the file's code-anchored
+claims were checked against current code on that date. Bump it only when that
+is true. ID-catalog entries (`rules/`, `invariants/`, …) carry no date marker —
+their currency is `status`, kept honest under
+[Keep load-bearing frontmatter in sync](#keep-load-bearing-frontmatter-in-sync).
+
+- **Bump when** you add, change, or re-confirm a code-anchored claim: you
+  re-anchor to moved code, confirm existing anchors still resolve against
+  current code, or revise what a claim asserts.
+- **Do not bump** for edits that touch no claim and no anchor: typo fixes,
+  formatting, link repair, reordering, wording changes that leave every claim
+  intact.
+- **Never bump without verifying.** Advancing the date is itself a claim —
+  that you re-checked the anchors. If you edit a claim but cannot re-verify it,
+  leave the date and flag the gap in the entry. A falsely-fresh marker is the
+  stale-anchor failure one level up.
 
 ## Keep load-bearing frontmatter in sync
 
-`status` especially — tools read it. When a rule goes `divergent`, an ADR goes
-`superseded`, or a scenario reaches `verified`, update the entry, its
-`README.md` row, and any field the format marks load-bearing, together.
+`status` especially — tools read it. Tools do not just read frontmatter; they
+**query by `id` and by frontmatter field**. A malformed, missing, or
+off-format field drops the entry from query results as surely as deleting it.
+The format is a hard requirement, not a style preference. When a rule goes
+`divergent`, an ADR goes `superseded`, or a scenario reaches `verified`, update
+the entry, its `README.md` row, and any field the format marks load-bearing,
+together.
 
 ## Scope and altitude
 
+- **The KB describes the current code; current code is canonical.** Entries
+  state what runs today. Proposed or future-state design goes only into a
+  clearly-marked `## Future state (sidebar)` in the topic file and/or the
+  topic's `delta-map/` entry — never into the body of a claim about how the
+  system behaves. See [`README.md`](README.md) and
+  [`delta-map/FORMAT.md`](delta-map/FORMAT.md).
 - The KB covers the consensus-layer topics named in `LAYOUT.md`. Content
   drifting into execution-layer internals, block production, TSS, or application
   semantics is out of scope — flag it, do not absorb it.

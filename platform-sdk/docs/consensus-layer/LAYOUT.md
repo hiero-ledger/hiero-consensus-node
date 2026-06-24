@@ -158,7 +158,7 @@ Per-file catalog of design-guaranteed properties of the form **this is true, and
 
 ### `rules/`
 
-Per-file catalog of implementation-true properties of the form **this is true of the code as it stands, and a correct change could make it false**. Each entry has an ID (`RUL-NNN`), statement, code anchor, `last_verified_against` commit, and account of what would break it. A rule observed false is a divergence signal — the code moved, or the rule was mis-stated — not, by itself, a bug. Pairs with `invariants/`: an entry that turns out to be design-guaranteed is promoted to `invariants/`.
+Per-file catalog of implementation-true properties of the form **this is true of the code as it stands, and a correct change could make it false**. Each entry has an ID (`RUL-NNN`), statement, code anchor (`components:`), `status`, and account of what would break it. A rule observed false is a divergence signal — the code moved, or the rule was mis-stated — not, by itself, a bug. Pairs with `invariants/`: an entry that turns out to be design-guaranteed is promoted to `invariants/`.
 
 ### `tunables.md`
 
