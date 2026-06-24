@@ -12,6 +12,10 @@ import com.swirlds.config.api.validation.annotation.Positive;
 /**
  * Instance-wide config for {@code MerkleDbDataSource}.
  *
+ * @param defaultDbFolderName
+ *      If not null/blank, indicates a folder name in the file system manager's temp folder,
+ *      where MerkleDb is created from scratch, restored to from a snapshot, or loaded from
+ *      during version upgrade
  * @param initialCapacity initial capacity of the database
  * @param maxNumOfKeys
  * 	    The maximum number of unique keys to be stored in a database. This is a hard limit.
@@ -90,6 +94,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
 // spotless:off
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
+        @ConfigProperty(defaultValue = "merkledb-state") String defaultDbFolderName,
         @Positive @ConfigProperty(defaultValue = "1000000000") long initialCapacity,
         @Positive @ConfigProperty(defaultValue = "8000000000") long maxNumOfKeys,
         @Deprecated @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
