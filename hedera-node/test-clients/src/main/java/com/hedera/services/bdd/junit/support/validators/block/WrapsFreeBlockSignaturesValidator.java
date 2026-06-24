@@ -43,6 +43,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
@@ -210,7 +212,11 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-        state = new VirtualMapStateImpl(platformConfig, fileSystemManager, metrics);
+        final var merkleDbConfig = platformConfig.getConfigData(MerkleDbConfig.class);
+        final var dsBuilder =
+                new MerkleDbDataSourceBuilder(platformConfig, fileSystemManager, merkleDbConfig.initialCapacity());
+        final var virtualMap = new VirtualMap(dsBuilder, platformConfig);
+        state = new VirtualMapStateImpl(virtualMap, metrics);
         this.hintsLibrary = new HintsLibraryImpl();
         logger.info("Initialized wrap-free signature validator with an empty binary state");
     }

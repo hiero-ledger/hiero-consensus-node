@@ -5,6 +5,7 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
@@ -70,7 +71,7 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
         final Path tmpFileDir = fileSystemManager.resolveNewTemp();
         Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
-            final VirtualDataSource dataSource = MerkleDbTestUtils.createDataSource(
+            final MerkleDbDataSource dataSource = MerkleDbTestUtils.createDataSource(
                     CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
@@ -115,15 +116,15 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
 
     public static class CustomDataSourceBuilder extends MerkleDbDataSourceBuilder {
 
-        private final VirtualDataSource delegate;
+        private final MerkleDbDataSource delegate;
         private final AtomicReference<Exception> exceptionSink;
 
         public CustomDataSourceBuilder(
-                final VirtualDataSource delegate,
+                final MerkleDbDataSource delegate,
                 AtomicReference<Exception> sink,
                 final @NonNull Configuration configuration,
                 final @NonNull FileSystemManager fileSystemManager) {
-            super(configuration, fileSystemManager);
+            super(configuration, fileSystemManager, delegate.getInitialCapacity());
             this.delegate = delegate;
             this.exceptionSink = sink;
         }
