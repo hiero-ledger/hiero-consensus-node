@@ -32,7 +32,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.Signer;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.event.stream.StreamType;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;

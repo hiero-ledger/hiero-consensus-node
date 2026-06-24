@@ -10,6 +10,8 @@ import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.crypto.SerializableHashable;
+import org.hiero.consensus.event.stream.internal.AbstractLinkedObjectStream;
+import org.hiero.consensus.event.stream.internal.LinkedObjectStream;
 
 /**
  * Accepts a SerializableRunningHashable object each time, calculates and sets its runningHash

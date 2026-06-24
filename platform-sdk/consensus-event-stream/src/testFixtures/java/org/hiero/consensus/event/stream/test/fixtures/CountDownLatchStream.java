@@ -4,7 +4,7 @@ package org.hiero.consensus.event.stream.test.fixtures;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHashable;
-import org.hiero.consensus.event.stream.LinkedObjectStream;
+import org.hiero.consensus.event.stream.internal.LinkedObjectStream;
 
 /**
  * This stream contains a CountDownLatch(1) object.

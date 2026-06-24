@@ -2,8 +2,8 @@
 package org.hiero.consensus.event.stream;
 
 import static org.hiero.consensus.event.stream.Constants.PAY_LOAD_SIZE_4;
-import static org.hiero.consensus.event.stream.MultiStream.NEXT_STREAM_NULL;
-import static org.hiero.consensus.event.stream.MultiStream.NOT_ENOUGH_NEXT_STREAMS;
+import static org.hiero.consensus.event.stream.internal.MultiStream.NEXT_STREAM_NULL;
+import static org.hiero.consensus.event.stream.internal.MultiStream.NOT_ENOUGH_NEXT_STREAMS;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -14,6 +14,8 @@ import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
+import org.hiero.consensus.event.stream.internal.LinkedObjectStream;
+import org.hiero.consensus.event.stream.internal.MultiStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
 import org.hiero.consensus.event.stream.test.fixtures.ObjectForTestStream;
 import org.junit.jupiter.api.BeforeAll;

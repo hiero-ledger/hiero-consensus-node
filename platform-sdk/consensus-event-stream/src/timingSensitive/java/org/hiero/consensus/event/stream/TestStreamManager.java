@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
+import org.hiero.consensus.event.stream.internal.MultiStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
 import org.hiero.consensus.event.stream.internal.QueueThreadObjectStreamConfiguration;
 import org.hiero.consensus.event.stream.test.fixtures.CountDownLatchStream;

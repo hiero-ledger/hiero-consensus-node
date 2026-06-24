@@ -5,8 +5,6 @@ import org.hiero.consensus.event.stream.config.EventStreamConfigurationExtension
 module org.hiero.consensus.event.stream {
     exports org.hiero.consensus.event.stream;
     exports org.hiero.consensus.event.stream.config;
-    exports org.hiero.consensus.event.stream.internal to
-            org.hiero.consensus.event.stream.test.fixtures;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;
@@ -20,8 +18,8 @@ module org.hiero.consensus.event.stream {
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.metrics;
-    requires org.apache.logging.log4j;
     requires org.hiero.consensus.utility;
+    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
@@ -31,4 +29,6 @@ module org.hiero.consensus.event.stream {
             com.fasterxml.jackson.databind;
     opens org.hiero.consensus.event.stream.internal to
             com.fasterxml.jackson.databind;
+
+    exports org.hiero.consensus.event.stream.internal;
 }

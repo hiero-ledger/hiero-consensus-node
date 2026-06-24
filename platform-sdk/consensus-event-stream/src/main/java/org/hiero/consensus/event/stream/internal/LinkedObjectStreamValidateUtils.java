@@ -25,7 +25,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.event.stream.InvalidStreamFileException;
 import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
 import org.hiero.consensus.event.stream.StreamType;
 

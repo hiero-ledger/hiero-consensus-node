@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.stream;
+package org.hiero.consensus.event.stream.internal;
 
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;

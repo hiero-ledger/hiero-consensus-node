@@ -306,8 +306,7 @@ public class PlatformWiring {
         components
                 .runningEventHashOverrideWiring()
                 .runningHashUpdateOutput()
-                .solderTo(
-                        components.eventStreamModule().legacyHashOverrideInputWire());
+                .solderTo(components.eventStreamModule().legacyHashOverrideInputWire());
 
         final OutputWire<IssNotification> splitIssDetectorOutput =
                 components.issDetectorWiring().getSplitOutput();

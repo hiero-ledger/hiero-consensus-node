@@ -167,7 +167,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
         previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
 
         // If the CES is using a no-op scheduler then the legacy running event hash won't be computed.
-        final EventStreamWiringConfig eventStreamConfig = platformContext.getConfiguration().getConfigData(EventStreamWiringConfig.class);
+        final EventStreamWiringConfig eventStreamConfig =
+                platformContext.getConfiguration().getConfigData(EventStreamWiringConfig.class);
         writeLegacyRunningEventHash = eventStreamConfig.consensusEventStream().type() != TaskSchedulerType.NO_OP;
 
         // If the application transaction prehandler is a no-op then we don't need to wait for it.

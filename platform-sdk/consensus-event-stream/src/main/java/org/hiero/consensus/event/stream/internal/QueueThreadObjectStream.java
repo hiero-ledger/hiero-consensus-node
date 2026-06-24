@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
-import org.hiero.consensus.event.stream.LinkedObjectStream;
 
 /**
  * An object stream that takes all of its items and puts them into another object stream in an asynchronous thread.

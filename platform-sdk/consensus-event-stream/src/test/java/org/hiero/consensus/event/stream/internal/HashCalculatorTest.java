@@ -14,7 +14,6 @@ import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.event.stream.test.fixtures.ObjectForTestStream;
 import org.junit.jupiter.api.Test;
 

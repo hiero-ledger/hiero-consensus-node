@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.stream;
+package org.hiero.consensus.event.stream.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.event.stream.StreamType;
 
 /**
  * Parse an inputStream, return an Iterator from which we can get all SelfSerializable objects in the inputStream

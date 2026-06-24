@@ -489,8 +489,8 @@ public final class PlatformBuilder {
                 keysAndCerts,
                 consensusEventStreamName,
                 (CesEvent event) -> event.isLastInRoundReceived()
-                        && freezeChecker
-                        .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
+                        && freezeChecker.isInFreezePeriod(
+                                event.getPlatformEvent().getConsensusTimestamp()));
     }
 
     /**
@@ -587,8 +587,8 @@ public final class PlatformBuilder {
             this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
-        final FreezePeriodChecker freezePeriodChecker = instant -> isInFreezePeriod(instant,
-                stateLifecycleManager.getMutableState());
+        final FreezePeriodChecker freezePeriodChecker =
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState());
 
         final EventStreamModule eventStreamModule = createEventStreamModule(freezePeriodChecker);
 

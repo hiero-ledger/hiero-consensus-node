@@ -23,6 +23,8 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.event.stream.internal.InvalidStreamFileException;
+import org.hiero.consensus.event.stream.internal.SingleStreamIterator;
 import org.hiero.consensus.event.stream.internal.StreamFilesIterator;
 
 /**

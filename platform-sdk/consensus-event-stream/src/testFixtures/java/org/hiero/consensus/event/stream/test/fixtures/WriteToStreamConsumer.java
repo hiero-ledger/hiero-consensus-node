@@ -11,8 +11,8 @@ import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.event.stream.LinkedObjectStream;
-import org.hiero.consensus.event.stream.SingleStreamIterator;
+import org.hiero.consensus.event.stream.internal.LinkedObjectStream;
+import org.hiero.consensus.event.stream.internal.SingleStreamIterator;
 
 /**
  * Is used for testing {@link SingleStreamIterator}

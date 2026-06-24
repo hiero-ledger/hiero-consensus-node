@@ -233,7 +233,8 @@ public class ConsensusNoOpModules {
         return gossipModule;
     }
 
-    public static EventStreamModule createNoOpEventStreamModule(@NonNull final WiringModel model, @NonNull final Configuration configuration) {
+    public static EventStreamModule createNoOpEventStreamModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final NoOpMetrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -248,13 +249,6 @@ public class ConsensusNoOpModules {
         final Predicate<CesEvent> isLastEventInFreezeCheck = event -> false;
 
         return new EventStreamModule(
-                model,
-                configuration,
-                metrics,
-                time,
-                selfId,
-                keysAndCerts,
-                nodeName,
-                isLastEventInFreezeCheck);
+                model, configuration, metrics, time, selfId, keysAndCerts, nodeName, isLastEventInFreezeCheck);
     }
 }

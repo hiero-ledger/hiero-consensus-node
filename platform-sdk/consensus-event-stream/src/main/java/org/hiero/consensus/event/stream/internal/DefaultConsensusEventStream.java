@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.stream;
+package org.hiero.consensus.event.stream.internal;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EVENT_STREAM;
@@ -24,11 +24,9 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
+import org.hiero.consensus.event.stream.EventStreamType;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.event.stream.config.EventStreamConfig;
-import org.hiero.consensus.event.stream.internal.HashCalculatorForStream;
-import org.hiero.consensus.event.stream.internal.QueueThreadObjectStream;
-import org.hiero.consensus.event.stream.internal.QueueThreadObjectStreamConfiguration;
-import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;

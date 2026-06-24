@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.stream;
+package org.hiero.consensus.event.stream.internal;
 
 /**
  * Thrown when parsing an invalid stream file.

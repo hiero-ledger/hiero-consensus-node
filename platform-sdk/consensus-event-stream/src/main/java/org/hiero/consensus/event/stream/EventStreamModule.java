@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream;
 
 import com.swirlds.base.time.Time;
@@ -13,6 +14,8 @@ import java.util.function.Predicate;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
+import org.hiero.consensus.event.stream.internal.ConsensusEventStream;
+import org.hiero.consensus.event.stream.internal.DefaultConsensusEventStream;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -33,14 +36,15 @@ public class EventStreamModule {
             @NonNull final Predicate<CesEvent> isLastEventInFreezeCheck) {
         // Set up wiring
         final EventStreamWiringConfig wiringConfig = configuration.getConfigData(EventStreamWiringConfig.class);
-        this.consensusEventStreamWiring = new ComponentWiring<>(model, ConsensusEventStream.class, wiringConfig.consensusEventStream());
+        this.consensusEventStreamWiring =
+                new ComponentWiring<>(model, ConsensusEventStream.class, wiringConfig.consensusEventStream());
 
         // Create and bind components
         final Signer signer = (byte[] data) -> new PlatformSigner(keysAndCerts).sign(data);
-        final ConsensusEventStream consensusEventStream = new DefaultConsensusEventStream(time, configuration, metrics, selfId, signer, nodeName, isLastEventInFreezeCheck);
+        final ConsensusEventStream consensusEventStream = new DefaultConsensusEventStream(
+                time, configuration, metrics, selfId, signer, nodeName, isLastEventInFreezeCheck);
         consensusEventStreamWiring.bind(consensusEventStream);
     }
-
 
     /**
      * Consensus events input wire.
@@ -63,5 +67,4 @@ public class EventStreamModule {
     public InputWire<RunningEventHashOverride> legacyHashOverrideInputWire() {
         return consensusEventStreamWiring.getInputWire(ConsensusEventStream::legacyHashOverride);
     }
-
 }
