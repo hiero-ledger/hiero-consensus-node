@@ -220,9 +220,10 @@ jobs:
           echo "Using long version: ${LONG_VERSION}"
           echo "Using proto version: ${PROTO_VERSION}"
 
-          # Install with the extracted versions
+          # pnpm add updates the lockfile and installs tck deps in one pass;
+          # a separate pnpm install would re-run for all 10 workspace packages
+          # and fail on un-approved build scripts (ERR_PNPM_IGNORED_BUILDS)
           pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
-          pnpm install --no-frozen-lockfile
           nohup pnpm start &
           server_pid=$!
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
