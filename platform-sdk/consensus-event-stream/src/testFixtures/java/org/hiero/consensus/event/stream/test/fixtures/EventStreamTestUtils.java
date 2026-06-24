@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.event.stream.EventStreamType;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
