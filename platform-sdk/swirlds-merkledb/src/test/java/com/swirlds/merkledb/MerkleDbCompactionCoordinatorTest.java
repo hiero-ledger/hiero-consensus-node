@@ -50,6 +50,7 @@ class MerkleDbCompactionCoordinatorTest {
     void setUp() {
         final MerkleDbConfig defaultConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         config = new MerkleDbConfig(
+                defaultConfig.defaultDbFolderName(),
                 defaultConfig.initialCapacity(),
                 defaultConfig.maxNumOfKeys(),
                 defaultConfig.hashesRamToDiskThreshold(),
@@ -1046,6 +1047,7 @@ class MerkleDbCompactionCoordinatorTest {
     private MerkleDbConfig configWithConsolidation(int maxInputSizeMB, int minFileCount) {
         final MerkleDbConfig d = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbConfig(
+                d.defaultDbFolderName(),
                 d.initialCapacity(),
                 d.maxNumOfKeys(),
                 d.hashesRamToDiskThreshold(),
