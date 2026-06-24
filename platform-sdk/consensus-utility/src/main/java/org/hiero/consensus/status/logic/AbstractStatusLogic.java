@@ -45,7 +45,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
     @Override
     public final PlatformStatusLogic process(@NonNull final PlatformStatusAction action) {
         return switch (action) {
-            case CatastrophicFailureAction a -> onCatastrophicFailure(a);
+            case CatastrophicFailureAction _ -> onCatastrophicFailure();
             case DoneReplayingEventsAction a -> onDoneReplayingEvents(a);
             case FallenBehindAction a -> onFallenBehind(a);
             case FreezePeriodEnteredAction a -> onFreezePeriodEntered(a);
@@ -66,7 +66,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
     // --- per-action hooks; defaults are the behavior shared by most statuses ---
 
     @NonNull
-    protected PlatformStatusLogic onCatastrophicFailure(@NonNull final CatastrophicFailureAction action) {
+    protected PlatformStatusLogic onCatastrophicFailure() {
         return new CatastrophicFailureStatusLogic();
     }
 
@@ -116,7 +116,6 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
      *
      * @param existingFreezeRound the freeze round already recorded, or {@code null} if none
      * @param action              the freeze period action being processed
-     * @return the freeze round to record
      */
     protected void validateFreezeRound(
             @Nullable final Long existingFreezeRound, @NonNull final FreezePeriodEnteredAction action) {
