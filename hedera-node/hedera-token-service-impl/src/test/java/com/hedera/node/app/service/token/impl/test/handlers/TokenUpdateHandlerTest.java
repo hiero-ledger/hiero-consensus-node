@@ -43,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -54,9 +55,10 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenKeyValidation;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
 import com.hedera.hapi.node.state.token.AccountFungibleTokenAllowance;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
+import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -73,11 +75,13 @@ import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -87,6 +91,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -106,6 +111,9 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Mock(strictness = LENIENT)
     private HandleContext.SavepointStack stack;
+
+    @Mock(strictness = LENIENT)
+    private StreamBuilder childDispatchBuilder;
 
     private TransactionBody txn;
 
@@ -129,6 +137,8 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         subject = new TokenUpdateHandler(validator);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+        given(handleContext.dispatch(any())).willReturn(childDispatchBuilder);
+        given(childDispatchBuilder.status()).willReturn(OK);
         givenStoresAndConfig(handleContext);
         setUpTxnContext();
     }
@@ -1252,16 +1262,21 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void clearsFungibleAllowancesOnOldTreasuryAfterTreasuryChange() {
-        final var allowance = AccountFungibleTokenAllowance.newBuilder()
+    void dispatchesSyntheticFungibleAllowanceCleanupOnTreasuryChange() {
+        final var staleAllowance = AccountFungibleTokenAllowance.newBuilder()
                 .tokenId(fungibleTokenId)
                 .spenderId(spenderId)
                 .amount(500L)
                 .build();
+        final var unrelatedAllowance = AccountFungibleTokenAllowance.newBuilder()
+                .tokenId(fungibleTokenIDB)
+                .spenderId(spenderId)
+                .amount(123L)
+                .build();
         final var treasuryWithAllowance = writableAccountStore
                 .get(treasuryId)
                 .copyBuilder()
-                .tokenAllowances(List.of(allowance))
+                .tokenAllowances(List.of(staleAllowance, unrelatedAllowance))
                 .build();
         writableAccountStore.put(treasuryWithAllowance);
 
@@ -1273,22 +1288,27 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
         assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
 
-        final var oldTreasury = writableAccountStore.get(treasuryId);
-        assertThat(oldTreasury.tokenAllowances().isEmpty()).isTrue();
+        final ArgumentCaptor<DispatchOptions> captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(1)).dispatch(captor.capture());
+        final var syntheticBody = captor.getValue().body();
+        assertThat(syntheticBody.hasCryptoApproveAllowance()).isTrue();
+        final CryptoApproveAllowanceTransactionBody op = syntheticBody.cryptoApproveAllowanceOrThrow();
+        Assertions.assertThat(op.tokenAllowances()).hasSize(1);
+        assertThat(op.tokenAllowances().get(0).tokenId()).isEqualTo(fungibleTokenId);
+        assertThat(op.tokenAllowances().get(0).owner()).isEqualTo(treasuryId);
+        assertThat(op.tokenAllowances().get(0).spender()).isEqualTo(spenderId);
+        assertThat(op.tokenAllowances().get(0).amount()).isEqualTo(0L);
     }
 
     @Test
-    void clearsApproveForAllNftAllowancesOnOldTreasuryAfterTreasuryChange() {
-        final var allowance = AccountApprovalForAllAllowance.newBuilder()
-                .tokenId(nonFungibleTokenId)
+    void dispatchesSyntheticNftDeleteAllowanceCleanupOnTreasuryChange() {
+        final var nftWithSpender = writableNftStore
+                .get(nftIdSl1)
+                .copyBuilder()
+                .ownerId((AccountID) null)
                 .spenderId(spenderId)
                 .build();
-        final var treasuryWithAllowance = writableAccountStore
-                .get(treasuryId)
-                .copyBuilder()
-                .approveForAllNftAllowances(List.of(allowance))
-                .build();
-        writableAccountStore.put(treasuryWithAllowance);
+        writableNftStore.put(nftWithSpender);
 
         // NFT treasury change requires the new treasury to have zero balance; zero it out
         final var ownerNftRel = writableTokenRelStore.get(ownerId, nonFungibleTokenId);
@@ -1302,8 +1322,15 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
         assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
 
-        final var oldTreasury = writableAccountStore.get(treasuryId);
-        assertThat(oldTreasury.approveForAllNftAllowances().isEmpty()).isTrue();
+        final ArgumentCaptor<DispatchOptions> captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(1)).dispatch(captor.capture());
+        final var syntheticBody = captor.getValue().body();
+        assertThat(syntheticBody.hasCryptoDeleteAllowance()).isTrue();
+        final CryptoDeleteAllowanceTransactionBody op = syntheticBody.cryptoDeleteAllowanceOrThrow();
+        Assertions.assertThat(op.nftAllowances()).hasSize(1);
+        assertThat(op.nftAllowances().get(0).tokenId()).isEqualTo(nonFungibleTokenId);
+        assertThat(op.nftAllowances().get(0).owner()).isEqualTo(treasuryId);
+        Assertions.assertThat(op.nftAllowances().get(0).serialNumbers()).containsExactly(1L);
     }
 
     /* --------------------------------- Helpers --------------------------------- */
