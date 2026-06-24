@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.metrics.openmetrics;
+package org.hiero.metrics.export.file;
 
 import static java.lang.System.Logger.Level.WARNING;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -19,50 +19,54 @@ import org.hiero.metrics.core.MetricType;
 import org.hiero.metrics.export.OpenMetricsTextUtils;
 
 /**
- * A writer that writes metrics in the OpenMetrics text format.
+ * A writer that writes metrics in mixture of Prometheus/OpenMetrics text format.
  * <p>
  * This class in not thread-safe, due to the use of {@link DecimalFormat}.
- *
- * <p>See <a href="https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md">OpenMetrics</a> for details.
  */
-class OpenMetricsWriter {
+public class MetricsFileWriter {
 
-    private static final System.Logger logger = System.getLogger(OpenMetricsWriter.class.getName());
+    private static final System.Logger logger = System.getLogger(MetricsFileWriter.class.getName());
 
     private static final byte SPACE = ' ';
-    private static final byte NEW_LINE = '\n';
-
-    private static final byte[] COUNTER_SUFFIX = "_total".getBytes(StandardCharsets.UTF_8);
 
     private final DecimalFormat formatter;
 
-    public OpenMetricsWriter(String decimalFormat) {
+    private int lastMetricId = -1;
+
+    public MetricsFileWriter(@NonNull String decimalFormat) {
+        // Force a locale-independent decimal separator ('.') and disable grouping so the output is
+        // always valid Prometheus text format, regardless of the JVM's default locale.
         formatter = new DecimalFormat(decimalFormat, DecimalFormatSymbols.getInstance(Locale.ROOT));
         formatter.setGroupingUsed(false);
-        formatter.setRoundingMode(RoundingMode.HALF_UP);
     }
 
     public final void write(MetricRegistrySnapshot registrySnapshot, OutputStream output) throws IOException {
-        for (MetricSnapshot metricSnapshot : registrySnapshot) {
-            writeMetric(metricSnapshot, output);
-        }
+        byte[] timestampAndNewLine = spaceTimestampAndNewLineBytes(registrySnapshot.timestamp());
+        int metricId = 0;
 
-        OpenMetricsTextUtils.writeEndLine(output);
+        for (MetricSnapshot metricSnapshot : registrySnapshot) {
+            metricId++;
+            writeMetric(metricId, metricSnapshot, timestampAndNewLine, output);
+        }
+        lastMetricId = metricId;
+
         output.flush();
     }
 
-    private void writeMetric(MetricSnapshot metricSnapshot, OutputStream output) throws IOException {
-        byte[] metricNameBytes = writeMetricMetadata(metricSnapshot, output);
+    private void writeMetric(
+            int metricId, MetricSnapshot metricSnapshot, byte[] timestampAndNewLine, OutputStream output)
+            throws IOException {
+        byte[] metricNameBytes = writeMetricMetadata(metricId, metricSnapshot, output);
 
         for (MeasurementSnapshot measurementSnapshot : metricSnapshot) {
             if (measurementSnapshot instanceof LongMeasurementSnapshot longSnapshot) {
                 writeSingleValueMeasurementMetadata(metricNameBytes, metricSnapshot, measurementSnapshot, output);
                 output.write(OpenMetricsTextUtils.convertValue(formatter, longSnapshot.get()));
-                output.write(NEW_LINE);
+                output.write(timestampAndNewLine);
             } else if (measurementSnapshot instanceof DoubleMeasurementSnapshot doubleSnapshot) {
                 writeSingleValueMeasurementMetadata(metricNameBytes, metricSnapshot, measurementSnapshot, output);
                 output.write(OpenMetricsTextUtils.convertValue(formatter, doubleSnapshot.get()));
-                output.write(NEW_LINE);
+                output.write(timestampAndNewLine);
             } else {
                 logger.log(
                         WARNING,
@@ -72,19 +76,25 @@ class OpenMetricsWriter {
         }
     }
 
-    private byte[] writeMetricMetadata(MetricSnapshot metricSnapshot, OutputStream output) throws IOException {
+    private byte[] writeMetricMetadata(int metricId, MetricSnapshot metricSnapshot, OutputStream output)
+            throws IOException {
         String metricName = metricSnapshot.name();
         final String metricUnit = metricSnapshot.unit();
 
         if (metricUnit != null && !metricUnit.isBlank()) {
             metricName += '_' + metricUnit;
         }
+        if (metricSnapshot.type() == MetricType.COUNTER) {
+            metricName += "_total";
+        }
 
         byte[] metricNameBytes = metricName.getBytes(StandardCharsets.UTF_8);
 
-        OpenMetricsTextUtils.writeTypeLine(output, metricNameBytes, metricSnapshot.type());
-        OpenMetricsTextUtils.writeUnitLine(output, metricNameBytes, metricSnapshot.unit());
-        OpenMetricsTextUtils.writeHelpLine(output, metricNameBytes, metricSnapshot.description());
+        if (metricId > lastMetricId) {
+            // write metric metadata only once on first occurrence of the metric name
+            OpenMetricsTextUtils.writeTypeLine(output, metricNameBytes, metricSnapshot.type());
+            OpenMetricsTextUtils.writeHelpLine(output, metricNameBytes, metricSnapshot.description());
+        }
 
         return metricNameBytes;
     }
@@ -96,11 +106,13 @@ class OpenMetricsWriter {
             OutputStream output)
             throws IOException {
         output.write(metricNameBytes);
-        if (metricSnapshot.type() == MetricType.COUNTER) {
-            output.write(COUNTER_SUFFIX);
-        }
 
         OpenMetricsTextUtils.writeLabels(output, metricSnapshot, measurementSnapshot);
+
         output.write(SPACE);
+    }
+
+    private static byte[] spaceTimestampAndNewLineBytes(long timestampMillis) {
+        return (" " + timestampMillis + "\n").getBytes(StandardCharsets.UTF_8);
     }
 }
