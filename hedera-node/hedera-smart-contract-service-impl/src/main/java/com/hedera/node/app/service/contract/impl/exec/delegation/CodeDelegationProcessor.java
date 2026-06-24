@@ -173,7 +173,6 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress, true);
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
                     authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
@@ -187,6 +186,7 @@ public record CodeDelegationProcessor(long chainId) {
                 state.addAccessedAddress(authorityAddress);
                 return;
             }
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress, true);
         } else {
             authority = maybeAuthorityAccount.get();
 
@@ -209,13 +209,13 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress, false);
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
                 state.addAccessedAddress(authorityAddress);
                 return;
             }
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress, false);
             state.incrementAuthorizationsEligibleForRefund();
         }
 
