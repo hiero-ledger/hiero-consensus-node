@@ -283,11 +283,6 @@ ranges are accurate at last review and may shift with refactors.
 - [`topics/reconnect.md`](reconnect.md)
 - [`topics/restart-and-pces.md`](restart-and-pces.md)
 
-**Invariants**
-
-- INV-005 — every honest event eventually reaches consensus or becomes stale (what every rule here trades against).
-- INV-004 — a stale event is never ordered on any node.
-
 **Decisions**
 
 - [TBD: ADR-NNN — link once `decisions/` catalog populates. Likely

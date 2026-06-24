@@ -153,8 +153,9 @@ A few specifics worth pinning down. The default `unhandledTaskCapacity` on the f
 
 - Topics: `../topics/health-monitor-and-backpressure.md` — reaction side of queue health.
 - Module-API boundary: `../interfaces/consensus-execution-boundary.md` — where the future module-API-level backpressure differs from wire-level backpressure (see [Future state](#future-state-sidebar) below).
-- Invariants: none directly; the flush-ordering property that depends on this substrate is a rule (RUL-002, ADR-005).
-- Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
+- Invariants: none directly.
+- Rules: RUL-002 — the intake pipeline flushes component-by-component in topological order; this substrate is what it depends on.
+- Decisions: ADR-005 — embedded future-event buffers.
 - Glossary: `../../glossary.md` — entries for "wire", "scheduler", "soldering", "transformer".
 
 ## Future state (sidebar)
