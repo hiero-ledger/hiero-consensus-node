@@ -34,10 +34,10 @@ import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractBy
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectExplicitContractBytecode;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectFailedContractBytecodeSidecarFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -158,7 +158,7 @@ public class TraceabilitySuite {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))),
+                doingContextual(spec -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))),
                 overriding("contracts.enforceCreationThrottle", "false"));
     }
 
@@ -186,7 +186,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(2))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -224,7 +224,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(12))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -262,7 +262,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -282,7 +282,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.valueOf(11),
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -317,7 +317,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(1),
                                                         formattedAssertionValue(11),
                                                         formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -542,7 +542,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -580,7 +580,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(99))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -618,7 +618,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -638,7 +638,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.valueOf(88),
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -672,7 +672,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(2),
                                                         formattedAssertionValue(99),
                                                         formattedAssertionValue(143))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -933,7 +933,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(2))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -971,7 +971,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(12))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -1009,7 +1009,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -1029,7 +1029,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.valueOf(11),
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -1063,7 +1063,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(1),
                                                         formattedAssertionValue(11),
                                                         formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -1324,7 +1324,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(4))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -1362,7 +1362,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -1400,7 +1400,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -1420,7 +1420,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.ZERO,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -1443,7 +1443,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(4)),
                                         StorageChange.onlyRead(
                                                 formattedAssertionValue(2), formattedAssertionValue(4))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -1607,7 +1607,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(2))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -1646,7 +1646,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(12))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -1685,7 +1685,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -1705,7 +1705,7 @@ public class TraceabilitySuite {
                         BigInteger.valueOf(4),
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -1736,7 +1736,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(0), formattedAssertionValue(4)),
                                                 StorageChange.onlyRead(
                                                         formattedAssertionValue(1), formattedAssertionValue(1))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -1898,7 +1898,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(4))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -1936,7 +1936,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(3))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -1974,7 +1974,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -1994,7 +1994,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -2024,7 +2024,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(0), formattedAssertionValue(0)),
                                                 StorageChange.onlyRead(
                                                         formattedAssertionValue(1), formattedAssertionValue(1))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -2220,7 +2220,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(2))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -2259,7 +2259,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(12))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -2299,7 +2299,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -2320,7 +2320,7 @@ public class TraceabilitySuite {
                         BigInteger.valueOf(4),
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY_CALLCODE,
@@ -2354,7 +2354,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(2),
                                                         formattedAssertionValue(12),
                                                         formattedAssertionValue(524))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -2595,7 +2595,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(2))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -2634,7 +2634,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(12))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -2674,7 +2674,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -2695,7 +2695,7 @@ public class TraceabilitySuite {
                         BigInteger.valueOf(4),
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY_CALLCODE,
@@ -2720,7 +2720,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(524))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -2931,7 +2931,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(2))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -2969,7 +2969,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(12))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -3007,7 +3007,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -3027,7 +3027,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -3055,7 +3055,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(0), formattedAssertionValue(0)),
                                                 StorageChange.onlyRead(
                                                         formattedAssertionValue(1), formattedAssertionValue(1))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -3225,7 +3225,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(4))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -3263,7 +3263,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(3))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -3301,7 +3301,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -3321,7 +3321,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -3352,7 +3352,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(0), formattedAssertionValue(0)),
                                                 StorageChange.onlyRead(
                                                         formattedAssertionValue(1), formattedAssertionValue(1))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -3556,7 +3556,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(4))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -3594,7 +3594,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(3))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 SECOND_CREATE_TXN,
@@ -3632,7 +3632,7 @@ public class TraceabilitySuite {
                                                 formattedAssertionValue(2),
                                                 formattedAssertionValue(0),
                                                 formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 THIRD_CREATE_TXN,
@@ -3652,7 +3652,7 @@ public class TraceabilitySuite {
                         BigInteger.ZERO,
                         BigInteger.ONE,
                         BigInteger.ZERO),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(
                                         TRACEABILITY,
@@ -3682,7 +3682,7 @@ public class TraceabilitySuite {
                                                         formattedAssertionValue(1),
                                                         formattedAssertionValue(1),
                                                         formattedAssertionValue(0))))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -3812,7 +3812,7 @@ public class TraceabilitySuite {
                         .via(TRACEABILITY_TXN)
                         .inlineInitCode(extractBytecodeUnhexed(getResourcePath(contract, ".bin"))))
                 .then(
-                        withOpContext((spec, opLog) -> {
+                        doingContextual(spec -> {
                             final HapiGetTxnRecord txnRecord = getTxnRecord(TRACEABILITY_TXN);
                             allRunFor(
                                     spec,
@@ -3855,7 +3855,7 @@ public class TraceabilitySuite {
                         .gasLimit(1_000_000L)
                         .hasKnownStatus(SUCCESS)
                         .via(FIRST_CREATE_TXN),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final HapiGetTxnRecord txnRecord =
                             getTxnRecord(FIRST_CREATE_TXN).logged();
                     allRunFor(
@@ -3898,7 +3898,7 @@ public class TraceabilitySuite {
                         .gasLimit(1_000_000L)
                         .hasKnownStatus(SUCCESS)
                         .via(TRACEABILITY_TXN),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final AtomicReference<AccountID> accountIDAtomicReference = new AtomicReference<>();
                     final var hapiGetAccountInfo =
                             getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).exposingIdTo(accountIDAtomicReference::set);
@@ -3943,7 +3943,7 @@ public class TraceabilitySuite {
                 contractCreate(contract)
                         .via(CREATE_TXN)
                         .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 CREATE_TXN,
@@ -3981,7 +3981,7 @@ public class TraceabilitySuite {
                         .gas(4_000_000L)
                         .sending(tcValue)
                         .via(CREATE_2_TXN)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var parentId = spec.registry().getContractId(contract);
                     final var childId = parentId.toBuilder()
                             .setContractNum(parentId.getContractNum() + 1L)
@@ -4069,7 +4069,7 @@ public class TraceabilitySuite {
                         .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
                 uploadInitCode(PRECOMPILE_CALLER),
                 contractCreate(PRECOMPILE_CALLER).via(txn),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final HapiGetTxnRecord txnRecord = getTxnRecord(txn);
                     allRunFor(
                             spec,
@@ -4094,7 +4094,7 @@ public class TraceabilitySuite {
                                 toHash.getBytes(),
                                 HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
                         .via("callTxn")),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final byte[] expectedHash =
                             Hashing.sha256().hashBytes(toHash.getBytes()).asBytes();
                     final var contractIdFactory = spec.contractIdFactory();
@@ -4174,7 +4174,7 @@ public class TraceabilitySuite {
         return hapiTest(
                 uploadInitCode(REVERTING_CONTRACT),
                 contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6)).via(FIRST_CREATE_TXN),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -4189,13 +4189,13 @@ public class TraceabilitySuite {
                                         .build())))),
                 expectContractBytecodeSidecarFor(
                         FIRST_CREATE_TXN, REVERTING_CONTRACT, REVERTING_CONTRACT, BigInteger.valueOf(6)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(REVERTING_CONTRACT, "createContract", BigInteger.valueOf(4))
                                 .gas(1_000_000)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .via(TRACEABILITY_TXN))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -4232,7 +4232,7 @@ public class TraceabilitySuite {
                 contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(4))
                         .via(FIRST_CREATE_TXN)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -4266,7 +4266,7 @@ public class TraceabilitySuite {
                         .gasLimit(2_000_000L)
                         .payingWith(RELAYER)
                         .via(transferTxn),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final AtomicReference<AccountID> ethSenderAccountReference = new AtomicReference<>();
                     final var hapiGetAccountInfo =
                             getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).exposingIdTo(ethSenderAccountReference::set);
@@ -4299,7 +4299,7 @@ public class TraceabilitySuite {
                         .via(FIRST_CREATE_TXN)
                         .gas(64826) // here should be just enough IntrinsicGas + 50
                         .hasKnownStatus(INSUFFICIENT_GAS),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -4320,7 +4320,7 @@ public class TraceabilitySuite {
         return hapiTest(
                 uploadInitCode(REVERTING_CONTRACT),
                 contractCreate(REVERTING_CONTRACT, BigInteger.valueOf(6)).via(FIRST_CREATE_TXN),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 FIRST_CREATE_TXN,
@@ -4335,13 +4335,13 @@ public class TraceabilitySuite {
                                         .build())))),
                 expectContractBytecodeSidecarFor(
                         FIRST_CREATE_TXN, REVERTING_CONTRACT, REVERTING_CONTRACT, BigInteger.valueOf(6)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(REVERTING_CONTRACT, "callingWrongAddress")
                                 .gas(1_000_000)
                                 .hasKnownStatusFrom(SUCCESS, INVALID_SOLIDITY_ADDRESS)
                                 .via(TRACEABILITY_TXN))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
                                 TRACEABILITY_TXN,
@@ -4399,7 +4399,7 @@ public class TraceabilitySuite {
                         .hasKnownStatus(SUCCESS)
                         .via(firstTxn))
                 .then(
-                        withOpContext((spec, opLog) -> {
+                        doingContextual(spec -> {
                             final HapiGetTxnRecord txnRecord = getTxnRecord(firstTxn);
                             allRunFor(
                                     spec,
@@ -4430,7 +4430,7 @@ public class TraceabilitySuite {
         return hapiTest(
                 uploadInitCode(contract),
                 contractCreate(contract).via(firstTxn),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final HapiGetTxnRecord txnRecord = getTxnRecord(firstTxn);
                     allRunFor(
                             spec,
@@ -4469,7 +4469,7 @@ public class TraceabilitySuite {
                 overriding(SIDECARS_PROP, "CONTRACT_ACTION"),
                 uploadInitCode(APPROVE_BY_DELEGATE),
                 contractCreate(APPROVE_BY_DELEGATE).gas(500_000).via(contractCreateTxn),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final HapiGetTxnRecord txnRecord = getTxnRecord(contractCreateTxn);
                     allRunFor(
                             spec,
@@ -4516,7 +4516,7 @@ public class TraceabilitySuite {
                         .gas(1_000_000)
                         .via(badApproval)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final HapiGetTxnRecord txnRecord = getTxnRecord(badApproval);
                     allRunFor(
                             spec,
@@ -4645,7 +4645,7 @@ public class TraceabilitySuite {
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
                         .via(AUTO_ACCOUNT_TXN),
                 getTxnRecord(AUTO_ACCOUNT_TXN).andAllChildRecords(),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         TxnVerbs.ethereumCryptoTransferToAlias(
                                         spec.registry().getKey(RECIPIENT_KEY).getECDSASecp256K1(), valueToSend)
@@ -4669,7 +4669,7 @@ public class TraceabilitySuite {
                                 .gasLimit(2_000_000L)
                                 .via(lazyCreateTxn)
                                 .hasKnownStatus(SUCCESS))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaSecp256K1 =
                             spec.registry().getKey(RECIPIENT_KEY).getECDSASecp256K1();
                     final var firstAliasAsByteString =
@@ -4704,7 +4704,7 @@ public class TraceabilitySuite {
                                             .setCallOperationType(CallOperationType.OP_CALL)
                                             .setCallingAccount(ethSenderAccountReference.get())
                                             .setGas(1_979_000)
-                                            .setGasUsed(spec.simpleFeesEnabled() ? 586854 : 554517)
+                                            .setGasUsed(586854)
                                             .setValue(valueToSend)
                                             .setRecipientAccount(lazyAccountIdReference.get())
                                             .setOutput(EMPTY)
@@ -4790,7 +4790,7 @@ public class TraceabilitySuite {
                         mergedMirrorAddr,
                         mergedAliasAddr),
                 // assert sidecars
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var mergedContractIdAsString = HapiPropertySource.asAccountString(mergedAccountId.get());
                     final AtomicReference<byte[]> mergedContractBytecode = new AtomicReference<>();
                     final var hapiGetContractBytecode = getContractBytecode(mergedContractIdAsString)
@@ -4867,7 +4867,7 @@ public class TraceabilitySuite {
     @Order(Integer.MAX_VALUE)
     @HapiTest
     public final Stream<DynamicTest> assertSidecars() {
-        return hapiTest(withOpContext(
-                (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));
+        return hapiTest(
+                doingContextual(spec -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));
     }
 }
