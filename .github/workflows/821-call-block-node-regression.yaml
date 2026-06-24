@@ -305,7 +305,7 @@ jobs:
       - name: Create CN application properties File
         run: |
           cat <<EOF > application.env
-          TSS_LIB_WRAPS_ARTIFACTS_PATH=opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps
+          TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps
           EOF
 
           echo "=== application.env ==="
