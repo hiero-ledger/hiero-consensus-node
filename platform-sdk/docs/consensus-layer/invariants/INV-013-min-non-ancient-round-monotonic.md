@@ -31,8 +31,8 @@ The hashgraph consensus algorithm defines `minNonAncientRound(r) = max(prevMinNo
 - **Dropping the lower-bound clip against the previous round's boundary**, so a shrinking `targetNumRoundsNonAncient` could move the boundary backward.
 - **Deriving the boundary from a quantity that can decrease between rounds** without re-clipping against the previous value.
 
-A boundary that moves backward would resurrect previously-ancient events, making staleness — and therefore agreement (INV-004) — non-deterministic.
+A boundary that moves backward would resurrect previously-ancient events, making an event's stale fate (INV-004) non-deterministic.
 
 ## Notes
 
-The implementation reaches the same guarantee by a different route than the formula above: it derives the ancient boundary from the minimum judge birth round of a forward-only sliding window keyed on the only-increasing last-decided round, rather than by an explicit `max` against the previous boundary. Both are monotonic non-decreasing. This forward-only boundary is what makes staleness agreement (INV-004) well-defined.
+The implementation reaches the same guarantee by a different route than the formula above: it derives the ancient boundary from the minimum judge birth round of a forward-only sliding window keyed on the only-increasing last-decided round, rather than by an explicit `max` against the previous boundary. Both are monotonic non-decreasing. This forward-only boundary is what makes an event's stale fate (INV-004) well-defined.

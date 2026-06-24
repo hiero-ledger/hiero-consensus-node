@@ -24,7 +24,7 @@ Under the algorithm's standard assumptions, every event created by an honest nod
 
 ## Basis
 
-It is a theorem of the hashgraph consensus algorithm that an event created by an honest node eventually reaches consensus (with probability 1), where reaching consensus means it either has a consensus timestamp and consensus order agreed to by all nodes, or it becomes stale and all nodes agree it is stale.
+It is a theorem of the hashgraph consensus algorithm that an event created by an honest node eventually reaches a final fate (with probability 1): it either receives a consensus timestamp and consensus order on which no two nodes disagree, or it becomes stale and is ordered by no node.
 
 Termination rests on two facts. First, virtual voting on each round's witnesses always terminates: a coin round periodically injects a vote drawn from a source no adversary can predict (the `coin`), which with probability 1 eventually breaks any asynchronous stalemate the network might sustain. Second, once witnesses are decided the round has judges, against which every event is either ordered or — if it fails to reach consensus before the advancing ancient boundary — declared stale. The theorem is conditional on the algorithm's standard assumptions (honest stake exceeds two-thirds; an honest event eventually reaches every honest node; and the rest).
 

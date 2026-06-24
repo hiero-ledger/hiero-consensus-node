@@ -24,7 +24,7 @@ Any two honest nodes that assign a consensus order to the same event assign it t
 
 ## Basis
 
-It is a theorem of the hashgraph consensus algorithm that an event created by an honest node eventually reaches consensus (with probability 1): it either has a consensus timestamp and consensus order agreed to by all nodes, or it becomes stale (ancient before reaching consensus) and all nodes agree it is stale.
+It is a theorem of the hashgraph consensus algorithm that an event created by an honest node eventually reaches consensus (with probability 1): it either receives a consensus timestamp and consensus order on which no two nodes disagree, or it becomes stale (ancient before reaching consensus) and is ordered by no node.
 
 Agreement holds because consensus order is a deterministic function of inputs that are themselves agreed. An event's order is `1 + prevNumCons(r) + |{y : reachedCon(r,d,y) ∧ before(r,d,y,x)}|` — fixed by the count of consensus events that precede it under the total order `before`. That order in turn depends only on the decided judge set for the round and a tie-break that is a fixed function of the events. Because every node that decides a round agrees on its judges, every node computes the same predecessor set and hence the same order for the same event. The property follows from the algorithm's determinism over agreed inputs, not from any implementation choice.
 

@@ -286,7 +286,7 @@ ranges are accurate at last review and may shift with refactors.
 **Invariants**
 
 - INV-005 — every honest event eventually reaches consensus or becomes stale (what every rule here trades against).
-- INV-004 — staleness is agreed by all nodes.
+- INV-004 — a stale event is never ordered on any node.
 
 **Decisions**
 

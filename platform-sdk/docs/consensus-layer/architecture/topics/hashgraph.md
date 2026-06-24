@@ -319,7 +319,7 @@ the layer's invariants are established:
 - INV-001 — voting round is monotonic along ancestry.
 - INV-002 — consensus order is agreed by all nodes.
 - INV-003 — consensus timestamp is agreed by all nodes.
-- INV-004 — staleness is agreed by all nodes.
+- INV-004 — a stale event is never ordered on any node.
 - INV-005 — every honest event eventually reaches consensus or becomes stale.
 - INV-006 — every round eventually has at least one judge.
 - INV-007 — all deciders of a round agree on its judge set.

@@ -24,7 +24,7 @@ Any two honest nodes that assign a consensus timestamp to the same event assign 
 
 ## Basis
 
-It is a theorem of the hashgraph consensus algorithm that a consensus event has a consensus timestamp and consensus order agreed to by all nodes.
+It is a theorem of the hashgraph consensus algorithm that a consensus event has a consensus timestamp and consensus order on which no two nodes disagree.
 
 The timestamp is a deterministic function of agreed inputs: it is a median over the creation times of a fixed set of events tied to the round's judges. The set of events entering the median is part of the agreed consensus state, and the median selection is deterministic. Every node computing the timestamp from the same decided round therefore obtains the same value. The agreement is a consequence of determinism over agreed inputs, independent of implementation.
 
