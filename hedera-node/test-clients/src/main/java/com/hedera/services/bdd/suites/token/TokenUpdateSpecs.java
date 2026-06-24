@@ -79,6 +79,7 @@ import static java.lang.Long.parseLong;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
@@ -87,6 +88,7 @@ import com.hederahashgraph.api.proto.java.TokenPauseStatus;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -1359,5 +1361,132 @@ public class TokenUpdateSpecs {
                         .payingWith(SPENDER)
                         .signedBy(SPENDER)
                         .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> staleNftSerialAllowanceIsClearedOnTreasuryChange() {
+        final String SUPPLY_KEY = "supplyKey";
+        final String ADMIN_KEY = "adminKey";
+        final String NFT_TOKEN = "nftToken";
+        final String UNRELATED_NFT = "unrelatedNft";
+        final String OLD_TREASURY = "oldTreasury";
+        final String NEW_TREASURY = "newTreasury";
+        final String SPENDER = "staleSpender";
+        final String RECEIVER = "receiver";
+
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(OLD_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(1),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L).maxAutomaticTokenAssociations(2),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                tokenCreate(UNRELATED_NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                mintToken(
+                        NFT_TOKEN, List.of(ByteString.copyFromUtf8("metadata1"), ByteString.copyFromUtf8("metadata2"))),
+                mintToken(UNRELATED_NFT, List.of(ByteString.copyFromUtf8("unrelated_metadata1"))),
+
+                // Old treasury grants spender serial-level allowance on both tokens before treasury change
+                cryptoApproveAllowance()
+                        .addNftAllowance(OLD_TREASURY, NFT_TOKEN, SPENDER, false, List.of(1L))
+                        .addNftAllowance(OLD_TREASURY, UNRELATED_NFT, SPENDER, false, List.of(1L))
+                        .payingWith(OLD_TREASURY)
+                        .signedBy(OLD_TREASURY, GENESIS),
+
+                // Treasury change — NFT ownership moves to new treasury
+                tokenUpdate(NFT_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
+                getAccountBalance(OLD_TREASURY).hasTokenBalance(NFT_TOKEN, 0L),
+                getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 2L),
+
+                // Stale serial allowance for the changed token is removed
+                cryptoTransfer(movingUniqueWithAllowance(NFT_TOKEN, 1L).between(NEW_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+
+                // Serial allowance on unrelated token is unaffected
+                cryptoTransfer(movingUniqueWithAllowance(UNRELATED_NFT, 1L).between(OLD_TREASURY, RECEIVER))
+                        .payingWith(SPENDER)
+                        .signedBy(SPENDER)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> clearsMaxAllowedFungibleAllowancesOnTreasuryChange() {
+        final String ADMIN_KEY = "adminKey";
+        final String TOKEN = "token";
+        final String OLD_TREASURY = "oldTreasury";
+        final String NEW_TREASURY = "newTreasury";
+        final long INITIAL_SUPPLY = 10_000L;
+        final long APPROVED_AMOUNT = 123L;
+        final String MAX_ACCOUNT_ALLOWANCES_PROP = "hedera.allowances.maxAccountLimit";
+        final String MAX_TXN_ALLOWANCES_PROP = "hedera.allowances.maxTransactionLimit";
+
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(OLD_TREASURY).balance(ONE_MILLION_HBARS),
+                cryptoCreate(NEW_TREASURY).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .maxSupply(INITIAL_SUPPLY)
+                        .initialSupply(INITIAL_SUPPLY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(OLD_TREASURY),
+                tokenAssociate(NEW_TREASURY, TOKEN),
+                withOpContext((spec, opLog) -> {
+                    final var startupProperties = spec.targetNetworkOrThrow().startupProperties();
+                    final int maxAccountAllowances =
+                            Integer.parseInt(startupProperties.get(MAX_ACCOUNT_ALLOWANCES_PROP));
+                    final int maxTxnAllowances = Integer.parseInt(startupProperties.get(MAX_TXN_ALLOWANCES_PROP));
+
+                    final List<String> spenders = new ArrayList<>();
+                    final List<SpecOperation> ops = new ArrayList<>();
+
+                    for (int i = 0; i < maxAccountAllowances; i++) {
+                        final var spender = "spender" + i;
+                        spenders.add(spender);
+                        ops.add(cryptoCreate(spender).balance(ONE_HUNDRED_HBARS));
+                    }
+
+                    for (int start = 0; start < spenders.size(); start += maxTxnAllowances) {
+                        final int end = Math.min(start + maxTxnAllowances, spenders.size());
+                        final var approveOp =
+                                cryptoApproveAllowance().payingWith(GENESIS).signedBy(GENESIS, OLD_TREASURY);
+                        for (int i = start; i < end; i++) {
+                            approveOp.addTokenAllowance(OLD_TREASURY, TOKEN, spenders.get(i), APPROVED_AMOUNT);
+                        }
+                        ops.add(approveOp);
+                    }
+
+                    ops.add(getAccountDetails(OLD_TREASURY)
+                            .payingWith(GENESIS)
+                            .has(accountDetailsWith().tokenAllowancesCount(maxAccountAllowances)));
+
+                    ops.add(tokenUpdate(TOKEN)
+                            .treasury(NEW_TREASURY)
+                            .signedBy(GENESIS, ADMIN_KEY, NEW_TREASURY, OLD_TREASURY));
+
+                    ops.add(getAccountDetails(OLD_TREASURY)
+                            .payingWith(GENESIS)
+                            .has(accountDetailsWith().tokenAllowancesCount(0)));
+
+                    allRunFor(spec, ops.toArray(SpecOperation[]::new));
+                }));
     }
 }

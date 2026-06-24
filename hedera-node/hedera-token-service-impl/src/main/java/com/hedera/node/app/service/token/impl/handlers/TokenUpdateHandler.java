@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
@@ -35,6 +27,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
+import com.hedera.hapi.node.token.NftAllowance;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
@@ -64,12 +57,15 @@ import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Provides the state transition for token update.
  */
 @Singleton
 public class TokenUpdateHandler extends BaseTokenHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(TokenUpdateHandler.class);
     private static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0L).build();
     private final TokenUpdateValidator tokenUpdateValidator;
@@ -647,6 +643,24 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 }
             }
         } else {
+            final var staleApproveForAllAllowances =
+                    staleApproveForAllNftAllowancesForTreasury(oldTreasury, tokenId, account);
+            if (!staleApproveForAllAllowances.isEmpty()) {
+                final var chunkSize = Math.max(1, allowancesMaxTransactionLimit);
+                for (int i = 0; i < staleApproveForAllAllowances.size(); i += chunkSize) {
+                    final var chunk = staleApproveForAllAllowances.subList(
+                            i, Math.min(i + chunkSize, staleApproveForAllAllowances.size()));
+                    final var body = CryptoApproveAllowanceTransactionBody.newBuilder()
+                            .nftAllowances(chunk)
+                            .build();
+                    dispatchSyntheticAllowanceChild(
+                            context,
+                            oldTreasury,
+                            TransactionBody.newBuilder()
+                                    .cryptoApproveAllowance(body)
+                                    .build());
+                }
+            }
             final var serialsToClear = staleNftSerialAllowancesForTreasury(oldTreasury, token, nftStore);
             if (!serialsToClear.isEmpty()) {
                 final var chunkSize = Math.max(1, allowancesMaxTransactionLimit);
@@ -668,6 +682,19 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 }
             }
         }
+    }
+
+    private List<NftAllowance> staleApproveForAllNftAllowancesForTreasury(
+            @NonNull final AccountID oldTreasury, @NonNull final TokenID tokenId, @NonNull final Account account) {
+        return account.approveForAllNftAllowances().stream()
+                .filter(a -> Objects.equals(a.tokenId(), tokenId))
+                .map(a -> NftAllowance.newBuilder()
+                        .tokenId(tokenId)
+                        .owner(oldTreasury)
+                        .spender(a.spenderId())
+                        .approvedForAll(false)
+                        .build())
+                .toList();
     }
 
     private List<Long> staleNftSerialAllowancesForTreasury(
@@ -701,7 +728,33 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             @NonNull final TransactionBody syntheticTxn) {
         final var streamBuilder =
                 context.dispatch(stepDispatch(payer, syntheticTxn, StreamBuilder.class, NOOP_SIGNED_TX_CUSTOMIZER));
-        validateTrue(streamBuilder.status() == OK, streamBuilder.status());
+        final var status = streamBuilder.status();
+        if (status != SUCCESS) {
+            final var childType = syntheticTxn.hasCryptoApproveAllowance()
+                    ? "CryptoApproveAllowance"
+                    : syntheticTxn.hasCryptoDeleteAllowance() ? "CryptoDeleteAllowance" : "Unknown";
+            final var itemCount = syntheticTxn.hasCryptoApproveAllowance()
+                    ? syntheticTxn
+                                    .cryptoApproveAllowanceOrThrow()
+                                    .tokenAllowances()
+                                    .size()
+                            + syntheticTxn
+                                    .cryptoApproveAllowanceOrThrow()
+                                    .nftAllowances()
+                                    .size()
+                    : syntheticTxn.hasCryptoDeleteAllowance()
+                            ? syntheticTxn.cryptoDeleteAllowanceOrThrow().nftAllowances().stream()
+                                    .mapToInt(a -> a.serialNumbers().size())
+                                    .sum()
+                            : 0;
+            log.warn(
+                    "Synthetic {} child dispatch failed for payer {} with status {} (itemsInChild={})",
+                    childType,
+                    payer,
+                    status,
+                    itemCount);
+        }
+        validateTrue(status == SUCCESS, status);
     }
 
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {
