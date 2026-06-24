@@ -8,7 +8,6 @@ import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
-import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,93 +56,102 @@ class PlatformStatusTransitionMatrixTest {
     private static final Instant T = Instant.EPOCH;
 
     // one immutable instance of each action; logic instances are built fresh per case
-    private static final CatastrophicFailureAction CAT = new CatastrophicFailureAction();
-    private static final DoneReplayingEventsAction DONE = new DoneReplayingEventsAction(T);
-    private static final FallenBehindAction FALLEN = new FallenBehindAction();
-    private static final FreezePeriodEnteredAction FREEZE = new FreezePeriodEnteredAction(0);
-    private static final ReconnectCompleteAction RECONNECT = new ReconnectCompleteAction(0);
-    private static final SelfEventReachedConsensusAction SELF = new SelfEventReachedConsensusAction(T);
-    private static final StartedReplayingEventsAction STARTED = new StartedReplayingEventsAction();
-    private static final StateWrittenToDiskAction WRITTEN_FREEZE = new StateWrittenToDiskAction(0, true);
-    private static final StateWrittenToDiskAction WRITTEN_NON_FREEZE = new StateWrittenToDiskAction(0, false);
-    private static final TimeElapsedAction TIME =
+    private static final CatastrophicFailureAction CATASTROPHIC = new CatastrophicFailureAction();
+    private static final DoneReplayingEventsAction DONE_REPLAYING = new DoneReplayingEventsAction(T);
+    private static final FallenBehindAction FALLEN_BEHIN = new FallenBehindAction();
+    private static final FreezePeriodEnteredAction FREEZE_ENTERED = new FreezePeriodEnteredAction(0);
+    private static final ReconnectCompleteAction RECONNECT_COMPLETE = new ReconnectCompleteAction(0);
+    private static final SelfEventReachedConsensusAction SELF_EVENT_CONSENSUS = new SelfEventReachedConsensusAction(T);
+    private static final StartedReplayingEventsAction STARTED_REPLAYING = new StartedReplayingEventsAction();
+    private static final StateWrittenToDiskAction FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, true);
+    private static final StateWrittenToDiskAction NON_FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, false);
+    private static final TimeElapsedAction TIME_ELAPSED =
             new TimeElapsedAction(T, new TimeElapsedAction.QuiescingStatus(false, T));
 
     static Stream<Arguments> matrix() {
         return Stream.of(
                         cases(STARTING_UP, () -> new StartingUpStatusLogic(CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(STARTED, REPLAYING_EVENTS)
-                                .stays(TIME)
-                                .illegal(DONE, FALLEN, FREEZE, RECONNECT, SELF, WRITTEN_FREEZE, WRITTEN_NON_FREEZE),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(STARTED_REPLAYING, REPLAYING_EVENTS)
+                                .stays(TIME_ELAPSED)
+                                .illegal(
+                                        DONE_REPLAYING,
+                                        FALLEN_BEHIN,
+                                        FREEZE_ENTERED,
+                                        RECONNECT_COMPLETE,
+                                        SELF_EVENT_CONSENSUS,
+                                        FREEZE_STATE_WRITTEN,
+                                        NON_FREEZE_STATE_WRITTEN),
                         cases(REPLAYING_EVENTS, () -> new ReplayingEventsStatusLogic(CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(DONE, OBSERVING)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(FREEZE, SELF, WRITTEN_NON_FREEZE, TIME)
-                                .illegal(FALLEN, RECONNECT, STARTED),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(DONE_REPLAYING, OBSERVING)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
+                                .illegal(FALLEN_BEHIN, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(OBSERVING, () -> new ObservingStatusLogic(T, CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(FALLEN, BEHIND)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(FREEZE, SELF, WRITTEN_NON_FREEZE)
-                                .illegal(DONE, RECONNECT, STARTED),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN)
+                                .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(CHECKING, () -> new CheckingStatusLogic(CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(FALLEN, BEHIND)
-                                .on(FREEZE, FREEZING)
-                                .on(SELF, ACTIVE)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(WRITTEN_NON_FREEZE)
-                                .illegal(DONE, RECONNECT, STARTED),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FREEZE_ENTERED, FREEZING)
+                                .on(SELF_EVENT_CONSENSUS, ACTIVE)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(NON_FREEZE_STATE_WRITTEN)
+                                .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(ACTIVE, () -> new ActiveStatusLogic(T, CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(FALLEN, BEHIND)
-                                .on(FREEZE, FREEZING)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(SELF, WRITTEN_NON_FREEZE)
-                                .illegal(DONE, RECONNECT, STARTED),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FREEZE_ENTERED, FREEZING)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN)
+                                .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(FREEZING, () -> new FreezingStatusLogic(0))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(FALLEN, SELF, WRITTEN_NON_FREEZE, TIME)
-                                .illegal(DONE, FREEZE, RECONNECT, STARTED),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(FALLEN_BEHIN, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
+                                .illegal(DONE_REPLAYING, FREEZE_ENTERED, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(BEHIND, () -> new BehindStatusLogic(CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(RECONNECT, RECONNECT_COMPLETE)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(FREEZE, SELF, WRITTEN_NON_FREEZE, TIME)
-                                .illegal(DONE, FALLEN, STARTED),
-                        cases(RECONNECT_COMPLETE, () -> new ReconnectCompleteStatusLogic(0, null, CONFIG))
-                                .on(CAT, CATASTROPHIC_FAILURE)
-                                .on(FALLEN, BEHIND)
-                                .on(WRITTEN_FREEZE, FREEZE_COMPLETE)
-                                .stays(FREEZE, SELF, TIME)
-                                .illegal(DONE, RECONNECT, STARTED),
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(RECONNECT_COMPLETE, PlatformStatus.RECONNECT_COMPLETE)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
+                                .illegal(DONE_REPLAYING, FALLEN_BEHIN, STARTED_REPLAYING),
+                        cases(
+                                        PlatformStatus.RECONNECT_COMPLETE,
+                                        () -> new ReconnectCompleteStatusLogic(0, null, CONFIG))
+                                .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
+                                .on(FALLEN_BEHIN, BEHIND)
+                                .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
+                                .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, TIME_ELAPSED)
+                                .illegal(DONE_REPLAYING, RECONNECT_COMPLETE, STARTED_REPLAYING),
                         cases(CATASTROPHIC_FAILURE, CatastrophicFailureStatusLogic::new)
                                 .stays(
-                                        CAT,
-                                        DONE,
-                                        FALLEN,
-                                        FREEZE,
-                                        RECONNECT,
-                                        SELF,
-                                        STARTED,
-                                        WRITTEN_FREEZE,
-                                        WRITTEN_NON_FREEZE,
-                                        TIME),
+                                        CATASTROPHIC,
+                                        DONE_REPLAYING,
+                                        FALLEN_BEHIN,
+                                        FREEZE_ENTERED,
+                                        RECONNECT_COMPLETE,
+                                        SELF_EVENT_CONSENSUS,
+                                        STARTED_REPLAYING,
+                                        FREEZE_STATE_WRITTEN,
+                                        NON_FREEZE_STATE_WRITTEN,
+                                        TIME_ELAPSED),
                         cases(FREEZE_COMPLETE, FreezeCompleteStatusLogic::new)
                                 .stays(
-                                        CAT,
-                                        DONE,
-                                        FALLEN,
-                                        FREEZE,
-                                        RECONNECT,
-                                        SELF,
-                                        STARTED,
-                                        WRITTEN_FREEZE,
-                                        WRITTEN_NON_FREEZE,
-                                        TIME))
+                                        CATASTROPHIC,
+                                        DONE_REPLAYING,
+                                        FALLEN_BEHIN,
+                                        FREEZE_ENTERED,
+                                        RECONNECT_COMPLETE,
+                                        SELF_EVENT_CONSENSUS,
+                                        STARTED_REPLAYING,
+                                        FREEZE_STATE_WRITTEN,
+                                        NON_FREEZE_STATE_WRITTEN,
+                                        TIME_ELAPSED))
                 .flatMap(StatusCases::stream);
     }
 

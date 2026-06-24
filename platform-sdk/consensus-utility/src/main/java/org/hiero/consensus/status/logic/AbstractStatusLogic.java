@@ -118,7 +118,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
      * @param action              the freeze period action being processed
      * @return the freeze round to record
      */
-    protected final long validateFreezeRound(
+    protected void validateFreezeRound(
             @Nullable final Long existingFreezeRound, @NonNull final FreezePeriodEnteredAction action) {
 
         if (existingFreezeRound != null) {
@@ -126,7 +126,6 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
                     + " status. Previous notification was for round " + existingFreezeRound
                     + ", new notification is for round " + action.freezeRound());
         }
-        return action.freezeRound();
     }
 
     /**

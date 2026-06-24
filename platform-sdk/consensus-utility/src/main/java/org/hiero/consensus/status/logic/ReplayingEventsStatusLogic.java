@@ -60,7 +60,8 @@ public class ReplayingEventsStatusLogic extends AbstractStatusLogic {
     @NonNull
     @Override
     protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
-        freezeRound = validateFreezeRound(freezeRound, action);
+        validateFreezeRound(freezeRound, action);
+        freezeRound = action.freezeRound();
         return this;
     }
 }
