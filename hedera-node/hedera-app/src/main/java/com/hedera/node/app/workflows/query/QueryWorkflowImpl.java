@@ -46,7 +46,6 @@ import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
@@ -356,9 +355,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     }
 
     private boolean shouldUseSimpleFees(QueryContext context) {
-        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            return false;
-        }
         return switch (context.query().query().kind()) {
             case CONSENSUS_GET_TOPIC_INFO,
                     SCHEDULE_GET_INFO,
