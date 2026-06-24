@@ -89,7 +89,7 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() {
-        testDirectory = tmpDir.resolve("SignedStateFileReadWriteTest");
+        testDirectory = tmpDir.resolve("StateFileManagerTests");
         fileSystemManager = new FileSystemManager(testDirectory);
         context = TestPlatformContextBuilder.create()
                 .withFileSystemManager(fileSystemManager)
@@ -198,7 +198,6 @@ class StateFileManagerTests {
     @ValueSource(booleans = {true, false})
     @DisplayName("Sequence Of States Test")
     void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException, ParseException {
-
         final Random random = getRandomPrintSeed();
 
         // Save state every 100 (simulated) seconds
@@ -320,12 +319,11 @@ class StateFileManagerTests {
                         CompareTo.isGreaterThan(nextBoundary, timestamp),
                         "next boundary should be after current timestamp");
             }
-
-            stateLifecycleManager.getMutableState().release();
         }
+
+        stateLifecycleManager.getMutableState().release();
     }
 
-    @SuppressWarnings("resource")
     @Test
     @DisplayName("State Deletion Test")
     void stateDeletionTest() throws IOException, ParseException {
@@ -413,10 +411,6 @@ class StateFileManagerTests {
     }
 
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
-        destroyStateLifecycleManager(stateLifecycleManager);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
-
         stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getLatestImmutableState().release();
     }
