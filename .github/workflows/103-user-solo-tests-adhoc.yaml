@@ -420,7 +420,7 @@ jobs:
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
-            "${SCRIPT_PATH}" --nodes 4 | tee "${RUNNER_TEMP}/cutover-script.log"
+            "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
