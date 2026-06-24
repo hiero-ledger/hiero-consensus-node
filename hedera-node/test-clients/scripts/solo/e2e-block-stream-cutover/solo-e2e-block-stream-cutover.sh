@@ -303,9 +303,10 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_P
 # Only used on MN >= 0.155 (written as HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION). On 0.154
 # there is no hapiVersion key — leave empty and the importer auto-detects the record→block cutover.
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
-# Mirror node chart version used by `solo mirror node upgrade` in Step 9.
+# Mirror node chart version used by `solo mirror node add` in Step 3 and
+# `solo mirror node upgrade` in Step 9.
 # Block-cutover env wiring requires MN >= 0.153.1; Solo's default is v0.152.0 which silently ignores the env keys.
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.154.0}"
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
 
 # Step at which to start; lower-numbered steps are skipped. Default 1 = full run.
 START_STEP="${START_STEP:-1}"
@@ -3120,6 +3121,7 @@ deploy_mirror_node_for_cutover() {
   if run_step "Deploying mirror node" \
     solo mirror node add \
     --deployment "${SOLO_DEPLOYMENT}" \
+    --mirror-node-version "${MIRROR_NODE_VERSION}" \
     --enable-ingress \
     --force-port-forward false \
     --values-file "${MIRROR_NODE_VALUES_FILE}"; then
