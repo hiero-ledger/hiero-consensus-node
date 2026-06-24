@@ -55,6 +55,35 @@ const PATTERNS: Array<{ context: string; regex: RegExp }> = DANGEROUS_CONTEXTS.m
     (ctx) => ({ context: ctx, regex: buildPattern(ctx) })
 );
 
+// ─── Additional dynamic patterns ─────────────────────────────────────────────
+
+// Step outputs can carry attacker-controlled data (e.g. derived from PR metadata)
+const STEP_OUTPUT_PATTERN: { context: string; regex: RegExp } = {
+    context: "steps.<id>.outputs.<name>",
+    regex: /\$\{\{[^}]*steps\.[a-zA-Z0-9_-]+\.outputs\.[a-zA-Z0-9_-][^}]*}}/gi,
+};
+
+// Build per-workflow patterns for string-typed inputs. Boolean/number/choice
+// inputs are constrained values and cannot be shell-injected; skip them.
+function buildInputPatterns(workflow: any): Array<{ context: string; regex: RegExp }> {
+    const patterns: Array<{ context: string; regex: RegExp }> = [];
+    const inputSources: Array<Record<string, any>> = [
+        workflow?.on?.workflow_dispatch?.inputs ?? {},
+        workflow?.on?.workflow_call?.inputs ?? {},
+    ];
+    for (const inputs of inputSources) {
+        for (const [name, def] of Object.entries<any>(inputs)) {
+            if (def?.type === "boolean" || def?.type === "number" || def?.type === "choice") continue;
+            const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            patterns.push({
+                context: `inputs.${name}`,
+                regex: new RegExp(`\\$\\{\\{[^}]*inputs\\.${escaped}[^}]*}}`, "gi"),
+            });
+        }
+    }
+    return patterns;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Finding {
@@ -85,6 +114,12 @@ function findInjections(filePath: string, raw: string): Finding[] {
 
     if (!workflow?.jobs || typeof workflow.jobs !== "object") return [];
 
+    const allPatterns = [
+        ...PATTERNS,
+        STEP_OUTPUT_PATTERN,
+        ...buildInputPatterns(workflow),
+    ];
+
     for (const [jobName, job] of Object.entries<any>(workflow.jobs)) {
         const steps: any[] = Array.isArray(job?.steps) ? job.steps : [];
 
@@ -93,14 +128,14 @@ function findInjections(filePath: string, raw: string): Finding[] {
 
             // Check the `run:` block — direct injection risk
             if (typeof step?.run === "string") {
-                checkText(step.run, filePath, raw, lines, jobName, stepName, stepIdx, true, false, findings);
+                checkText(step.run, filePath, raw, lines, jobName, stepName, stepIdx, true, false, allPatterns, findings);
             }
 
             // Check the `env:` block — still logs it but marks as safe indirection
             if (step?.env && typeof step.env === "object") {
                 for (const envVal of Object.values<any>(step.env)) {
                     if (typeof envVal === "string") {
-                        checkText(envVal, filePath, raw, lines, jobName, stepName, stepIdx, false, true, findings);
+                        checkText(envVal, filePath, raw, lines, jobName, stepName, stepIdx, false, true, allPatterns, findings);
                     }
                 }
             }
@@ -120,9 +155,10 @@ function checkText(
     stepIdx: number,
     inRunBlock: boolean,
     inEnvBlock: boolean,
+    patterns: Array<{ context: string; regex: RegExp }>,
     findings: Finding[]
 ) {
-    for (const { context, regex } of PATTERNS) {
+    for (const { context, regex } of patterns) {
         let match: RegExpExecArray | null;
         regex.lastIndex = 0;
         while ((match = regex.exec(text)) !== null) {
@@ -157,6 +193,8 @@ function findLineNumber(raw: string, lines: string[], matchStr: string): number 
 
 function collectWorkflowFiles(dir: string): string[] {
     if (!fs.existsSync(dir)) return [];
+    const stat = fs.statSync(dir);
+    if (stat.isFile()) return [dir];
     return fs
         .readdirSync(dir)
         .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
