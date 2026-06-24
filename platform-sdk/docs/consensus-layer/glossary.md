@@ -336,8 +336,8 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Other-parent
 
-A parent edge to an event by a different creator. The data model allows several; the current
-default caps it at one (`maxOtherParents`). Contrast *Self-parent*.
+A parent edge to an event by a different creator. The data model allows several; the number an event
+uses is bounded by the `maxOtherParents` tunable (TUN-140). Contrast *Self-parent*.
 See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Parent

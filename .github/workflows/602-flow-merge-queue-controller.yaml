@@ -72,6 +72,7 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      tck-version: ${{ needs.extract-citr-vars.outputs.tck-version }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
 
     secrets:
