@@ -92,7 +92,8 @@ public class TokenCustomFeeTest {
                     final var firstFee = feeForCollector(fees, firstCollectorId);
                     final var secondFee = feeForCollector(fees, secondCollectorId);
 
-                    assertEquals(SUCCESS, recordOp.getResponseRecord().getReceipt().getStatus());
+                    assertEquals(
+                            SUCCESS, recordOp.getResponseRecord().getReceipt().getStatus());
                     assertEquals(5L, firstFee.getAmount(), "First fractional fee amount changed");
                     assertEquals(10L, secondFee.getAmount(), "Second fractional fee amount changed");
                     assertEquals(
