@@ -6,7 +6,7 @@ module org.hiero.consensus.iss.detection {
     exports org.hiero.consensus.iss.detection;
     exports org.hiero.consensus.iss.detection.config;
     exports org.hiero.consensus.iss.detection.internal to
-            org.hiero.otter.test;
+            org.hiero.otter.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
