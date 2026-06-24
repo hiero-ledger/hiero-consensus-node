@@ -610,7 +610,7 @@ jobs:
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
-          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info  || ''}}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
