@@ -610,16 +610,46 @@ seed_block_node_tss_parameters() {
   p="$(sed -n '2p' "${creds_tmp}")"
   rm -f "${creds_tmp}"
 
-  # Copy all block-stream objects out of the bucket via in-pod mc, then kubectl cp the dir.
+  # Copy block-stream objects out of MinIO via in-pod mc, then stream them out file-by-file.
+  # Be resilient to MinIO reconnect races and object-prefix casing drift.
   in_pod_dir="/tmp/bn-blk-$$"
+  local minio_prefixes=("blockStreams" "blockstreams")
+  local minio_prefix=""
+  local minio_copy_ok=0
+  local minio_attempt=0
+  local minio_max_attempts=10
+  local minio_sleep_secs=5
+  local minio_copy_err=""
+  local prefix
   echo "Copying block-stream files from MinIO ${MINIO_BUCKET}/blockStreams via in-pod mc"
-  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-      "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
-       mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-       mc cp --recursive 'local/${MINIO_BUCKET}/blockStreams/' '${in_pod_dir}/' >/dev/null 2>&1"; then
-    echo "seed_block_node_tss_parameters: in-pod mc cp of blockStreams failed" >&2
+  for prefix in "${minio_prefixes[@]}"; do
+    for (( minio_attempt=1; minio_attempt<=minio_max_attempts; minio_attempt++ )); do
+      minio_copy_err="$(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+        "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
+         mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
+         mc cp --recursive 'local/${MINIO_BUCKET}/${prefix}/' '${in_pod_dir}/'" 2>&1)" && {
+          minio_copy_ok=1
+          minio_prefix="${prefix}"
+          break 2
+        }
+      echo "  MinIO copy attempt ${minio_attempt}/${minio_max_attempts} failed for prefix '${prefix}', retrying in ${minio_sleep_secs}s"
+      sleep "${minio_sleep_secs}"
+    done
+  done
+  if (( minio_copy_ok == 0 )); then
+    echo "seed_block_node_tss_parameters: in-pod mc cp of blockStreams/blockstreams failed after ${minio_max_attempts} attempts per prefix" >&2
+    if [[ -n "${minio_copy_err}" ]]; then
+      echo "Last mc error output:" >&2
+      echo "${minio_copy_err}" >&2
+    fi
+    echo "MinIO bucket listing for diagnostics:" >&2
+    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+      "mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
+       mc ls 'local/${MINIO_BUCKET}/' || true; \
+       mc ls --recursive 'local/${MINIO_BUCKET}/' | sed -n '1,80p' || true" >&2 || true
     return 1
   fi
+  echo "Copied block-stream objects from MinIO prefix '${minio_prefix}'"
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
   # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
   # to tar, which the distroless MinIO image does not ship). Stdout without a TTY is a raw
@@ -1097,6 +1127,11 @@ reconnect_importer_to_minio() {
   echo "Scaling ${MINIO_DISCONNECTED_OWNER_KIND}/${MINIO_DISCONNECTED_OWNER_NAME} in namespace ${MINIO_NAMESPACE} back to 1 replica"
   kubectl --request-timeout=30s -n "${MINIO_NAMESPACE}" scale \
     "${MINIO_DISCONNECTED_OWNER_KIND}/${MINIO_DISCONNECTED_OWNER_NAME}" --replicas=1 || true
+  # Give MinIO time to recover before later steps read block-stream objects from the bucket.
+  echo "Waiting up to 180s for minio-pool-1-0 to become Ready after reconnect"
+  if ! kubectl --request-timeout=10s -n "${MINIO_NAMESPACE}" wait --for=condition=ready pod/minio-pool-1-0 --timeout=180s >/dev/null 2>&1; then
+    echo "WARNING: minio-pool-1-0 did not reach Ready within 180s after reconnect; downstream MinIO reads may need retries" >&2
+  fi
   MINIO_DISCONNECTED_OWNER_KIND=""
   MINIO_DISCONNECTED_OWNER_NAME=""
 }
