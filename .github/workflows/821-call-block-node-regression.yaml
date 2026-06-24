@@ -315,7 +315,7 @@ jobs:
           if [[ "${CN_LATEST_TAG}" != 0.75* && "${CN_LATEST_TAG}" != 0.76* ]]; then
             cat <<EOF > application.properties
             blockStream.streamWrappedRecordBlocks=false
-            EOF
+          EOF
 
             echo "=== application.properties ==="
             cat ./application.properties
