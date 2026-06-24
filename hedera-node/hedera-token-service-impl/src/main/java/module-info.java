@@ -4,7 +4,6 @@
  */
 module com.hedera.node.app.service.token.impl {
     requires transitive com.hedera.node.app.hapi.fees;
-    requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token;
@@ -19,6 +18,7 @@ module com.hedera.node.app.service.token.impl {
     requires transitive dagger;
     requires transitive javax.inject;
     requires transitive org.apache.commons.lang3;
+    requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.base;
     requires org.hiero.consensus.metrics;
     requires com.github.spotbugs.annotations;

@@ -15,6 +15,11 @@ public class UtilityConfigurationExtension implements ConfigurationExtension {
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(BasicConfig.class, FallenBehindConfig.class, PathsConfig.class, RecycleBinConfig.class);
+        return Set.of(
+                BasicConfig.class,
+                FallenBehindConfig.class,
+                PathsConfig.class,
+                PlatformStatusConfig.class,
+                RecycleBinConfig.class);
     }
 }

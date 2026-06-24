@@ -24,9 +24,9 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * No-op implementation of the {@link PcesModule}.

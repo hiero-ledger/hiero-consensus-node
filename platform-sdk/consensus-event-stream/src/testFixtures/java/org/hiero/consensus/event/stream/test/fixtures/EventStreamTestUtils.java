@@ -1,0 +1,266 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.event.stream.test.fixtures;
+
+import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
+import static org.hiero.base.CompareTo.isLessThan;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+
+import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signer;
+import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
+import org.hiero.consensus.event.stream.EventStreamType;
+import org.hiero.consensus.event.stream.LinkedObjectStream;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
+import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
+import org.hiero.consensus.event.stream.config.EventStreamConfig_;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.mockito.Mockito;
+
+/**
+ * Utilities for recovery tests.
+ */
+public final class EventStreamTestUtils {
+
+    private EventStreamTestUtils() {}
+
+    /**
+     * Generate a random event. Fields inside event are filled mostly with random nonsense data, and a little realistic
+     * data (i.e. the event's round).
+     *
+     * @param random a source of randomness
+     * @return an event
+     */
+    public static CesEvent generateRandomEvent(
+            final Random random, final long round, final boolean lastInRound, final Instant now) {
+
+        final PlatformEvent platformEvent = new TestingEventBuilder(random)
+                .setAppTransactionCount(random.nextInt(10))
+                .setTransactionSize(random.nextInt(10) + 1)
+                .setSystemTransactionCount(0)
+                .setSelfParent(new TestingEventBuilder(random)
+                        .setCreatorId(NodeId.of(random.nextLong(0, Long.MAX_VALUE)))
+                        .build())
+                .setOtherParent(new TestingEventBuilder(random)
+                        .setCreatorId(NodeId.of(random.nextLong(0, Long.MAX_VALUE)))
+                        .build())
+                .setTimeCreated(now)
+                .setConsensusTimestamp(now)
+                .build();
+
+        return new CesEvent(platformEvent, round, lastInRound);
+    }
+
+    /**
+     * Generate a list of random events.
+     *
+     * @param random          a source of randomness
+     * @param firstRound      the round of the first event
+     * @param timeToSimulate  the length of time that should be simulated
+     * @param roundsPerSecond the number of rounds per second
+     * @param evensPerRound   the number of events in each round
+     * @return a list of events
+     */
+    public static List<CesEvent> generateRandomEvents(
+            final Random random,
+            final long firstRound,
+            final Duration timeToSimulate,
+            final int roundsPerSecond,
+            final int evensPerRound) {
+
+        final List<CesEvent> events = new ArrayList<>();
+
+        final FakeTime time = new FakeTime();
+        final Instant stopTime = time.now().plus(timeToSimulate);
+        final Duration timeBetweenEvents =
+                Duration.ofNanos((long) (1.0 * SECONDS_TO_NANOSECONDS / roundsPerSecond / evensPerRound));
+
+        long round = firstRound;
+        long eventsInRound = 0;
+
+        while (isLessThan(time.now(), stopTime)) {
+
+            final long currentRound = round;
+            final Instant now = time.now();
+            final boolean lastInRound;
+
+            time.tick(timeBetweenEvents);
+            eventsInRound++;
+            if (eventsInRound >= evensPerRound) {
+                round++;
+                eventsInRound = 0;
+                lastInRound = true;
+            } else {
+                lastInRound = false;
+            }
+
+            events.add(generateRandomEvent(random, currentRound, lastInRound, now));
+        }
+
+        return events;
+    }
+
+    /**
+     * Write a list of events to event stream files.
+     *
+     * @param random         a source of randomness (for generating signatures)
+     * @param destination    the directory where the files should be written
+     * @param secondsPerFile the number of seconds of data in each file
+     * @param events         a list of events to be written
+     */
+    public static void writeRandomEventStream(
+            final Random random, final Path destination, final int secondsPerFile, final List<CesEvent> events)
+            throws IOException {
+
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(EventStreamConfig_.ENABLE_EVENT_STREAMING, true)
+                .withValue(EventStreamConfig_.EVENTS_LOG_DIR, destination.toString())
+                .withValue(EventStreamConfig_.EVENTS_LOG_PERIOD, secondsPerFile)
+                .getOrCreateConfig();
+
+        final DefaultConsensusEventStream eventStreamManager = new DefaultConsensusEventStream(
+                Time.getCurrent(),
+                configuration,
+                new NoOpMetrics(),
+                NodeId.of(0L),
+                x -> randomSignature(random),
+                "test",
+                x -> false);
+
+        // The event stream writer has flaky asynchronous behavior,
+        // so we need to be extra careful when waiting for it to finish.
+        // Wrap events and count the number of times they are serialized.
+        final AtomicInteger writeCount = new AtomicInteger(0);
+
+        final List<CesEvent> wrappedEvents = new ArrayList<>(events.size());
+        for (final CesEvent event : events) {
+            final CesEvent wrappedEvent = spy(event);
+
+            Mockito.doAnswer(invocation -> {
+                        invocation.callRealMethod();
+                        writeCount.incrementAndGet();
+                        return null;
+                    })
+                    .when(wrappedEvent)
+                    .serialize(any());
+
+            wrappedEvents.add(wrappedEvent);
+        }
+
+        eventStreamManager.addEvents(wrappedEvents);
+
+        // Each event will be serialized twice. Once when it is hashed, and once when it is written to disk.
+        assertEventuallyTrue(
+                () -> writeCount.get() == events.size() * 2,
+                Duration.ofSeconds(10),
+                "event not serialized fast enough");
+
+        eventStreamManager.stop();
+    }
+
+    /**
+     * Writes consensus rounds to an event stream
+     *
+     * @param dir
+     * 		the directory to write to
+     * @param signer
+     * 		signs the files
+     * @param eventStreamWindowSize
+     * 		the windows after which a new stream file will be created
+     * @param rounds
+     * 		the consensus rounds to write
+     */
+    public static void writeRoundsToStream(
+            final Path dir,
+            final Signer signer,
+            final Duration eventStreamWindowSize,
+            final Collection<ConsensusRound> rounds) {
+        final LinkedObjectStream<CesEvent> stream =
+                new RunningHashCalculatorForStream<>(new TimestampStreamFileWriter<>(
+                        dir.toAbsolutePath().toString(),
+                        eventStreamWindowSize.toMillis(),
+                        signer,
+                        false,
+                        EventStreamType.getInstance()));
+        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()]));
+        rounds.stream().flatMap(r -> r.getStreamedEvents().stream()).forEach(stream::addObject);
+        stream.close();
+    }
+
+    /**
+     * Compare two event stream files based on creation date.
+     */
+    private static int compareEventStreamPaths(final Path pathA, final Path pathB) {
+        // A nice property of dates is that they are naturally alphabetized by timestamp
+        return pathA.getFileName().compareTo(pathB.getFileName());
+    }
+
+    /**
+     * Check if a file is an event stream file.
+     */
+    private static boolean isFileAnEventStreamFile(final Path path) {
+        return path.toString().endsWith(".evts");
+    }
+
+    /**
+     * Get the first event stream file from a directory.
+     */
+    public static Path getFirstEventStreamFile(final Path directory) throws IOException {
+        final List<Path> eventStreamFiles = new ArrayList<>();
+        Files.walk(directory)
+                .filter(EventStreamTestUtils::isFileAnEventStreamFile)
+                .sorted(EventStreamTestUtils::compareEventStreamPaths)
+                .forEachOrdered(eventStreamFiles::add);
+
+        return eventStreamFiles.get(0);
+    }
+
+    /**
+     * Get the middle event stream file from a directory.
+     */
+    public static Path getMiddleEventStreamFile(final Path directory) throws IOException {
+        final List<Path> eventStreamFiles = new ArrayList<>();
+        Files.walk(directory)
+                .filter(EventStreamTestUtils::isFileAnEventStreamFile)
+                .sorted(EventStreamTestUtils::compareEventStreamPaths)
+                .forEachOrdered(eventStreamFiles::add);
+
+        return eventStreamFiles.get(eventStreamFiles.size() / 2);
+    }
+
+    /**
+     * Get the last event stream file from a directory.
+     */
+    public static Path getLastEventStreamFile(final Path directory) throws IOException {
+        final List<Path> eventStreamFiles = new ArrayList<>();
+        Files.walk(directory)
+                .filter(EventStreamTestUtils::isFileAnEventStreamFile)
+                .sorted(EventStreamTestUtils::compareEventStreamPaths)
+                .forEachOrdered(eventStreamFiles::add);
+
+        return eventStreamFiles.getLast();
+    }
+}

@@ -131,9 +131,7 @@ public class TokenAirdropSimpleFeesTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "fees.simpleFeesEnabled", "true",
-                "hooks.hooksEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
     }
 
     @Nested

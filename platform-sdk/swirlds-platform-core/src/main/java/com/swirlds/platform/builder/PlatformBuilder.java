@@ -23,7 +23,6 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
@@ -71,6 +70,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -530,12 +530,8 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final Scratchpad<IssScratchpad> issScratchpad = Scratchpad.create(
-                platformContext.getConfiguration(),
-                platformContext.getFileSystemManager(),
-                selfId,
-                IssScratchpad.class,
-                "platform.iss");
+        final Scratchpad<IssScratchpad> issScratchpad =
+                Scratchpad.create(platformContext.getFileSystemManager(), selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
 
         if (model == null) {
