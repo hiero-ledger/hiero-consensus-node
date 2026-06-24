@@ -350,7 +350,7 @@ jobs:
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
       java-version: "${{ inputs.java-version }}"
     secrets:
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.platform-access-token }}
       jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
       jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
       gcp-project-number: ${{ secrets.gcp-project-number }}
