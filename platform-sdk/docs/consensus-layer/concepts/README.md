@@ -18,3 +18,4 @@ Each concept file gives a precise definition, the mechanics, a worked example, t
 | [event-lifecycle.md](event-lifecycle.md)           | Event lifecycle      | Admitted → ancient → expired, gated by two birth-round thresholds.            |
 | [stale-events.md](stale-events.md)                 | Stale events         | Admitted events that aged out without reaching consensus.                     |
 | [branching.md](branching.md)                       | Branching            | Byzantine equivocation (forking) and how strong-seeing tolerates it.          |
+| [consensus-assumptions.md](consensus-assumptions.md) | Consensus assumptions | The trust-model preconditions every consensus guarantee rests on.            |
