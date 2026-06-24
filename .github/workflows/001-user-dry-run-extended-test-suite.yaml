@@ -138,6 +138,7 @@ jobs:
           echo "JS SDK Version: ${{ needs.extract-citr-vars.outputs.js-sdk-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Release Version: ${{ needs.extract-citr-vars.outputs.bn-release-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Regression Mirror Node Version: ${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "JSON RPC Relay Regression Version: ${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${SOLO_VERSION}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version >= 0.44.0 (gates Migration Testing + Block Node Regression): ${SOLO_GE_0440}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -191,6 +192,7 @@ jobs:
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
       bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
       custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}

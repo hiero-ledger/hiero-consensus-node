@@ -718,13 +718,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
                 shutdownGrpcServer();
+
+                // Stop the block stream and schedule a handler-thread flush of any open/pending blocks (we may need
+                // them for triage), then wait (bounded) for that flush to complete. This MUST run before the block
+                // node connections are shut down: their shutdown clears the in-memory block buffer that the gRPC
+                // writer flushes open/pending blocks from, so flushing afterwards would capture nothing.
+                blockStreamManager().notifyFatalEvent();
+                blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
+
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
-
-                // Wait for the block stream to close any pending or current blocks–-we may need them for triage
-                blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {

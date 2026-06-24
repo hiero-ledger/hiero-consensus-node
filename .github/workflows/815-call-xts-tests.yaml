@@ -86,22 +86,22 @@ on:
         description: "The TCK version to use for XTS Panels"
         type: string
         required: false
-        default: "latest"
       js-sdk-version:
         description: "The JavaScript SDK version to use for XTS Panels"
         type: string
         required: false
-        default: "latest"
       bn-release-version:
         description: "The Block Node release version to use for XTS Panels"
         type: string
         required: false
-        default: "latest"
       bn-mirror-node-version:
         description: "The Mirror Node release version to use for Block Node XTS Panels"
         type: string
         required: false
-        default: "latest"
+      json-rpc-relay-version:
+        description: "The JSON-RPC Relay release version to use for XTS Panels"
+        type: string
+        required: false
     secrets:
       access-token:
         description: "Github Access Token"
@@ -369,6 +369,7 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
       solo-version: ${{ inputs.solo-version }}
       java-version: "${{ inputs.java-version }}"
+      json-rpc-relay-version: "${{ inputs.json-rpc-relay-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
