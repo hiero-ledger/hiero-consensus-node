@@ -30,11 +30,11 @@ An event is stale exactly when its birth round falls below the ancient boundary 
 
 ## Change risk
 
-- **A node-local ancient boundary** — deriving the boundary from per-node state so two nodes age out different events.
+- **A node-local ancient boundary** — deriving the boundary from data that can differ between nodes, so two nodes age out different events.
 - **Ordering an event past the boundary on one node** while another has already discarded it as stale.
 - **Mutating an event's birth round** after creation, so the staleness test gives different answers on different nodes.
 
-Any change that lets one correct node order an event another has declared stale forks the ordered stream.
+Any change that lets one correct node order an event another has declared stale causes an [ISS](../architecture/topics/iss-detection.md) (inconsistent state signature).
 
 ## Notes
 
