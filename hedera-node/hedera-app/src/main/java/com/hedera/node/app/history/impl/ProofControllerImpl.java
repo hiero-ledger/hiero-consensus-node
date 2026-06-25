@@ -226,12 +226,15 @@ public class ProofControllerImpl implements ProofController {
                 }
                 return;
             }
-            // Cannot make progress on anything without an active network
-            if (!isActive) {
-                return;
-            }
             final var outcome = requireNonNull(prover)
-                    .advance(now, construction, metadata, targetProofKeys, tssConfig, historyStore.getLedgerId());
+                    .advance(
+                            now,
+                            construction,
+                            metadata,
+                            targetProofKeys,
+                            tssConfig,
+                            historyStore.getLedgerId(),
+                            isActive);
             switch (outcome) {
                 case HistoryProver.Outcome.InProgress ignored ->
                     construction = historyStore.getConstructionOrThrow(constructionId());
