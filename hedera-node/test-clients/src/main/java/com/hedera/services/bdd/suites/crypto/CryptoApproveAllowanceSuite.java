@@ -1730,12 +1730,13 @@ public class CryptoApproveAllowanceSuite {
     }
 
     /**
-     * Characterizing test for the following business case on allowances and treasury changes for NFTs:
-     * If old treasury approves a spender for treasury-owned serials and treasury is later changed,
-     * old treasury allowances are invalidated as part of treasury change cleanup.
+     * Characterizing test for the following business case on Allowances and Treasury changes for NFTs:
+     * If you approve a spender for a treasury-owned NFT, this approval exists **independent of the exact treasury account**.
+     * That is, if Alice has approval to spend a treasury-owned serial #123 of non-fungible token type 0.0.N, she does not lose that approval just because the 0.0.N admin updates the token treasury.
+     * The approval lasts until it is explicitly removed using the active treasury key.
      */
     @HapiTest
-    final Stream<DynamicTest> previousNftAllowancesInvalidatedOnTreasuryChange() {
+    final Stream<DynamicTest> previousNftAllowancesStillValidOnTreasuryChange() {
         final String SUPPLY_KEY = "supplyKey";
         final String ADMIN_KEY = "adminKey";
         final String NFT_TOKEN = "nftToken";
@@ -1774,16 +1775,18 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(OLD_TREASURY)
                         .signedBy(OLD_TREASURY),
 
-                // Change treasury to newTreasury and clean up old-treasury allowances
+                // Change treasury to newTreasury
+                // changeOwnerToNewTreasury() updates counters but
+                // leaves previous allowances intact on the Nft record for serial #1
                 tokenUpdate(NFT_TOKEN).treasury(NEW_TREASURY).signedByPayerAnd(ADMIN_KEY, NEW_TREASURY),
 
-                // Previous allowance spender can no longer transfer NFT #1
+                // Previous allowance spender transfers NFT #1 successfully
                 cryptoTransfer(movingUniqueWithAllowance(NFT_TOKEN, 1L).between(NEW_TREASURY, RECEIVER))
                         .payingWith(SPENDER)
                         .signedBy(SPENDER)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                        .hasKnownStatus(SUCCESS),
 
-                // Explicit delete from new treasury is still valid and idempotent
+                // Delete inherited allowance w/ new treasury key
                 cryptoDeleteAllowance()
                         .addNftDeleteAllowance(NEW_TREASURY, NFT_TOKEN, List.of(2L))
                         .payingWith(NEW_TREASURY)
@@ -1796,8 +1799,8 @@ public class CryptoApproveAllowanceSuite {
                         .signedBy(SPENDER)
                         .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
 
-                // Confirm no NFT physically moved via stale spender
-                getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 2),
-                getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 0));
+                // Confirm NFT #1 physically moved
+                getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 1),
+                getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1));
     }
 }
