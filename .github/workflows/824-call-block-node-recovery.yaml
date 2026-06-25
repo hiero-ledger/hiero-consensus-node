@@ -447,6 +447,20 @@ jobs:
           STATUS_JSON_3=$(get_bn_status 40843)
           LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
           echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
+          
+          # Validate
+          if (( $LAST_AVAILABLE_BLOCK_1 < 1 )); then
+              echo "BN 1's Last available block is less than 1"
+              exit 1
+          fi
+          if (( $LAST_AVAILABLE_BLOCK_2 < 1 )); then
+              echo "BN 2's Last available block is less than 1"
+              exit 1
+          fi
+          if (( $LAST_AVAILABLE_BLOCK_3 < 1 )); then
+              echo "BN 3's Last available block is less than 1"
+              exit 1
+          fi
         continue-on-error: true
 
       # After some run time stop BN1 and BN2 to simulate unavailable BNs,
@@ -615,9 +629,10 @@ jobs:
             bn3-recovery-logs.log
             mn0-recovery-logs.log
 
+      # CN logs to uploaded if there was no confirmation of CN <> BN streaming
       - name: Upload CN Logs
         id: upload_cn_logs
-        if: always()
+        if: always() && steps.bn-init-status.outcome != 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cn-recovery-logs
