@@ -95,10 +95,39 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.bn-release-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
   compute-solo-ge-0440:
     name: Compute solo-ge-0440
     needs:
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/856-call-solo-ge044.yaml
     with:
       solo-version: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}
@@ -108,6 +137,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - extract-citr-vars
+      - verify-citr-vars
       - compute-solo-ge-0440
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
@@ -174,6 +204,7 @@ jobs:
       - parameters
       - extract-jdk-version
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
