@@ -63,7 +63,7 @@ populated by
 using a `java.security.SecureRandom`. The value must be genuinely
 unpredictable to any adversary in advance — a deterministic
 pseudo-random source seeded from event content would let an adversary
-predict the bit and exploit it to keep an election undecided. This unpredictability requirement is INV-015. Coin frequency configuration:
+predict the bit and exploit it to keep an election undecided. This unpredictability requirement is INV-013. Coin frequency configuration:
 [`ConsensusConfig#coinFreq`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/config/ConsensusConfig.java)
 defaulting to `12`.
 
@@ -78,5 +78,5 @@ instead.
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`judges.md`](judges.md).
-- Invariants: INV-015 (an honest event's coin value is unpredictable to the creators of its ancestors), INV-005 (every honest event eventually reaches consensus or becomes stale).
+- Invariants: INV-013 (an honest event's coin value is unpredictable to the creators of its ancestors), INV-005 (every honest event eventually reaches consensus or becomes stale).
 - Glossary entry: [`../glossary.md`](../glossary.md).

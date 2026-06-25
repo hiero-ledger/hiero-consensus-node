@@ -64,5 +64,5 @@ numbers and birth round (see
   [`strongly-seeing.md`](strongly-seeing.md),
   [`coin-rounds.md`](coin-rounds.md),
   [`judges.md`](judges.md).
-- Invariants: INV-009 (a decided election never flips), INV-014 (every round has a supermajority of judges), INV-006 (every round eventually has at least one judge).
+- Invariants: INV-009 (a decided election never flips), INV-006 (every round eventually has at least one judge).
 - Glossary entry: [`../glossary.md`](../glossary.md).

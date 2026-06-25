@@ -38,4 +38,4 @@ A judgeless round provides no anchor for ordering or timestamps, so consensus ca
 
 ## Notes
 
-This is the existence/liveness claim for judges. Agreement on *which* events are the judges of a round is INV-007; the strengthening that the judges form a supermajority of stake is INV-014. The guarantee holds under the algorithm's [standard assumptions](../concepts/consensus-assumptions.md) — an honest supermajority of stake, eventual delivery, and the coin's unpredictability (INV-015).
+This is the existence/liveness claim for judges. Agreement on *which* events are the judges of a round is INV-007. The guarantee holds under the algorithm's [standard assumptions](../concepts/consensus-assumptions.md) — an honest supermajority of stake, eventual delivery, and the coin's unpredictability (INV-013).

@@ -40,7 +40,7 @@ round, after the member's removal, would not be valid.
 ## Parent invariant
 
 A child's birth round must be greater than or equal to every one of
-its parents' birth rounds — the property cataloged as INV-012. If the network ever allowed a child whose
+its parents' birth rounds — the property cataloged as INV-011. If the network ever allowed a child whose
 birth round was less than a parent's birth round, the ancient
 threshold could advance past the child while leaving the parent
 non-ancient. The child (and any of its own descendants with the same
@@ -113,6 +113,6 @@ generation + 1) to play the same role.
   `../architecture/topics/hashgraph.md#birth-round-filtering`](../architecture/topics/hashgraph.md#birth-round-filtering).
 - Sibling concept:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md).
-- Invariants: INV-012 (birth round is monotonic along ancestry), INV-013 (the minimum non-ancient round never decreases).
+- Invariants: INV-011 (birth round is monotonic along ancestry), INV-012 (the minimum non-ancient round never decreases).
 - Rules: RUL-004 (consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent).
 - Glossary entry: [`../glossary.md`](../glossary.md).

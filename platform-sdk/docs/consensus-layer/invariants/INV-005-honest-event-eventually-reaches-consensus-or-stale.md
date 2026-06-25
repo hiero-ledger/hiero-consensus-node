@@ -38,4 +38,4 @@ Any change under which an honest event can stay undecided forever defeats livene
 
 ## Notes
 
-This is the liveness core of the algorithm's eventual-consensus guarantee; the agreement facets are INV-002 / INV-003 / INV-004, and the existence of judges that ordering depends on is INV-006. The coin unpredictability this proof invokes is itself an invariant (INV-015).
+This is the liveness core of the algorithm's eventual-consensus guarantee; the agreement facets are INV-002 / INV-003 / INV-004, and the existence of judges that ordering depends on is INV-006. The coin unpredictability this proof invokes is itself an invariant (INV-013).

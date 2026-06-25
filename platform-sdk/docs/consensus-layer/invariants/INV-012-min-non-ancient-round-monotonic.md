@@ -1,6 +1,6 @@
 ---
 type: invariant
-id: INV-013
+id: INV-012
 title: The minimum non-ancient round never decreases — the ancient boundary only moves forward
 class: safety
 topics: [hashgraph]
@@ -16,7 +16,7 @@ provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
-# INV-013 — The minimum non-ancient round never decreases
+# INV-012 — The minimum non-ancient round never decreases
 
 ## Statement
 

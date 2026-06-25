@@ -59,4 +59,4 @@ In each case the property holds by the algorithm regardless of the code, so any 
 The invariant is enforced today by the metadata-clearing step at the start of each round in
 `ConsensusImpl.recalculateAndVote`. That step clears the voting round (the `roundCreated` field) of every non-terminal event, with one preservation: a judge from the last decided round whose parents are all terminal (`ROUND_NEGATIVE_INFINITY`) keeps its metadata so it can serve as an anchor for descendants' recalculation under the new roster. The preservation is safe precisely because such a judge has no non-terminal ancestor whose recalculated round could rise above it.
 
-The immutable creator-claimed birth round (distinct from the calculated voting round) has its own monotonicity invariant, INV-012.
+The immutable creator-claimed birth round (distinct from the calculated voting round) has its own monotonicity invariant, INV-011.

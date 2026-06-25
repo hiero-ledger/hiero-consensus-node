@@ -1,6 +1,6 @@
 ---
 type: invariant
-id: INV-015
+id: INV-013
 title: An honest event's coin value is unpredictable to the creators of its ancestors
 class: integrity
 topics: [hashgraph]
@@ -16,7 +16,7 @@ provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
-# INV-015 — An honest event's coin value is unpredictable
+# INV-013 — An honest event's coin value is unpredictable
 
 ## Statement
 

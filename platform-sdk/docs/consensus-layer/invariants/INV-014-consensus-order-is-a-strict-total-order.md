@@ -1,6 +1,6 @@
 ---
 type: invariant
-id: INV-016
+id: INV-014
 title: Consensus order is a strict total order with unique, gap-free ranks
 class: ordering
 topics: [hashgraph]
@@ -16,7 +16,7 @@ provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
-# INV-016 — Consensus order is a strict total order with unique ranks
+# INV-014 — Consensus order is a strict total order with unique ranks
 
 ## Statement
 

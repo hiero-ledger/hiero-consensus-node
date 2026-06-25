@@ -38,4 +38,4 @@ Disagreement on judges propagates to every downstream order and timestamp, forki
 
 ## Notes
 
-Judge-set agreement underpins consensus-order and consensus-timestamp agreement (INV-002, INV-003). The no-flip property it relies on is INV-009; existence of at least one judge is INV-006; the supermajority strengthening is INV-014.
+Judge-set agreement underpins consensus-order and consensus-timestamp agreement (INV-002, INV-003). The no-flip property it relies on is INV-009; existence of at least one judge is INV-006.

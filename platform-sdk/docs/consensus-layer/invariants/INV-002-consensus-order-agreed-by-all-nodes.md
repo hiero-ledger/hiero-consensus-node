@@ -40,4 +40,4 @@ Any change that lets two correct nodes assign different orders to the same event
 
 ## Notes
 
-This is the consensus-order facet of the algorithm's agreement guarantee; INV-003 covers the consensus-timestamp facet and INV-004 the staleness facet. The uniqueness/total-order structure of the order on a single node is INV-016. Agreement here rests on judge-set agreement (INV-007).
+This is the consensus-order facet of the algorithm's agreement guarantee; INV-003 covers the consensus-timestamp facet and INV-004 the staleness facet. The uniqueness/total-order structure of the order on a single node is INV-014. Agreement here rests on judge-set agreement (INV-007).

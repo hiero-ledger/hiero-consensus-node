@@ -325,9 +325,8 @@ the layer's invariants are established:
 - INV-007 — all deciders of a round agree on its judge set.
 - INV-008 — consensus, once reached, is permanent.
 - INV-009 — a decided election never flips.
-- INV-013 — the minimum non-ancient round never decreases (the ancient boundary only moves forward).
-- INV-014 — every round has a supermajority of judges.
-- INV-016 — consensus order is a strict total order with unique, gap-free ranks.
+- INV-012 — the minimum non-ancient round never decreases (the ancient boundary only moves forward).
+- INV-014 — consensus order is a strict total order with unique, gap-free ranks.
 
 **Decisions.** [TBD: ADR-NNN once
 [`../../decisions/`](../../decisions/) catalog populates.]

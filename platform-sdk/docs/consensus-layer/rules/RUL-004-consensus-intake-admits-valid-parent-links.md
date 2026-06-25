@@ -7,7 +7,7 @@ topics: [event-intake, hashgraph]
 components:
   - consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/linking/ConsensusLinker.java
 related:
-  invariants: [INV-002, INV-012]
+  invariants: [INV-002, INV-011]
   decisions: []
   scenarios: []
   heuristics: []
@@ -45,5 +45,5 @@ Breaking this rule is a **flag for confirmation**, not automatically a defect. A
 
 ## Notes
 
-- The DAG integrity it maintains is what the agreement and ordering invariants (INV-002, INV-007, INV-016) ultimately run on.
-- The birth-round *ordering* relation (a child's birth round ≥ each parent's) is INV-012 — a genuine invariant, true by construction rather than by enforcement.
+- The DAG integrity it maintains is what the agreement and ordering invariants (INV-002, INV-007, INV-014) ultimately run on.
+- The birth-round *ordering* relation (a child's birth round ≥ each parent's) is INV-011 — a genuine invariant, true by construction rather than by enforcement.

@@ -36,13 +36,11 @@ marks a known correctness gap, not a stale entry.
 | [INV-007](INV-007-judge-set-agreed-across-deciders.md)                         | All deciders of a round agree on its judge set                                            | agreement | hashgraph               | enforced |
 | [INV-008](INV-008-consensus-once-reached-is-permanent.md)                      | Consensus, once reached, is permanent                                                     | safety    | hashgraph               | enforced |
 | [INV-009](INV-009-decided-election-never-flips.md)                             | A decided election never flips                                                            | safety    | hashgraph               | enforced |
-| [INV-010](INV-010-active-roster-never-moves-backward.md)                       | The active roster never moves backward                                                    | safety    | hashgraph               | enforced |
-| [INV-011](INV-011-consensus-events-have-verified-signatures.md)                | Every event used in consensus has a verified creator signature                            | integrity | event-intake, hashgraph | enforced |
-| [INV-012](INV-012-birth-round-monotonic-along-ancestry.md)                     | Birth round is monotonic along ancestry                                                   | safety    | hashgraph               | enforced |
-| [INV-013](INV-013-min-non-ancient-round-monotonic.md)                          | The minimum non-ancient round never decreases                                             | safety    | hashgraph               | enforced |
-| [INV-014](INV-014-every-round-has-a-supermajority-of-judges.md)                | Every round has a supermajority of judges                                                 | safety    | hashgraph               | enforced |
-| [INV-015](INV-015-honest-event-coin-is-unpredictable.md)                       | An honest event's coin value is unpredictable                                             | integrity | hashgraph               | enforced |
-| [INV-016](INV-016-consensus-order-is-a-strict-total-order.md)                  | Consensus order is a strict total order with unique ranks                                 | ordering  | hashgraph               | enforced |
+| [INV-010](INV-010-consensus-events-have-verified-signatures.md)                | Every event used in consensus has a verified creator signature                            | integrity | event-intake, hashgraph | enforced |
+| [INV-011](INV-011-birth-round-monotonic-along-ancestry.md)                     | Birth round is monotonic along ancestry                                                   | safety    | hashgraph               | enforced |
+| [INV-012](INV-012-min-non-ancient-round-monotonic.md)                          | The minimum non-ancient round never decreases                                             | safety    | hashgraph               | enforced |
+| [INV-013](INV-013-honest-event-coin-is-unpredictable.md)                       | An honest event's coin value is unpredictable                                             | integrity | hashgraph               | enforced |
+| [INV-014](INV-014-consensus-order-is-a-strict-total-order.md)                  | Consensus order is a strict total order with unique ranks                                 | ordering  | hashgraph               | enforced |
 
 <!--
 Row convention, one line per entry, kept in INV-NNN order:

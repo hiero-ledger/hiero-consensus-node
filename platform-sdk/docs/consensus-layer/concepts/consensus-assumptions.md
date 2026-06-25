@@ -44,7 +44,7 @@ The remaining assumptions (two or more nodes, finite DAG, judge reachability) ar
   [`strongly-seeing.md`](strongly-seeing.md),
   [`judges.md`](judges.md),
   [`voting.md`](voting.md).
-- Invariants that hold relative to these assumptions: INV-005 (honest events eventually reach consensus or become stale), INV-006 (every round eventually has a judge), INV-014 (every round has a supermajority of judges), INV-015 (an honest event's coin value is unpredictable).
+- Invariants that hold relative to these assumptions: INV-005 (honest events eventually reach consensus or become stale), INV-006 (every round eventually has a judge), INV-013 (an honest event's coin value is unpredictable).
 - Architectural lens:
   [`../architecture/topics/hashgraph.md`](../architecture/topics/hashgraph.md).
 - Whitepaper: SWIRLDS-TR-2016-01 establishes the asynchronous, more-than-two-thirds-honest Byzantine fault-tolerance model that these assumptions refine.

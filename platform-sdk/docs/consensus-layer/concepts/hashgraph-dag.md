@@ -67,5 +67,5 @@ held by
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`birth-round.md`](birth-round.md).
-- Invariants: INV-001 (voting round is monotonic along ancestry), INV-012 (birth round is monotonic along ancestry).
+- Invariants: INV-001 (voting round is monotonic along ancestry), INV-011 (birth round is monotonic along ancestry).
 - Glossary entry: [`../glossary.md`](../glossary.md).

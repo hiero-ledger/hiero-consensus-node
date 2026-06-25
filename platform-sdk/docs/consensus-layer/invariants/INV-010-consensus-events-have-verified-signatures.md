@@ -1,6 +1,6 @@
 ---
 type: invariant
-id: INV-011
+id: INV-010
 title: Every event used in consensus has a verified creator signature
 class: integrity
 topics: [event-intake, hashgraph]
@@ -16,7 +16,7 @@ provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
-# INV-011 — Every consensus event has a verified creator signature
+# INV-010 — Every consensus event has a verified creator signature
 
 ## Statement
 

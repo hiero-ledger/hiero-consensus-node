@@ -1,6 +1,6 @@
 ---
 type: invariant
-id: INV-012
+id: INV-011
 title: Birth round is monotonic along ancestry — a parent's birth round never exceeds its child's
 class: safety
 topics: [hashgraph]
@@ -16,7 +16,7 @@ provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
-# INV-012 — Birth round is monotonic along ancestry
+# INV-011 — Birth round is monotonic along ancestry
 
 ## Statement
 

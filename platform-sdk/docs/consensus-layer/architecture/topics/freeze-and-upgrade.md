@@ -257,7 +257,7 @@ operators may search log archives for its vocabulary):
 
 Pending catalogs:
 
-- Invariants — INV-010 — the active roster never moves backward; INV-008 — consensus, once reached, is permanent.
+- Invariants — INV-008 — consensus, once reached, is permanent.
 - Decisions:
   - ADR-002 — blocking
     `onSealConsensusRound` to hand off freeze-block signatures from Execution to consensus.

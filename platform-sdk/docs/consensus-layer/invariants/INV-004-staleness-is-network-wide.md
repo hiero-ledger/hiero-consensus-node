@@ -40,4 +40,4 @@ Any change that lets one correct node order an event another has declared stale 
 
 The network-wide guarantee here is the *fate* — that a stale event is ordered nowhere. Whether a node *reports* an event as stale is a separate, local matter: a node can only report an event it actually saw age out, so the stale-report stream differs across nodes (see [stale events](../concepts/stale-events.md)).
 
-This is the staleness facet of the algorithm's agreement guarantee; INV-002 and INV-003 cover the consensus-order and consensus-timestamp facets. The boundary's forward-only movement — which guarantees an event never returns from stale to live — is INV-013.
+This is the staleness facet of the algorithm's agreement guarantee; INV-002 and INV-003 cover the consensus-order and consensus-timestamp facets. The boundary's forward-only movement — which guarantees an event never returns from stale to live — is INV-012.
