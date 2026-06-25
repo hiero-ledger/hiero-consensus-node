@@ -605,6 +605,11 @@ jobs:
           kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn2-recovery-logs.log
           kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-3" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn3-recovery-logs.log
 
+          # Get BN3 store
+          BN3_POD=$(kubectl get pods -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-3" -o jsonpath='{.items[0].metadata.name}')
+          kubectl exec -n "${{ env.SOLO_NAMESPACE }}" "$BN3_POD" -- zip -r /tmp/bn3-store.zip /opt/hiero/block-node
+          kubectl cp "${{ env.SOLO_NAMESPACE }}/$BN3_POD:/tmp/bn3-store.zip" ./bn3-store.zip
+
           # Get MN Logs
           kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror-1,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-recovery-logs.log
 
@@ -627,6 +632,7 @@ jobs:
             bn1-recovery-logs.log
             bn2-recovery-logs.log
             bn3-recovery-logs.log
+            bn3-store.zip
             mn0-recovery-logs.log
 
       # CN logs to uploaded if there was no confirmation of CN <> BN streaming
