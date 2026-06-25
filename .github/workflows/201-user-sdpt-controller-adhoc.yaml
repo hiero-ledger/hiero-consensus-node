@@ -139,12 +139,35 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}" == "" ]]; then
+            echo "::error::One or more CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
   run-single-day-performance-test:
     name: Performance Test
     needs:
       - verify-tag
       - extract-jdk-version
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/831-call-single-day-performance-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
