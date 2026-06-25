@@ -3,7 +3,6 @@ package com.swirlds.benchmark.reconnect.lag;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
@@ -25,16 +24,13 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
     /**
      * Create a new teaching synchronizer with simulated latency.
      *
-     * @param in the input stream for receiving data from the learner
-     * @param out the output stream for sending data to the learner
      * @param teacherMap the teacher's map
+     * @param reconnectConfig the reconnect configuration
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
      * @param delayNetworkMicroseconds base network delay in microseconds
      * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
-     * @param breakConnection a callback to disconnect the connection on failure
-     * @param reconnectConfig the reconnect configuration
      */
     public BenchmarkSlowTeachingSynchronizer(
             @NonNull final VirtualMap teacherMap,
@@ -44,7 +40,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent) {
-        super(teacherMap, Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
+        super(teacherMap, getStaticThreadManager(), reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

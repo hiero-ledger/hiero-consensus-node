@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.metrics.ReconnectMetrics;
@@ -153,7 +152,6 @@ final class ReconnectTest {
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
                 configuration,
-                Time.getCurrent(),
                 getStaticThreadManager(),
                 connection,
                 RECONNECT_SOCKET_TIMEOUT,
