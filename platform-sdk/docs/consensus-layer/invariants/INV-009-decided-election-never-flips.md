@@ -1,7 +1,7 @@
 ---
 type: invariant
 id: INV-009
-title: A decided election never flips — self-descendants keep the decided vote forever
+title: A decided election never flips — no self-descendant ever decides it differently
 class: safety
 topics: [hashgraph]
 related:
@@ -20,19 +20,19 @@ curated_by: Michael Heinrichs (@netopyr)
 
 ## Statement
 
-Once an event has decided an election — its vote for that election is final — every one of its self-descendants forever carries the same vote for that election. A decided vote is frozen along the self-ancestry chain.
+Once an event has decided an election, its vote for that election is final — no self-descendant ever decides it differently.
 
 ## Basis
 
-The hashgraph consensus algorithm records, for each election, a decision flag that is true exactly when the event has decided that election — and once it has, its self-descendants forever carry the same vote.
+The hashgraph consensus algorithm records, for each election, a decision flag that is true exactly when the event has decided that election — and once it is set, that verdict stands.
 
 A decision is recorded only when an event observes a supermajority of the previous round's voters agreeing. A supermajority once observed within the hashgraph cannot be contradicted by any later event in the same self-chain — later self-descendants see a superset of what the deciding event saw — so the vote, once decided, cannot change. The decision is therefore monotonic along self-ancestry.
 
 ## Change risk
 
 - **Recording a decision on less than a supermajority**, so a later, larger view could disagree.
-- **Letting a self-descendant recompute and overturn an ancestor's decided vote.**
-- **Clearing decision state in a way that permits re-deciding with a different outcome** — memory reclamation of vote data is safe only if the recorded verdict survives.
+- **A voting rule under which seeing more ancestors could change an event's vote** — self-descendants always see a superset of what the deciding event saw, so any such non-monotonicity lets a decided vote be re-evaluated differently.
+- **Decision logic that depends on anything beyond the event's ancestors** — local wall-clock, traversal order, or other non-deterministic input — so re-evaluating the same election could yield a different outcome.
 
 A flipped decision changes the round's judge set after the fact, breaking judge-set agreement (INV-007) and consensus permanence (INV-008).
 

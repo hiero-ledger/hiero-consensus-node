@@ -26,7 +26,7 @@ For every event, its birth round is greater than or equal to the birth round of 
 
 The hashgraph consensus algorithm requires an event's birth round to be greater than or equal to all claimed birth rounds of its parents.
 
-A birth round records the creator's pending round at the moment the event is created, and a parent must already exist when its child is created, so a child cannot carry a smaller birth round than any parent. Combined with the matching-claims invariant (INV-010) — which guarantees that, for parents present in the consensus hashgraph, the claimed birth rounds equal the parents' real birth rounds — the relation holds for the real parents, not merely the claimed values.
+A birth round records the creator's pending round at the moment the event is created, and a parent must already exist when its child is created, so a child cannot carry a smaller birth round than any parent. Combined with the matching-claims rule (RUL-004) — which guarantees that, for parents present in the consensus hashgraph, the claimed birth rounds equal the parents' real birth rounds — the relation holds for the real parents, not merely the claimed values.
 
 ## Change risk
 
@@ -38,4 +38,4 @@ A child older (in round terms) than its parent breaks the DAG round structure th
 
 ## Notes
 
-This is the immutable birth round. The analogous monotonicity for the *calculated* voting round is INV-001. Matching of claimed parent birth rounds to actual parents is INV-010.
+This is the immutable birth round. The analogous monotonicity for the *calculated* voting round is INV-001. Matching of claimed parent birth rounds to actual parents is RUL-004.

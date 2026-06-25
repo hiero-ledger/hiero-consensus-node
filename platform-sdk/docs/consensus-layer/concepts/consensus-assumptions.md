@@ -42,7 +42,8 @@ The remaining assumptions (two or more nodes, finite DAG, judge reachability) ar
   [`branching.md`](branching.md),
   [`coin-rounds.md`](coin-rounds.md),
   [`strongly-seeing.md`](strongly-seeing.md),
-  [`judges.md`](judges.md).
+  [`judges.md`](judges.md),
+  [`voting.md`](voting.md).
 - Invariants that hold relative to these assumptions: INV-005 (honest events eventually reach consensus or become stale), INV-006 (every round eventually has a judge), INV-014 (every round has a supermajority of judges), INV-015 (an honest event's coin value is unpredictable).
 - Architectural lens:
   [`../architecture/topics/hashgraph.md`](../architecture/topics/hashgraph.md).

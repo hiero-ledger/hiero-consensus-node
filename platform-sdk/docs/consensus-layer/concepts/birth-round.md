@@ -113,5 +113,6 @@ generation + 1) to play the same role.
   `../architecture/topics/hashgraph.md#birth-round-filtering`](../architecture/topics/hashgraph.md#birth-round-filtering).
 - Sibling concept:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md).
-- Invariants: INV-012 (birth round is monotonic along ancestry), INV-010 (consensus parents are non-ancient with matching claimed birth rounds), INV-013 (the minimum non-ancient round never decreases).
+- Invariants: INV-012 (birth round is monotonic along ancestry), INV-013 (the minimum non-ancient round never decreases).
+- Rules: RUL-004 (consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent).
 - Glossary entry: [`../glossary.md`](../glossary.md).

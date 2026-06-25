@@ -438,7 +438,8 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
   - `platform-sdk/docs/core/gossip/syncing/sync-protocol.md` —
     orientation only; the protocol detail belongs in
     [gossip.md](./gossip.md).
-- **Invariants**: INV-011 — every event used in consensus has a verified creator signature; INV-010 — consensus parents are non-ancient with matching claimed birth rounds; INV-012 — birth round is monotonic along ancestry.
+- **Invariants**: INV-011 — every event used in consensus has a verified creator signature; INV-012 — birth round is monotonic along ancestry.
+- **Rules**: RUL-004 — consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent.
 - **Decisions**: [TBD: ADR-NNN once decisions/ catalog populates].
 - **Scenarios**: [TBD: SCN-NNN — orphan-buffer growth under sustained
   out-of-order arrival, validation-stage-ordering edge cases, and the

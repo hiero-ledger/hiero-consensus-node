@@ -24,9 +24,9 @@ Before any event participates in consensus, its creator's digital signature over
 
 ## Basis
 
-The hashgraph consensus algorithm requires that, before an event is added to the hashgraph for consensus, its signature is verified as correct against the public key recorded for the event's creator in the round state for the event's birth round.
+The hashgraph consensus algorithm requires that, before an event is added to the hashgraph for consensus, its signature is verified as correct against the public key recorded for the event's creator in the roster for the event's birth round.
 
-Verifying authenticity at admission means the consensus hashgraph contains only events genuinely attested by their claimed creators. The Byzantine-fault-tolerance argument depends on this: a node can be held to exactly the events it signed, and an adversary cannot manufacture events in another node's name. Verification is against the key recorded for the creator in the round state for the event's own birth round, so key changes across rounds are respected.
+Verifying authenticity at admission means the consensus hashgraph contains only events genuinely attested by their claimed creators. The Byzantine-fault-tolerance argument depends on this: a node can be held to exactly the events it signed, and an adversary cannot manufacture events in another node's name. Verification is against the key recorded for the creator in the roster for the event's own birth round, so key changes across rounds are respected.
 
 ## Change risk
 
@@ -38,4 +38,4 @@ An unverified or mis-verified event lets an attacker forge ancestry and votes, d
 
 ## Notes
 
-This concerns authenticity of each event. The matching of claimed parent metadata to the real parents is INV-010.
+This concerns authenticity of each event. The matching of claimed parent metadata to the real parents is RUL-004.

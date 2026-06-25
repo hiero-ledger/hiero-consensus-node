@@ -20,7 +20,7 @@ curated_by: Michael Heinrichs (@netopyr)
 
 ## Statement
 
-Any two events that decide a given round agree on that round's complete set of judges. The judge set for a round is well-defined independent of which deciding event is used to read it.
+Any two events that decide a given round agree on that round's complete set of judges.
 
 ## Basis
 

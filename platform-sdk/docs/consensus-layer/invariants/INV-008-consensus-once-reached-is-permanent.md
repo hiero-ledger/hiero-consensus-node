@@ -1,7 +1,7 @@
 ---
 type: invariant
 id: INV-008
-title: Consensus, once reached, is permanent — a decision is never reverted while the event is non-ancient
+title: Consensus, once reached, is permanent — a decision is never reverted
 class: safety
 topics: [hashgraph]
 related:
@@ -20,13 +20,13 @@ curated_by: Michael Heinrichs (@netopyr)
 
 ## Statement
 
-Once an event has reached consensus, it remains in consensus in every later round for as long as it stays non-ancient. A consensus decision is monotonic: it can turn from "not yet decided" to "decided", never back.
+Once an event has reached consensus, it remains in consensus in every later round. A consensus decision is monotonic: it can turn from "not yet decided" to "decided", never back.
 
 ## Basis
 
-It is a provable property of the hashgraph consensus algorithm that if an event has reached consensus in some round, it continues to be in consensus in every future round, for as long as it is still non-ancient.
+It is a provable property of the hashgraph consensus algorithm that if an event has reached consensus in some round, it continues to be in consensus in every future round.
 
-Whether an event has reached consensus is a function determined by the decided judge sets of the rounds it has reached. A decided judge set is immutable once a supermajority has voted (see INV-007, INV-009), so an event already established as received-by/ordered-against those judges remains so in every later round. The predicate therefore only ever turns on.
+Whether an event has reached consensus is a function determined by the decided judge sets of the rounds it has reached. A judge set becomes immutable once an event observes a supermajority of voters agreeing (see INV-007, INV-009), so an event already established as received-by/ordered-against those judges remains so in every later round. The predicate therefore only ever turns on.
 
 ## Change risk
 
