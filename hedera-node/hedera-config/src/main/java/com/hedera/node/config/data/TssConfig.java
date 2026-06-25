@@ -67,7 +67,7 @@ public record TssConfig(
 
         // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
         // in prod until release that fully cuts over to streamMode=BLOCKS
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean forceMockSignatures,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty

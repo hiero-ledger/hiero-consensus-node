@@ -61,8 +61,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
-    exports com.swirlds.platform.state.iss to
-            org.hiero.otter.test;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -82,6 +80,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.event.stream;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
+    requires transitive org.hiero.consensus.iss.detection;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;

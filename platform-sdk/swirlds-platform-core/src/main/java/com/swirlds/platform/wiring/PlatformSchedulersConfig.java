@@ -15,8 +15,6 @@ import java.time.Duration;
  * @param applicationTransactionPrehandler     configuration for the application transaction prehandler scheduler
  * @param stateSignatureCollector              configuration for the state signature collector scheduler
  * @param transactionHandler                   configuration for the transaction handler scheduler
- * @param issDetector                          configuration for the ISS detector scheduler
- * @param issHandler                           configuration for the ISS handler scheduler
  * @param hashLogger                           configuration for the hash logger scheduler
  * @param stateHasher                          configuration for the state hasher scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
@@ -58,11 +56,6 @@ public record PlatformSchedulersConfig(
                 defaultValue =
                         "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration transactionHandler,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration issDetector,
-
-        @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration issHandler,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration hashLogger,
