@@ -14,7 +14,6 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import org.hiero.consensus.iss.detection.internal.DefaultIssDetector;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.otter.fixtures.Capability;

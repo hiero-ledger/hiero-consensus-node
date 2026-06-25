@@ -4,7 +4,6 @@ open module org.hiero.otter.test {
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.hashgraph;
-    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.state;
