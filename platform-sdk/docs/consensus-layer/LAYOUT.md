@@ -139,7 +139,7 @@ Single file. ~50 terms. The canonical definition for each term referenced anywhe
 
 ### `symptoms.md`
 
-Single file. Controlled vocabulary of observable symptoms (`SYM-NNN`) referenced by per-file catalogs that key off observation — currently `heuristics/` and `scenarios/`. Each entry has an ID, name, description, and source of observation. A symptom here is something observable and recorded, independent of cause; many heuristics or scenarios may share one symptom, and that is the point of the catalog.
+Single file. Controlled vocabulary of observable symptoms (`SYM-NNN`) referenced by per-file catalogs that key off observation — currently `heuristics/` and `scenarios/`. It is an index, not a knowledge file: it carries no diagnostic content of its own. The knowledge — suspected cause, validation, incident timeline — lives in the `heuristics/` and `scenarios/` entries that cite the `SYM-NNN`. Each entry has an ID, name, description, and source of observation. A symptom here is something observable and recorded, independent of cause; many heuristics or scenarios may share one symptom, and that is the point of the catalog.
 
 ### `architecture/`
 

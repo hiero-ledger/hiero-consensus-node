@@ -50,11 +50,14 @@ at random can promote the stale copy. Surface it; let the curator adjudicate.
 - **Allocate the ID and write the index row in the same change.** The
   `README.md` index row is a sanctioned duplication with a sync obligation
   (`LAYOUT.md`). An entry without its row, or a row without its entry, is a bug.
-- **Single-file catalogs append, they do not get a new file.** A new symptom
-  is the next `SYM-NNN` row appended to `symptoms.md`, every column filled,
-  table kept in ID order. The file is its own index — there is no separate
-  `README.md` row. Never reuse or renumber an ID; retire by marking, not
-  deleting.
+- **Symptoms are a shared index, not a knowledge file.** `symptoms.md` is a
+  controlled vocabulary; the diagnostic knowledge lives in `heuristics/` and
+  `scenarios/`, which cite a `SYM-NNN` rather than describe the symptom inline.
+  So symptoms are *reused*, not created per entry: point a `symptoms:` field at
+  an existing `SYM-NNN` where one fits, and only when none does, append a new
+  one to `symptoms.md` first — never cite an uncatalogued symptom. The integrity
+  rule is enforced by `heuristics/FORMAT.md` and `scenarios/FORMAT.md`; the
+  append mechanics and ID discipline live in `symptoms.md`.
 
 ## Anchor every claim to code
 
