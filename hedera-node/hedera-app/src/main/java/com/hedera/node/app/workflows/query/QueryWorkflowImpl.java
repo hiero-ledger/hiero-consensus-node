@@ -28,7 +28,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.fees.NoOpFeeCalculator;
 import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -193,9 +192,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
-                // Queries are priced via the simple fee schedule; the legacy per-query FeeCalculator is no longer
-                // used, but QueryContext still requires a non-null instance until the SPI surface is removed.
-                final var feeCalculator = NoOpFeeCalculator.INSTANCE;
                 final QueryContext context;
                 TransactionBody txBody;
                 AccountID payerID = null;
@@ -218,14 +214,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         // get payer
                         payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
                         context = new QueryContextImpl(
-                                state,
-                                storeFactory,
-                                query,
-                                configuration,
-                                recordCache,
-                                exchangeRateManager,
-                                feeCalculator,
-                                payerID);
+                                state, storeFactory, query, configuration, recordCache, exchangeRateManager, payerID);
 
                         // A super-user does not have to pay for a query and has all permissions
                         if (!authorizer.isSuperUser(payerID)) {
@@ -290,7 +279,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             configProvider.getConfiguration(),
                             recordCache,
                             exchangeRateManager,
-                            feeCalculator,
                             null);
                 }
 
