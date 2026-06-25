@@ -134,7 +134,15 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC"
+                            "FILE_AND_GRPC",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
@@ -146,7 +154,15 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "FILE_AND_GRPC"
+                            "FILE_AND_GRPC",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
             })
     @Order(2)
