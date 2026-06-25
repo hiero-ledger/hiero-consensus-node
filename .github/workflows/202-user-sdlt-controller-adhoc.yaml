@@ -158,7 +158,7 @@ jobs:
         id: check-outputs
         run: |
           if [[ "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}" == "" ]]; then
-            echo "::error::One or more CITR variables are missing. Failing the job."
+            echo "::error::One or more required CITR variables are missing. Failing the job."
             exit 1
           else
             echo "All required CITR variables are present."

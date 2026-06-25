@@ -111,8 +111,7 @@ jobs:
             "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.bn-release-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" == "" || \
-            "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" == ""
-          ]]; then
+            "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" == "" ]]; then
             echo "::error::One or more required CITR variables are missing. Failing the job."
             exit 1
           else

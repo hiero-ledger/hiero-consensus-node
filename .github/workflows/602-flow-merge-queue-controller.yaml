@@ -50,9 +50,8 @@ jobs:
         run: |
           if [[ "${{ needs.extract-citr-vars.outputs.citr-solo-version }}" == "" || \
             "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
-            "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}" == ""
-          ]]; then
-            echo "::error::One or more CITR variables are missing. Failing the job."
+            "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
             exit 1
           else
             echo "All required CITR variables are present."
