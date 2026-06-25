@@ -592,9 +592,10 @@ EOF
 # and can be deleted.
 #
 # Source: the LedgerIdPublication tx is a synthetic "Ledger id" admin tx in the block
-# stream; we pull .blk.gz from the MinIO solo-streams bucket (the CN block-stream
-# uploader writes them there; gzip, no zstd needed), extract the body, drop it into the
-# BN volume at verification.tssParametersFilePath, then roll the BN so init() loads it.
+# stream; we pull the block files the CN block-stream uploader writes to the MinIO
+# solo-streams bucket (under blockStreams/, zstd-compressed .blk.zstd in current builds —
+# unlike the gzip .rcd.gz record streams), decompress them, extract the body, drop it into
+# the BN volume at verification.tssParametersFilePath, then roll the BN so init() loads it.
 seed_block_node_tss_parameters() {
   local minio_pod creds_tmp u p in_pod_dir bn_pod
   minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
@@ -677,14 +678,35 @@ seed_block_node_tss_parameters() {
       rm -f "${dest}"
     fi
   done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-            "find '${in_pod_dir}' -type f \\( -name '*.blk.gz' -o -name '*.blk' \\) | sort" 2>/dev/null)
+            "find '${in_pod_dir}' -type f \\( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \\) | sort" 2>/dev/null)
   kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
 
   local blk_files=()
-  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' \) | sort)
+  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) | sort)
   if [[ "${#blk_files[@]}" -eq 0 ]]; then
-    echo "seed_block_node_tss_parameters: no .blk(.gz) files retrieved from MinIO (pulled=${pulled}, pull_failures=${pull_failures})" >&2
+    echo "seed_block_node_tss_parameters: no .blk/.blk.gz/.blk.zstd files retrieved from MinIO (pulled=${pulled}, pull_failures=${pull_failures})" >&2
+    echo "MinIO bucket listing for diagnostics:" >&2
+    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+      "mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
+       mc ls --recursive 'local/${MINIO_BUCKET}/' | sed -n '1,120p' || true" >&2 || true
     return 1
+  fi
+
+  # Block-stream files are zstd-compressed (.blk.zstd) in current builds — only the record streams are
+  # gzip. The extractor below reads gzip or raw (not zstd), so decompress any .blk.zstd to a raw .blk
+  # first, reusing the Block Node zstd command (system zstd, else the bundled zstd-jni wrapper).
+  if printf '%s\n' "${blk_files[@]}" | grep -q '\.blk\.zstd$'; then
+    ensure_zstd_command_for_block_node || return 1
+    local zi zdst
+    for zi in "${!blk_files[@]}"; do
+      [[ "${blk_files[$zi]}" == *.blk.zstd ]] || continue
+      zdst="${blk_files[$zi]%.zstd}"
+      if zstd -d -c "${blk_files[$zi]}" > "${zdst}" 2>/dev/null && [[ -s "${zdst}" ]]; then
+        blk_files[$zi]="${zdst}"
+      else
+        echo "  WARN: failed to zstd-decompress ${blk_files[$zi]}" >&2
+      fi
+    done
   fi
   echo "Retrieved ${#blk_files[@]} block-stream files (pull_failures=${pull_failures}); extracting LedgerIdPublication"
 
