@@ -60,7 +60,6 @@ import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
 import com.hedera.hapi.node.state.token.AccountFungibleTokenAllowance;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
-import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -1300,39 +1299,6 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(op.tokenAllowances().get(0).owner()).isEqualTo(treasuryId);
         assertThat(op.tokenAllowances().get(0).spender()).isEqualTo(spenderId);
         assertThat(op.tokenAllowances().get(0).amount()).isEqualTo(0L);
-    }
-
-    @Test
-    void dispatchesSyntheticNftDeleteAllowanceCleanupOnTreasuryChange() {
-        final var nftWithSpender = writableNftStore
-                .get(nftIdSl1)
-                .copyBuilder()
-                .ownerId((AccountID) null)
-                .spenderId(spenderId)
-                .build();
-        writableNftStore.put(nftWithSpender);
-
-        // NFT treasury change requires the new treasury to have zero balance; zero it out
-        final var ownerNftRel = writableTokenRelStore.get(ownerId, nonFungibleTokenId);
-        writableTokenRelStore.put(ownerNftRel.copyBuilder().balance(0).build());
-
-        txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();
-        given(handleContext.body()).willReturn(txn);
-        given(expiryValidator.resolveUpdateAttempt(any(), any()))
-                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-
-        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
-
-        final ArgumentCaptor<DispatchOptions> captor = ArgumentCaptor.forClass(DispatchOptions.class);
-        verify(handleContext, times(1)).dispatch(captor.capture());
-        final var syntheticBody = captor.getValue().body();
-        assertThat(syntheticBody.hasCryptoDeleteAllowance()).isTrue();
-        final CryptoDeleteAllowanceTransactionBody op = syntheticBody.cryptoDeleteAllowanceOrThrow();
-        Assertions.assertThat(op.nftAllowances()).hasSize(1);
-        assertThat(op.nftAllowances().get(0).tokenId()).isEqualTo(nonFungibleTokenId);
-        assertThat(op.nftAllowances().get(0).owner()).isEqualTo(treasuryId);
-        Assertions.assertThat(op.nftAllowances().get(0).serialNumbers()).containsExactly(1L);
     }
 
     @Test

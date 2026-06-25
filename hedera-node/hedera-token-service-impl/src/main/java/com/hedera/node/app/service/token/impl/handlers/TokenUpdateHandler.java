@@ -19,22 +19,18 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
-import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftAllowance;
-import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
-import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
@@ -51,7 +47,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -126,7 +121,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
 
         final var storeFactory = context.storeFactory();
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);
-        final var nftStore = storeFactory.writableStore(WritableNftStore.class);
         final var tokenRelStore = storeFactory.writableStore(WritableTokenRelationStore.class);
         final var tokenStore = storeFactory.writableStore(WritableTokenStore.class);
         final var config = context.configuration();
@@ -167,7 +161,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                         tokenId,
                         token,
                         accountStore,
-                        nftStore,
                         config.getConfigData(HederaConfig.class).allowancesMaxTransactionLimit());
             }
         }
@@ -613,7 +606,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             @NonNull final TokenID tokenId,
             @NonNull final Token token,
             @NonNull final WritableAccountStore accountStore,
-            @NonNull final WritableNftStore nftStore,
             final int allowancesMaxTransactionLimit) {
         final var account = accountStore.getAccountById(oldTreasury);
         if (account == null) return;
@@ -661,26 +653,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                                     .build());
                 }
             }
-            final var serialsToClear = staleNftSerialAllowancesForTreasury(oldTreasury, token, nftStore);
-            if (!serialsToClear.isEmpty()) {
-                final var chunkSize = Math.max(1, allowancesMaxTransactionLimit);
-                for (int i = 0; i < serialsToClear.size(); i += chunkSize) {
-                    final var chunk = serialsToClear.subList(i, Math.min(i + chunkSize, serialsToClear.size()));
-                    final var body = CryptoDeleteAllowanceTransactionBody.newBuilder()
-                            .nftAllowances(NftRemoveAllowance.newBuilder()
-                                    .owner(oldTreasury)
-                                    .tokenId(tokenId)
-                                    .serialNumbers(chunk)
-                                    .build())
-                            .build();
-                    dispatchSyntheticAllowanceChild(
-                            context,
-                            oldTreasury,
-                            TransactionBody.newBuilder()
-                                    .cryptoDeleteAllowance(body)
-                                    .build());
-                }
-            }
         }
     }
 
@@ -695,31 +667,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                         .approvedForAll(false)
                         .build())
                 .toList();
-    }
-
-    private List<Long> staleNftSerialAllowancesForTreasury(
-            @NonNull final AccountID oldTreasury,
-            @NonNull final Token token,
-            @NonNull final WritableNftStore nftStore) {
-        final var tokenId = token.tokenIdOrThrow();
-        final var maxSerial = token.lastUsedSerialNumber();
-        if (maxSerial <= 0) {
-            return List.of();
-        }
-        final List<Long> serials = new ArrayList<>();
-        for (long serial = 1; serial <= maxSerial; serial++) {
-            final var nftId =
-                    NftID.newBuilder().tokenId(tokenId).serialNumber(serial).build();
-            final var nft = nftStore.get(nftId);
-            if (nft == null || !nft.hasSpenderId()) {
-                continue;
-            }
-            final var treasuryOwnsNft = !nft.hasOwnerId() || oldTreasury.equals(nft.ownerId());
-            if (treasuryOwnsNft) {
-                serials.add(serial);
-            }
-        }
-        return serials;
     }
 
     private void dispatchSyntheticAllowanceChild(
