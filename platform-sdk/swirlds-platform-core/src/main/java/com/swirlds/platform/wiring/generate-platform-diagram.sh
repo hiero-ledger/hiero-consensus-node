@@ -9,6 +9,25 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # Add the flag "--less-mystery" to add back labels for mystery input wires (noisy diagram warning)
 
+# Emoji legend — each icon below replaces a (spammy) edge via a "-s" substitution.
+# The icon appears as a badge on every component that receives that edge.
+#   🌀  event window broadcast (EventWindowManager)
+#   ❤️  heartbeat tick
+#   🔮  transaction-prehandle futures (TransactionPrehandler)
+#   ✅  PCES replay complete ("done streaming pces")
+#   📀  minimum birth-round identifier to store on disk
+#   ❔  mystery data (unbound input wire; see --less-mystery)
+#   🖋️  state signature transactions (StateSigner)
+#   💥  ISS notification → app notifier
+#   💀  ISS notification → status monitoring
+#   🕐  consensus round monitoring
+#   🗑️  stale events
+#   💨  running event hash override
+#   💾  state-saving monitoring (StateSnapshotManager)
+#   🚦  platform status
+#   🏥  health info (HealthMonitor)
+#   #️⃣  hashed states out of the State Hasher
+
 ../../../../../../../../swirlds-cli/pcli.sh diagram \
     -l 'TransactionPrehandler:futures:TransactionHandler' \
     -l 'ConsensusEventStream:future hash:TransactionHandler' \
@@ -16,9 +35,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'Heartbeat:heartbeat:❤️' \
     -s 'TransactionPrehandler:futures:🔮' \
     -s 'pcesReplayer:done streaming pces:✅' \
-    -s 'InlinePcesWriter:events to gossip:📬' \
     -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
-    -s 'EventCreationManager:non-validated events:🍎' \
     -s 'Mystery Input:mystery data:❔' \
     -s 'StateSigner:submit transaction:🖋️' \
     -s 'StateSigner:signature transactions:🖋️' \
@@ -30,23 +47,27 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'StateSnapshotManager:state saving monitoring:💾' \
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
+    -s 'postHasher_stateReserver:hashed states:#️⃣' \
+    -s 'postHasher_stateReserver:hashed states to log:#️⃣' \
+    -s 'postHasher_stateReserver:hashed states to sign:#️⃣' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'EventIntakeModule:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer' \
+    -g 'Branch Detection:BranchDetector,BranchReporter' \
+    -g 'Event Intake Module:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,Branch Detection' \
     -g 'Consensus Engine:ConsensusEngine,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
-    -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter' \
-    -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus' \
-    -g 'EventCreatorModule:EventCreationManager,🍎' \
+    -g 'Signed State Management:State Snapshot Manager,State Signature Collector,LatestCompleteStateNexus,StateGarbageCollector,StateSigner,HashLogger,ExecutionSignatureSubmission,📀,💾,🖋️' \
+    -g 'Event Creator Module:EventCreationManager' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
-    -g 'PCES Replay:pcesReplayer,✅' \
+    -g 'PCES Module:pcesReplayer,InlinePcesWriter,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
     -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,PreConsensusEvents,PreConsensusEventsSplitter,EventWindowManager,🌀,🕐,🗑️' \
-    -g 'State Verification:StateSigner,HashLogger,ISS Detector,ExecutionSignatureSubmission,🖋️,💥,💀' \
-    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮' \
-    -g 'Branch Detection:BranchDetector,BranchReporter' \
-    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,❔,🏥,❤️,💨,🚦' \
+    -g 'ISS Detection:ISS Detector,💥,💀' \
+    -g 'Transaction Handling:Transaction Handler,State Hasher,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮,#️⃣' \
+    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,AppNotifier,❔,🏥,❤️,💨,🚦' \
+    -g 'Gossip Module:gossip' \
+    -g 'Event Stream:ConsensusEventStream' \
     -c 'Orphan Buffer' \
     -c 'Consensus Engine' \
     -c 'State Signature Collector' \
@@ -54,8 +75,5 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -c 'Transaction Handler' \
     -c 'State Hasher' \
     -c 'ISS Detector' \
-    -c 'Wait For Crash Durability' \
-    -c 'Stale Event Detector' \
-    -c 'Transaction Resubmitter' \
     -c 'Branch Detection' \
     -o "${SCRIPT_PATH}/../../../../../../../../docs/core/wiring-diagram.svg"
