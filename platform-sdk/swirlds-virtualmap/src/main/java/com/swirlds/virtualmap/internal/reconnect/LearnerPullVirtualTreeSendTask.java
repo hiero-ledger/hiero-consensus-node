@@ -10,7 +10,6 @@ import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A task running on the learner side, which is responsible for sending requests to the teacher.
@@ -21,13 +20,10 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  *
  * <p>This tasks terminates either on exception or when no path is available to send (when {@link Path#INVALID_PATH} is returned by the exchanger).
  */
-public class LearnerPullVirtualTreeSendTask {
+public class LearnerPullVirtualTreeSendTask implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeSendTask.class);
 
-    private static final String NAME = "reconnect-learner-sender";
-
-    private final StandardWorkGroup workGroup;
     private final AsyncOutputStream out;
     private final LearnerTreeExchanger treeExchanger;
 
@@ -36,8 +32,6 @@ public class LearnerPullVirtualTreeSendTask {
     /**
      * Create a thread for sending node requests to the teacher.
      *
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param out
      * 		the output stream, this object is responsible for closing this when finished
      * @param treeExchanger
@@ -46,28 +40,18 @@ public class LearnerPullVirtualTreeSendTask {
      *      the counter to decrease when this task is finished
      */
     public LearnerPullVirtualTreeSendTask(
-            final StandardWorkGroup workGroup,
-            final AsyncOutputStream out,
-            final LearnerTreeExchanger treeExchanger,
-            final CountDownLatch tasksDone) {
-        this.workGroup = workGroup;
+            final AsyncOutputStream out, final LearnerTreeExchanger treeExchanger, final CountDownLatch tasksDone) {
         this.out = out;
         this.treeExchanger = treeExchanger;
         this.tasksDone = tasksDone;
     }
 
     /**
-     * Start the background thread that sends requests to the teacher.
-     */
-    public void exec() {
-        workGroup.execute(NAME, this::run);
-    }
-
-    /**
      * Main loop for the sender thread. Continuously queries the view for the next path to
      * request. Task finishes when all paths are exhausted ({@link Path#INVALID_PATH} is returned).
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 final long path = treeExchanger.getNextPathToSend();
@@ -86,8 +70,6 @@ public class LearnerPullVirtualTreeSendTask {
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Learner sending task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
         } finally {
             tasksDone.countDown();
         }

@@ -43,7 +43,7 @@ public class StandaloneFeeCalculatorTest {
 
     @Test
     public void testTokenCreateIntrinsic() throws ParseException {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
         // bring up the full state
         final State state = FakeGenesisState.make(overrides);
         final var properties = TransactionExecutors.Properties.newBuilder()
@@ -201,7 +201,7 @@ public class StandaloneFeeCalculatorTest {
 
     private StandaloneFeeCalculator setupCalculator() {
         // configure overrides
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
         // bring up the full state
         final State state = FakeGenesisState.make(overrides);
 

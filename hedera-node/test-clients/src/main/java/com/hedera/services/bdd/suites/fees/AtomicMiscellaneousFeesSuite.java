@@ -7,10 +7,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedPrngFullFeeUsd;
@@ -33,7 +31,6 @@ class AtomicMiscellaneousFeesSuite {
     private static final String PRNG_IS_ENABLED = "utilPrng.isEnabled";
     private static final String BOB = "bob";
     private static final double BASE_FEE_MISC_PRNG_TRX = 0.001;
-    private static final double EXPECTED_FEE_PRNG_RANGE_TRX = 0.0010010316;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
@@ -59,17 +56,10 @@ class AtomicMiscellaneousFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateInnerChargedUsdWithinWithTxnSize(
-                                plusRangeTxn,
-                                ATOMIC_BATCH,
-                                txnSize -> expectedPrngFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                0.001);
-                    } else {
-                        return validateInnerTxnChargedUsd(plusRangeTxn, ATOMIC_BATCH, EXPECTED_FEE_PRNG_RANGE_TRX, 5);
-                    }
-                }));
+                validateInnerChargedUsdWithinWithTxnSize(
+                        plusRangeTxn,
+                        ATOMIC_BATCH,
+                        txnSize -> expectedPrngFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 }

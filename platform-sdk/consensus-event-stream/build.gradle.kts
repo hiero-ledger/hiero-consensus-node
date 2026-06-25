@@ -9,7 +9,6 @@ plugins {
 description = "Consensus event-stream file writing"
 
 testModuleInfo {
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.event.stream.test.fixtures")
