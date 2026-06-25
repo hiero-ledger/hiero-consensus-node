@@ -166,10 +166,7 @@ jobs:
                           enabled: false
               env:
                 SPRING_PROFILES_ACTIVE: 'blocknode'
-                HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
-                HIERO_MIRROR_IMPORTER_BLOCK_NODES_1_ENDPOINTS_0_HOST: "block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
-                HIERO_MIRROR_IMPORTER_BLOCK_NODES_2_ENDPOINTS_0_HOST: "block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
-                                                              EOF
+          EOF
           else
             cat <<EOF > mirror-bn-values.yaml
             importer:
@@ -192,6 +189,9 @@ jobs:
                           enabled: false
               env:
                 SPRING_PROFILES_ACTIVE: 'blocknode'
+                HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
+                HIERO_MIRROR_IMPORTER_BLOCK_NODES_1_ENDPOINTS_0_HOST: "block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
+                HIERO_MIRROR_IMPORTER_BLOCK_NODES_2_ENDPOINTS_0_HOST: "block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
           EOF
           fi
 
