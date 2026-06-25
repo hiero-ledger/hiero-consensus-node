@@ -42,7 +42,7 @@ on:
         type: string
         default: ""
       cutover-upgrade-075-version:
-        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.5."
+        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.6."
         required: false
         type: string
         default: ""
@@ -415,7 +415,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 150m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.5' }}" \
+              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \

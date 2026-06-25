@@ -303,9 +303,13 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_P
 # Only used on MN >= 0.155 (written as HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION). On 0.154
 # there is no hapiVersion key — leave empty and the importer auto-detects the record→block cutover.
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
-# Mirror node chart version used by `solo mirror node add` in Step 3 and
-# `solo mirror node upgrade` in Step 9.
-# Block-cutover env wiring requires MN >= 0.153.1; Solo's default is v0.152.0 which silently ignores the env keys.
+# Mirror node chart version pinned for BOTH `solo mirror node add` (Step 3) and `solo mirror node
+# upgrade` (Step 9). Pinning both to one explicit version keeps the upgrade target == the deployed
+# version, satisfying Solo's no-downgrade guard (assertUpgradeVersionNotOlder). Block-cutover env
+# wiring needs MN >= 0.153.1 to honor the HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_* keys; 0.156.0 does.
+# COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
+# currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
+# itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
 
 # Step at which to start; lower-numbered steps are skipped. Default 1 = full run.
