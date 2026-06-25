@@ -1193,7 +1193,7 @@ class ProofControllerImplTest {
 
         given(writableHistoryStore.getLedgerId()).willReturn(ledgerId);
         given(weights.sourceWeightThreshold()).willReturn(1L);
-        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(true)))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
         given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
         given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
