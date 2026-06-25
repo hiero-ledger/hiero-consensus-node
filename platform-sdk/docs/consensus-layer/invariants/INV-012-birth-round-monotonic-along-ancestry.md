@@ -34,7 +34,7 @@ A birth round records the creator's pending round at the moment the event is cre
 - **Admitting an event whose birth round is below a parent's** without rejecting it.
 - **A creation path that selects a parent with a higher birth round than the new event will carry.**
 
-A child older (in round terms) than its parent breaks the DAG round structure that round assignment and the ancient boundary rely on.
+A child with a lower birth round than a parent breaks the ancient boundary and every consensus computation downstream of that boundary inherits the damage.
 
 ## Notes
 

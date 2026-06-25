@@ -28,7 +28,7 @@ The hashgraph consensus algorithm defines `minNonAncientRound(r) = max(prevMinNo
 
 ## Change risk
 
-- **Dropping the lower-bound clip against the previous round's boundary**, so a shrinking `targetNumRoundsNonAncient` could move the boundary backward.
+- **Dropping the lower-bound clip against the previous round's boundary**, so an increasing `targetNumRoundsNonAncient` could move the boundary backward.
 - **Deriving the boundary from a quantity that can decrease between rounds** without re-clipping against the previous value.
 
 A boundary that moves backward would resurrect previously-ancient events, making an event's stale fate (INV-004) non-deterministic.

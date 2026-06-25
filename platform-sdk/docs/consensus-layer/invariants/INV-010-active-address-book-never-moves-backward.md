@@ -24,7 +24,7 @@ The active address book — the set of nodes and their stakes in force for conse
 
 ## Basis
 
-In the hashgraph consensus algorithm, address-book changes — adding or removing nodes, or changing stake — are applied forward only: each change takes effect through consensus and remains in force until a later change supersedes it, so the sequence of active address books is monotonic and never rewinds. This forward-only discipline is what keeps the Byzantine stake thresholds and the handoff from one roster to the next sound across a change.
+In the hashgraph consensus algorithm, address-book changes — adding or removing nodes, or changing stake — are applied forward only: each change takes effect through consensus and remains in force until a later change supersedes it, so the sequence of active address books only ever advances and never rewinds. This forward-only discipline is what keeps the Byzantine stake thresholds and the handoff from one roster to the next sound across a change.
 
 Today such changes occur only at software-upgrade boundaries: a freeze round closes the current roster, and the node resumes after the upgrade on the new roster (see `FreezeRoundController`). Across that boundary the new address book applies going forward, and no path resumes consensus on an earlier roster, so the active address book does not move backward.
 
