@@ -443,7 +443,7 @@ class SystemTransactionsTest {
     @Test
     @SuppressWarnings("unchecked")
     void testPostUpgradeCreatesSimpleFeesFileWhenMissing() {
-        // Reconfigure with fees.createSimpleFeeSchedule=true and nodes.enableDAB=false
+        // Reconfigure with nodes.enableDAB=false
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -451,7 +451,6 @@ class SystemTransactionsTest {
                 .withValue("hedera.firstUserEntity", 1001)
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
-                .withValue("fees.createSimpleFeeSchedule", "true")
                 .withValue("nodes.enableDAB", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
@@ -502,7 +501,7 @@ class SystemTransactionsTest {
     @Test
     @SuppressWarnings("unchecked")
     void testPostUpgradeSkipsSimpleFeesFileCreationWhenPresent() {
-        // Reconfigure with fees.createSimpleFeeSchedule=true and nodes.enableDAB=false
+        // Reconfigure with nodes.enableDAB=false
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -510,7 +509,6 @@ class SystemTransactionsTest {
                 .withValue("hedera.firstUserEntity", 1001)
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
-                .withValue("fees.createSimpleFeeSchedule", "true")
                 .withValue("nodes.enableDAB", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
