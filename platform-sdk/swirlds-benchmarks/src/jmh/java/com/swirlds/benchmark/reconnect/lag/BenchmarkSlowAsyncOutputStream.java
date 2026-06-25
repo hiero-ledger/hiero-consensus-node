@@ -6,7 +6,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.jspecify.annotations.NonNull;
 
@@ -39,7 +38,6 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      */
     public BenchmarkSlowAsyncOutputStream(
             @NonNull final DataOutputStream out,
-            @NonNull final StandardWorkGroup workGroup,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
@@ -48,7 +46,6 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
             @NonNull final ReconnectConfig reconnectConfig) {
         super(
                 out,
-                workGroup,
                 reconnectConfig.asyncStreamBufferSize(),
                 reconnectConfig.asyncOutputStreamFlush(),
                 reconnectConfig.asyncStreamTimeout());

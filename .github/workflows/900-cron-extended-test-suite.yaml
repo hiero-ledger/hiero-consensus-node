@@ -309,7 +309,7 @@ jobs:
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
@@ -610,7 +610,7 @@ jobs:
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
-          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info  || ''}}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
@@ -626,7 +626,7 @@ jobs:
       - name: Build Environment Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'environment' }}
         env:
-          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info || '' }}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}

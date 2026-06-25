@@ -17,7 +17,6 @@ import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -30,13 +29,10 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *
  * <p>This task terminates either on exception or when no messages are returned by {@link AsyncInputStream}.
  */
-public class TeacherPullVirtualTreeReceiveTask {
+public class TeacherPullVirtualTreeReceiveTask implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeReceiveTask.class);
 
-    private static final String NAME = "reconnect-teacher-receiver";
-
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final RecordAccessor teacherView;
@@ -50,7 +46,6 @@ public class TeacherPullVirtualTreeReceiveTask {
      *
      * @param time                  the wall clock time
      * @param reconnectConfig       the configuration for reconnect
-     * @param workGroup             the work group managing the reconnect
      * @param in                    the input stream
      * @param out                   the output stream
      * @param teacherView           view of teacher state
@@ -58,12 +53,10 @@ public class TeacherPullVirtualTreeReceiveTask {
     public TeacherPullVirtualTreeReceiveTask(
             @NonNull final Time time,
             @NonNull final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final RecordAccessor teacherView,
             final CountDownLatch tasksDone) {
-        this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.teacherView = teacherView;
@@ -77,13 +70,6 @@ public class TeacherPullVirtualTreeReceiveTask {
             rateLimiter = null;
             sleepNanos = -1;
         }
-    }
-
-    /**
-     * Start the thread that sends lessons and queries to the learner.
-     */
-    public void exec() {
-        workGroup.execute(NAME, this::run);
     }
 
     /**
@@ -102,7 +88,8 @@ public class TeacherPullVirtualTreeReceiveTask {
     /**
      * This thread is responsible for sending lessons (and nested queries) to the learner.
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             long requestCounter = 0;
             final long start = System.currentTimeMillis();
@@ -149,8 +136,6 @@ public class TeacherPullVirtualTreeReceiveTask {
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Teacher task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
         } finally {
             tasksDone.countDown();
         }

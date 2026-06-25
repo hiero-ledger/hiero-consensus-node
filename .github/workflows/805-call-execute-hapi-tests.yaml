@@ -178,6 +178,7 @@ jobs:
             echo "❌ $t FAILED — expand group above for details"
           }
           run_subtask hapiTestMisc
+          run_subtask hapiTestGenesisSubProcess
           run_subtask hapiTestMiscEmbedded
           run_subtask hapiTestMiscRepeatable
           exit $status
