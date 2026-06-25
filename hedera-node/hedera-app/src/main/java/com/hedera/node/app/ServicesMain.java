@@ -12,12 +12,12 @@ import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
-import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
