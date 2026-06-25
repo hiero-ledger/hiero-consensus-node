@@ -170,7 +170,7 @@ jobs:
         id: run-rpc-relay-tests
         env:
           CHAIN_ID: "0x12a"
-          MIRROR_NODE_URL: "http://127.0.0.1:8081"
+          MIRROR_NODE_URL: "http://127.0.0.1:38081"
           HEDERA_NETWORK: '{"127.0.0.1:50211":"0.0.3"}'
           OPERATOR_ID_MAIN: 0.0.2
           OPERATOR_KEY_MAIN: 302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137
