@@ -9,7 +9,6 @@ import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
@@ -59,12 +58,9 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      */
     @Override
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final StandardWorkGroup workGroup,
-            @NonNull final DataOutputStream out,
-            @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final DataOutputStream out, @NonNull final ReconnectConfig reconnectConfig) {
         return new BenchmarkSlowAsyncOutputStream(
                 out,
-                workGroup,
                 randomSeed,
                 delayStorageMicroseconds,
                 delayStorageFuzzRangePercent,
