@@ -116,7 +116,7 @@ jobs:
         id: baseline
         run: |
           BASELINE_NAME="${{ steps.commit.outputs.sha }}.tar.gz"
-          BASELINE_PATH="gs://hedera-ci-ephemeral-artifacts/${{ github.repository }}/docker/baselines-commitish"
+          BASELINE_PATH="gs://hedera-ci-ephemeral-artifacts/${{ github.repository }}/docker/baselines"
           BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
           BASELINE_EXISTS="false"
 
