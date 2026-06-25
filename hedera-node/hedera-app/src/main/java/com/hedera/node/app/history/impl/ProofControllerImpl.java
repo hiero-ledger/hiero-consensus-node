@@ -65,7 +65,7 @@ public class ProofControllerImpl implements ProofController {
 
     private final Map<Long, ExplicitProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
-    private final Map<Bytes, Boolean> proofTagValidations = new HashMap<>();
+    private final Map<RecursiveProofValidationKey, Boolean> proofTagValidations = new HashMap<>();
 
     /**
      * The ongoing construction, updated in network state each time the controller makes progress.
@@ -122,6 +122,17 @@ public class ProofControllerImpl implements ProofController {
                     .chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT)
                     .wrapsProofOrElse(Bytes.EMPTY)
                     .toByteArray();
+        }
+    }
+
+    private record RecursiveProofValidationKey(
+            @NonNull Bytes proofTag,
+            @NonNull Bytes ledgerId,
+            @NonNull Bytes metadata) {
+        private RecursiveProofValidationKey {
+            requireNonNull(proofTag);
+            requireNonNull(ledgerId);
+            requireNonNull(metadata);
         }
     }
 
@@ -308,22 +319,11 @@ public class ProofControllerImpl implements ProofController {
         if (explicitProofVote.isRecursive()) {
             final var ledgerId = Optional.ofNullable(historyStore.getLedgerId()).orElse(Bytes.EMPTY);
             final var metadata = Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
-            votes.values()
-                    .forEach(v -> proofTagValidations.computeIfAbsent(v.tag(), _ -> {
-                        final boolean valid = historyLibrary.verifyCompressedProof(
-                                v.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
-                        log.info(
-                                "{} compressed proof '{}' over ('{}' || '{}')",
-                                valid ? "VALID" : "INVALID",
-                                Bytes.wrap(v.compressedProofOrEmpty()),
-                                ledgerId,
-                                metadata);
-                        return valid;
-                    }));
-            category = proofTagValidations.get(explicitProofVote.tag()) ? VALID_RECURSIVE : INVALID_RECURSIVE;
+            final var explicitProofIsValid = isRecursiveProofValid(explicitProofVote, ledgerId, metadata);
+            category = explicitProofIsValid ? VALID_RECURSIVE : INVALID_RECURSIVE;
             final var weightsByValidity = votes.entrySet().stream()
                     .collect(groupingBy(
-                            entry -> proofTagValidations.get(entry.getValue().tag()),
+                            entry -> isRecursiveProofValid(entry.getValue(), ledgerId, metadata),
                             summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
             final long validWeight =
                     Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
@@ -332,8 +332,7 @@ public class ProofControllerImpl implements ProofController {
                 // Votes for valid recursive proofs are treated as congruent, we pick the valid proof
                 // submitted by the node with the lowest id as a tiebreaker
                 final var winningVote = votes.entrySet().stream()
-                        .filter(entry ->
-                                proofTagValidations.get(entry.getValue().tag()))
+                        .filter(entry -> isRecursiveProofValid(entry.getValue(), ledgerId, metadata))
                         .findFirst()
                         .map(Map.Entry::getValue)
                         .orElseThrow();
@@ -449,6 +448,26 @@ public class ProofControllerImpl implements ProofController {
             historyStore.clearProofVotes(constructionId(), new TreeSet<>(votes.keySet()));
         }
         votes.clear();
+        proofTagValidations.clear();
+    }
+
+    private boolean isRecursiveProofValid(
+            @NonNull final ExplicitProofVote vote, @NonNull final Bytes ledgerId, @NonNull final Bytes metadata) {
+        requireNonNull(vote);
+        requireNonNull(ledgerId);
+        requireNonNull(metadata);
+        final var validationKey = new RecursiveProofValidationKey(vote.tag(), ledgerId, metadata);
+        return proofTagValidations.computeIfAbsent(validationKey, ignored -> {
+            final boolean valid = historyLibrary.verifyCompressedProof(
+                    vote.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
+            log.info(
+                    "{} compressed proof '{}' over ('{}' || '{}')",
+                    valid ? "VALID" : "INVALID",
+                    Bytes.wrap(vote.compressedProofOrEmpty()),
+                    ledgerId,
+                    metadata);
+            return valid;
+        });
     }
 
     /**
@@ -483,6 +502,7 @@ public class ProofControllerImpl implements ProofController {
             prover.cancelPendingWork();
         }
         construction = historyStore.restartWrapsSigning(constructionId(), weights.sourceNodeIds());
+        proofTagValidations.clear();
         historyProofMetrics.recordRetryStarted();
         prover = createProver(tssConfig);
         log.warn(

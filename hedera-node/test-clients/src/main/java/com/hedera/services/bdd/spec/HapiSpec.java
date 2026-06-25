@@ -1505,13 +1505,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
     }
 
-    public boolean simpleFeesEnabled() {
-        return this.targetNetworkOrThrow()
-                .startupProperties()
-                .get("fees.simpleFeesEnabled")
-                .equals("true");
-    }
-
     @Override
     public String toString() {
         final SpecStatus passingSpecStatus = ((status == PASSED) && notOk(this)) ? PASSED_UNEXPECTEDLY : status;

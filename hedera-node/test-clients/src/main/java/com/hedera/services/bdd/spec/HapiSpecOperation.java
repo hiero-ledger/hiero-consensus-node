@@ -327,16 +327,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
         if (fee.isPresent()) {
             txn = provisional;
         } else {
-            final Key payerKey =
-                    spec.registry().getKey(payer.orElse(spec.setup().defaultPayerName()));
-            if (spec.simpleFeesEnabled()) {
-                netDef = netDef.andThen(b -> b.setTransactionFee(ONE_HUNDRED_HBARS));
-            } else {
-                final int numPayerKeys =
-                        hardcodedNumPayerKeys.orElse(spec.keys().controlledKeyCount(payerKey, overrides));
-                final long customFee = feeFor(spec, provisional, numPayerKeys);
-                netDef = netDef.andThen(b -> b.setTransactionFee(customFee));
-            }
+            netDef = netDef.andThen(b -> b.setTransactionFee(ONE_HUNDRED_HBARS));
             txn = getSigned(spec, spec.txns().getReadyToSign(netDef, bodyMutation, spec), keys);
         }
 

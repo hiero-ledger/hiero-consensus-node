@@ -11,13 +11,13 @@ import org.junit.jupiter.api.Test;
 class BootstrapConfigProviderImplTest {
     @Test
     void canOverrideBootstrapPropertiesViaConstructor() {
-        final boolean defaultSimpleFeesEnabled =
-                DEFAULT_CONFIG.getConfigData(FeesConfig.class).simpleFeesEnabled();
-        final var bootstrapConfigProvider =
-                new BootstrapConfigProviderImpl(Map.of("fees.simpleFeesEnabled", "" + !defaultSimpleFeesEnabled));
+        final boolean defaultCreateSimpleFeeSchedule =
+                DEFAULT_CONFIG.getConfigData(FeesConfig.class).createSimpleFeeSchedule();
+        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl(
+                Map.of("fees.createSimpleFeeSchedule", "" + !defaultCreateSimpleFeeSchedule));
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
-        final boolean simpleFeesEnabled =
-                bootstrapConfig.getConfigData(FeesConfig.class).simpleFeesEnabled();
-        assertNotEquals(defaultSimpleFeesEnabled, simpleFeesEnabled);
+        final boolean createSimpleFeeSchedule =
+                bootstrapConfig.getConfigData(FeesConfig.class).createSimpleFeeSchedule();
+        assertNotEquals(defaultCreateSimpleFeeSchedule, createSimpleFeeSchedule);
     }
 }
