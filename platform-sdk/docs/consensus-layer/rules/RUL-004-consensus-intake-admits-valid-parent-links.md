@@ -13,7 +13,7 @@ related:
   heuristics: []
 status: holds
 confidence: high
-provenance: reclassified from INV-010 on 2026-06-24 (intake admission contract, not a design invariant); originally 2026-06-08 extraction run
+provenance: originally 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
@@ -45,5 +45,5 @@ Breaking this rule is a **flag for confirmation**, not automatically a defect. A
 
 ## Notes
 
-- Reclassified from INV-010 on 2026-06-24. It reads as an intake admission contract — it holds because the linker *enforces* it, not because no correct implementation could differ, which is the rule/invariant discriminator. The DAG integrity it maintains is what the agreement and ordering invariants (INV-002, INV-007, INV-016) ultimately run on.
+- The DAG integrity it maintains is what the agreement and ordering invariants (INV-002, INV-007, INV-016) ultimately run on.
 - The birth-round *ordering* relation (a child's birth round ≥ each parent's) is INV-012 — a genuine invariant, true by construction rather than by enforcement.

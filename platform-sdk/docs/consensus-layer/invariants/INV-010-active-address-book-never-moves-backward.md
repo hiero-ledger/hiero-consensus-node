@@ -1,6 +1,6 @@
 ---
 type: invariant
-id: INV-017
+id: INV-010
 title: The active address book never moves backward — roster and stake changes apply forward-only
 class: safety
 topics: [hashgraph]
@@ -16,7 +16,7 @@ provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
 ---
 
-# INV-017 — The active address book never moves backward
+# INV-010 — The active address book never moves backward
 
 ## Statement
 
