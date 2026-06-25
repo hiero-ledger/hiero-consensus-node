@@ -33,6 +33,8 @@ import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.tss.TssKeyFiles;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.types.Profile;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeTssMetadata;
 import com.hedera.node.internal.network.TssMetadata;
@@ -320,9 +322,13 @@ public final class TssStartupNetworks {
             @NonNull final HistoryProofConstruction activeProofConstruction) {
         final var metadata = new TreeMap<Long, NodeTssMetadata>();
         if (existingNetwork != null) {
+            // Under the PROD profile the export must never carry private TSS key material, including any
+            // already present in a previously exported file (e.g. one written under a non-PROD profile).
+            final var stripPrivateKeys = isProdProfile(config);
             existingNetwork
                     .nodeTssMetadata()
-                    .forEach(nodeMetadata -> metadata.put(nodeMetadata.nodeId(), nodeMetadata));
+                    .forEach(nodeMetadata -> metadata.put(
+                            nodeMetadata.nodeId(), stripPrivateKeys ? withoutPrivateKeys(nodeMetadata) : nodeMetadata));
         }
         final var nodeIds = nodeIdsFrom(baseNetwork, existingNetwork);
         nodeIds.forEach(nodeId -> metadata.putIfAbsent(
@@ -412,12 +418,19 @@ public final class TssStartupNetworks {
                         .build()));
     }
 
-    private static void addPrivateKeys(
+    static void addPrivateKeys(
             @NonNull final Configuration config,
             final long selfNodeId,
             @NonNull final Map<Long, NodeTssMetadata> metadata,
             @NonNull final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction) {
+        // Never embed this node's private TSS key material in an exported network JSON under the PROD
+        // profile; that file is a portable bootstrap artifact and would carry the keys unencrypted.
+        if (isProdProfile(config)) {
+            log.warn("Refusing to embed dev-only TSS private key material in exported network info "
+                    + "under the PROD profile");
+            return;
+        }
         metadata.computeIfPresent(selfNodeId, (nodeId, nodeMetadata) -> {
             var builder = nodeMetadata.copyBuilder();
             TssKeyFiles.readBlsPrivateKey(config, activeHintsConstruction.constructionId())
@@ -427,6 +440,17 @@ public final class TssStartupNetworks {
                             builder.schnorrPrivateKey(keyPair.privateKey()).schnorrPublicKey(keyPair.publicKey()));
             return builder.build();
         });
+    }
+
+    private static boolean isProdProfile(@NonNull final Configuration config) {
+        return config.getConfigData(HederaConfig.class).activeProfile() == Profile.PROD;
+    }
+
+    private static NodeTssMetadata withoutPrivateKeys(@NonNull final NodeTssMetadata metadata) {
+        return metadata.copyBuilder()
+                .blsPrivateKey(Bytes.EMPTY)
+                .schnorrPrivateKey(Bytes.EMPTY)
+                .build();
     }
 
     private static NodeTssMetadata.Builder builderFor(@Nullable final NodeTssMetadata metadata, final long nodeId) {

@@ -881,7 +881,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
                 if (diskNetworkExportTss) {
-                    log.warn("Including dev-only TSS private key material in exported network info");
+                    log.warn("Including dev-only TSS metadata in exported network info; private key "
+                            + "material is embedded only under non-PROD profiles");
                     infoTypes.add(InfoType.TSS);
                 }
                 log.info(
