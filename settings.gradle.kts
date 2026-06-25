@@ -3,7 +3,7 @@ import org.hiero.gradle.environment.EnvAccess
 
 plugins {
     id("org.hiero.gradle.build") version "0.7.7"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.2" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.15.10" apply false
 }
 
 javaModules {
