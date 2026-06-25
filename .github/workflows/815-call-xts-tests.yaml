@@ -49,6 +49,10 @@ on:
         type: string
         description: "Run Block Node Regression Panel"
         default: "false"
+      enable-block-node-recovery-panel:
+        type: string
+        description: "Run Block Node Recovery Panel"
+        default: "false"
       enable-migration-testing-panel:
         type: string
         description: "Run Migration Testing Panel"
@@ -413,6 +417,40 @@ jobs:
             echo "- Required: \`>= 0.44.0\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  block-node-recovery-panel:
+    name: Block Node Recovery Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-recovery-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/824-call-block-node-recovery.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }} Block Node Recovery"
+      solo-version: ${{ inputs.solo-version }}
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
+  block-node-recovery-skipped-notice:
+    name: Block Node Recovery Panel (Skipped — solo < 0.44.0)
+    needs:
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-block-node-recovery-panel == 'true' && inputs.solo-ge-0440 != 'true' }}
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Announce Skip
+        run: |
+          echo "::warning::Block Node Recovery Panel was requested (enable-block-node-recovery-panel=true) but skipped because solo-ge-0440='${{ inputs.solo-ge-0440 }}' (solo-version='${{ inputs.solo-version }}'). The panel requires Solo >= 0.44.0."
+          {
+            echo "## Block Node Recovery Panel — SKIPPED"
+            echo ""
+            echo "Requested via \`enable-block-node-recovery-panel=true\` but the \`solo-ge-0440\` gate is \`${{ inputs.solo-ge-0440 }}\`."
+            echo ""
+            echo "- Requested Solo version: \`${{ inputs.solo-version }}\`"
+            echo "- Required: \`>= 0.44.0\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   migration-testing-panel:
     name: Migration Testing Panel
     needs:
@@ -466,6 +504,7 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
+      - block-node-recovery-panel
       - migration-testing-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
@@ -490,6 +529,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.result }}
             ${{ needs.json-rpc-relay-regression-panel.result }}
             ${{ needs.block-node-regression-panel.result }}
+            ${{ needs.block-node-recovery-panel.result }}
             ${{ needs.migration-testing-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
@@ -503,6 +543,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.block-node-recovery-panel.outputs.failure-mode || 'none' }}
             ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
@@ -516,5 +557,6 @@ jobs:
             mirror-node-regression-panel
             json-rpc-relay-regression-panel
             block-node-regression-panel
+            block-node-recovery-panel
             migration-testing-panel
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
