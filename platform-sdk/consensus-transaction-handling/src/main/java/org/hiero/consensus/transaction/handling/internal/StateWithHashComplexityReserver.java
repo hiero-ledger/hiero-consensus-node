@@ -3,10 +3,11 @@ package org.hiero.consensus.transaction.handling.internal;
 
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
 /**
  * Manages reservations of a signed state contained in a {@link TransactionHandlerResult} object when the
- * TransactionHandlerResult needs to be reduced to the {@link org.hiero.consensus.state.signed.StateWithHashComplexity} object.
+ * TransactionHandlerResult needs to be reduced to the {@link StateWithHashComplexity} object.
  * <p>
  * The contract for managing reservations across vertexes in the wiring is as follows:
  * <ul>
@@ -23,16 +24,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param name the name of the reserver
  */
 public record StateWithHashComplexityReserver(@NonNull String name)
-        implements AdvancedTransformation<
-                TransactionHandlerResult, org.hiero.consensus.state.signed.StateWithHashComplexity> {
+        implements AdvancedTransformation<TransactionHandlerResult, StateWithHashComplexity> {
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    public org.hiero.consensus.state.signed.StateWithHashComplexity transform(
-            @NonNull final TransactionHandlerResult transactionHandlerResult) {
+    public StateWithHashComplexity transform(@NonNull final TransactionHandlerResult transactionHandlerResult) {
         return transactionHandlerResult.stateWithHashComplexity().makeAdditionalReservation(name);
     }
 
@@ -48,8 +47,7 @@ public record StateWithHashComplexityReserver(@NonNull String name)
      * {@inheritDoc}
      */
     @Override
-    public void outputCleanup(
-            @NonNull final org.hiero.consensus.state.signed.StateWithHashComplexity stateWithHashComplexity) {
+    public void outputCleanup(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
         stateWithHashComplexity.reservedSignedState().close();
     }
 

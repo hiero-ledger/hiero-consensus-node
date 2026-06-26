@@ -4,9 +4,10 @@ package org.hiero.consensus.transaction.handling.internal;
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
 /**
- * Manages reservations of a signed state contained in a {@link org.hiero.consensus.state.signed.StateWithHashComplexity} object, when the StateAndRound
+ * Manages reservations of a signed state contained in a {@link StateWithHashComplexity} object, when the StateAndRound
  * needs to be reduced to just the state.
  * <p>
  * The contract for managing reservations across vertexes in the wiring is as follows:
@@ -17,24 +18,21 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  * The reserver enforces this contract by reserving the state for each input wire, and then releasing the reservation
  * made for the reserver.
  * <p>
- * For each input wire, {@link #transform(org.hiero.consensus.state.signed.StateWithHashComplexity)} will be called once, reserving the state for that input
- * wire. After a reservation is made for each input wire, {@link #inputCleanup(org.hiero.consensus.state.signed.StateWithHashComplexity)} will be called once to
+ * For each input wire, {@link #transform(StateWithHashComplexity)} will be called once, reserving the state for that input
+ * wire. After a reservation is made for each input wire, {@link #inputCleanup(StateWithHashComplexity)} will be called once to
  * release the original reservation.
  *
  * @param name the name of the reserver
  */
 public record StateWithHashComplexityToStateReserver(
-        @NonNull String name)
-        implements AdvancedTransformation<
-                org.hiero.consensus.state.signed.StateWithHashComplexity, ReservedSignedState> {
+        @NonNull String name) implements AdvancedTransformation<StateWithHashComplexity, ReservedSignedState> {
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    public ReservedSignedState transform(
-            @NonNull final org.hiero.consensus.state.signed.StateWithHashComplexity stateWithHashComplexity) {
+    public ReservedSignedState transform(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
         return stateWithHashComplexity.reservedSignedState().getAndReserve(name);
     }
 
@@ -42,8 +40,7 @@ public record StateWithHashComplexityToStateReserver(
      * {@inheritDoc}
      */
     @Override
-    public void inputCleanup(
-            @NonNull final org.hiero.consensus.state.signed.StateWithHashComplexity stateWithHashComplexity) {
+    public void inputCleanup(@NonNull final StateWithHashComplexity stateWithHashComplexity) {
         stateWithHashComplexity.reservedSignedState().close();
     }
 

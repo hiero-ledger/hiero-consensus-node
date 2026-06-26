@@ -53,6 +53,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
@@ -394,8 +395,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             // of the state is transactions, so that's our best bet.
             final long hashComplexity = Math.max(accumulatedHashComplexity, 1);
             final TransactionHandlerResult result = new TransactionHandlerResult(
-                    new org.hiero.consensus.state.signed.StateWithHashComplexity(reservedSignedState, hashComplexity),
-                    systemTransactions);
+                    new StateWithHashComplexity(reservedSignedState, hashComplexity), systemTransactions);
             accumulatedHashComplexity = 0;
 
             return result;

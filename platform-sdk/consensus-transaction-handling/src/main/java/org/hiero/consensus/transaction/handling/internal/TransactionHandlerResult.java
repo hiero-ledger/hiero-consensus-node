@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Queue;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
 /**
  * The result of the {@link TransactionHandler} handling a round.
@@ -22,5 +23,5 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * @param systemTransactions      any system transactions that reached consensus in the round
  */
 public record TransactionHandlerResult(
-        @Nullable org.hiero.consensus.state.signed.StateWithHashComplexity stateWithHashComplexity,
+        @Nullable StateWithHashComplexity stateWithHashComplexity,
         @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {}
