@@ -103,6 +103,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     private final AtomicInteger bucketMaskBits = new AtomicInteger(0);
 
+    /** Storage dir */
+    private final Path storeDir;
     /** The name to use for the files prefix on disk */
     private final String storeName;
 
@@ -172,7 +174,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final @NonNull Configuration configuration,
             final @NonNull FileSystemManager fileSystemManager,
             final long initialCapacity,
-            final Path storeDir,
+            final @NonNull Path storeDir,
             final String storeName,
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
@@ -188,6 +190,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         // power of two, since the number of buckets is always a power of two
         final long bucketIndexCapacity =
                 calculateBucketIndexCapacity(merkleDbConfig.maxNumOfKeys(), goodAverageBucketEntryCount);
+        this.storeDir = requireNonNull(storeDir);
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
@@ -277,8 +280,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     private void writeMetadata(final Path dir) throws IOException {
-        try (DataOutputStream metaOut =
-                new DataOutputStream(Files.newOutputStream(dir.resolve(storeName + METADATA_FILENAME_SUFFIX)))) {
+        final Path metadataFile = dir.resolve(storeName + METADATA_FILENAME_SUFFIX);
+        // newOutputStream() overrides the file, if it exists, no need to delete explicitly
+        try (DataOutputStream metaOut = new DataOutputStream(Files.newOutputStream(metadataFile))) {
             metaOut.writeInt(METADATA_FILE_FORMAT_VERSION);
             metaOut.writeInt(0); // backwards compatibility, was: minimumBuckets
             metaOut.writeInt(numOfBuckets.get());
@@ -556,6 +560,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             } else {
                 dataFileReader = null;
             }
+            writeMetadata(storeDir);
         } catch (final Exception z) {
             throw new RuntimeException("Exception in HDHM.endWriting()", z);
         } finally {

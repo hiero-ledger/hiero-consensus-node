@@ -31,18 +31,15 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
@@ -285,7 +282,6 @@ public class IssueRegressionTests {
 
     @LeakyHapiTest
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
-        final var legacyDeletePriceUsd = 0.0113804;
         final var simpleDeletePriceUsd =
                 CRYPTO_DELETE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         return customizedHapiTest(
@@ -301,7 +297,7 @@ public class IssueRegressionTests {
                         .transfer(TRANSFER)
                         .hasKnownStatus(ACCOUNT_DELETED),
                 getTxnRecord(DELETE_TXN).logged(),
-                validateFees(DELETE_TXN, legacyDeletePriceUsd, simpleDeletePriceUsd));
+                validateChargedUsdWithin(DELETE_TXN, simpleDeletePriceUsd, 0.1));
     }
 
     @HapiTest
@@ -323,24 +319,6 @@ public class IssueRegressionTests {
                         .via(DELETE_TXN)
                         .transferContract("PayReceivable")
                         .hasKnownStatus(INVALID_CONTRACT_ID));
-    }
-
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    final Stream<DynamicTest> canSwitchSimpleFeesFromFalseToTrueWithoutException() {
-        final var payer = "payerForSimpleFeeToggle";
-        return hapiTest(
-                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
-                uploadInitCode("CreateTrivial"),
-                overriding("fees.simpleFeesEnabled", "false"),
-                contractCreate("CreateTrivial").payingWith(payer).via("legacyContractCreate"),
-                overriding("fees.simpleFeesEnabled", "true"),
-                contractCreate("CreateTrivial")
-                        .payingWith(payer)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .via("simpleContractCreate"),
-                // simple fees are always used now, so the toggle no longer changes the charged fee
-                validateChargedUsd("legacyContractCreate", 1.02),
-                validateChargedUsd("simpleContractCreate", 1.02));
     }
 
     @HapiTest

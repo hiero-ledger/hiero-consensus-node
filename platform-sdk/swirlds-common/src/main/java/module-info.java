@@ -3,11 +3,10 @@ module com.swirlds.common {
 
     /* Exported packages. This list should remain alphabetized. */
     exports com.swirlds.common.context;
-    exports com.swirlds.common.io.exceptions;
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;
-    exports com.swirlds.common.utility;
     exports com.swirlds.common.startup;
+    exports com.swirlds.common.utility;
 
     opens com.swirlds.common.utility to
             com.fasterxml.jackson.databind;

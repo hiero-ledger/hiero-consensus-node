@@ -5,6 +5,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventC
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 
 import com.swirlds.common.context.PlatformContext;
@@ -29,6 +30,7 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
@@ -119,6 +121,8 @@ public final class DiagramCommand extends AbstractCommand {
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
         final GossipModule gossipModule =
                 createNoOpGossipModule(model, configuration, platformContext.getFileSystemManager());
+        final IssDetectionModule issDetectionModule =
+                createNoOpIssDetectionModule(model, configuration, platformContext.getFileSystemManager());
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -127,7 +131,8 @@ public final class DiagramCommand extends AbstractCommand {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                issDetectionModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, null);
 
