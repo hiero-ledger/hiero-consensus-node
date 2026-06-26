@@ -1,26 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.transaction.handling;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 
 /**
- * Implements the major lifecycle events for the state. Normally, the implementation of this interface should be
- * stateless or effectively immutable, unless it's a special test implementation. An instance of this class is
- * meant to be created once at the start of the application and then used for the lifetime of the application.
- *
+ * This is a temporary interface that will be replaced
  */
-public interface ConsensusStateEventHandler extends TransactionCallbacks {
+public interface TransactionCallbacks {
     /**
      * Called when an event is added to the hashgraph used to compute consensus ordering
      * for this node.
@@ -53,25 +45,4 @@ public interface ConsensusStateEventHandler extends TransactionCallbacks {
      * sign this round's state
      */
     boolean onSealConsensusRound(@NonNull Round round, @NonNull State state);
-
-    /**
-     * Called when the platform is initializing the network state.
-     *
-     * @param state the working state of the network to be initialized
-     * @param platform the platform used by this node
-     * @param trigger the reason for the initialization
-     * @param previousVersion if non-null, the network version that was previously in use
-     */
-    void onStateInitialized(
-            @NonNull State state,
-            @NonNull Platform platform,
-            @NonNull InitTrigger trigger,
-            @Nullable SemanticVersion previousVersion);
-
-    /**
-     * Called when event stream recovery finishes.
-     *
-     * @param recoveredState the recovered state after reapplying all events
-     */
-    void onNewRecoveredState(@NonNull State recoveredState);
 }

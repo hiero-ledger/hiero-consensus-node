@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.metrics;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.IDLE;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.IDLE;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
-import com.swirlds.platform.eventhandling.TransactionHandlerPhase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Objects;
 import org.hiero.consensus.metrics.extensions.PhaseTimer;
 import org.hiero.consensus.metrics.extensions.PhaseTimerBuilder;
 
@@ -46,12 +43,11 @@ public class RoundHandlingMetrics {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param time the time source
+     * @param metrics the metrics system
      */
-    public RoundHandlingMetrics(@NonNull final PlatformContext platformContext) {
-        this.time = platformContext.getTime();
-
-        final Metrics metrics = platformContext.getMetrics();
+    public RoundHandlingMetrics(@NonNull final Time time, @NonNull final Metrics metrics) {
+        this.time = requireNonNull(time);
 
         consensusTime = metrics.getOrCreate(consensusTimeConfig);
         consensusTimeDeviation = metrics.getOrCreate(consensusTimeDeviationConfig);
@@ -90,7 +86,7 @@ public class RoundHandlingMetrics {
      * @param phase the new phase
      */
     public void setPhase(@NonNull final TransactionHandlerPhase phase) {
-        Objects.requireNonNull(phase);
+        requireNonNull(phase);
         roundHandlerPhase.activatePhase(phase);
     }
 }

@@ -1,31 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.CREATING_SIGNED_STATE;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.GETTING_STATE_TO_SIGN;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.HANDLING_CONSENSUS_ROUND;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.IDLE;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.SETTING_EVENT_CONSENSUS_DATA;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
-import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setLegacyRunningEventHashTo;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.CREATING_SIGNED_STATE;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.GETTING_STATE_TO_SIGN;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.HANDLING_CONSENSUS_ROUND;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.IDLE;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.SETTING_EVENT_CONSENSUS_DATA;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.UPDATING_PLATFORM_STATE;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
+import static org.hiero.consensus.transaction.handling.internal.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.metrics.RoundHandlingMetrics;
-import com.swirlds.platform.metrics.TransactionMetrics;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -36,12 +34,14 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -53,8 +53,11 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.transaction.handling.TransactionCallbacks;
+import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 
 /**
  * A standard implementation of {@link TransactionHandler}.
@@ -74,7 +77,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final NodeId selfId;
 
     @NonNull
-    private final ConsensusStateEventHandler consensusStateEventHandler;
+    private final TransactionCallbacks transactionCallbacks;
 
     /**
      * Whether a round in a freeze period has been received. This may never be reset to false after it is set to true.
@@ -92,7 +95,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Enables submitting platform status actions.
      */
-    private final StatusActionSubmitter statusActionSubmitter;
+    private final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference;
 
     private final SemanticVersion softwareVersion;
 
@@ -101,7 +104,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private final int roundsNonAncient;
 
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
 
     /**
      * If true then write the legacy running event hash each round.
@@ -134,45 +137,50 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Constructor
      *
-     * @param platformContext       contains various platform utilities
+     * @param time the time source
+     * @param configuration the configuration data
+     * @param metrics the metrics system
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param statusActionSubmitter enables submitting of platform status actions
-     * @param softwareVersion       the current version of the software
+     * @param statusActionSubmitterReference enables submitting of platform status actions
+     * @param softwareVersion the current version of the software
      */
     public DefaultTransactionHandler(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
+            @NonNull final Time time,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
+            @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final NodeId selfId,
             final long transactionOffsetNanos) {
 
-        this.platformContext = requireNonNull(platformContext);
+        this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
-        this.statusActionSubmitter = requireNonNull(statusActionSubmitter);
+        this.statusActionSubmitterReference = requireNonNull(statusActionSubmitterReference);
         this.softwareVersion = requireNonNull(softwareVersion);
-        this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
+        this.transactionCallbacks = requireNonNull(transactionCallbacks);
         this.selfId = requireNonNull(selfId);
         this.transactionOffsetNanos = transactionOffsetNanos;
 
-        this.roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
-        this.handlerMetrics = new RoundHandlingMetrics(platformContext);
-        this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
+        this.roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        this.handlerMetrics = new RoundHandlingMetrics(time, metrics);
+        this.transactionMetrics = new TransactionMetrics(metrics);
 
         previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
 
-        final PlatformSchedulersConfig schedulersConfig =
-                platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
+        final EventStreamWiringConfig eventStreamWiringConfig =
+                configuration.getConfigData(EventStreamWiringConfig.class);
+        final TransactionHandlingWiringConfig wiringConfig =
+                configuration.getConfigData(TransactionHandlingWiringConfig.class);
 
         // If the CES is using a no-op scheduler then the legacy running event hash won't be computed.
-        writeLegacyRunningEventHash = schedulersConfig.consensusEventStream().type() != TaskSchedulerType.NO_OP;
+        writeLegacyRunningEventHash =
+                eventStreamWiringConfig.consensusEventStream().type() != TaskSchedulerType.NO_OP;
 
         // If the application transaction prehandler is a no-op then we don't need to wait for it.
-        waitForPrehandle = schedulersConfig.applicationTransactionPrehandler().type() != TaskSchedulerType.NO_OP;
+        waitForPrehandle = wiringConfig.prehandler().type() != TaskSchedulerType.NO_OP;
     }
 
     /**
@@ -209,7 +217,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
-            statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
+            statusActionSubmitterReference
+                    .get()
+                    .submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
                     STARTUP.getMarker(),
@@ -256,7 +266,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
     /**
      * Handles the events in a consensus round. Implementations are responsible for invoking
-     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, State, Consumer)} .
+     * {@link TransactionCallbacks#onHandleConsensusRound(Round, State, Consumer)} .
      *
      * @param round the round to handle
      */
@@ -269,7 +279,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             final Instant timeOfHandle = Instant.now();
             final long startTime = System.nanoTime();
 
-            consensusStateEventHandler.onHandleConsensusRound(round, state, scopedSystemTransactions::add);
+            transactionCallbacks.onHandleConsensusRound(round, state, scopedSystemTransactions::add);
 
             final double secondsElapsed = (System.nanoTime() - startTime) * NANOSECONDS_TO_SECONDS;
 
@@ -356,7 +366,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             updateLastFrozenTime(stateLifecycleManager.getMutableState());
         }
         final VirtualMapState state = stateLifecycleManager.getMutableState();
-        final boolean isBoundary = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);
+        final boolean isBoundary = transactionCallbacks.onSealConsensusRound(consensusRound, state);
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
             if (freezeRoundReceived && !isBoundary) {
@@ -371,7 +381,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(
-                    platformContext.getConfiguration(),
+                    configuration,
                     CryptoUtils::verifySignature,
                     immutableState,
                     "TransactionHandler.createSignedState()",
