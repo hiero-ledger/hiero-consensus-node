@@ -283,7 +283,7 @@ class HintsServiceImplTest {
         given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false))
                 .willReturn(false);
 
-        subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false);
+        assertFalse(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false));
 
         verify(hintsStore).handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false);
         verify(component, never()).signingContext();
@@ -300,7 +300,7 @@ class HintsServiceImplTest {
         given(hintsStore.getActiveConstruction()).willReturn(construction);
         given(component.signingContext()).willReturn(context);
 
-        subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, true);
+        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, true));
 
         verify(context).setConstruction(construction);
     }

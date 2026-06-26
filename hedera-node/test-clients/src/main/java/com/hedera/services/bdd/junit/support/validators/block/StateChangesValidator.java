@@ -380,12 +380,18 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             for (final var block : previewBlocks) {
                 // Apply state changes from preview blocks to build up state
+                long eventNodeId = -1;
                 for (final var item : block.items()) {
                     if (item.hasStateChanges()) {
                         final var changes = item.stateChangesOrThrow();
                         lastStateChanges = changes;
                         lastStateChangesTime = asInstant(changes.consensusTimestampOrThrow());
                         applyStateChanges(changes);
+                    } else if (item.hasEventHeader()) {
+                        eventNodeId =
+                                item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
+                    } else if (item.hasSignedTransaction()) {
+                        observeSignedTransaction(item, eventNodeId);
                     }
                 }
 
@@ -563,34 +569,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 } else if (item.hasEventHeader()) {
                     eventNodeId = item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
                 } else if (item.hasSignedTransaction()) {
-                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
-                    if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
-                        final var op = parts.body().hintsPartialSignatureOrThrow();
-                        final var all = signers.computeIfAbsent(op.message(), k -> new HashSet<>());
-                        all.add(eventNodeId);
-                        if (blockNumbers.containsKey(op.message())) {
-                            logger.info(
-                                    "#{} ({}...) now signed by {}",
-                                    blockNumbers.get(op.message()),
-                                    op.message().toString().substring(0, 8),
-                                    all);
-                        }
-                    } else if (parts.function() == LEDGER_ID_PUBLICATION) {
-                        ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                        final int k = ledgerIdPublication.nodeContributions().size();
-                        final long[] nodeIds = new long[k];
-                        final long[] weights = new long[k];
-                        final byte[][] publicKeys = new byte[k][];
-                        for (int j = 0; j < k; j++) {
-                            final var contribution =
-                                    ledgerIdPublication.nodeContributions().get(j);
-                            nodeIds[j] = contribution.nodeId();
-                            weights[j] = contribution.weight();
-                            publicKeys[j] = contribution.historyProofKey().toByteArray();
-                        }
-                        // Set the relevant public keys for later verification
-                        TSS.setAddressBook(publicKeys, weights, nodeIds);
-                    }
+                    observeSignedTransaction(item, eventNodeId);
                 }
             }
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
@@ -992,6 +971,36 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
         } else {
             assertMockSignature(proof, expectedBlockHash);
+        }
+    }
+
+    private void observeSignedTransaction(@NonNull final BlockItem item, final long eventNodeId) {
+        final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+        if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
+            final var op = parts.body().hintsPartialSignatureOrThrow();
+            final var all = signers.computeIfAbsent(op.message(), k -> new HashSet<>());
+            all.add(eventNodeId);
+            if (blockNumbers.containsKey(op.message())) {
+                logger.info(
+                        "#{} ({}...) now signed by {}",
+                        blockNumbers.get(op.message()),
+                        op.message().toString().substring(0, 8),
+                        all);
+            }
+        } else if (parts.function() == LEDGER_ID_PUBLICATION) {
+            ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
+            final int k = ledgerIdPublication.nodeContributions().size();
+            final long[] nodeIds = new long[k];
+            final long[] weights = new long[k];
+            final byte[][] publicKeys = new byte[k][];
+            for (int j = 0; j < k; j++) {
+                final var contribution = ledgerIdPublication.nodeContributions().get(j);
+                nodeIds[j] = contribution.nodeId();
+                weights[j] = contribution.weight();
+                publicKeys[j] = contribution.historyProofKey().toByteArray();
+            }
+            // Set the relevant public keys for later verification
+            TSS.setAddressBook(publicKeys, weights, nodeIds);
         }
     }
 
