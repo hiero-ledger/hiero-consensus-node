@@ -16,8 +16,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
-import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexity;
 
 /**
  * The default implementation of {@link SavedStateController}.

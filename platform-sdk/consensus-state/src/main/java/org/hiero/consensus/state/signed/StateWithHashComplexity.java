@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.transaction.handling.internal;
+package org.hiero.consensus.state.signed;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A wrapper for a signed state that includes an estimate of how much work it will be to compute the hash of the state.

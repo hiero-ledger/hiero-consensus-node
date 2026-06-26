@@ -394,7 +394,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
             // of the state is transactions, so that's our best bet.
             final long hashComplexity = Math.max(accumulatedHashComplexity, 1);
             final TransactionHandlerResult result = new TransactionHandlerResult(
-                    new StateWithHashComplexity(reservedSignedState, hashComplexity), systemTransactions);
+                    new org.hiero.consensus.state.signed.StateWithHashComplexity(reservedSignedState, hashComplexity),
+                    systemTransactions);
             accumulatedHashComplexity = 0;
 
             return result;

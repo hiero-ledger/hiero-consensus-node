@@ -22,5 +22,5 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * @param systemTransactions      any system transactions that reached consensus in the round
  */
 public record TransactionHandlerResult(
-        @Nullable StateWithHashComplexity stateWithHashComplexity,
+        @Nullable org.hiero.consensus.state.signed.StateWithHashComplexity stateWithHashComplexity,
         @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {}

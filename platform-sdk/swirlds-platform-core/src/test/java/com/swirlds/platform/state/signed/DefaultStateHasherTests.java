@@ -12,7 +12,7 @@ import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.state.merkle.VirtualMapState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexity;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

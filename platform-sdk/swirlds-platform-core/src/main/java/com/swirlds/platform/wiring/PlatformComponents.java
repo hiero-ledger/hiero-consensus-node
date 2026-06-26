@@ -38,8 +38,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
-import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexity;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
