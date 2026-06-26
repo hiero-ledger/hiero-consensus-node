@@ -28,7 +28,6 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * Create a new benchmark slow async output stream.
      *
      * @param out the underlying output stream
-     * @param workGroup the work group managing this stream's thread
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage

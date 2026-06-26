@@ -4,7 +4,6 @@ package com.swirlds.benchmark.reconnect;
 import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
@@ -78,8 +77,7 @@ public class MerkleBenchmarkUtils {
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
-                teacher = new TeachingSynchronizer(
-                        desiredTree, Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
+                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), reconnectConfig);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         reconnectConfig,

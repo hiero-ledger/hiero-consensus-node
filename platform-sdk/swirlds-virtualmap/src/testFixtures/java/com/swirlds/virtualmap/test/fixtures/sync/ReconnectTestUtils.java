@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -80,7 +79,7 @@ public final class ReconnectTestUtils {
                     };
 
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(teacherMap, Time.getCurrent(), getStaticThreadManager(), reconnectConfig) {
+                    new TeachingSynchronizer(teacherMap, getStaticThreadManager(), reconnectConfig) {
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
                                 @NonNull ThreadManager threadManager, @NonNull Runnable breakConnection) {
