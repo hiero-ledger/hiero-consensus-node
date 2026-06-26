@@ -10,7 +10,6 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.config;
     exports com.swirlds.virtualmap.sync;
     exports com.swirlds.virtualmap.sync.streams;
-    exports com.swirlds.virtualmap.sync.stats;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
