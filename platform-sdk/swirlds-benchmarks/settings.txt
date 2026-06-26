@@ -1,9 +1,10 @@
 benchmark.benchmarkData,                       data
-benchmark.saveDataDirectory,                   false
-benchmark.verifyResult,                        true
+benchmark.saveDataDirectory,                   true
+benchmark.verifyResult,                        false
 benchmark.enableSnapshots,                     false
 benchmark.printHistogram,                      false
 benchmark.csvOutputFolder,                     data
 benchmark.csvWriteFrequency,                   1000
 benchmark.csvAppend,                           true
 virtualMap.familyThrottleThreshold,            10000000000
+virtualMap.reconnectMode,                      pullTwoPhasePessimistic

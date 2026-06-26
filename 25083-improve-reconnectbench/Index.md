@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-06-04
+Last updated: 2026-06-26
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 
@@ -27,3 +27,4 @@ Last updated: 2026-06-04
 - [2026-05-29 Cluster Calibration Batch Summary](evidence-and-calibration/extracted-cluster-evidence/2026-05-29-cluster-calibration/batch-summary.md) - Migrated summary for the initial traversal-order calibration batch.
 - [Historical Cluster Metrics Analysis](evidence-and-calibration/historical-cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
 - [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
+- [Cluster-Evidence Local ReconnectBench Calibration Runs](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-06-26-cluster-evidence-profile-run.md) - Local run log generated from the accepted May 29 cluster evidence profile, with fixed state parameters plus appendable traversal/network result tables.

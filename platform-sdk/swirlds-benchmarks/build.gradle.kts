@@ -86,19 +86,25 @@ tasks.register<JMHTask>("jmhReconnect") {
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
-        jmhParamProperty("networkLatencyMicroseconds", "100000"),
+        jmhParamProperty("networkLatencyMicroseconds", "270"),
     )
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
-        jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000"),
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
     )
     benchmarkParameters.put(
         "networkInflightBytesLimit",
-        jmhParamProperty("networkInflightBytesLimit", "134217728"),
+        jmhParamProperty("networkInflightBytesLimit", "33554432"),
     )
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "5000"))
+    benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
+    benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.09"))
+    benchmarkParameters.put("teacherRemoveProbability", jmhParamProperty("teacherRemoveProbability", "0.0"))
+    benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.40"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "7409"))
     benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
+    benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
     benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
     benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
+    benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
 }
