@@ -73,7 +73,8 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 1, 2, 3},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.maxBlocks", "150"
                         })
             })
     @Order(2)
