@@ -15,7 +15,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -32,8 +31,6 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -318,29 +315,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return resourcePriceCalculator;
     }
 
-    @NonNull
-    private FeeCalculator createFeeCalculator(@NonNull final SubType subType) {
-        return feeManager.createFeeCalculator(
-                ensureTxnId(txnInfo.txBody()),
-                payerKey,
-                txnInfo.functionality(),
-                numTxnSignatures(),
-                SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap()),
-                consensusNow,
-                subType,
-                false,
-                storeFactory.asReadOnly());
-    }
-
     @Override
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return feeManager.getSimpleFeeCalculator();
-    }
-
-    @NonNull
-    @Override
-    public FeeCalculatorFactory feeCalculatorFactory() {
-        return this::createFeeCalculator;
     }
 
     @NonNull
