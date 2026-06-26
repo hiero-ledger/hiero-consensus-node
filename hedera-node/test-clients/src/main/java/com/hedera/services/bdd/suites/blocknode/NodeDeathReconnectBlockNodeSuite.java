@@ -25,7 +25,6 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -115,8 +114,6 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 assertHgcaaLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
-    // FUTURE: This scenario should be updated after the behavior changes on the BN side
-    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 2,
@@ -128,42 +125,12 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                         nodeId = 0,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "15"}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "15"}),
             })
     @Order(2)
     final Stream<DynamicTest> nodeDeathReconnectAllNodes() {
