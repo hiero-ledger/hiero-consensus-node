@@ -17,8 +17,6 @@ import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
@@ -65,7 +63,7 @@ public class LearningSynchronizer {
     }
 
     @NonNull
-    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, ReconnectMapStats mapStats) {
+    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, LearnerSyncMetrics syncMetrics) {
         logger.info(
                 RECONNECT.getMarker(),
                 "Building learner exchanger for map with path range [{}, {}]",
@@ -73,15 +71,15 @@ public class LearningSynchronizer {
                 originalVirtualMap.getMetadata().getLastLeafPath());
 
         final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
-        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, reconnectConfig, mapStats);
+        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, reconnectConfig);
 
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), mapStats);
+                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), mapStats);
+                new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), syncMetrics);
             case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
-                new LearnerTreeExchanger(vmapLearner, new ParallelSyncTraversalOrder(), mapStats);
+                new LearnerTreeExchanger(vmapLearner, new ParallelSyncTraversalOrder(), syncMetrics);
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: "
                         + virtualMapConfig.reconnectMode()
@@ -114,8 +112,8 @@ public class LearningSynchronizer {
         Objects.requireNonNull(out, "output stream cannot be null");
         Objects.requireNonNull(breakConnection, "break connection action cannot be null");
 
-        final ReconnectMapMetrics reconnectStats = new ReconnectMapMetrics(metrics, null, null);
-        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, reconnectStats);
+        final LearnerSyncMetrics syncMetrics = new LearnerSyncMetrics(metrics);
+        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, syncMetrics);
 
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "learner start synchronizing");
@@ -171,7 +169,7 @@ public class LearningSynchronizer {
         try {
             VirtualMap syncedVirtualMap = exchanger.onSuccessfulComplete();
             logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
-            logger.info(RECONNECT.getMarker(), reconnectStats::format);
+            logger.info(RECONNECT.getMarker(), syncMetrics::toString);
             return syncedVirtualMap;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while completing synchronization", t);
@@ -229,7 +227,7 @@ public class LearningSynchronizer {
             Thread.currentThread().interrupt();
             throw new MerkleSynchronizationException("Interrupted while sending root node request", e);
         }
-        exchanger.getMapStats().incrementTransfersFromLearner();
+        exchanger.onRequestSend();
 
         // wait for response
         final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.PARK);
