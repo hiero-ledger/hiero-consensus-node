@@ -17,11 +17,9 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 #   ✅  PCES replay complete ("done streaming pces")
 #   📀  minimum birth-round identifier to store on disk
 #   ❔  mystery data (unbound input wire; see --less-mystery)
-#   🖋️  state signature transactions (StateSigner)
 #   💥  ISS notification → app notifier
 #   💀  ISS notification → status monitoring
 #   🕐  consensus round monitoring
-#   🗑️  stale events
 #   💨  running event hash override
 #   💾  state-saving monitoring (StateSnapshotManager)
 #   🚦  platform status
@@ -37,35 +35,30 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'pcesReplayer:done streaming pces:✅' \
     -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
     -s 'Mystery Input:mystery data:❔' \
-    -s 'StateSigner:submit transaction:🖋️' \
-    -s 'StateSigner:signature transactions:🖋️' \
     -s 'IssDetectorSplitter:IssNotification:💥' \
-    -s 'IssDetector:ISS notification monitoring:💀' \
+    -s 'IssDetectorSplitter:ISS notification monitoring:💀' \
     -s 'ConsensusRoundsSplitter:monitor consensus round:🕐' \
-    -s 'staleEventsSplitter:stale events:🗑️' \
     -s 'RunningEventHashOverride:hash override:💨' \
     -s 'StateSnapshotManager:state saving monitoring:💾' \
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -s 'postHasher_stateReserver:hashed states:#️⃣' \
-    -s 'postHasher_stateReserver:hashed states to log:#️⃣' \
-    -s 'postHasher_stateReserver:hashed states to sign:#️⃣' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
     -g 'Branch Detection:BranchDetector,BranchReporter' \
     -g 'Event Intake Module:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,Branch Detection' \
     -g 'Consensus Engine:ConsensusEngine,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter' \
-    -g 'Signed State Management:State Snapshot Manager,State Signature Collector,LatestCompleteStateNexus,StateGarbageCollector,StateSigner,HashLogger,ExecutionSignatureSubmission,📀,💾,🖋️' \
+    -g 'Signed State Management:State Snapshot Manager,State Signature Collector,LatestCompleteStateNexus,StateGarbageCollector,StateSigner,HashLogger,ExecutionSignatureSubmission,📀,💾' \
     -g 'Event Creator Module:EventCreationManager' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Module:pcesReplayer,InlinePcesWriter,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
-    -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,PreConsensusEvents,PreConsensusEventsSplitter,EventWindowManager,🌀,🕐,🗑️' \
+    -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,staleEventCallback,PreConsensusEvents,PreConsensusEventsSplitter,EventWindowManager,🌀,🕐' \
     -g 'ISS Detection:ISS Detector,💥,💀' \
     -g 'Transaction Handling:Transaction Handler,State Hasher,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮,#️⃣' \
-    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,AppNotifier,❔,🏥,❤️,💨,🚦' \
+    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,AppNotifier,postHasher_notifier,executionHealthInput,❔,🏥,❤️,💨,🚦' \
     -g 'Gossip Module:gossip' \
     -g 'Event Stream:ConsensusEventStream' \
     -c 'Orphan Buffer' \
