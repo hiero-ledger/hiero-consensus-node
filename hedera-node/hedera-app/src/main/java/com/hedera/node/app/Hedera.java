@@ -23,6 +23,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
