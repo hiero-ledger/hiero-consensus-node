@@ -39,12 +39,8 @@ import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
-import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
@@ -55,7 +51,6 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
@@ -112,6 +107,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
@@ -126,6 +122,8 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 
 public class TestHelpers {
+
+    public static final Random RANDOM = new Random();
     public static final String LEDGER_ID = "01";
     public static final long shard = 0;
     public static final long realm = 0;
@@ -143,6 +141,7 @@ public class TestHelpers {
     public static final LedgerConfig DEFAULT_LEDGER_CONFIG = DEFAULT_CONFIG.getConfigData(LedgerConfig.class);
     public static final HederaConfig DEFAULT_HEDERA_CONFIG = DEFAULT_CONFIG.getConfigData(HederaConfig.class);
     public static final ContractsConfig DEFAULT_CONTRACTS_CONFIG = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
+    public static final int TRANSACTION_MAX_BYTES = 6144;
     public static final EntitiesConfig DEFAULT_ENTITIES_CONFIG = DEFAULT_CONFIG.getConfigData(EntitiesConfig.class);
     public static final AccountsConfig DEFAULT_ACCOUNTS_CONFIG = DEFAULT_CONFIG.getConfigData(AccountsConfig.class);
     public static final HooksConfig DEFAULT_HOOKS_CONFIG = DEFAULT_CONFIG.getConfigData(HooksConfig.class);
@@ -166,10 +165,6 @@ public class TestHelpers {
             .build();
     public static final Key ANOTHER_ED25519_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0202020202020202020202020202020202020202020202020202020202020202"))
-            .build();
-
-    public static final Key YET_ANOTHER_ED25519_KEY = Key.newBuilder()
-            .ed25519(Bytes.fromHex("3232323232323232323232323232323232323232323232323232323232323232"))
             .build();
     public static final long REQUIRED_GAS = 123L;
     public static final long NONCE = 678;
@@ -244,13 +239,6 @@ public class TestHelpers {
 
     public static final Account A_DELETED_CONTRACT = Account.newBuilder()
             .deleted(true)
-            .smartContract(true)
-            .accountId(AccountID.newBuilder()
-                    .accountNum(CALLED_CONTRACT_ID.contractNumOrThrow())
-                    .build())
-            .build();
-
-    public static final Account CONTRACT_ACCOUNT = Account.newBuilder()
             .smartContract(true)
             .accountId(AccountID.newBuilder()
                     .accountNum(CALLED_CONTRACT_ID.contractNumOrThrow())
@@ -533,7 +521,6 @@ public class TestHelpers {
             ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build();
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
-    public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
     public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
     public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
     public static final Log BESU_LOG = new Log(
@@ -552,9 +539,6 @@ public class TestHelpers {
     public static final String PSEUDORANDOM_SEED_GENERATOR_SELECTOR = "0xd83bf9a1";
     public static final org.apache.tuweni.bytes.Bytes PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS =
             org.apache.tuweni.bytes.Bytes.fromHexString(PSEUDORANDOM_SEED_GENERATOR_SELECTOR);
-    public static final String EXCHANGE_RATE_SELECTOR = "0xd83bf9a1";
-    public static final org.apache.tuweni.bytes.Bytes EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS =
-            org.apache.tuweni.bytes.Bytes.fromHexString(EXCHANGE_RATE_SELECTOR);
     public static final org.apache.tuweni.bytes.Bytes EXPECTED_RANDOM_NUMBER =
             org.apache.tuweni.bytes.Bytes.fromHexString(
                     "0x1234567890123456789012345678901234567890123456789012345678901234");
@@ -698,21 +682,6 @@ public class TestHelpers {
     public static final Key B_SECP256K1_KEY = Key.newBuilder()
             .ecdsaSecp256k1(Bytes.fromHex("039191919191919191919191919191919191919191919191919191919191919191"))
             .build();
-    private static final ContractCreateTransactionBody MOCK_CREATE_BODY = ContractCreateTransactionBody.newBuilder()
-            .memo("Something to think about")
-            .build();
-    public static final TransactionBody MOCK_CREATION = TransactionBody.newBuilder()
-            .contractCreateInstance(MOCK_CREATE_BODY)
-            .build();
-
-    private static final ContractCallTransactionBody MOCK_CALL_BODY = ContractCallTransactionBody.newBuilder()
-            .contractID(CALLED_CONTRACT_ID)
-            .build();
-    private static final EthereumTransactionBody MOCK_ETH_BODY =
-            EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
-    public static final TransactionBody MOCK_ETH =
-            TransactionBody.newBuilder().ethereumTransaction(MOCK_ETH_BODY).build();
-
     public static final VerificationStrategy MOCK_VERIFICATION_STRATEGY = new ActiveContractVerificationStrategy(
             ContractID.newBuilder().contractNum(1).build(), Bytes.EMPTY, true, UseTopLevelSigs.NO);
     public static final long OWNER_ACCOUNT_NUM = 121212L;
@@ -728,8 +697,6 @@ public class TestHelpers {
     public static final Address OWNER_BESU_ADDRESS = pbjToBesuAddress(OWNER_ADDRESS);
     public static final AccountID UNAUTHORIZED_SPENDER_ID =
             AccountID.newBuilder().accountNum(999999L).build();
-    public static final Account UNAUTHORIZED_SPENDER_ACCOUNT =
-            Account.newBuilder().accountId(UNAUTHORIZED_SPENDER_ID).build();
     public static final AccountID REVOKE_APPROVAL_SPENDER_ID =
             AccountID.newBuilder().accountNum(0L).build();
     public static final Bytes UNAUTHORIZED_SPENDER_ADDRESS = Bytes.fromHex("b284224b8b83a724438cc3cc7c0d333a2b6b3222");
@@ -762,8 +729,6 @@ public class TestHelpers {
 
     public static byte[] signature = unhex(
             "aca7da997ad177f040240cdccf6905b71ab16b74434388c3a72f34fd25d6439346b2bac274ff29b48b3ea6e2d04c1336eaceafda3c53ab483fc3ff12fac3ebf200");
-
-    public static long opsDuration = 1_000_000L;
 
     public static void assertSameResult(
             final Operation.OperationResult expected, final Operation.OperationResult actual) {
@@ -1073,24 +1038,6 @@ public class TestHelpers {
 
     public static TokenTransferListBuilder tokenTransferList() {
         return new TokenTransferListBuilder();
-    }
-
-    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
-
-    public static TransferList transfersLists(@NonNull final List<TestHbarTransfer> hbarTransfers) {
-        final var transferList = TransferList.newBuilder();
-        List<AccountAmount> list = new ArrayList<>();
-        for (TestHbarTransfer hbarTransfer : hbarTransfers) {
-            list.add(AccountAmount.newBuilder()
-                    .accountID(hbarTransfer.receiver())
-                    .amount(hbarTransfer.amount())
-                    .build());
-            list.add(AccountAmount.newBuilder()
-                    .accountID(hbarTransfer.sender())
-                    .amount(-hbarTransfer.amount())
-                    .build());
-        }
-        return transferList.build();
     }
 
     public record TestTokenTransfer(
