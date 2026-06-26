@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.pcli.utility.ParameterizedClass;
@@ -165,7 +167,24 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
 
             final Path pcesDir = outputPath.resolve("pces-" + originRound + "-" + targetRound);
             if (Files.exists(pcesDir)) {
-                throw new IllegalArgumentException("Output directory already exists: " + pcesDir);
+                // Validate whether a prior run produced a complete, contiguous PCES stream. PCES files
+                // are written in sequence-number order (seq0, seq1, ...) with no gaps. If the stream is
+                // complete and contiguous, skip conversion entirely. If a gap is found (interrupted prior
+                // run), delete the file at the gap and everything after it — those files may be corrupt or
+                // out of order — then fall through to re-run conversion, which will regenerate them.
+                final List<Path> pcesFiles = collectPcesFilesSorted(pcesDir);
+                if (!pcesFiles.isEmpty() && isContiguous(pcesFiles)) {
+                    log.info("PCES output directory already exists with {} contiguous .pces files, skipping "
+                            + "conversion: {}", pcesFiles.size(), pcesDir);
+                    return;
+                }
+                if (pcesFiles.isEmpty()) {
+                    log.info("PCES output directory exists but contains no .pces files, cleaning up: {}", pcesDir);
+                    deleteRecursive(pcesDir);
+                }
+                // If pcesFiles is non-empty but non-contiguous, the truncation was already done inside
+                // isContiguous (it deletes from the gap onward). Fall through to re-run conversion, which
+                // will regenerate the missing tail.
             }
 
             // The extraction window, in consensus rounds, matched to the GCS resolver's semantics:
@@ -262,5 +281,78 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         }
 
         return tempBlockDir;
+    }
+
+    // ─── PCES output validation helpers ──────────────────────────────────────────
+
+    /**
+     * Collects all {@code .pces} files under {@code pcesDir} (including subdirectories — the writer
+     * places files under date-stamped subdirectories), extracts the sequence number from each filename,
+     * and returns them sorted ascending by sequence number.
+     */
+    private static List<Path> collectPcesFilesSorted(@NonNull final Path pcesDir) throws IOException {
+        try (var walk = Files.walk(pcesDir)) {
+            return walk
+                    .filter(p -> p.toString().endsWith(".pces"))
+                    .sorted(java.util.Comparator.comparingLong(BlocksToPcesCommand::extractSeqNumber))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+    }
+
+    /**
+     * Checks that the sorted list of PCES files has contiguous sequence numbers (seq0, seq1, seq2, ...).
+     * If a gap is found, deletes the file at the gap and all subsequent files (they may be corrupt or
+     * out of order from an interrupted prior run) and returns {@code false}. Returns {@code true} only
+     * if the full sequence is contiguous with no gaps.
+     */
+    private static boolean isContiguous(@NonNull final List<Path> sortedPcesFiles) throws IOException {
+        if (sortedPcesFiles.isEmpty()) {
+            return false;
+        }
+        long expectedSeq = extractSeqNumber(sortedPcesFiles.get(0));
+        for (int i = 0; i < sortedPcesFiles.size(); i++) {
+            final long actual = extractSeqNumber(sortedPcesFiles.get(i));
+            if (actual != expectedSeq) {
+                // Gap detected at index i. Delete this file and everything after it.
+                log.info("PCES contiguity gap: expected seq{} but found seq{} at {}. Deleting {} file(s) from gap onward.",
+                        expectedSeq, actual, sortedPcesFiles.get(i), sortedPcesFiles.size() - i);
+                for (int j = i; j < sortedPcesFiles.size(); j++) {
+                    Files.deleteIfExists(sortedPcesFiles.get(j));
+                }
+                return false;
+            }
+            expectedSeq++;
+        }
+        return true;
+    }
+
+    /**
+     * Extracts the sequence number from a PCES filename. The filename format is:
+     * {@code <timestamp>_seq<N>_minr<M>_maxr<M>_orgn<M>.pces}
+     * where fields are separated by underscores and the sequence number is prefixed with "seq".
+     */
+    private static long extractSeqNumber(@NonNull final Path pcesFile) {
+        final String name = pcesFile.getFileName().toString();
+        // Find the "seq" token among the underscore-separated fields.
+        for (final String part : name.split("_")) {
+            if (part.startsWith("seq")) {
+                try {
+                    return Long.parseLong(part.substring(3));
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException("Cannot parse sequence number from PCES file: " + name, e);
+                }
+            }
+        }
+        throw new IllegalArgumentException("No 'seq' field found in PCES filename: " + name);
+    }
+
+    /** Recursively deletes a directory and all its contents. */
+    private static void deleteRecursive(@NonNull final Path dir) throws IOException {
+        try (var walk = Files.walk(dir)) {
+            walk.sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try { Files.deleteIfExists(p); } catch (final IOException ignored) { }
+                    });
+        }
     }
 }
