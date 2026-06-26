@@ -28,10 +28,6 @@ import java.time.Duration;
  *                                               intentionally or unintentionally slowing another node down by
  *                                               continuously reconnecting with it. Time is measured starting from when
  *                                               a reconnect attempt is initialized.
- * @param teacherMaxNodesPerSecond               The maximum number of nodes that a teacher will send per second. If 0
- *                                               then there is no limit.
- * @param teacherRateLimiterSleep                The amount of time that a teacher will sleep when throttling is
- *                                               engaged
  */
 @ConfigData("reconnect")
 public record ReconnectConfig(
@@ -42,6 +38,4 @@ public record ReconnectConfig(
         @ConfigProperty(defaultValue = "10000") int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "10ms") Duration maxAckDelay,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
-        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
-        @ConfigProperty(defaultValue = "0") int teacherMaxNodesPerSecond,
-        @ConfigProperty(defaultValue = "1us") Duration teacherRateLimiterSleep) {}
+        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects) {}

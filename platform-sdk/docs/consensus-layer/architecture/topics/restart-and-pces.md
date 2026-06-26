@@ -67,7 +67,7 @@ The general guarantee applies to every event: consensus never observes an event 
 specifically to self-events on the gossip path, the same guarantee also serves an anti-branching role. If a node
 gossiped a self-event and crashed before it was written, on restart the node would not know the event existed and could
 build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
-[`../concepts/branching.md`](../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
+[`../../concepts/branching.md`](../../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
 
 The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
 node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any
@@ -153,7 +153,6 @@ recipe any driver must follow, and the record/block-file coordination with the e
 - **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
   `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
-- **Invariants:** [TBD: INV-NNN once the
-  `invariants.md` catalog populates — candidate invariants from this topic include "self-events are persisted before being gossiped" and "gossip is not started until PCES replay completes"].
+- **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
 - **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].

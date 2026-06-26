@@ -9,20 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.concurrent.ExecutionException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -77,58 +72,34 @@ public final class ReconnectTestUtils {
 
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
-                                ThreadManager threadManager,
-                                Runnable breakConnection,
-                                Function<Throwable, Boolean> reconnectExceptionListener) {
+                                ThreadManager threadManager, Runnable breakConnection) {
                             return new StandardWorkGroup(
-                                    threadManager,
-                                    "test-learning-synchronizer",
-                                    breakConnection,
-                                    createSuppressedExceptionListener(reconnectExceptionListener),
-                                    true);
+                                    threadManager, "test-learning-synchronizer", breakConnection, true);
                         }
                     };
 
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(teacherMap, Time.getCurrent(), getStaticThreadManager(), reconnectConfig) {
+                    new TeachingSynchronizer(teacherMap, getStaticThreadManager(), reconnectConfig) {
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
-                                ThreadManager threadManager,
-                                Runnable breakConnection,
-                                Function<Throwable, Boolean> exceptionListener) {
+                                @NonNull ThreadManager threadManager, @NonNull Runnable breakConnection) {
                             return new StandardWorkGroup(
-                                    threadManager,
-                                    "test-teaching-synchronizer",
-                                    breakConnection,
-                                    createSuppressedExceptionListener(exceptionListener),
-                                    true);
+                                    threadManager, "test-teaching-synchronizer", breakConnection, true);
                         }
                     };
 
-            final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = createSuppressedExceptionListener(t -> {
-                firstReconnectException.compareAndSet(null, t);
-                return false;
-            });
+            final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(
+                    getStaticThreadManager(), "synchronization-test", streams::disconnect, true)) {
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
+                        "learning-synchronizer-main",
+                        () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
 
-            AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
-            final StandardWorkGroup workGroup = new StandardWorkGroup(
-                    getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
-            workGroup.execute(
-                    "learning-synchronizer-main",
-                    () -> learningSynchronizerThread(streams, learnerMap, learner, syncMapContainer));
-
-            try {
-                workGroup.waitForTermination();
+                workGroup.join();
             } catch (InterruptedException e) {
-                workGroup.shutdown();
                 Thread.currentThread().interrupt();
-            }
-
-            if (workGroup.hasExceptions()) {
-                throw new MerkleSynchronizationException(
-                        "Exception(s) in synchronization test", firstReconnectException.get());
+                throw new RuntimeException(e);
             }
 
             final VirtualMap syncMap = syncMapContainer.get();
@@ -179,29 +150,5 @@ public final class ReconnectTestUtils {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * Creates an exception listener that suppresses specific expected exceptions during testing.
-     *
-     * @param originalListener the original exception listener to delegate to first
-     * @return a listener that suppresses expected exceptions
-     */
-    private static Function<Throwable, Boolean> createSuppressedExceptionListener(
-            Function<Throwable, Boolean> originalListener) {
-        return t -> {
-            boolean handled = originalListener.apply(t);
-            if (handled) {
-                return true;
-            }
-            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
-            if (cause instanceof IOException
-                    || cause instanceof UncheckedIOException
-                    || cause instanceof ExecutionException
-                    || cause instanceof MerkleSynchronizationException) {
-                return true; // Suppress print/log for simulated
-            }
-            return false; // Allow print/log for unexpected
-        };
     }
 }

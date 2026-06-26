@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_MINT_AMOU
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.METADATA_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -19,9 +20,9 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
@@ -32,9 +33,6 @@ import com.hedera.node.app.service.token.impl.handlers.TokenMintHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.TokenSupplyChangeOpsValidator;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -95,6 +93,21 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
                 .isEqualTo(2);
         // supply of fungible token increases
         assertThat(writableTokenStore.get(fungibleTokenId).totalSupply()).isEqualTo(1010L);
+    }
+
+    @Test
+    void tokenHasEmptyKeyListSupplyKey() {
+        givenMintTxn(fungibleTokenId, null, 10L);
+        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+        writableTokenStore.put(writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .supplyKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build());
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TOKEN_HAS_NO_SUPPLY_KEY));
     }
 
     @Test
@@ -230,29 +243,6 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED));
-    }
-
-    @Test
-    void calculateFeesAddsCorrectFeeComponents() {
-        final var metadata = List.of(metadata1, metadata2);
-        final var txnBody = givenMintTxn(nonFungibleTokenId, metadata, null);
-
-        final var feeCalculator = mock(FeeCalculator.class);
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeContext = mock(FeeContext.class);
-        given(feeContext.body()).willReturn(txnBody);
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE))
-                .willReturn(feeCalculator);
-        final var numSigs = 5;
-        given(feeContext.numTxnSignatures()).willReturn(numSigs);
-
-        // We don't need the result of this call since the fee calculator is a mock
-        subject.calculateFees(feeContext);
-        verify(feeCalculator).addVerificationsPerTransaction(numSigs - 1);
-        verify(feeCalculator).addBytesPerTransaction(metadata.size());
-        verify(feeCalculator).addRamByteSeconds(0);
-        verify(feeCalculator).addNetworkRamByteSeconds(0);
     }
 
     private TransactionBody givenMintTxn(final TokenID tokenId, final List<Bytes> metadata, final Long amount) {

@@ -19,8 +19,6 @@ import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
-import com.swirlds.platform.state.iss.IssDetector;
-import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
@@ -30,16 +28,15 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
@@ -219,7 +216,7 @@ public class PlatformWiring {
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
         transactionHandlerSysTxnsOutputWire.solderTo(
-                components.issDetectorWiring().getInputWire(IssDetector::handleStateSignatureTransactions));
+                components.issDetectionModule().systemTransactionsInputWire());
 
         final OutputWire<StateWithHashComplexity> transactionHandlerStateWithComplexityOutput = components
                 .transactionHandlerWiring()
@@ -270,7 +267,7 @@ public class PlatformWiring {
 
         hashedStateOutputWire.solderTo(components.hashLoggerWiring().getInputWire(HashLogger::logHashes));
         hashedStateOutputWire.solderTo(components.stateSignerWiring().getInputWire(StateSigner::signState));
-        hashedStateOutputWire.solderTo(components.issDetectorWiring().getInputWire(IssDetector::handleState));
+        hashedStateOutputWire.solderTo(components.issDetectionModule().stateInputWire());
         hashedStateOutputWire
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
                 .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendStateHashedNotification));
@@ -310,12 +307,9 @@ public class PlatformWiring {
                 .solderTo(
                         components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
 
-        final OutputWire<IssNotification> splitIssDetectorOutput =
-                components.issDetectorWiring().getSplitOutput();
-        splitIssDetectorOutput.solderTo(components.issHandlerWiring().getInputWire(IssHandler::issObserved));
         components
-                .issDetectorWiring()
-                .getOutputWire()
+                .issDetectionModule()
+                .issNotificationOutputWire()
                 .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::issNotification));
 
         components
@@ -373,9 +367,10 @@ public class PlatformWiring {
                         components.notifierWiring().getInputWire(AppNotifier::sendStateWrittenToDiskNotification),
                         INJECT);
 
-        final OutputWire<IssNotification> issNotificationOutputWire =
-                components.issDetectorWiring().getSplitOutput();
-        issNotificationOutputWire.solderTo(components.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
+        components
+                .issDetectionModule()
+                .issNotificationOutputWire()
+                .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
         components
                 .platformMonitorWiring()
                 .getOutputWire()
@@ -392,8 +387,6 @@ public class PlatformWiring {
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
         components.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::clear);
-        components.issDetectorWiring().getInputWire(IssDetector::overridingState);
-        components.issDetectorWiring().getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);

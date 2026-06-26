@@ -129,7 +129,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|BLOCK_NODE_SIM|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -149,7 +149,8 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
-        "hapiTestBlockNodeCommunication" to "BLOCK_NODE|GENESIS_SUBPROCESS",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
+        "hapiTestBlockNodeSimCommunication" to "BLOCK_NODE_SIM",
         "hapiTestMisc" to miscTags,
         "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
@@ -201,12 +202,14 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
+        "hapiTestBlockNodeSimCommunication" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
-        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestToken" to
+            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestCrypto" to
             "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
@@ -222,30 +225,23 @@ val prCheckPropOverrides =
         // start timing out as the network falls behind. Pin historyEnabled to its main-branch
         // value here to preserve the test's original (hints-only) TSS surface.
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestWrapsDownload" to
             "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
-        // Superseded by the entry below which adds tss.initialCrsParties=8; the original
-        // buildMap had two put() calls for hapiTestCutover and the second silently overwrote the
-        // first. Kept here for reference in case tss.forceMockSignatures=false needs to be
-        // restored.
-        // "hapiTestCutover" to
-        //
-        // "tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,staking.periodMins=16",
         "hapiTestCutover" to
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestMiscRecordsSerial" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestSimpleFees" to
@@ -259,9 +255,15 @@ val prCheckPropOverrides =
 val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
-// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
+// Path to the extracted WRAPS proving-key artifacts (decider_pp.bin, decider_vp.bin,
+// nova_pp.bin, nova_vp.bin); blank disables WRAPS proof assertions in the ceremony tests
+val tssLibWrapsArtifactsPath = System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH") ?: ""
 val prCheckTssLibWrapsArtifactsPaths =
-    mapOf("hapiTestWraps" to "", "hapiTestCutover" to "", "hapiTestWrapsDownload" to "data/keys")
+    mapOf(
+        "hapiTestWraps" to tssLibWrapsArtifactsPath,
+        "hapiTestCutover" to tssLibWrapsArtifactsPath,
+        "hapiTestWrapsDownload" to "data/keys",
+    )
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     mapOf(
@@ -349,7 +351,10 @@ tasks.register<Test>("testSubprocess") {
     systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
-    val testOverrides = combinedTestOverrides(gradle.startParameter.taskNames)
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
@@ -435,36 +440,6 @@ tasks.register<Test>("testSubprocess") {
     maxParallelForks = 1
 }
 
-// Reads the *_OVERRIDE env vars (set by the XTS BLOCKS HAPI job) and returns the
-// comma-appendable "blockStream.<prop>=<VALUE>" entries for any that are set.
-// Appended last so they win over any prCheckPropOverrides entry. These pin the
-// BLOCKS-suite coverage against impending changes to the production defaults.
-// (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
-fun blocksSuiteOverrideEntries(): List<String> =
-    listOfNotNull(
-        System.getenv("STREAM_MODE_OVERRIDE")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { "blockStream.streamMode=$it" },
-        System.getenv("WRITER_MODE_OVERRIDE")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { "blockStream.writerMode=$it" },
-        System.getenv("WRAPPED_RECORD_BLOCKS_OVERRIDE")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { "blockStream.streamWrappedRecordBlocks=$it" },
-    )
-
-// Combines the per-suite prCheckPropOverrides for the active task(s) with the XTS BLOCKS overrides
-// into a
-// single comma-separated "key=value" list, de-duplicating by key so entries appended later (the
-// blocksSuiteOverrideEntries) win.
-fun combinedTestOverrides(taskNames: List<String>): String =
-    (taskNames.mapNotNull { prCheckPropOverrides[it] }.flatMap { it.split(",") } +
-            blocksSuiteOverrideEntries())
-        .filter { it.contains("=") }
-        .associate { it.substringBefore("=") to it.substringAfter("=") }
-        .map { (key, value) -> "$key=$value" }
-        .joinToString(separator = ",")
-
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
@@ -515,7 +490,10 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
-    val testOverrides = combinedTestOverrides(gradle.startParameter.taskNames)
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)

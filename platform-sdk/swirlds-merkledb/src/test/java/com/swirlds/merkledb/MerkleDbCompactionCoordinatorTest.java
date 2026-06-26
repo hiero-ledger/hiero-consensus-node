@@ -50,11 +50,13 @@ class MerkleDbCompactionCoordinatorTest {
     void setUp() {
         final MerkleDbConfig defaultConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         config = new MerkleDbConfig(
+                defaultConfig.defaultDbFolderName(),
                 defaultConfig.initialCapacity(),
                 defaultConfig.maxNumOfKeys(),
                 defaultConfig.hashesRamToDiskThreshold(),
                 defaultConfig.hashStoreRamBufferSize(),
                 defaultConfig.hashChunkCacheThreshold(),
+                defaultConfig.hashChunkHeight(),
                 defaultConfig.hashStoreRamOffHeapBuffers(),
                 defaultConfig.longListChunkSize(),
                 defaultConfig.longListReservedBufferSize(),
@@ -1045,11 +1047,13 @@ class MerkleDbCompactionCoordinatorTest {
     private MerkleDbConfig configWithConsolidation(int maxInputSizeMB, int minFileCount) {
         final MerkleDbConfig d = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbConfig(
+                d.defaultDbFolderName(),
                 d.initialCapacity(),
                 d.maxNumOfKeys(),
                 d.hashesRamToDiskThreshold(),
                 d.hashStoreRamBufferSize(),
                 d.hashChunkCacheThreshold(),
+                d.hashChunkHeight(),
                 d.hashStoreRamOffHeapBuffers(),
                 d.longListChunkSize(),
                 d.longListReservedBufferSize(),

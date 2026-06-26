@@ -10,7 +10,6 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.uptime.UptimeConfig;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -38,7 +37,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 OSHealthCheckConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
-                PlatformStatusConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,

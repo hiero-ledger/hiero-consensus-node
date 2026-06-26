@@ -24,6 +24,14 @@ on:
         type: string
         required: false
         default: "temurin"
+      tck-version:
+        description: "The version of the TCK to test against:"
+        required: true
+        type: string
+      js-sdk-version:
+        description: "The version of the JS-SDK to test against:"
+        required: true
+        type: string
 
     secrets:
       access-token:
@@ -94,13 +102,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (TCK)
+      - name: Checkout TCK Tag
         run: |
           cd platform-sdk/regression
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest TCK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # if ${{ inputs.tck-version }} is in the tags check it out.
+          if git rev-parse "refs/tags/${{ inputs.tck-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified TCK version: ${{ inputs.tck-version }}"
+            git checkout "tags/${{ inputs.tck-version }}"
+          else
+            echo "Specified TCK version ${{ inputs.tck-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -111,13 +125,19 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Checkout Latest Tag (JS-SDK)
+      - name: Checkout JS-SDK Tag
         run: |
           cd platform-sdk/sdk-server
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+
+          # If ${{ inputs.js-sdk-version }} is in the tags, check it out.
+          if git rev-parse "refs/tags/${{ inputs.js-sdk-version }}" >/dev/null 2>&1; then
+            echo "Checking out specified JS-SDK version: ${{ inputs.js-sdk-version }}"
+            git checkout "tags/${{ inputs.js-sdk-version }}"
+          else
+            echo "Specified JS-SDK version ${{ inputs.js-sdk-version }} not found in tags."
+            exit 1 # fail the workflow if not present.
+          fi
 
       - name: Setup PNPM
         run: |
@@ -239,36 +259,27 @@ jobs:
           INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
 
-  report-tck-regression-status:
-    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+  build-slack-payload:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Build Slack Payload
     runs-on: hl-cn-sdk-tck-lin-sm
     needs:
       - tck-regression
-    if: ${{ always() }}
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          sparse-checkout: |
-            .github/workflows/templates
-          sparse-checkout-cone-mode: false
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+          setup-jq: "true"
 
       - name: Build Slack Payload Message
-        id: payload
+        id: build-payload
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report"
           STATUS_TEXT: "*TCK Regression Panel was executed. See status below.*"
@@ -278,19 +289,24 @@ jobs:
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          COLOR="#FF0000"
-          if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
-            COLOR="#00FF00"
-          elif [[ "${{ needs.tck-regression.result }}" == "cancelled" ]]; then
-            COLOR="#555555"
-          fi
-          export SLACK_COLOR="${COLOR}"
-          gomplate -f .github/workflows/templates/slack-regression-report.json.tpl -o slack_payload.json
+          PAYLOAD=$(gomplate -f .github/workflows/templates/slack-regression-report.json.tpl | jq -c .)
+          echo "slack_payload=${PAYLOAD}" >> "$GITHUB_OUTPUT"
+
+  report-tck-regression-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hl-cn-sdk-tck-lin-sm
+    needs:
+      - build-slack-payload
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
 
       - name: Report Status to CITR Detailed Test Results
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
+          payload: ${{ needs.build-slack-payload.outputs.slack_payload }}

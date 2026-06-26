@@ -18,7 +18,6 @@ import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -209,10 +208,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Returns {@code true} when the high-volume feature is fully enabled, by checking both the
-     * {@code fees.simpleFeesEnabled} and {@code networkAdmin.highVolumeThrottlesEnabled} flags
-     * against the current configuration.  This mirrors the ingest-time guard in {@code IngestChecker}
-     * so that a config change between ingest and consensus cannot silently bypass the feature gate.
+     * Returns {@code true} when the high-volume feature is enabled, by checking the
+     * {@code networkAdmin.highVolumeThrottlesEnabled} flag against the current configuration.  This
+     * mirrors the ingest-time guard in {@code IngestChecker} so that a config change between ingest
+     * and consensus cannot silently bypass the feature gate.
      * Returns {@code false} when no {@link FeeContext} is available (standalone calculator).
      */
     private boolean isHighVolumeFeatureEnabled(@NonNull final SimpleFeeContext simpleFeeContext) {
@@ -221,8 +220,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             return false;
         }
         final var config = feeContext.configuration();
-        return config.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                && config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+        return config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
     }
 
     @Override
@@ -232,8 +230,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             return DEFAULT_HIGH_VOLUME_MULTIPLIER;
         }
         final var config = feeContext.configuration();
-        if (!(config.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                && config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled())) {
+        if (!config.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled()) {
             return DEFAULT_HIGH_VOLUME_MULTIPLIER;
         }
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
@@ -247,18 +244,25 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Default implementation for query fee calculation.
+     * Calculates the node payment for a query using the simple fee schedule.
      *
      * @param query The query to calculate fees for
      * @param simpleFeeContext the query context
-     * @return Never returns normally
-     * @throws UnsupportedOperationException always
+     * @return the query fee result, or a free result if the query kind has no registered calculator
      */
     @NonNull
     @Override
     public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        if (queryFeeCalculator == null) {
+            // No simple fee calculator for this kind (e.g. restricted or unsupported queries); treat as free,
+            // mirroring the default QueryHandler.computeFees() behavior for such queries.
+            log.warn(
+                    "No simple query fee calculator for {}, treating query as free",
+                    query.query().kind());
+            return result;
+        }
         queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
         return result;
     }

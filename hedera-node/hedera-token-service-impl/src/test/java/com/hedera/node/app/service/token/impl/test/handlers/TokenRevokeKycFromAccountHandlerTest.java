@@ -4,9 +4,11 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.MISC_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_WIPE_KT;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -16,10 +18,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
@@ -38,6 +43,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -96,6 +102,52 @@ class TokenRevokeKycFromAccountHandlerTest {
             given(pureChecksContext.body()).willReturn(txn);
 
             assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_ACCOUNT_ID);
+        }
+
+        @Test
+        @DisplayName("An empty key list KYC key is the HIP-540 removal sentinel and must be treated as no key")
+        void preHandleRejectsEmptyKeyListKycKey() {
+            final var txn = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder().accountID(PBJ_PAYER_ID))
+                    .tokenRevokeKyc(TokenRevokeKycTransactionBody.newBuilder()
+                            .token(TOKEN_10)
+                            .account(ACCOUNT_100)
+                            .build())
+                    .build();
+            final var context = mock(PreHandleContext.class);
+            final var tokenStore = mock(ReadableTokenStore.class);
+            given(context.body()).willReturn(txn);
+            given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+            // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+            final var sentinel = Key.newBuilder().keyList(KeyList.DEFAULT).build();
+            given(tokenStore.getTokenMeta(TOKEN_10))
+                    .willReturn(new ReadableTokenStore.TokenMetadata(
+                            null, sentinel, null, null, null, null, null, null, false, ACCOUNT_100, 2));
+
+            assertThrowsPreCheck(() -> subject.preHandle(context), TOKEN_HAS_NO_KYC_KEY);
+        }
+
+        @Test
+        @DisplayName("A non-empty KYC key is required and added as a signing requirement")
+        void preHandleAcceptsValidKycKey() throws Exception {
+            final var txn = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder().accountID(PBJ_PAYER_ID))
+                    .tokenRevokeKyc(TokenRevokeKycTransactionBody.newBuilder()
+                            .token(TOKEN_10)
+                            .account(ACCOUNT_100)
+                            .build())
+                    .build();
+            final var context = mock(PreHandleContext.class);
+            final var tokenStore = mock(ReadableTokenStore.class);
+            given(context.body()).willReturn(txn);
+            given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+            given(tokenStore.getTokenMeta(TOKEN_10))
+                    .willReturn(new ReadableTokenStore.TokenMetadata(
+                            null, A_COMPLEX_KEY, null, null, null, null, null, null, false, ACCOUNT_100, 2));
+
+            subject.preHandle(context);
+
+            verify(context).requireKey(A_COMPLEX_KEY);
         }
     }
 

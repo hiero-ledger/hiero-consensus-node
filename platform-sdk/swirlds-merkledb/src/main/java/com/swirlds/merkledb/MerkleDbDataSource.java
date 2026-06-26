@@ -30,7 +30,6 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -42,7 +41,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
@@ -130,7 +128,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /**
      * Hash chunk height. When an empty MerkleDb data source is created, the height is
-     * read from {@link VirtualMapConfig#hashChunkHeight()}. When an existing
+     * read from {@link MerkleDbConfig#hashChunkHeight()}. When an existing
      * data source is loaded from disk, the value from the config is ignored, and the
      * height is loaded from the data source metadata file.
      */
@@ -273,12 +271,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean diskBasedIndices)
             throws IOException {
         this.tableName = tableName;
-        this.preferDiskBasedIndices =
-                diskBasedIndices || config.getConfigData(MerkleDbConfig.class).useDiskIndices();
-
-        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
-        this.hashChunkHeight = virtualMapConfig.hashChunkHeight();
         this.merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
+
+        this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
+        this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
 
         // create thread group with label
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
@@ -753,6 +749,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
             });
 
+            // Update valid key range in the metadata file
+            saveMetadata(dbPaths);
+
             // wait for the other threads in the rare case they are not finished yet. We need to
             // have all writing
             // done before we return as when we return the state version we are writing is deleted
@@ -1077,6 +1076,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
+                .append("storageDir", dbPaths.storageDir)
                 .append("initialCapacity", initialCapacity)
                 .append("preferDiskBasedIndexes", preferDiskBasedIndices)
                 .append("idToDiskLocationHashChunks.size", idToDiskLocationHashChunks.size())
@@ -1109,8 +1109,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private void saveMetadata(final MerkleDbPaths targetDir) throws IOException {
         final KeyRange leafRange = validLeafPathRange;
         final Path targetFile = targetDir.metadataFile;
-        try (final OutputStream fileOut =
-                Files.newOutputStream(targetFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+        // newOutputStream() overrides the file, if it exists, no need to delete explicitly
+        try (final OutputStream fileOut = Files.newOutputStream(targetFile)) {
             final WritableSequentialData out = new WritableStreamingData(fileOut);
             if (leafRange.getMinValidKey() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MINVALIDKEY);
@@ -1161,7 +1161,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
                 validLeafPathRange = new KeyRange(minValidKey, maxValidKey);
             }
-            Files.delete(sourceFile);
             return true;
         }
         return false;

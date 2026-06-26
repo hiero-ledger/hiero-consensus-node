@@ -4,19 +4,16 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -68,7 +65,9 @@ public class TokenPauseHandler implements TransactionHandler {
         final var tokenStore = context.storeFactory().writableStore(WritableTokenStore.class);
         var token = tokenStore.get(op.tokenOrElse(TokenID.DEFAULT));
         validateTrue(token != null, INVALID_TOKEN_ID);
-        validateTrue(token.hasPauseKey(), TOKEN_HAS_NO_PAUSE_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the pause function is disabled; it
+        // must be treated as "no pause key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.pauseKey()), TOKEN_HAS_NO_PAUSE_KEY);
         validateFalse(token.deleted(), TOKEN_WAS_DELETED);
 
         final var copyBuilder = token.copyBuilder();
@@ -86,16 +85,5 @@ public class TokenPauseHandler implements TransactionHandler {
         if (!op.hasToken()) {
             throw new PreCheckException(INVALID_TOKEN_ID);
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenPauseUsageFrom();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(meta.getBpt())
-                .calculate();
     }
 }

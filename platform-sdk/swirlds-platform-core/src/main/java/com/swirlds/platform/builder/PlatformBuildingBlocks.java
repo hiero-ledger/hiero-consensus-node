@@ -7,11 +7,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
@@ -31,6 +28,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
@@ -58,7 +56,6 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  *                                               are passed within the wiring framework
  * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is
  *                                               written
- * @param issScratchpad                          scratchpad storage for ISS recovery
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
  * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
@@ -95,7 +92,6 @@ public record PlatformBuildingBlocks(
         @NonNull FreezePeriodChecker freezeChecker,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull String consensusEventStreamName,
-        @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
         @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
@@ -124,7 +120,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(freezeChecker);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(consensusEventStreamName);
-        requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
         requireNonNull(stateLifecycleManager);
