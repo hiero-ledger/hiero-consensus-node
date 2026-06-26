@@ -20,21 +20,20 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 jmhModuleInfo {
     requires("com.swirlds.config.api")
-    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.consensus.utility")
     requires("com.swirlds.virtualmap.test.fixtures")
-    requires("jmh.core")
     requires("org.hiero.base.utility")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.reconnect")
-    requires("org.junit.jupiter.api")
+
+    runtimeOnly("com.swirlds.config.impl")
 }
 
 testModuleInfo {
     requires("com.swirlds.merkledb")
+    requires("org.hiero.consensus.utility")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.config.extensions")
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
@@ -44,7 +43,7 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
 
-    runtimeOnly("com.swirlds.platform.core")
+    runtimeOnly("com.swirlds.config.impl")
 }
 
 tasks.register<JMHTask>("jmhReconnect") {

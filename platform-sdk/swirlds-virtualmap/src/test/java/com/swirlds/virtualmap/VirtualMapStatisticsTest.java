@@ -2,14 +2,13 @@
 package com.swirlds.virtualmap;
 
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -46,8 +45,7 @@ public class VirtualMapStatisticsTest {
 
     @BeforeEach
     void setupTest() {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
 
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
