@@ -4,7 +4,6 @@ package com.hedera.node.app.spi.workflows;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.config.data.LedgerConfig;
@@ -79,14 +78,6 @@ public interface QueryContext {
      */
     @NonNull
     ExchangeRateInfo exchangeRateInfo();
-
-    /**
-     * Get a calculator for calculating fees for the current query
-     *
-     * @return The {@link FeeCalculator} to use.
-     */
-    @NonNull
-    FeeCalculator feeCalculator();
 
     /**
      * Returns the current simple fees schedule.

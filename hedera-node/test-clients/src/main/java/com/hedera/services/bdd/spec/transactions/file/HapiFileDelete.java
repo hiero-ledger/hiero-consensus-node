@@ -9,7 +9,6 @@ import com.hederahashgraph.api.proto.java.FileDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.List;
 import java.util.Optional;
@@ -76,13 +75,6 @@ public class HapiFileDelete extends HapiTxnOp<HapiFileDelete> {
             spec.registry().removeFileId(file);
             spec.registry().removeKey(file);
         }
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.FileDelete, fileFees::getFileDeleteTxFeeMatrices, txn, numPayerKeys);
     }
 
     @Override

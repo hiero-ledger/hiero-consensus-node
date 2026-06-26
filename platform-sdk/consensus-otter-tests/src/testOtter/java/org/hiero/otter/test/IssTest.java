@@ -22,7 +22,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.assertions.AssertionUtils;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
@@ -70,7 +69,7 @@ public class IssTest {
         issNodeStatusResult.clear();
 
         final SingleNodeLogResult issLogResult = issNode.newLogResult();
-        assertThat(AssertionUtils.suppressIssErrors(issLogResult)).hasNoErrorLevelMessages();
+        assertThat(issLogResult.suppressingIssErrors()).hasNoErrorLevelMessages();
         issLogResult.clear();
 
         assertThat(network.newPlatformStatusResults().suppressingNode(issNode))
@@ -127,7 +126,7 @@ public class IssTest {
         timeManager.waitForCondition(
                 () -> !issNode.isAlive(), Duration.ofSeconds(120), "Node did not shut down after ISS");
 
-        assertThat(AssertionUtils.suppressIssErrors(issNodeLogResult).suppressingLoggerName(SystemExitUtils.class))
+        assertThat(issNodeLogResult.suppressingIssErrors().suppressingLoggerName(SystemExitUtils.class))
                 .hasNoErrorLevelMessages();
         issNodeLogResult.clear();
 
@@ -169,8 +168,7 @@ public class IssTest {
         network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
 
         // Setup continuous assertions
-        assertContinuouslyThat(AssertionUtils.suppressIssErrors(network.newLogResults()))
-                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newLogResults().suppressingIssErrors()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()

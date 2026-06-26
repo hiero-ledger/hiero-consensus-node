@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -2247,13 +2246,6 @@ public class FeesChargingUtils {
 
     // -------- Dual-mode validation utils ---------//
 
-    /*
-     * Validates the simple fee charged for a transaction.
-     */
-    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
-        return validateChargedUsdWithin(txn, simpleFee, 0.1);
-    }
-
     public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
         return validateInnerTxnFees(txn, parent, legacyFee, simpleFee, 0.1);
     }
@@ -2279,15 +2271,6 @@ public class FeesChargingUtils {
             final double simpleFeesAllowedPercentDiff) {
         return validateInnerChargedUsdWithinWithTxnSize(
                 innerTxnId, parentTxnId, expectedSimpleFeesUsd, simpleFeesAllowedPercentDiff);
-    }
-
-    /**
-     * Validates the simple fee charged for a transaction including child dispatch fees.
-     * Uses {@code validateChargedUsdWithChild} which includes child dispatch fees.
-     */
-    public static SpecOperation validateFeesWithChild(
-            final String txn, final double legacyFee, final double simpleFee, final double tolerance) {
-        return validateChargedUsdWithChild(txn, simpleFee, tolerance);
     }
 
     public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {

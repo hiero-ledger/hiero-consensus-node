@@ -113,11 +113,6 @@ public class DeeplyNestedKeyListSuite {
         }
 
         @Override
-        protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) {
-            return 0L;
-        }
-
-        @Override
         protected Transaction finalizedTxn(final HapiSpec spec, final Consumer<TransactionBody.Builder> opDef) {
             return cryptoCreateWithRawKey(spec, keyListNest(FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH));
         }
