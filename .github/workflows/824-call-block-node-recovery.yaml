@@ -542,9 +542,10 @@ jobs:
           CURRENT_TIME=$(date +%s)
           SPREAD=9999
           ELAPSED=$((CURRENT_TIME - ${{ steps.bn-restoration.outputs.restoration_time }}))
+          START_TIME=$(ELAPSED)
           echo "Elapsed time before polling ${ELAPSED} s"
 
-          while (( ELAPSED < MAX_WAIT )); do
+          while (( ELAPSED < START_TIME + MAX_WAIT )); do
             BN1_LAST=$(grpcurl_last_block 40841)
             BN2_LAST=$(grpcurl_last_block 40842)
             BN3_LAST=$(grpcurl_last_block 40843)
@@ -555,7 +556,7 @@ jobs:
             MIN_LAST=$(( MIN_LAST < BN3_LAST ? MIN_LAST : BN3_LAST ))
             SPREAD=$(( MAX_LAST - MIN_LAST ))
 
-            echo "[${ELAPSED}s] lastAvailableBlock — BN1=${BN1_LAST} BN2=${BN2_LAST} BN3=${BN3_LAST} spread=${SPREAD}"
+            echo "[${ELAPSED}s elapsed] lastAvailableBlock — BN1=${BN1_LAST} BN2=${BN2_LAST} BN3=${BN3_LAST} spread=${SPREAD}"
             if (( SPREAD <= 50 )); then
               echo "BNs converged within tolerance (spread=${SPREAD} <= 50) after ${ELAPSED} s"
               break
@@ -575,12 +576,19 @@ jobs:
         run: |
           grpcurl_first_block() {
             local port=$1
-            local status
+            local status result
             if status=$(grpcurl -plaintext -emit-defaults \
                 -import-path block-node-proto -proto block-node/api/node_service.proto \
                 -d '{}' "localhost:${port}" org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null); then
-              echo "$status" | jq -r '.firstAvailableBlock // "0"'
+              result=$(echo "$status" | jq -r '.firstAvailableBlock // empty')
+              if [[ -z "$result" ]]; then
+                echo "[WARN] grpcurl_first_block(port=${port}): firstAvailableBlock missing/null; raw response: ${status}" >&2
+                echo "0"
+              else
+                echo "$result"
+              fi
             else
+              echo "[WARN] grpcurl_first_block(port=${port}): grpcurl call failed" >&2
               echo "0"
             fi
           }
@@ -622,18 +630,26 @@ jobs:
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
-      - name: Upload BN and MN Logs
+      - name: Upload N Logs
         if: always()
-        id: update_bn_mn_logs
+        id: upload_mn_logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: bn-mn-recovery-logs
+          name: mn-recovery-logs
+          path: |
+            mn0-recovery-logs.log
+
+      - name: Upload BN Logs & Store
+        if: always()
+        id: upload_bn_store
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bn-recovery-store
           path: |
             bn1-recovery-logs.log
             bn2-recovery-logs.log
             bn3-recovery-logs.log
             bn3-store.zip
-            mn0-recovery-logs.log
 
       # CN logs to uploaded if there was no confirmation of CN <> BN streaming
       - name: Upload CN Logs
@@ -651,7 +667,8 @@ jobs:
             echo "### 📜 Logs"
             echo ""
             echo "You can download the logs from this run here:"
-            echo "- [Download bn-mn-logs](${{ steps.update_bn_mn_logs.outputs.artifact-url }})"
+            echo "- [Download mn-logs](${{ steps.upload_mn_logs.outputs.artifact-url }})"
+            echo "- [Download bn-mn-logs](${{ steps.upload_bn_store.outputs.artifact-url }})"
             echo "- [Download cn-logs](${{ steps.upload_cn_logs.outputs.artifact-url }})"
           } >> "$GITHUB_STEP_SUMMARY"
 
