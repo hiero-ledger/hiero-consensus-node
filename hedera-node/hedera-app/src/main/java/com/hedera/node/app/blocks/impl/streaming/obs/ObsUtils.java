@@ -6,7 +6,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 
 /**
- * Shared constants and utilities for the obs package.
+ * Shared constants and utilities for the observability (obs) package.
  */
 public final class ObsUtils {
     private ObsUtils() {}
