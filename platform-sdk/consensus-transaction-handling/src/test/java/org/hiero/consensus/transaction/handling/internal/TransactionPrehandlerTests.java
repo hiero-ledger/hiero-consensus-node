@@ -9,8 +9,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.state.merkle.VirtualMapState;
