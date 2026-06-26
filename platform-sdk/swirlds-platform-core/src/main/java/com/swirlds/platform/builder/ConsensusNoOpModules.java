@@ -38,15 +38,17 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
+import org.hiero.consensus.iss.detection.FatalErrorConsumer;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 public class ConsensusNoOpModules {
@@ -228,5 +230,40 @@ public class ConsensusNoOpModules {
                 fallenBehindMonitor,
                 stateLifecycleManager);
         return gossipModule;
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link IssDetectionModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @param fileSystemManager the file system manager
+     * @return an initialized no-op instance of {@code IssDetectionModule}
+     */
+    @NonNull
+    public static IssDetectionModule createNoOpIssDetectionModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final long initialStateRound = 0L;
+        final long latestFreezeRound = 0L;
+        final FatalErrorConsumer fatalErrorConsumer = (_, _, _) -> {};
+
+        return new IssDetectionModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                roster,
+                selfId,
+                fileSystemManager,
+                initialStateRound,
+                latestFreezeRound,
+                fatalErrorConsumer);
     }
 }

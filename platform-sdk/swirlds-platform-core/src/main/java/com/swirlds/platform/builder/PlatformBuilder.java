@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -23,9 +24,7 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
@@ -61,6 +60,7 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -69,6 +69,7 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.system.SystemExitUtils;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -476,6 +477,20 @@ public final class PlatformBuilder {
                 stateLifecycleManager);
     }
 
+    private IssDetectionModule createIssDetectionModule() {
+        return new IssDetectionModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                platformContext.getFileSystemManager(),
+                initialState.get().getRound(),
+                latestFreezeRoundOf(initialState.get().getState()),
+                SystemExitUtils::handleFatalError);
+    }
+
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -512,14 +527,6 @@ public final class PlatformBuilder {
         } else {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
-
-        final Scratchpad<IssScratchpad> issScratchpad = Scratchpad.create(
-                platformContext.getConfiguration(),
-                platformContext.getFileSystemManager(),
-                selfId,
-                IssScratchpad.class,
-                "platform.iss");
-        issScratchpad.logContents();
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
@@ -574,6 +581,8 @@ public final class PlatformBuilder {
             this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
+        final IssDetectionModule issDetectionModule = createIssDetectionModule();
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -581,7 +590,8 @@ public final class PlatformBuilder {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                issDetectionModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
@@ -625,7 +635,6 @@ public final class PlatformBuilder {
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 new AtomicReference<>(),
                 consensusEventStreamName,
-                issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 new AtomicReference<>(),
                 stateLifecycleManager,

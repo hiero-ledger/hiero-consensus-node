@@ -374,5 +374,10 @@ class BlockStateProofGeneratorTest {
         public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
             // No-op
         }
+
+        @Override
+        public void flushIncompleteBlock() {
+            // No-op
+        }
     }
 }

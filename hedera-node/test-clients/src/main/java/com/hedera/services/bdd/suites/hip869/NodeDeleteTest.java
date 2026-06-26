@@ -39,7 +39,6 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -92,10 +91,10 @@ public class NodeDeleteTest {
                 // The fee is charged here because the payer is not privileged
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        FeesChargingUtils.validateFees(
+                        validateChargedUsdWithin(
                                 "failedDeletion",
-                                0.001,
-                                NODE_DELETE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "failedDeletion")))),
+                                NODE_DELETE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "failedDeletion"),
+                                0.1))),
 
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
@@ -107,12 +106,12 @@ public class NodeDeleteTest {
                         .via("multipleSigsDeletion"),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        FeesChargingUtils.validateFees(
+                        validateChargedUsdWithin(
                                 "multipleSigsDeletion",
-                                0.0011276316,
                                 NODE_DELETE_BASE_FEE_USD
                                         + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
-                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsDeletion")))),
+                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsDeletion"),
+                                0.1))),
                 nodeDelete("node100").via("deleteNode"),
                 // The fee is not charged here because the payer is privileged
                 validateChargedUsdWithin("deleteNode", 0.0, 1.0));

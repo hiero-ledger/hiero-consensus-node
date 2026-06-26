@@ -26,7 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
-    exports com.swirlds.platform.event.report;
     exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
@@ -37,12 +36,9 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
-    exports com.swirlds.platform.scratchpad;
     exports com.swirlds.platform.system;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system.state.notifications;
-    exports com.swirlds.platform.system.status;
-    exports com.swirlds.platform.system.status.actions;
     exports com.swirlds.platform.util;
 
     /* Targeted Exports to External Libraries */
@@ -65,11 +61,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
-    exports com.swirlds.platform.state.iss to
-            org.hiero.otter.test;
-    exports com.swirlds.platform.recovery.internal to
-            org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -89,6 +80,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.event.stream;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
+    requires transitive org.hiero.consensus.iss.detection;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;

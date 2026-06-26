@@ -102,6 +102,11 @@ public class BlockStreamManagerWrapper {
                 public void flushPendingBlock(@NonNull PendingProof pendingProof) {
                     original.flushPendingBlock(pendingProof);
                 }
+
+                @Override
+                public void flushIncompleteBlock() {
+                    original.flushIncompleteBlock();
+                }
             };
         };
 

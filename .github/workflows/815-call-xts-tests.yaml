@@ -53,10 +53,6 @@ on:
         type: string
         description: "Run Migration Testing Panel"
         default: "true"
-      enable-hapi-tests-blocks-suite:
-        type: string
-        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS (silent / non-promotion-gating)"
-        default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -90,22 +86,22 @@ on:
         description: "The TCK version to use for XTS Panels"
         type: string
         required: false
-        default: "latest"
       js-sdk-version:
         description: "The JavaScript SDK version to use for XTS Panels"
         type: string
         required: false
-        default: "latest"
       bn-release-version:
         description: "The Block Node release version to use for XTS Panels"
         type: string
         required: false
-        default: "latest"
       bn-mirror-node-version:
         description: "The Mirror Node release version to use for Block Node XTS Panels"
         type: string
         required: false
-        default: "latest"
+      json-rpc-relay-version:
+        description: "The JSON-RPC Relay release version to use for XTS Panels"
+        type: string
+        required: false
     secrets:
       access-token:
         description: "Github Access Token"
@@ -262,43 +258,6 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
-  # Mirrors the MATS HAPI matrix but forces blockStream.streamMode=BLOCKS. Excludes
-  # hapi-tests-misc-records-crypto-and-serial (records-mode by design); the non-records
-  # tasks from that group (Crypto / CryptoEmbedded / CryptoSerial / MiscSerial) are
-  # re-added separately via enable-hapi-tests-crypto-and-misc-serial. Excluded from set-failure-mode
-  # so failures stay silent while the BLOCKS transition stabilizes.
-  #
-  # MATS (800-call-mats-tests.yaml) is intentionally not touched: enable-hapi-tests-crypto-and-misc-serial
-  # defaults to false there, so MATS behavior is unchanged.
-  xts-hapi-tests-blocks:
-    name: XTS HAPI Tests (BLOCKS)
-    needs:
-      - commit-info
-      - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-tests-blocks-suite == 'true' }}
-    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
-    with:
-      ref: ${{ needs.commit-info.outputs.sha }}
-      enable-hapi-tests-misc: "true"
-      enable-hapi-tests-misc-records-crypto-and-serial: "false"
-      enable-hapi-tests-token-and-time-consuming: "true"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "true"
-      enable-hapi-tests-atomic-batch: "true"
-      enable-hapi-tests-smart-contract-and-iss: "true"
-      enable-hapi-tests-restart: "true"
-      enable-hapi-tests-state-throttling: "true"
-      enable-hapi-tests-crypto-and-misc-serial: "true"
-      enable-network-log-capture: "true"
-      stream-mode-override: "BLOCKS"
-      writer-mode-override: "FILE"
-      wrapped-record-blocks-override: "false"
-      java-version: "${{ inputs.java-version }}"
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
   xts-otter-tests:
     name: XTS Otter Tests
     needs:
@@ -410,6 +369,7 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} JSON-RPC Relay Regression"
       solo-version: ${{ inputs.solo-version }}
       java-version: "${{ inputs.java-version }}"
+      json-rpc-relay-version: "${{ inputs.json-rpc-relay-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}

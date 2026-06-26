@@ -44,6 +44,23 @@ public interface BlockItemWriter {
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
 
+    /**
+     * Flushes the current OPEN, unproven block to local disk for triage after a catastrophic failure (e.g. an ISS),
+     * as an {@code .open.gz} artifact: the gzipped block items, parseable as a {@link
+     * com.hedera.hapi.block.stream.Block} for analysis. Unlike {@link #flushPendingBlock(PendingProof)}, this is
+     * deliberately NOT a recoverable pending block — it has no {@code .pnd.json} proof sidecar (so pending-block
+     * recovery never picks it up) and no completion marker (so it is never mistaken for a finished/proven block).
+     * Implementations that never persist to disk may no-op; implementations that buffer the block stream in memory
+     * (e.g. {@code GrpcBlockItemWriter}) must persist the open block here, or its contents are lost when the node
+     * stops. Best-effort; implementations must not throw.
+     * <p>
+     * The artifact contains only the items written so far and may therefore END WITH A PARTIAL ROUND: if the failure
+     * arrived mid-round, trailing items (and the round's state-changes/footer) can be missing. Consumers must tolerate
+     * an incomplete final round — e.g. read each round by its leading {@code RoundHeader} rather than assuming a clean
+     * round boundary at end-of-file.
+     */
+    void flushIncompleteBlock();
+
     default Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         return blockDir.resolve(baseName + ".pnd.json");

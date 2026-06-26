@@ -50,11 +50,11 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithDecimals;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FREEZE_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -546,7 +546,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, validAliasWithNoFreeSlots))
                             .payingWith(OWNER)
                             .signedBy(OWNER, validAliasWithNoFreeSlots),
-                    withOpContext((spec, opLog) -> updateSpecFor(spec, validAliasWithNoFreeSlots)),
+                    doingContextual(spec -> updateSpecFor(spec, validAliasWithNoFreeSlots)),
                     cryptoUpdateAliased(validAliasWithNoFreeSlots)
                             .maxAutomaticAssociations(1)
                             .signedBy(validAliasWithNoFreeSlots, DEFAULT_PAYER),
@@ -788,7 +788,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     // assert balances
                     getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 0),
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(HBAR_FEE),
-                    withOpContext((spec, log) -> {
+                    doingContextual(spec -> {
                         final var record = getTxnRecord("transferTx");
                         allRunFor(spec, record);
                         final var txFee = record.getResponseRecord().getTransactionFee();
@@ -985,7 +985,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .payingWith(OWNER)
                             .via("NFT with royalty fee airdrop to collector"),
                     // assert owner balance
-                    withOpContext((spec, log) -> {
+                    doingContextual(spec -> {
                         final var record = getTxnRecord("NFT with royalty fee airdrop to collector");
                         allRunFor(spec, record);
                         final var txFee = record.getResponseRecord().getTransactionFee();
@@ -1000,8 +1000,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .exposingBalanceTo(newCollectorBalance::set)
                             .hasTokenBalance(NFT_WITH_ROYALTY_FEE, 1),
                     // assert collector balance is not changed
-                    withOpContext((spec, log) ->
-                            Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
+                    doingContextual(
+                            _ -> Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
                     validateFees(
                             "NFT with royalty fee airdrop to collector",
                             0.0008029,
@@ -1028,7 +1028,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .payingWith(OWNER)
                             .via("FT with HTS fee airdrop to collector"),
                     // assert owner balance
-                    withOpContext((spec, log) -> {
+                    doingContextual(spec -> {
                         final var record = getTxnRecord("FT with HTS fee airdrop to collector");
                         allRunFor(spec, record);
                         final var txFee = record.getResponseRecord().getTransactionFee();
@@ -1043,8 +1043,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .exposingBalanceTo(newCollectorBalance::set)
                             .hasTokenBalance(FT_WITH_HTS_FIXED_FEE, HTS_FEE + 50)
                             .hasTokenBalance(DENOM_TOKEN, 3 * HTS_FEE),
-                    withOpContext((spec, log) ->
-                            Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
+                    doingContextual(
+                            _ -> Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
                     validateChargedUsd("FT with HTS fee airdrop to collector", 0.002, 20));
         }
 
@@ -1070,7 +1070,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .exposingBalanceTo(newTreasuryBalance::set)
                             .hasTokenBalance(NFT_WITH_ROYALTY_FEE, 99),
                     // assert owner balance
-                    withOpContext((spec, log) -> {
+                    doingContextual(spec -> {
                         final var record = getTxnRecord("NFT with royalty fee airdrop to treasury");
                         allRunFor(spec, record);
                         final var txFee = record.getResponseRecord().getTransactionFee();
@@ -1112,7 +1112,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .exposingBalanceTo(newTreasuryBalance::set)
                             .hasTokenBalance(FT_WITH_HTS_FIXED_FEE, TOKEN_TOTAL - 2 * HTS_FEE + 50),
                     // assert owner balance
-                    withOpContext((spec, log) -> {
+                    doingContextual(spec -> {
                         final var record = getTxnRecord("FT with HTS fee airdrop to treasury");
                         allRunFor(spec, record);
                         final var txFee = record.getResponseRecord().getTransactionFee();
@@ -1252,7 +1252,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     getAccountBalance(NFT_HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FEE, HTS_FEE),
                     getAccountBalance(NFT_ROYALTY_FEE_COLLECTOR).hasTinyBars(0),
                     // assert owner balance
-                    withOpContext((spec, log) -> {
+                    doingContextual(spec -> {
                         final var record = getTxnRecord("multiple tokens transactions");
                         allRunFor(spec, record);
                         final var txFee = record.getResponseRecord().getTransactionFee();
@@ -1375,7 +1375,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
         @DisplayName("containing invalid token id")
         final Stream<DynamicTest> airdropInvalidTokenIdFails() {
-            return hapiTest(withOpContext((spec, opLog) -> {
+            return hapiTest(doingContextual(spec -> {
                 final var bogusTokenId = TokenID.newBuilder().setTokenNum(9999L);
                 spec.registry().saveTokenId("nonexistent", bogusTokenId.build());
                 final List<SpecOperation> ops =
@@ -1385,9 +1385,6 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                 .via("transferTx")
                                 .hasPrecheckFrom(OK, INVALID_TOKEN_ID)
                                 .hasKnownStatus(INVALID_TOKEN_ID)));
-                if (!spec.simpleFeesEnabled()) {
-                    ops.add(validateChargedUsd("transferTx", 0.001, 10));
-                }
                 allRunFor(spec, ops);
             }));
         }
@@ -1826,7 +1823,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             return hapiTest(
                     cryptoCreate(ALICE).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
-                    withOpContext((spec, opLog) -> spec.registry()
+                    doingContextual(spec -> spec.registry()
                             .saveTokenId(
                                     FUNGIBLE_TOKEN_A,
                                     TokenID.newBuilder().setTokenNum(5555555L).build())),
@@ -1855,7 +1852,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                             .name(NON_FUNGIBLE_TOKEN_A)
                             .supplyKey(nftKey),
                     tokenAssociate(ALICE, NON_FUNGIBLE_TOKEN_A),
-                    withOpContext((spec, opLog) -> spec.registry()
+                    doingContextual(spec -> spec.registry()
                             .saveTokenId(
                                     NON_FUNGIBLE_TOKEN_A,
                                     TokenID.newBuilder().setTokenNum(5555555L).build())),

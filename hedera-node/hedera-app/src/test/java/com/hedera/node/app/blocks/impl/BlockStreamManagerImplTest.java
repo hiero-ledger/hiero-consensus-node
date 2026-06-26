@@ -29,9 +29,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -1608,11 +1610,12 @@ class BlockStreamManagerImplTest {
 
     @Test
     void cutoverSkippedWhenEnableCutoverIsFalse() {
-        // enableCutover defaults to false in HederaTestConfigBuilder; the genesis branch (HASH_OF_ZERO)
+        // enableCutover now defaults to true, so disable it explicitly here; the genesis branch (HASH_OF_ZERO)
         // is the simplest non-cutover path to exercise.
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
@@ -1792,6 +1795,9 @@ class BlockStreamManagerImplTest {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
+                // enableCutover now defaults to true; these tests exercise normal block management rather than
+                // the cutover migration, so keep it disabled here (the dedicated cutover tests set it true).
+                .withValue("blockStream.enableCutover", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
@@ -1909,18 +1915,22 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void fatalShutdownClosesCurrentWriter() {
-        // Given a subject with a block that has been opened
+    void normalEndRoundDoesNotFlushPendingBlocksForTriage() {
+        // With the ISS-driven stop removed, a normal round closes its block via the usual proof path and must
+        // NOT flush any "pending" block to disk for triage; that only happens on catastrophic failure via
+        // awaitFatalShutdown().
         givenSubjectWith(
                 1,
-                2,
+                0,
                 blockStreamInfoWith(
                         Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        lenient().when(blockHashSigner.isReady()).thenReturn(true);
-        given(blockHashSigner.sign(any(), any()))
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
                 .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
@@ -1930,17 +1940,471 @@ class BlockStreamManagerImplTest {
                 .when(mockSigningFuture)
                 .thenAcceptAsync(any());
 
-        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
-
-        // Trigger fatal shutdown (simulating ISS detection)
-        subject.notifyFatalEvent();
-
-        // End the round — the fatalShutdownFuture check should close the current writer
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
         subject.endRound(state, ROUND_NO);
 
-        // Verify the current writer was prematurely closed during fatal shutdown
+        // Block closed normally through the proof path...
         verify(aWriter).closeCompleteBlock();
+        // ...with no triage flush during normal operation
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void inProgressBlockFlushedOnEndRoundAfterFatalEvent() {
+        // A block is open (not yet closed) when catastrophic failure is signalled. The next endRound on the handler
+        // thread skips the normal close and instead dumps the in-progress block's contents for triage.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        // Catastrophic failure → the next endRound flushes the in-progress block (and does not seal a new block)
+        subject.notifyFatalEvent();
+        final boolean closed = subject.endRound(state, ROUND_NO);
+
+        assertFalse(closed);
+        verify(aWriter).flushIncompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void startRoundStopsOpeningNewBlocksAfterFatalEvent() {
+        // After catastrophic failure the block stream is stopped: startRound opens no new block and writeItem is a
+        // no-op (does not NPE on the released worker).
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        subject.notifyFatalEvent();
+        // The next round opens no new block (the second writer is never used) and items are dropped without throwing
+        subject.startRound(round, state);
+        assertDoesNotThrow(() -> subject.writeItem(FAKE_SIGNED_TRANSACTION));
+
+        verify(bWriter, never()).openBlock(anyLong());
+    }
+
+    @Test
+    void pendingBlockFlushedAndBookkeepingConsistentAfterFatalEvent() {
+        // A block is pending (closed, awaiting its proof) when catastrophic failure is signalled. The next round
+        // boundary flushes it to disk AND completes the pending-proof future so a concurrent freeze wait can't hang.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    // Capture but never invoke the consumer, so the block stays pending
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+
+        final var pendingProofsFuture = subject.pendingBlockProofsFuture();
+        assertFalse(pendingProofsFuture.isDone());
+
+        // Catastrophic failure → the next round boundary drains and flushes the pending block
+        subject.notifyFatalEvent();
+        subject.startRound(round, state);
+
+        verify(aWriter).flushPendingBlock(any());
+        verify(aWriter, never()).closeCompleteBlock();
+        // Bookkeeping stays consistent: the pending-proof future is completed, so a freeze wait won't hang
+        assertTrue(pendingProofsFuture.isDone());
+    }
+
+    @Test
+    void lateSignatureAfterFatalFlushIsNoOp() {
+        // A pending block is flushed at catastrophic failure; a signature arriving afterwards must find the block
+        // already drained and leave the (now flushed) writer untouched — no double close, no racing the flush.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+                    signatureConsumer.set(invocationOnMock.getArgument(0));
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+
+        subject.notifyFatalEvent();
+        subject.startRound(round, state); // handler boundary → flush drains and flushes the pending block
+        verify(aWriter).flushPendingBlock(any());
+
+        // Late signature: block already drained → no-op on the writer
+        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+        verify(aWriter, never()).closeCompleteBlock();
+        verify(aWriter).flushPendingBlock(any());
+    }
+
+    @Test
+    void awaitFatalShutdownReturnsOnceHandlerFlushCompletes() {
+        // The handler-thread flush completes fatalShutdownFuture, so awaitFatalShutdown returns promptly.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.notifyFatalEvent();
+        subject.endRound(state, ROUND_NO); // handler flush completes fatalShutdownFuture
+
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter).flushIncompleteBlock();
+    }
+
+    @Test
+    void awaitFatalShutdownFallbackFlushesPendingBlocksWhenHandlerIdle() {
+        // If no round boundary occurs after catastrophic failure, awaitFatalShutdown performs the triage flush itself.
+        // Here the block already closed to a pending block, so only the pending flush is exercised; the open-block
+        // case is covered by awaitFatalShutdownCapturesOpenBlockWhenNoRoundBoundaryFollows.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> completedFuture(null))
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO); // pending block, proof not completed
+
+        // Catastrophic failure, but no further round boundary: the fallback flushes the pending block
+        subject.notifyFatalEvent();
+        subject.awaitFatalShutdown(Duration.ofMillis(1));
+
+        verify(aWriter).flushPendingBlock(any());
+        verify(aWriter, never()).closeCompleteBlock();
+    }
+
+    @Test
+    void awaitFatalShutdownCapturesOpenBlockWhenNoRoundBoundaryFollows() {
+        // The lost-open-block case this design exists to prevent: a block is left OPEN between rounds (e.g. a
+        // time-based block) and catastrophic failure arrives with NO further consensus round. The handler never
+        // reaches another startRound/endRound boundary, so awaitFatalShutdown itself captures the open block for
+        // triage (the Dekker handshake proves no round is mutating the writer, so this is race-free).
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        // The round finishes without closing the block (it stays open); no further round will arrive.
+        final boolean closed = subject.endRound(state, ROUND_NO);
+        assertFalse(closed);
+
+        subject.notifyFatalEvent();
+        // No handler round boundary after the failure — awaitFatalShutdown must flush the open block itself.
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+
+        verify(aWriter).flushIncompleteBlock();
+        verify(aWriter, never()).closeCompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void willCloseBlockReturnsFalseAfterFatalEvent() {
+        // After a fatal event the block stream is stopped, so no block "closes" normally; the companion record file
+        // (streamMode=BOTH) must not be finalized for a round we are abandoning to a triage flush.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.notifyFatalEvent();
+
+        assertFalse(subject.willCloseBlock(state, ROUND_NO));
+    }
+
+    @Test
+    void awaitFatalShutdownIsNoOpWithoutFatalEvent() {
+        // Defensive: called without a prior notifyFatalEvent, awaitFatalShutdown flushes nothing.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter, never()).flushIncompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void awaitFatalShutdownTimesOutWhenRoundStillInProgress() {
+        // A round is in flight (no endRound) when the failure arrives: awaitFatalShutdown cannot safely touch the
+        // handler-owned writer, so it waits, times out, and flushes only already-closed pending blocks (none here).
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state); // roundInProgress = true; no endRound follows
+        subject.notifyFatalEvent();
+
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofMillis(1)));
+        verify(aWriter, never()).flushIncompleteBlock();
+    }
+
+    @Test
+    void stoppedStreamOperationsAreNoOpsAfterFatalEvent() {
+        // After the in-progress block is flushed at catastrophic failure, every block-stream operation is a no-op:
+        // startRound opens no new block, writeItem (both overloads) and prngSeed return without touching the released
+        // worker, and a second round boundary re-enters the flush but the done-guard makes it a no-op.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.notifyFatalEvent();
+
+        // First boundary flushes the in-progress block (and completes the shutdown future)
+        assertFalse(subject.endRound(state, ROUND_NO));
+        // Further stream operations are no-ops and never NPE on the released worker
+        assertNull(subject.prngSeed());
+        assertDoesNotThrow(() -> subject.writeItem(FAKE_SIGNED_TRANSACTION));
+        assertDoesNotThrow(() -> subject.writeItem(ts -> FAKE_STATE_CHANGES));
+        // A second boundary re-enters the flush, but the done-guard makes it a no-op (no new block, no second close)
+        subject.startRound(round, state);
+
+        verify(bWriter, never()).openBlock(anyLong());
+        verify(aWriter).flushIncompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void triageFlushIsBestEffortWhenInProgressFlushThrows() {
+        // If flushing the in-progress block throws, the triage flush swallows it (best-effort) and still completes
+        // the shutdown future, so awaitFatalShutdown returns rather than propagating the failure on the status thread.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        doThrow(new RuntimeException("boom")).when(aWriter).flushIncompleteBlock();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.notifyFatalEvent();
+
+        assertDoesNotThrow(() -> subject.endRound(state, ROUND_NO));
+        verify(aWriter).flushIncompleteBlock();
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+    }
+
+    @Test
+    void triageFlushContinuesAndKeepsBookkeepingWhenPendingFlushThrows() {
+        // If flushing a pending block throws, the flush swallows it and still advances the pending-proof bookkeeping
+        // (so a concurrent freeze wait cannot hang).
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> completedFuture(null))
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+        doThrow(new RuntimeException("boom")).when(aWriter).flushPendingBlock(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+        final var pendingProofsFuture = subject.pendingBlockProofsFuture();
+        assertFalse(pendingProofsFuture.isDone());
+
+        subject.notifyFatalEvent();
+        assertDoesNotThrow(() -> subject.startRound(round, state));
+
+        verify(aWriter).flushPendingBlock(any());
+        // Bookkeeping advanced despite the failed flush, so the pending-proof future is completed
+        assertTrue(pendingProofsFuture.isDone());
+    }
+
+    @Test
+    void awaitFatalShutdownCapturesOpenBlockWhenEndRoundThrew() {
+        // Regression guard for the roundInProgress bookkeeping: if endRound throws partway (here the normal block
+        // close fails), the round is over but its in-progress flag must still be cleared. Otherwise a later
+        // awaitFatalShutdown would treat the (now dead) handler as still mid-round, block for the entire timeout, and
+        // flush pending blocks only — silently dropping the open block it exists to capture. With the flag cleared in
+        // endRound's finally, awaitFatalShutdown takes the race-free direct path and captures the open block.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Make the normal block close throw, after startRound has already set roundInProgress = true.
+        doThrow(new RuntimeException("boom")).when(lifecycle).onCloseBlock(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        assertThrows(RuntimeException.class, () -> subject.endRound(state, ROUND_NO));
+
+        subject.notifyFatalEvent();
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter).flushIncompleteBlock();
+    }
+
+    @Test
+    void awaitFatalShutdownCapturesOpenBlockWhenStartRoundThrew() {
+        // The same regression guard from the open side: a new block's writer is created before lifecycle.onOpenBlock,
+        // so a throw there leaves an open, assigned writer with roundInProgress = true. The flag must be cleared on the
+        // failed start (startRound's catch) so awaitFatalShutdown still captures that open block for triage rather than
+        // waiting out the timeout and flushing pending-only.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        doThrow(new RuntimeException("boom")).when(lifecycle).onOpenBlock(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        assertThrows(RuntimeException.class, () -> subject.startRound(round, state));
+
+        subject.notifyFatalEvent();
+        assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
+        verify(aWriter).flushIncompleteBlock();
     }
 
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {

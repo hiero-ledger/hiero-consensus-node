@@ -33,37 +33,50 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     /** Platform configuration */
     private final Configuration configuration;
 
+    /**
+     * A folder name for the first MerkleDb instance managed by this builder. It's used
+     * when a new data source is created from scratch or a data source is restored from a
+     * snapshot.
+     *
+     * <p>Also, this folder name (if not null or blank) is checked first, when a new data
+     * source is requested. If a folder with this nams exists in the file system manager's
+     * temp directory, this is considered a version upgrade, so the data source is created
+     * directly from that folder rather than from scratch.
+     */
+    private final String defaultDbFolderName;
+
     private final FileSystemManager fileSystemManager;
 
-    private long initialCapacity = 0;
+    private final long initialCapacity;
 
     /**
-     * Constructor for deserialization purposes.
-     * @param configuration configuration to use
-     * @param fileSystemManager file system manager to use
-     */
-    public MerkleDbDataSourceBuilder(
-            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
-        this.configuration = requireNonNull(configuration);
-        this.fileSystemManager = requireNonNull(fileSystemManager);
-    }
-
-    /**
-     * Creates a new data source builder with the specified table configuration.
-     *
-     * @param initialCapacity initial capacity of the map
-     * @param configuration platform configuration
+     * Creates a new data source builder with the specified configuration, file system manager,
+     * and initial MerkleDb database capacity.
      */
     public MerkleDbDataSourceBuilder(
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             final long initialCapacity) {
+        this(null, configuration, fileSystemManager, initialCapacity);
+    }
+
+    /**
+     * Creates a new data source builder with the specified default folder name (may be null or
+     * blank), configuration, file system manager, and initial MerkleDb database capacity.
+     */
+    public MerkleDbDataSourceBuilder(
+            @Nullable String defaultDbFolderName,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            final long initialCapacity) {
+        this.defaultDbFolderName =
+                (defaultDbFolderName == null) || defaultDbFolderName.isBlank() ? null : defaultDbFolderName;
         this.configuration = requireNonNull(configuration);
         this.fileSystemManager = requireNonNull(fileSystemManager);
         this.initialCapacity = initialCapacity;
     }
 
-    private Path newDataSourceDir(final String label) {
+    private Path newTempDataSourceDir(final String label) {
         return fileSystemManager.resolveNewTemp(FOLDER_SUFFIX + label);
     }
 
@@ -102,7 +115,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             throw new IllegalArgumentException("Initial map capacity not set");
         }
         try {
-            final Path dataSourceDir = newDataSourceDir(label);
+            Path dataSourceDir = null;
+            if (defaultDbFolderName != null) {
+                // The folder may or may not exist
+                dataSourceDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
+            }
+            // If the default DB dir is not set, or the folder doesn't exist, create a new
+            // temp folder and use it as the storage dir
+            if (dataSourceDir == null) {
+                dataSourceDir = newTempDataSourceDir(label);
+            }
             return new MerkleDbDataSource(
                     dataSourceDir,
                     configuration,
@@ -138,7 +160,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         }
         final String label = merkleDbDataSource.getTableName();
         if (snapshotDir == null) {
-            snapshotDir = newDataSourceDir(label);
+            snapshotDir = newTempDataSourceDir(label);
         }
         final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
         snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
@@ -159,7 +181,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             final boolean compactionEnabled,
             final boolean offlineUse) {
         try {
-            final Path dataSourceDir = newDataSourceDir(label);
+            Path dataSourceDir = null;
+            if (defaultDbFolderName != null) {
+                final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
+                if (!Files.exists(defaultDir)) {
+                    dataSourceDir = defaultDir;
+                }
+            }
+            if (dataSourceDir == null) {
+                dataSourceDir = newTempDataSourceDir(label);
+            }
             final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
