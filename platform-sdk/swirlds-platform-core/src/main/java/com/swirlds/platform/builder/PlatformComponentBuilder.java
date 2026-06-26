@@ -2,8 +2,6 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -16,11 +14,6 @@ import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
 import com.swirlds.platform.state.hashlogger.HashLogger;
-import com.swirlds.platform.state.iss.DefaultIssDetector;
-import com.swirlds.platform.state.iss.IssDetector;
-import com.swirlds.platform.state.iss.IssHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
 import com.swirlds.platform.state.signed.DefaultSignedStateSentinel;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.signer.DefaultStateSigner;
@@ -30,15 +23,12 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -71,8 +61,6 @@ public class PlatformComponentBuilder {
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private TransactionPrehandler transactionPrehandler;
-    private IssDetector issDetector;
-    private IssHandler issHandler;
     private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
     private HashLogger hashLogger;
@@ -306,109 +294,6 @@ public class PlatformComponentBuilder {
                     blocks.consensusStateEventHandler());
         }
         return transactionPrehandler;
-    }
-
-    /**
-     * Provide an ISS detector in place of the platform's default ISS detector.
-     *
-     * @param issDetector the ISS detector to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withIssDetector(@NonNull final IssDetector issDetector) {
-        throwIfAlreadyUsed();
-        if (this.issDetector != null) {
-            throw new IllegalStateException("ISS detector has already been set");
-        }
-        this.issDetector = Objects.requireNonNull(issDetector);
-        return this;
-    }
-
-    /**
-     * Build the ISS detector if it has not yet been built. If one has been provided via
-     * {@link #withIssDetector(IssDetector)}, that detector will be used. If this method is called more than once, only
-     * the first call will build the ISS detector. Otherwise, the default detector will be created and returned.
-     *
-     * @return the ISS detector
-     */
-    @NonNull
-    public IssDetector buildIssDetector() {
-        if (issDetector == null) {
-            // Only validate preconsensus signature transactions if we are not recovering from an ISS.
-            // ISS round == null means we haven't observed an ISS yet.
-            // ISS round < current round means there was an ISS prior to the saved state
-            //    that has already been recovered from.
-            // ISS round >= current round means that the ISS happens in the future relative the initial state, meaning
-            //    we may observe ISS-inducing signature transactions in the preconsensus event stream.
-
-            final SerializableLong issRound = blocks.issScratchpad().get(IssScratchpad.LAST_ISS_ROUND);
-
-            final boolean forceIgnorePcesSignatures = blocks.platformContext()
-                    .getConfiguration()
-                    .getConfigData(PcesConfig.class)
-                    .forceIgnorePcesSignatures();
-
-            final long initialStateRound = blocks.initialState().get().getRound();
-
-            final boolean ignorePreconsensusSignatures;
-            if (forceIgnorePcesSignatures) {
-                // this is used FOR TESTING ONLY
-                ignorePreconsensusSignatures = true;
-            } else {
-                ignorePreconsensusSignatures = issRound != null && issRound.getValue() >= initialStateRound;
-            }
-
-            // A round that we will completely skip ISS detection for. Needed for tests that do janky state modification
-            // without a software upgrade (in production this feature should not be used).
-            final long roundToIgnore = blocks.platformContext()
-                            .getConfiguration()
-                            .getConfigData(StateConfig.class)
-                            .validateInitialState()
-                    ? DO_NOT_IGNORE_ROUNDS
-                    : initialStateRound;
-            final long latestFreezeRound =
-                    latestFreezeRoundOf(blocks.initialState().get().getState());
-
-            issDetector = new DefaultIssDetector(
-                    blocks.platformContext(),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    ignorePreconsensusSignatures,
-                    roundToIgnore,
-                    latestFreezeRound);
-        }
-        return issDetector;
-    }
-
-    /**
-     * Provide an ISS handler in place of the platform's default ISS handler.
-     *
-     * @param issHandler the ISS handler to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withIssHandler(@NonNull final IssHandler issHandler) {
-        throwIfAlreadyUsed();
-        if (this.issHandler != null) {
-            throw new IllegalStateException("ISS handler has already been set");
-        }
-        this.issHandler = Objects.requireNonNull(issHandler);
-        return this;
-    }
-
-    /**
-     * Build the ISS handler if it has not yet been built. If one has been provided via
-     * {@link #withIssHandler(IssHandler)}, that handler will be used. If this method is called more than once, only the
-     * first call will build the ISS handler. Otherwise, the default handler will be created and returned.
-     *
-     * @return the ISS handler
-     */
-    @NonNull
-    public IssHandler buildIssHandler() {
-        if (issHandler == null) {
-            issHandler = new DefaultIssHandler(
-                    blocks.platformContext(), SystemExitUtils::handleFatalError, blocks.issScratchpad());
-        }
-        return issHandler;
     }
 
     /**

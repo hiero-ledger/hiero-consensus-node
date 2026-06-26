@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.getDeduction;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.getNonFeeDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
@@ -87,9 +86,6 @@ public class DuplicateManagementTest {
                                 recordWith().status(DUPLICATE_TRANSACTION))),
                 sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
                 withOpContext((spec, opLog) -> {
-                    final var flag =
-                            spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
-
                     var cheapGet = getTxnRecord("cheapTxn").assertingNothingAboutHashes();
                     var costlyGet = getTxnRecord("costlyTxn").assertingNothingAboutHashes();
                     allRunFor(spec, cheapGet, costlyGet);
@@ -97,32 +93,20 @@ public class DuplicateManagementTest {
                     var costlyRecord = costlyGet.getResponseRecord();
                     opLog.info("cheapRecord: {}", cheapRecord);
                     opLog.info("costlyRecord: {}", costlyRecord);
-                    if ("true".equals(flag)) {
-                        var cheapPrice = getDeduction(
-                                        cheapRecord.getTransferList(),
-                                        cheapRecord.getTransactionID().getAccountID())
-                                .orElse(0);
-                        var costlyPrice = getDeduction(
-                                        costlyRecord.getTransferList(),
-                                        costlyRecord.getTransactionID().getAccountID())
-                                .orElse(0);
-                        final var expectedCostly = 3 * cheapPrice;
-                        assertTrue(
-                                Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
-                                String.format(
-                                        "Costly (%d) should be about 3x more expensive than cheap (%d)!",
-                                        costlyPrice, cheapPrice));
-
-                    } else {
-                        var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
-                        var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
-                        final var expectedCostly = 3 * cheapPrice - 1;
-                        assertTrue(
-                                Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
-                                String.format(
-                                        "Costly (%d) should be about 3x more expensive than cheap (%d)!",
-                                        costlyPrice, cheapPrice));
-                    }
+                    var cheapPrice = getDeduction(
+                                    cheapRecord.getTransferList(),
+                                    cheapRecord.getTransactionID().getAccountID())
+                            .orElse(0);
+                    var costlyPrice = getDeduction(
+                                    costlyRecord.getTransferList(),
+                                    costlyRecord.getTransactionID().getAccountID())
+                            .orElse(0);
+                    final var expectedCostly = 3 * cheapPrice;
+                    assertTrue(
+                            Math.abs(expectedCostly - costlyPrice) <= DUPLICATE_FEE_TOLERANCE_TINYBARS,
+                            String.format(
+                                    "Costly (%d) should be about 3x more expensive than cheap (%d)!",
+                                    costlyPrice, cheapPrice));
                 }));
     }
 

@@ -8,6 +8,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -51,6 +52,9 @@ class GrpcBlockItemWriterBufferIntegrationTest {
     @Mock
     private BlockStreamMetrics blockStreamMetrics;
 
+    @Mock
+    private BlockStreamingObs streamingObs;
+
     private BlockBufferService blockBufferService;
 
     @BeforeEach
@@ -73,7 +77,7 @@ class GrpcBlockItemWriterBufferIntegrationTest {
                         .accountNum(3)
                         .build());
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         // Mark the buffer started so it accepts items, without spinning up the real background pruning machinery.
         markStarted(blockBufferService);
     }

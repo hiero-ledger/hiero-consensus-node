@@ -25,7 +25,6 @@ import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -328,16 +327,6 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
         } catch (ArithmeticException e) {
             return Optional.empty();
         }
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.EthereumTransaction,
-                        scFees::getEthereumTransactionFeeMatrices,
-                        txn,
-                        numPayerSigs);
     }
 
     private EthereumTransactionBody explicitEthereumTransaction(HapiSpec spec)

@@ -352,6 +352,17 @@ public class BlockNodeNetwork {
         return blockNodeModeById;
     }
 
+    /**
+     * Returns whether this network has no usable block nodes, i.e. the mode map is empty or every configured
+     * block node is in {@link BlockNodeMode#NONE} mode.
+     *
+     * @return true if there are no usable block nodes
+     */
+    public boolean isEmpty() {
+        return blockNodeModeById.isEmpty()
+                || blockNodeModeById.values().stream().allMatch(mode -> mode == BlockNodeMode.NONE);
+    }
+
     public Set<Long> nodeIds() {
         return getBlockNodeModeById().keySet();
     }

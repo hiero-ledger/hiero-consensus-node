@@ -7,7 +7,7 @@ last_reviewed: 2026-06-12
 # Architecture overview
 
 This file is the navigation map for the consensus-layer KB. It names the
-modules, names the thirteen topics, places them in the module structure, and
+modules, names the topics, places them in the module structure, and
 shows where the Consensus / Execution boundary runs in current code. It is
 deliberately shallow: each topic gets a sentence or two and a forward link
 to the per-topic file where the depth lives. Motivation and design
@@ -100,7 +100,7 @@ path.
 
 ## Topic map
 
-The thirteen topics below are the KB's main navigation axis. The grouping
+The topics below are the KB's main navigation axis. The grouping
 is for orientation only — it is not a structural ontology, and the
 topics are not strictly disjoint.
 
