@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
@@ -117,15 +118,16 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule =
-                createNoOpGossipModule(model, configuration, platformContext.getFileSystemManager());
+        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
-                createNoOpIssDetectionModule(model, configuration, platformContext.getFileSystemManager());
-        final TransactionHandlingModule transactionHandlingModule = createNoOpTransactionHandlingModule(model, configuration);
+                createNoOpIssDetectionModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule =
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,

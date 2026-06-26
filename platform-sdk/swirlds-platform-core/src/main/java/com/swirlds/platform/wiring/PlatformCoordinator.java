@@ -51,7 +51,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.pcesModule().flush();
         components.gossipModule().flush();
         components.hashgraphModule().flush();
-        components.transactionHandlingModule().flush();
+        components.transactionHandlingModule().flushTransactionPreHandler();
         components.eventCreatorModule().flush();
     }
 
@@ -137,7 +137,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      * Flush the transaction handler.
      */
     public void flushTransactionHandler() {
-        components.transactionHandlerWiring().flush();
+        components.transactionHandlingModule().flushTransactionHandler();
     }
 
     /**

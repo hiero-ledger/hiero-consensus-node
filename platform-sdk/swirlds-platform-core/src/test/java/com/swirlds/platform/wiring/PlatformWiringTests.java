@@ -26,7 +26,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -99,7 +98,8 @@ class PlatformWiringTests {
         final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
-        final TransactionHandlingModule transactionHandlingModule = createNoOpTransactionHandlingModule(model, configuration);
+        final TransactionHandlingModule transactionHandlingModule =
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -125,8 +125,7 @@ class PlatformWiringTests {
                 .withStateHasher(mock(StateHasher.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class))
                 .withHashLogger(mock(HashLogger.class))
-                .withStateSigner(mock(StateSigner.class))
-                .withTransactionHandler(mock(DefaultTransactionHandler.class));
+                .withStateSigner(mock(StateSigner.class));
 
         platformComponents.bind(
                 componentBuilder,

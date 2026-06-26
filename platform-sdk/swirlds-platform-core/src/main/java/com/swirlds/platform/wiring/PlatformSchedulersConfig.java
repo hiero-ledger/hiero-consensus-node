@@ -13,13 +13,11 @@ import java.time.Duration;
  * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param stateSignatureCollector              configuration for the state signature collector scheduler
- * @param transactionHandler                   configuration for the transaction handler scheduler
  * @param hashLogger                           configuration for the hash logger scheduler
  * @param stateHasher                          configuration for the state hasher scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
  *                                             collector
- * @param consensusEventStream                 configuration for the consensus event stream scheduler
  * @param roundDurabilityBuffer                configuration for the round durability buffer scheduler
  * @param signedStateSentinel                  configuration for the signed state sentinel scheduler
  * @param signedStateSentinelHeartbeatPeriod   the frequency that heartbeats should be sent to the signed state
@@ -48,11 +46,6 @@ public record PlatformSchedulersConfig(
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSignatureCollector,
 
-        @ConfigProperty(
-                defaultValue =
-                        "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-        TaskSchedulerConfiguration transactionHandler,
-
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration hashLogger,
 
@@ -70,7 +63,6 @@ public record PlatformSchedulersConfig(
         TaskSchedulerConfiguration signedStateSentinel,
 
         @ConfigProperty(defaultValue = "10s") Duration signedStateSentinelHeartbeatPeriod,
-        @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration consensusEventStream,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration roundDurabilityBuffer,

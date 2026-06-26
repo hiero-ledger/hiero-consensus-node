@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -7,7 +7,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * A wrapper for a signed state that includes an estimate of how much work it will be to compute the hash of the state.
- * This estimate is used by the wiring framework to measure if the {@link com.swirlds.platform.state.hasher.StateHasher}
+ * This estimate is used by the wiring framework to measure if the {@code StateHasher}
  * is healthy. This estimate is the number of application transactions that were applied to this state. The hash
  * complexity must always be at least 1.
  *

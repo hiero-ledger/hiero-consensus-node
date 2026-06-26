@@ -70,6 +70,7 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
@@ -494,14 +495,21 @@ public final class PlatformBuilder {
     }
 
     @NonNull
-    private TransactionHandlingModule createTransactionHandlingModule(@NonNull final AtomicReference<Function<String, ReservedSignedState>> latestCompleteStateReference) {
+    private TransactionHandlingModule createTransactionHandlingModule(
+            @NonNull final AtomicReference<Function<String, ReservedSignedState>> latestCompleteStateReference,
+            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
         return new TransactionHandlingModule(
                 model,
                 platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getTime(),
                 latestCompleteStateReference,
-                consensusStateEventHandler::onPreHandle);
+                consensusStateEventHandler,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                softwareVersion,
+                selfId,
+                transactionOffsetNanos);
     }
 
     /**
@@ -575,7 +583,9 @@ public final class PlatformBuilder {
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
         final AtomicReference<Supplier<ReservedSignedState>> latestCompleteStateReference = new AtomicReference<>();
-        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference = new AtomicReference<>();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
@@ -596,7 +606,8 @@ public final class PlatformBuilder {
         }
 
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
-        final TransactionHandlingModule transactionHandlingModule = createTransactionHandlingModule(latestImmutableStateProviderReference);
+        final TransactionHandlingModule transactionHandlingModule =
+                createTransactionHandlingModule(latestImmutableStateProviderReference, statusActionSubmitterReference);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -610,6 +621,7 @@ public final class PlatformBuilder {
                 transactionHandlingModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
+        statusActionSubmitterReference.set(platformCoordinator);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
@@ -652,7 +664,7 @@ public final class PlatformBuilder {
                 latestImmutableStateProviderReference,
                 consensusEventStreamName,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                new AtomicReference<>(),
+                statusActionSubmitterReference,
                 stateLifecycleManager,
                 latestCompleteStateReference,
                 firstPlatform,

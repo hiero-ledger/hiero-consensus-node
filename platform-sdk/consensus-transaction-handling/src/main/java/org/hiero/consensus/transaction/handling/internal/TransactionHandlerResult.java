@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -8,7 +8,7 @@ import java.util.Queue;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
- * The result of the {@link com.swirlds.platform.eventhandling.TransactionHandler} handling a round.
+ * The result of the {@link TransactionHandler} handling a round.
  * <p>
  * Contains:
  * <ul>

@@ -6,8 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
-import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -31,6 +29,7 @@ import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.transaction.handling.internal.TransactionHandler;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -388,44 +387,5 @@ public class PlatformComponentBuilder {
             stateSigner = new DefaultStateSigner(new PlatformSigner(blocks.keysAndCerts()));
         }
         return stateSigner;
-    }
-
-    /**
-     * Provide a transaction handler in place of the platform's default transaction handler.
-     *
-     * @param transactionHandler the transaction handler to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withTransactionHandler(@NonNull final TransactionHandler transactionHandler) {
-        throwIfAlreadyUsed();
-        if (this.transactionHandler != null) {
-            throw new IllegalStateException("Transaction handler has already been set");
-        }
-        this.transactionHandler = Objects.requireNonNull(transactionHandler);
-        return this;
-    }
-
-    /**
-     * Build the transaction handler if it has not yet been built. If one has been provided via
-     * {@link #withTransactionHandler(TransactionHandler)}, that handler will be used. If this method is called more
-     * than once, only the first call will build the transaction handler. Otherwise, the default handler will be created
-     * and returned.
-     *
-     * @return the transaction handler
-     */
-    @NonNull
-    public TransactionHandler buildTransactionHandler() {
-        if (transactionHandler == null) {
-            transactionHandler = new DefaultTransactionHandler(
-                    blocks.platformContext(),
-                    blocks.stateLifecycleManager(),
-                    blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion(),
-                    blocks.consensusStateEventHandler(),
-                    blocks.selfId(),
-                    blocks.transactionOffsetNanos());
-        }
-        return transactionHandler;
     }
 }

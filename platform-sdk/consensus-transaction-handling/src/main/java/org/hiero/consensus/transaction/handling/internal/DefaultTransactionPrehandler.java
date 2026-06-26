@@ -20,7 +20,7 @@ import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.transaction.handling.PreHandleCallback;
+import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 
 /**
  * Default implementation of the {@link TransactionPrehandler} interface
@@ -38,7 +38,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      */
     private final AverageTimeStat preHandleTime;
 
-    private final PreHandleCallback preHandleCallback;
+    private final TransactionCallbacks transactionCallbacks;
 
     private final Time time;
 
@@ -49,13 +49,13 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      * @param time the time source
      * @param latestStateSupplier provides access to the latest immutable state, may return null (implementation detail
      *                            of locking mechanism within the supplier)
-     * @param preHandleCallback the state lifecycles
+     * @param transactionCallbacks the consensus state event handler
      */
     public DefaultTransactionPrehandler(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
-            @NonNull PreHandleCallback preHandleCallback) {
+            @NonNull final TransactionCallbacks transactionCallbacks) {
         this.time = requireNonNull(time);
         this.latestStateSupplier = requireNonNull(latestStateSupplier);
 
@@ -65,7 +65,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
                 INTERNAL_CATEGORY,
                 "preHandleMicros",
                 "average time it takes to perform preHandle (in microseconds)");
-        this.preHandleCallback = preHandleCallback;
+        this.transactionCallbacks = transactionCallbacks;
     }
 
     /**
@@ -87,7 +87,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
             }
 
             try {
-                preHandleCallback.onPreHandle(
+                transactionCallbacks.onPreHandle(
                         event, latestImmutableState.get().getState(), consumer);
             } catch (final Throwable t) {
                 logger.error(

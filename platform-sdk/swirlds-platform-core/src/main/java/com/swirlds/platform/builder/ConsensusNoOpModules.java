@@ -2,6 +2,7 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -50,9 +51,9 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
-import org.hiero.consensus.transaction.handling.PreHandleCallback;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 public class ConsensusNoOpModules {
@@ -281,11 +282,18 @@ public class ConsensusNoOpModules {
     @NonNull
     public static TransactionHandlingModule createNoOpTransactionHandlingModule(
             @NonNull final WiringModel model,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference = new AtomicReference<>();
-        final PreHandleCallback preHandCallback = (_, _, _) -> {};
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
+        final SemanticVersion appVersion = SemanticVersion.DEFAULT;
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final long transactionOffsetNanos = 0L;
 
         return new TransactionHandlingModule(
                 model,
@@ -293,6 +301,11 @@ public class ConsensusNoOpModules {
                 metrics,
                 time,
                 latestImmutableStateProviderReference,
-                preHandCallback);
+                NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                appVersion,
+                selfId,
+                transactionOffsetNanos);
     }
 }

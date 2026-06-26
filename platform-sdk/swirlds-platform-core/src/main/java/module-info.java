@@ -26,7 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
-    exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -87,6 +86,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
@@ -102,7 +102,6 @@ module com.swirlds.platform.core {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires org.hiero.consensus.transaction.handling;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;

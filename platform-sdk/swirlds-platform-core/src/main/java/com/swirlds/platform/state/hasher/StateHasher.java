@@ -2,10 +2,10 @@
 package com.swirlds.platform.state.hasher;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexity;
 
 /**
  * Hashes signed states

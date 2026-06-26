@@ -8,7 +8,6 @@ import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAP
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.RECONNECT;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -18,6 +17,7 @@ import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
+import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexity;
 
 /**
  * The default implementation of {@link SavedStateController}.

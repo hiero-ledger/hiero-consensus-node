@@ -23,7 +23,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.transaction.handling.PreHandleCallback;
+import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -54,7 +54,7 @@ class TransactionPrehandlerTests {
         when(signedState.getState()).thenReturn(stateRoot);
 
         final SignedStateNexus latestImmutableStateNexus = mock(SignedStateNexus.class);
-        final PreHandleCallback preHandleCallback = mock(PreHandleCallback.class);
+        final TransactionCallbacks preHandleCallback = mock(TransactionCallbacks.class);
         // return null until returnValidState is set to true. keep track of when the first state retrieval is attempted,
         // so we can assert that prehandle hasn't happened before the state is available
         when(latestImmutableStateNexus.getState(any())).thenAnswer(i -> {
@@ -62,8 +62,6 @@ class TransactionPrehandlerTests {
             return returnValidState.get() ? state : null;
         });
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final TransactionPrehandler transactionPrehandler = new DefaultTransactionPrehandler(

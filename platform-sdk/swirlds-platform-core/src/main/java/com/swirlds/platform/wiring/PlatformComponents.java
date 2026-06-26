@@ -12,10 +12,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
-import com.swirlds.platform.eventhandling.TransactionHandler;
-import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
-import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -32,6 +28,7 @@ import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
@@ -42,6 +39,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexity;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
@@ -58,7 +56,6 @@ public record PlatformComponents(
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
         ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
         ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
-        ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
@@ -96,7 +93,6 @@ public record PlatformComponents(
         stateSignerWiring.bind(builder::buildStateSigner);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
-        transactionHandlerWiring.bind(builder::buildTransactionHandler);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
         hashLoggerWiring.bind(builder::buildHashLogger);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
@@ -131,6 +127,8 @@ public record PlatformComponents(
 
         final PlatformSchedulersConfig config =
                 platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
+        final EventStreamWiringConfig eventStreamConfig =
+                platformContext.getConfiguration().getConfigData(EventStreamWiringConfig.class);
 
         return new PlatformComponents(
                 model,
@@ -144,12 +142,7 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
                 new ComponentWiring<>(model, StateSigner.class, config.stateSigner()),
-                new ComponentWiring<>(
-                        model,
-                        TransactionHandler.class,
-                        config.transactionHandler(),
-                        TransactionHandlerDataCounter.create(config.transactionHandler())),
-                new ComponentWiring<>(model, ConsensusEventStream.class, config.consensusEventStream()),
+                new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(
                         model,

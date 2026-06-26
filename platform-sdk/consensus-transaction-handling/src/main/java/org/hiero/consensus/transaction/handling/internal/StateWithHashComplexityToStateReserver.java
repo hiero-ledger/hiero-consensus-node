@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.wiring;
+package org.hiero.consensus.transaction.handling.internal;
 
 import com.swirlds.component.framework.transformers.AdvancedTransformation;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 

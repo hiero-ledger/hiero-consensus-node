@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.metrics;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
