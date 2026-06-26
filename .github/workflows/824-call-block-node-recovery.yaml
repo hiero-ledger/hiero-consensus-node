@@ -549,7 +549,7 @@ jobs:
           CURRENT_TIME=$(date +%s)
           SPREAD=9999
           ELAPSED=$((CURRENT_TIME - ${{ steps.bn-restoration.outputs.restoration_time }}))
-          START_TIME=$(ELAPSED)
+          START_TIME=$ELAPSED
           echo "Elapsed time before polling ${ELAPSED} s"
 
           while (( ELAPSED < START_TIME + MAX_WAIT )); do
