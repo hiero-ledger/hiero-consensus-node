@@ -86,7 +86,9 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@latest
+        run: |
+          SOLO_VERSION="${{ inputs.solo-version }}"
+          npm install -g "@hashgraph/solo@${SOLO_VERSION:-latest}"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -607,7 +609,7 @@ jobs:
           MIN_FIRST=$(( BN1_FIRST < BN2_FIRST ? BN1_FIRST : BN2_FIRST ))
           MIN_FIRST=$(( MIN_FIRST < BN3_FIRST ? MIN_FIRST : BN3_FIRST ))
 
-          echo "[${ELAPSED}s] firstAvailableBlock — BN1=${BN1_FIRST} BN2=${BN2_FIRST} BN3=${BN3_FIRST}"
+          echo "firstAvailableBlock — BN1=${BN1_FIRST} BN2=${BN2_FIRST} BN3=${BN3_FIRST}"
           if (( MIN_FIRST > 0 )); then
               echo "A BN missed block 0!"
           fi
@@ -637,7 +639,7 @@ jobs:
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
-      - name: Upload N Logs
+      - name: Upload MN Logs
         if: always()
         id: upload_mn_logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -661,7 +663,7 @@ jobs:
       # CN logs to uploaded if there was no confirmation of CN <> BN streaming
       - name: Upload CN Logs
         id: upload_cn_logs
-        if: always() && steps.bn-init-status.outcome != 'success'
+        if: ${{ always() && steps.bn-init-status.outcome != 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cn-recovery-logs
@@ -704,7 +706,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
-          checkout-token: ${{secrets.GITHUB_TOKEN}}
+          checkout-token: "${{ secrets.access-token }}"
           setup-gomplate: "true"
           setup-jq: "true"
 
@@ -714,7 +716,7 @@ jobs:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Block Node Recovery Test Report"
           STATUS_TEXT: "*Block Node Recovery Panel was executed. See status below.*"
           PANEL_LABEL: "Block Node Recovery Panel Result"
-          RESULT: ${{ needs.block-node-regression.result }}
+          RESULT: ${{ needs.block-node-recovery.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
