@@ -26,7 +26,7 @@ If an honest event becomes ancient before reaching consensus, no honest node eve
 
 It is a theorem of the hashgraph consensus algorithm that staleness is the alternative final fate to consensus: an honest event either reaches consensus or becomes stale (ancient before reaching consensus), and once stale it is ordered by no node.
 
-An event is stale exactly when its birth round falls below the ancient boundary before it reaches consensus. The birth round is immutable and gossiped, and the boundary `minNonAncientRound` is a function of the agreed round state. The decision "reached consensus before going ancient" versus "went ancient first" therefore yields the same answer on every node that holds the event, and a node that never received it never orders it either way — so no node ever orders an event another treats as stale. This is a consequence of applying an agreed boundary to an immutable field, not of any implementation choice.
+An event is stale exactly when its birth round falls below the ancient boundary before it reaches consensus. The birth round is immutable and gossiped, and the boundary `minNonAncientRound` is a function of the latest consensus round. The decision "reached consensus before going ancient" versus "went ancient first" therefore yields the same answer on every node that holds the event, and a node that never received it never orders it either way — so no node ever orders an event another treats as stale. This is a consequence of applying an agreed boundary to an immutable field, not of any implementation choice.
 
 ## Change risk
 
