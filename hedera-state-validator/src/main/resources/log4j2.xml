@@ -33,6 +33,9 @@
       <Logger name="com.hedera.statevalidation.validator.pipeline.ValidationPipelineExecutor" level="INFO">
           <AppenderRef ref="DefaultConsoleAppender"/>
       </Logger>
+      <Logger name="com.hedera.statevalidation.validator.EntityIdUniquenessValidator" level="INFO">
+          <AppenderRef ref="DefaultConsoleAppender"/>
+      </Logger>
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
           <AppenderRef ref="StateAnalysisConsoleAppender"/>
       </Logger>
