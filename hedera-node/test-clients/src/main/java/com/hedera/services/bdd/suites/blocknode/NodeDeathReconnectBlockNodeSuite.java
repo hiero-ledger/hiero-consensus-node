@@ -42,54 +42,22 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        }),
+                        blockNodePriorities = {0}),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        })
+                        blockNodePriorities = {0})
             })
     @Order(1)
-    final Stream<DynamicTest> nodeDeathReconnectBothAndFileAndGrpc() {
+    final Stream<DynamicTest> nodeDeathReconnectBlocksAndGrpc() {
         return hapiTest(
                 // Validate we can initially submit transactions to node2
                 cryptoCreate("nobody").setNode("5"),

@@ -51,7 +51,7 @@ public class BlockNodeBackPressureSuite {
                         applicationPropertiesOverrides = {"blockStream.buffer.maxBlocks", "15"})
             })
     @Order(1)
-    final Stream<DynamicTest> backPressureAppliedWhenBlocksAndFileAndGrpc() {
+    final Stream<DynamicTest> backPressureAppliedWhenBlocksAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
