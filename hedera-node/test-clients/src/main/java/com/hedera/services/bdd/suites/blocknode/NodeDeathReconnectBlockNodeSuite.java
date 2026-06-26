@@ -6,12 +6,12 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -24,7 +24,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -146,7 +145,17 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 // Wait for all nodes to become active
                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> time.set(Instant.now())),
+                // Drive post-restart traffic so the restarted nodes produce and stream fresh blocks
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(20)),
-                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING));
+                // The block node stays up and drains the buffer, so after the all-node restart the
+                // network stays ACTIVE (no backpressure) and streaming to the block node resumes.
+                waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(20),
+                        Duration.ofSeconds(20),
+                        "Sending request to block node (type: END_OF_BLOCK)"),
+                assertHgcaaLogDoesNotContainText(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }
