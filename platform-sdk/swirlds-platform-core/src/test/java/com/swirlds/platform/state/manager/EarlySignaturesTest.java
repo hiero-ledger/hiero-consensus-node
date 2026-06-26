@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignatureBytes;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.consensus.state.test.fixtures.manager.SignatureVerificationTestUtils.buildFakeSignatureBytes;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -13,7 +13,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,6 +24,7 @@ import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

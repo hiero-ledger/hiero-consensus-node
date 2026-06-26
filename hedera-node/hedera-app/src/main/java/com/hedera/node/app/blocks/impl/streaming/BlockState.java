@@ -80,12 +80,13 @@ public class BlockState {
      *
      * @param serializedItem the full serialized bytes of a single {@link BlockItem}
      * @param itemType the type of the item being added
+     * @return the index of the item within the block, or -1 if the item wasn't added to the block
      * @throws IllegalStateException if the block is closed
      */
-    public void addSerializedItem(
+    public int addSerializedItem(
             @Nullable final Bytes serializedItem, @NonNull final BlockItem.ItemOneOfType itemType) {
         if (serializedItem == null) {
-            return;
+            return -1;
         }
         requireNonNull(itemType, "itemType must not be null");
 
@@ -100,6 +101,8 @@ public class BlockState {
             openedTimestamp = Instant.now();
         }
         sizeBytes += serializedItem.length();
+
+        return index;
     }
 
     /**

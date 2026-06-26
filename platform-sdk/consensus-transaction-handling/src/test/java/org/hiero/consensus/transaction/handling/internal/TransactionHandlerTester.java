@@ -15,7 +15,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -34,6 +33,7 @@ import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 

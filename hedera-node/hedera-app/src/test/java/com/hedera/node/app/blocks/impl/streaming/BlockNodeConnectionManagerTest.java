@@ -32,6 +32,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.Retr
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -168,6 +169,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private Supplier<ExecutorService> blockingIoExecutorSupplier;
     private BlockNodeConfigService blockNodeConfigService;
     private ConfigProvider configProvider;
+    private BlockStreamingObs streamingObs;
 
     @TempDir
     Path tempDir;
@@ -185,6 +187,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockingIoExecutor = mock(ExecutorService.class);
         blockNodeConfigService = mock(BlockNodeConfigService.class);
         blockingIoExecutorSupplier = () -> blockingIoExecutor;
+        streamingObs = mock(BlockStreamingObs.class);
         networkInfo = mock(NetworkInfo.class);
         selfNodeInfo = mock(NodeInfo.class);
         when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
@@ -195,7 +198,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 metrics,
                 networkInfo,
                 blockingIoExecutorSupplier,
-                blockNodeConfigService);
+                blockNodeConfigService,
+                streamingObs);
 
         // Clear any nodes that might have been loaded
         blockNodes().clear();
@@ -1258,7 +1262,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
 
         // the second constructor argument is the BlockNode associated with the connection
-        assertThat(newConnectionConstructorArgs).hasSize(9);
+        assertThat(newConnectionConstructorArgs).hasSize(10);
         final BlockNode newConnectionNode = (BlockNode) newConnectionConstructorArgs.get(1);
         assertThat(newConnectionNode).isEqualTo(node1);
 
@@ -1348,7 +1352,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
 
         // the seventh constructor argument is the block number to initialize the stream with
-        assertThat(newConnectionConstructorArgs).hasSize(9);
+        assertThat(newConnectionConstructorArgs).hasSize(10);
         final Long initialBlockToStream = (Long) newConnectionConstructorArgs.get(6);
         // The block node server status API indicated that the last block available was 12, thus the next 'wanted' block
         // is 13 and that is what the connection should be initialized to start streaming
@@ -1783,7 +1787,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 metrics,
                 networkInfo,
                 blockingIoExecutorSupplier,
-                blockNodeConfigService);
+                blockNodeConfigService,
+                streamingObs);
         connectionManager.start();
 
         assertThat(isConnectionManagerActive()).isFalse();
