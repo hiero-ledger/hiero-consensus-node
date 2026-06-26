@@ -152,7 +152,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
 
         final var outcome = subject.advance(
-                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null);
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
 
         assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         final var failed = (HistoryProver.Outcome.Failed) outcome;
@@ -182,7 +182,8 @@ class WrapsHistoryProverTest {
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
 
-        final var outcome = subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+        final var outcome =
+                subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         final var failed = (HistoryProver.Outcome.Failed) outcome;
@@ -211,9 +212,46 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(R1, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(Bytes.class);
+        verify(submissions).submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
+        assertEquals(MESSAGE_BYTES, captor.getValue());
+    }
+
+    @Test
+    void advanceDoesNotPublishOrPoisonFutureWhenCannotSubmit() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+
+        final var construction = constructionWithPhase(R1, null);
+        final var inactiveOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, false);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, inactiveOutcome);
+        verifyNoInteractions(historyLibrary, submissions);
+
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
+        given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID)))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var activeOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, activeOutcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
         verify(submissions).submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
         assertEquals(MESSAGE_BYTES, captor.getValue());
@@ -244,7 +282,8 @@ class WrapsHistoryProverTest {
                         TARGET_METADATA,
                         targetProofKeys,
                         tssConfig,
-                        LEDGER_ID));
+                        LEDGER_ID,
+                        true));
 
         assertNull(getField("targetAddressBook"));
         assertNull(getField("wrapsMessage"));
@@ -290,7 +329,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(R3, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
@@ -329,7 +368,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(R2, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
@@ -431,7 +470,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(AGGREGATE, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
@@ -472,7 +511,13 @@ class WrapsHistoryProverTest {
                 CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
 
         final var outcome = subject.advance(
-                EPOCH, constructionWithPhase(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                EPOCH,
+                constructionWithPhase(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         verifyNoInteractions(submissions);
@@ -511,7 +556,13 @@ class WrapsHistoryProverTest {
                 CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
 
         final var outcome = subject.advance(
-                EPOCH, constructionWithPhase(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                EPOCH,
+                constructionWithPhase(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         verifyNoInteractions(submissions);
@@ -577,7 +628,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(AGGREGATE, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
@@ -908,7 +959,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
 
         final var outcome = subject.advance(
-                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         manualExecutor.runNext();
@@ -954,7 +1005,7 @@ class WrapsHistoryProverTest {
                 .build();
 
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         manualExecutor.runNext();
@@ -1014,7 +1065,7 @@ class WrapsHistoryProverTest {
 
         // First advance: wrapsProverReady=false → noop, no vote submitted, phase flagged for retry
         final var firstOutcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
         verifyNoInteractions(submissions);
         assertSame(
@@ -1024,7 +1075,7 @@ class WrapsHistoryProverTest {
 
         // Second advance: wrapsProverReady=true → real ProofPhaseOutput → explicit vote on wraps_proof
         final var secondOutcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
@@ -1081,7 +1132,7 @@ class WrapsHistoryProverTest {
 
         // First advance: early-exit guard reads true, supplier reads false -> NoopOutput case fires.
         final var firstOutcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
         verifyNoInteractions(submissions);
         assertSame(
@@ -1091,7 +1142,7 @@ class WrapsHistoryProverTest {
 
         // Second advance: isWrapsReadinessRetry true -> voteFuture cleared; early-exit guard reads true -> publish.
         final var secondOutcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
@@ -1137,7 +1188,7 @@ class WrapsHistoryProverTest {
 
         for (int i = 0; i < 3; i++) {
             final var outcome =
-                    subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                    subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
             assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
             assertSame(
                     WrapsPhase.POST_AGGREGATION,
