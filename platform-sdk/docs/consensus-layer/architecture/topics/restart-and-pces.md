@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-06-12
+last_reviewed: 2026-06-26
 ---
 
 # Restart and PCES
@@ -141,6 +141,28 @@ on-disk PCES files rather than gossip.
   read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
   health-monitor mechanism.
 
+## Consensus initialization and the init-judge gate
+
+Replay (above) feeds events back through the consensus algorithm, but many of them already reached consensus in the run
+that produced the signed state being loaded — their transactions are already reflected in that state. If the hashgraph
+re-emitted those rounds, the system would handle the same transactions twice: the resulting state would be wrong, and
+even if the application recognized the duplicates and ignored them, recomputing and re-dispatching them is wasted work.
+So during initialization the consensus algorithm produces *no* output at all until it can tell which replayed events are
+already decided — and then it never emits them.
+
+The judges of the snapshot round are what let it draw that line. The loaded state's `ConsensusSnapshot` carries their
+hashes; consensus is handed the snapshot at the restart (and reconnect) boundary and then stays silent — emitting
+neither consensus rounds nor pre-consensus events — until every one of those judges has been replayed. When the last of
+them arrives, consensus marks each event the judges already decided as having reached consensus *without* outputting it,
+and only then resumes normal operation, emitting rounds for events that had not yet reached consensus in the loaded
+state. This is the mechanism that upholds INV-008 (consensus, once reached, is permanent) across a restart: no round
+that fed the loaded state flows out of the hashgraph a second time.
+
+The gate lives in the consensus algorithm, not in PCES. Its engine-side mechanics — loading the snapshot via the
+hashgraph module's snapshot input wire, the `waitingForInitJudges` check that suppresses output, the marking of the
+judges' common ancestors as consensus, and the flush when the gate releases — are detailed in
+[`hashgraph.md`](hashgraph.md#algorithm-in-current-code) under *Init-judge gate*.
+
 ## Offline ISS recovery
 
 A network-wide ISS that prevents progress is resolved offline by replaying PCES on top of a known-good signed state
@@ -150,7 +172,7 @@ recipe any driver must follow, and the record/block-file coordination with the e
 
 ## Cross-references
 
-- **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
+- **Topics:** `hashgraph.md`, `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
   `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
 - **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.

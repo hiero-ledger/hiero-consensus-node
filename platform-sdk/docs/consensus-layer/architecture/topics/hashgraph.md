@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-06-12
+last_reviewed: 2026-06-26
 ---
 
 # Hashgraph
@@ -247,12 +247,25 @@ just-added event is not yet classified as pre-consensus, because it
 might already have been part of a previously decided round. The
 flag is checked both before and after `consensus.addEvent`; the
 post-add check is the transition point out of waiting. When the last
-init judge arrives, the engine flushes any consensus events the
-just-decided rounds produced and the queued pre-consensus events
-into the output. Usually no rounds are decided in that same call,
-but a major roster change can produce some — in which case those
-consensus events are also reported as pre-consensus events so the
-downstream view of pre-consensus output stays complete.
+init judge arrives, `ConsensusImpl.checkInitJudges`
+(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
+neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
+under the `nonConsensusNonAncient` predicate) and marks each
+`setConsensus(true)` while deliberately leaving `roundReceived` unset:
+those events already reached consensus in the run that produced the
+loaded snapshot, so they are flagged decided solely to stop the
+algorithm from re-deciding them, and are never emitted as a consensus
+round. The engine then flushes the queued pre-consensus events into the
+output. Usually the call that finds the last judge decides no *new*
+rounds — consensus simply resumes, and later events decide the next
+round. Occasionally one decides immediately (the code attributes this to
+a major roster change); when it does, that round's events are *also*
+placed on the pre-consensus output, because the gate suppressed them
+earlier and every accepted event must still appear on the pre-consensus
+stream exactly once. Why this gate exists at the
+restart/replay boundary — not re-handling transactions already baked
+into the loaded state — is covered in
+[`../topics/restart-and-pces.md`](../topics/restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
 
 > **Note on the paper.** Round, witness, strongly-seeing, fame, and
 > judge mean the same thing in the paper and in the code. The notable
