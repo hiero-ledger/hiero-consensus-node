@@ -526,12 +526,19 @@ jobs:
 
           grpcurl_last_block() {
             local port=$1
-            local status
+            local status result
             if status=$(grpcurl -plaintext -emit-defaults \
                 -import-path block-node-proto -proto block-node/api/node_service.proto \
                 -d '{}' "localhost:${port}" org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null); then
-              echo "$status" | jq -r '.lastAvailableBlock // "0"'
+              result=$(echo "$status" | jq -r '.lastAvailableBlock // empty')
+              if [[ -z "$result" ]]; then
+                echo "[WARN] grpcurl_last_block(port=${port}): lastAvailableBlock missing/null; raw response: ${status}" >&2
+                echo "0"
+              else
+                echo "$result"
+              fi
             else
+              echo "[WARN] grpcurl_last_block(port=${port}): grpcurl call failed" >&2
               echo "0"
             fi
           }
