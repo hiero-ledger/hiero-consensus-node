@@ -140,6 +140,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 validateTruePreCheck(
                         ethTxData.authorizationList() != null && ethTxData.authorizationListAsRlp().length > 0,
                         INVALID_ETHEREUM_TRANSACTION);
+                validateTruePreCheck(ethTxData.hasToAddress(), INVALID_ETHEREUM_TRANSACTION);
                 // parse the inner code delegations to ensure they are valid
                 codeDelegations = parseInnerCodeDelegations(ethTxData);
             } else {

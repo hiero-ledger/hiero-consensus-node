@@ -152,11 +152,11 @@ public interface V070Module {
                     operationRegistry,
                     gasCalculator,
                     evmConfiguration,
-                    EvmSpecVersion.CANCUN,
+                    EvmSpecVersion.PRAGUE,
                     featureFlags,
                     addressChecks);
         } else {
-            return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+            return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.PRAGUE);
         }
     }
 
