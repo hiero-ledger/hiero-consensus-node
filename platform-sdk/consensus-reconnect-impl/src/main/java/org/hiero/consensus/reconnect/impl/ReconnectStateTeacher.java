@@ -8,7 +8,6 @@ import static org.hiero.consensus.reconnect.impl.ReconnectStateLearner.endReconn
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
@@ -63,7 +62,6 @@ public class ReconnectStateTeacher {
 
     /**
      * @param configuration the platform context
-     * @param time the source of time
      * @param threadManager responsible for managing thread lifecycles
      * @param connection the connection to be used for the reconnect
      * @param reconnectSocketTimeout the socket timeout to use during the reconnect
@@ -75,7 +73,6 @@ public class ReconnectStateTeacher {
      */
     public ReconnectStateTeacher(
             @NonNull final Configuration configuration,
-            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final Duration reconnectSocketTimeout,
@@ -86,7 +83,6 @@ public class ReconnectStateTeacher {
             @NonNull final ReconnectMetrics statistics) {
 
         Objects.requireNonNull(configuration);
-        Objects.requireNonNull(time);
         Objects.requireNonNull(threadManager);
 
         this.connection = Objects.requireNonNull(connection);
@@ -104,7 +100,7 @@ public class ReconnectStateTeacher {
         hash = virtualMapState.getHash();
 
         synchronizer = new TeachingSynchronizer(
-                virtualMapState.getRoot(), time, threadManager, configuration.getConfigData(ReconnectConfig.class));
+                virtualMapState.getRoot(), threadManager, configuration.getConfigData(ReconnectConfig.class));
 
         logReconnectStart(signedState);
     }
