@@ -85,7 +85,5 @@ public interface QueryContext {
      * @return the current {@link FeeSchedule} for simple fees
      */
     @NonNull
-    default FeeSchedule simpleFeesSchedule() {
-        return feeCalculator().getSimpleFeesSchedule();
-    }
+    FeeSchedule simpleFeesSchedule();
 }

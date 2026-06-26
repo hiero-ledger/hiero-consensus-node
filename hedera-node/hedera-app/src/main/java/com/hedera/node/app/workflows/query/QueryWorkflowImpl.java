@@ -214,7 +214,14 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         // get payer
                         payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
                         context = new QueryContextImpl(
-                                state, storeFactory, query, configuration, recordCache, exchangeRateManager, payerID);
+                                state,
+                                storeFactory,
+                                query,
+                                configuration,
+                                recordCache,
+                                exchangeRateManager,
+                                feeManager,
+                                payerID);
 
                         // A super-user does not have to pay for a query and has all permissions
                         if (!authorizer.isSuperUser(payerID)) {
@@ -279,6 +286,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             configProvider.getConfiguration(),
                             recordCache,
                             exchangeRateManager,
+                            feeManager,
                             null);
                 }
 
