@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossip
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
@@ -34,6 +36,7 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -115,14 +118,16 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule =
-                createNoOpGossipModule(model, configuration, platformContext.getFileSystemManager());
+        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
-                createNoOpIssDetectionModule(model, configuration, platformContext.getFileSystemManager());
+                createNoOpIssDetectionModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule =
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -132,7 +137,8 @@ public final class DiagramCommand extends AbstractCommand {
                 pcesModule,
                 hashgraphModule,
                 gossipModule,
-                issDetectionModule);
+                issDetectionModule,
+                transactionHandlingModule);
 
         // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
         // appears in the diagram; in production Execution supplies this consumer.

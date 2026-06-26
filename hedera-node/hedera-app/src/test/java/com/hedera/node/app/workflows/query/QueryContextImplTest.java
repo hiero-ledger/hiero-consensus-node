@@ -8,7 +8,6 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.history.ReadableHistoryStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.config.data.LedgerConfig;
@@ -26,7 +25,6 @@ class QueryContextImplTest {
     private final Query query = mock(Query.class);
     private final RecordCache recordCache = mock(RecordCache.class);
     private final ExchangeRateManager exchangeRateManager = mock(ExchangeRateManager.class);
-    private final FeeCalculator feeCalculator = mock(FeeCalculator.class);
     private final ReadableHistoryStore historyStore = mock(ReadableHistoryStore.class);
 
     private QueryContextImpl subject;
@@ -35,8 +33,8 @@ class QueryContextImplTest {
     void setUp() {
         final var configuration =
                 HederaTestConfigBuilder.create().withValue("ledger.id", "0x03").getOrCreateConfig();
-        subject = new QueryContextImpl(
-                state, storeFactory, query, configuration, recordCache, exchangeRateManager, feeCalculator, null);
+        subject =
+                new QueryContextImpl(state, storeFactory, query, configuration, recordCache, exchangeRateManager, null);
     }
 
     @Test

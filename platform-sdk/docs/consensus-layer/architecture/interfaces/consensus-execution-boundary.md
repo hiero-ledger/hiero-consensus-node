@@ -344,4 +344,5 @@ These data types appear in the signatures above and travel across the seam:
     `onStateInitialized` with `InitTrigger.RESTART`.
   - [Reconnect](../topics/reconnect.md) — `StateLifecycleManager.createStateFrom` / `initWithState`
     and `onStateInitialized` with `InitTrigger.RECONNECT`; resets the pre-handle contract baseline.
-- Invariants / Decisions: _(TBD: catalogs not yet populated)_.
+- Invariants: INV-005 (every honest event eventually reaches consensus or becomes stale), INV-004 (a stale event is never ordered on any node) — see the [pre-handle → consensus-or-stale contract](#every-pre-handled-event-reaches-consensus-or-goes-stale) above.
+- Decisions: ADR-002 — blocking `onSealConsensusRound` to hand off freeze-block signatures across this boundary.

@@ -253,36 +253,55 @@ jobs:
       # and the latest version of blockstream in `0.68.0`
       - name: Create Mirror Values Override File
         run: |
-          cat <<EOF > mirror-bn-values.yaml
-          importer:
-            config:
-              hiero:
-                mirror:
-                  importer:
-                    block:
-                      enabled: true
-                      nodes:
-                        - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
-                          port: 40840
-                      sourceType: BLOCK_NODE
-                    downloader:
-                      record:
-                        enabled: false
-                    startDate: 1970-01-01T00:00:00Z
-                    stream:
-                      maxSubscribeAttempts: 10
-                      responseTimeout: 10s
+          MINOR_VERSION=$(echo "${MIRROR_NODE_TAG#v}" | cut -d. -f2 | grep -o '^[0-9]*')
+          echo "MIRROR_NODE_TAG=${MIRROR_NODE_TAG}, MINOR_VERSION=${MINOR_VERSION}"
+          if [[ -z "${MINOR_VERSION}" ]]; then
+            echo "ERROR: Could not extract minor version from MIRROR_NODE_TAG=${MIRROR_NODE_TAG}"
+            exit 1
+          fi
+          if [[ "${MINOR_VERSION}" -lt 157 ]]; then
+            cat <<EOF > mirror-bn-values.yaml
+            importer:
+              config:
+                hiero:
+                  mirror:
+                    importer:
+                      block:
+                        enabled: true
+                        nodes:
+                          - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                            port: 40840
+                        sourceType: BLOCK_NODE
+                      downloader:
+                        record:
+                          enabled: false
+              # custom image to support preview streams hash verification
+              image:
+                registry: docker.io
+                repository: xin323/importer-native
+                tag: 0.154.0-rc1-f65a7d8e8
+              env:
+                SPRING_PROFILES_ACTIVE: 'blocknode'
           EOF
-
-          # For CN < 0.75 the mirror importer requires a custom image for block stream support
-          MINOR_VERSION=$(echo "${CN_LATEST_TAG}" | cut -d. -f2 | grep -o '^[0-9]*')
-          if [[ "${MINOR_VERSION}" -lt 75 ]]; then
-            cat <<EOF >> mirror-bn-values.yaml
-            # custom image to support preview streams hash verification
-            image:
-              registry: docker.io
-              repository: xin323/importer-native
-              tag: 0.154.0-rc1-f65a7d8e8
+          else
+            cat <<EOF > mirror-bn-values.yaml
+            importer:
+              config:
+                hiero:
+                  mirror:
+                    importer:
+                      block:
+                        enabled: true
+                        nodes:
+                          - endpoints:
+                              - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                        sourceType: BLOCK_NODE
+                      downloader:
+                        record:
+                          enabled: false
+              env:
+                SPRING_PROFILES_ACTIVE: 'blocknode'
+                HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
           EOF
           fi
 

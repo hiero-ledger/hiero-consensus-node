@@ -24,17 +24,13 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
     /**
      * Create a new learning synchronizer with simulated latency.
      *
-     * @param in the input stream for receiving data from the teacher
-     * @param out the output stream for sending data to the teacher
-     * @param originalMap the learner's virtual map
+     * @param reconnectConfig the reconnect configuration
      * @param metrics metrics
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
      * @param delayNetworkMicroseconds base network delay in microseconds
      * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
-     * @param breakConnection a callback to disconnect the connection on failure
-     * @param reconnectConfig the reconnect configuration
      */
     public BenchmarkSlowLearningSynchronizer(
             @NonNull final ReconnectConfig reconnectConfig,

@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.time.Time;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -38,7 +37,6 @@ public class TeachingSynchronizer {
     private static final String WORK_GROUP_NAME = "reconnect-teacher";
 
     private final RecordAccessor teacherView;
-    private final Time time;
     private final ThreadManager threadManager;
     private final ReconnectConfig reconnectConfig;
 
@@ -46,18 +44,15 @@ public class TeachingSynchronizer {
      * Constructs a new teaching synchronizer.
      *
      * @param teacherMap teacher virtual map that would be detached so it can be released after this instance is created
-     * @param time the wall clock time
      * @param threadManager responsible for managing thread lifecycles
      * @param reconnectConfig the reconnect configuration
      */
     public TeachingSynchronizer(
             @NonNull final VirtualMap teacherMap,
-            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectConfig reconnectConfig) {
 
         teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
-        this.time = Objects.requireNonNull(time, "time is null");
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
     }
@@ -103,8 +98,7 @@ public class TeachingSynchronizer {
             for (int i = 0; i < teacherTasks; i++) {
                 workGroup.fork(
                         "reconnect-teacher-receiver",
-                        new TeacherPullVirtualTreeReceiveTask(
-                                time, reconnectConfig, input, output, teacherView, tasksDone));
+                        new TeacherPullVirtualTreeReceiveTask(input, output, teacherView, tasksDone));
             }
 
             // when all receive tasks done, output can be closed, which signals the learner that no more responses will

@@ -2,6 +2,7 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -22,7 +23,9 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -48,8 +51,10 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 public class ConsensusNoOpModules {
     /**
@@ -265,5 +270,42 @@ public class ConsensusNoOpModules {
                 initialStateRound,
                 latestFreezeRound,
                 fatalErrorConsumer);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link TransactionHandlingModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code TransactionHandlingModule}
+     */
+    @NonNull
+    public static TransactionHandlingModule createNoOpTransactionHandlingModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
+        final SemanticVersion appVersion = SemanticVersion.DEFAULT;
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final long transactionOffsetNanos = 0L;
+
+        return new TransactionHandlingModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                latestImmutableStateProviderReference,
+                NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                appVersion,
+                selfId,
+                transactionOffsetNanos);
     }
 }

@@ -224,20 +224,16 @@ Module: `consensus-utility`. Source: [RecycleBinConfig.java](../../consensus-uti
 
 Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-reconnect/src/main/java/org/hiero/consensus/reconnect/config/ReconnectConfig.java).
 
-|   ID    |                        Key                         |   Type   | Default |                                                                Effect                                                                | Range | Fragility |
-|---------|----------------------------------------------------|----------|---------|--------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                                          |       | —         |
-| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`).               |       | —         |
-| TUN-069 | `reconnect.asyncStreamTimeout`                     | Duration | `300s`  | Time an `AsyncInputStream` / `AsyncOutputStream` waits before throwing a timeout.                                                    |       | —         |
-| TUN-070 | `reconnect.asyncOutputStreamFlush`                 | Duration | `8ms`   | Period of the periodic flush that drains the async output stream buffer.                                                             |       | —         |
-| TUN-071 | `reconnect.asyncStreamBufferSize`                  | int      | `10000` | Size of the buffers for async input and output streams.                                                                              |       | —         |
-| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                                 |       | —         |
-| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                                        |       | —         |
-| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                                           |       | —         |
-| TUN-075 | `reconnect.teacherMaxNodesPerSecond`               | int      | `0`     | Maximum number of nodes a teacher will send per second; `0` means no limit.                                                          |       | —         |
-| TUN-076 | `reconnect.teacherRateLimiterSleep`                | Duration | `1us`   | Sleep applied by the teacher when throttling is engaged.                                                                             |       | —         |
-| TUN-077 | `reconnect.pullLearnerRootResponseTimeout`         | Duration | `60s`   | Pull-based reconnect: learner-side timeout to receive a virtual root-node response from the teacher.                                 |       | —         |
-| TUN-078 | `reconnect.allMessagesReceivedTimeout`             | Duration | `300s`  | Pull-based reconnect: learner-side timeout to wait until all virtual-view messages are processed after the teacher's final response. |       | —         |
+|   ID    |                        Key                         |   Type   | Default |                                                         Effect                                                         | Range | Fragility |
+|---------|----------------------------------------------------|----------|---------|------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                            |       | —         |
+| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`). |       | —         |
+| TUN-069 | `reconnect.asyncStreamTimeout`                     | Duration | `300s`  | Time an `AsyncInputStream` / `AsyncOutputStream` waits before throwing a timeout.                                      |       | —         |
+| TUN-070 | `reconnect.asyncOutputStreamFlush`                 | Duration | `8ms`   | Period of the periodic flush that drains the async output stream buffer.                                               |       | —         |
+| TUN-071 | `reconnect.asyncStreamBufferSize`                  | int      | `10000` | Size of the buffers for async input and output streams.                                                                |       | —         |
+| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
+| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
+| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
 
 ## `state.*` — StateConfig
 
