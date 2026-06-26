@@ -26,7 +26,7 @@ Under the algorithm's standard assumptions, every event created by an honest nod
 
 It is a theorem of the hashgraph consensus algorithm that an event created by an honest node eventually reaches a final fate (with probability 1): it either receives a consensus timestamp and consensus order on which no two nodes disagree, or it becomes stale and is ordered by no node.
 
-Termination rests on two facts. First, virtual voting on each round's witnesses always terminates: a coin round periodically injects a vote drawn from a source no adversary can predict (the `coin`), which with probability 1 eventually breaks any asynchronous stalemate the network might sustain. Second, once witnesses are decided the round has judges, against which every event is either ordered or — if it fails to reach consensus before the advancing ancient boundary — declared stale. The theorem is conditional on the algorithm's standard assumptions — including that honest stake exceeds two-thirds and that an honest event eventually reaches every honest node — listed in full under [Consensus assumptions](../concepts/consensus-assumptions.md).
+Termination rests on two facts. First, virtual voting on each round's witnesses always terminates: a coin round periodically injects a vote drawn from a source no adversary can predict (the `coin`), which with probability 1 eventually breaks any asynchronous stalemate the network might sustain. Second, once witnesses are decided the round has judges, against which every event is either ordered or — if it fails to reach consensus before the advancing ancient boundary — declared stale. The theorem is conditional on the algorithm's standard assumptions — including that honest stake exceeds two-thirds and that an honest event eventually reaches every honest node.
 
 ## Change risk
 
@@ -34,7 +34,7 @@ Termination rests on two facts. First, virtual voting on each round's witnesses 
 - **A voting rule that need not terminate** — one without the coin's eventual tie-break.
 - **An ancient boundary that never advances**, leaving non-consensus events neither ordered nor aged out.
 
-Any change under which an honest event can stay undecided forever defeats liveness — non-consensus events never reach a fate, and in the election case consensus halts outright.
+Any change under which an honest event can stay undecided forever defeats liveness — non-consensus events never reach a fate.
 
 ## Notes
 
