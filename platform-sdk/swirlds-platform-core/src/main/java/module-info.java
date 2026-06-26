@@ -54,7 +54,8 @@ module com.swirlds.platform.core {
             com.hedera.node.test.clients;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.state.nexus to
-            org.hiero.consensus.reconnect.impl;
+            org.hiero.consensus.reconnect.impl,
+            com.hedera.state.validator;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.state.snapshot;
