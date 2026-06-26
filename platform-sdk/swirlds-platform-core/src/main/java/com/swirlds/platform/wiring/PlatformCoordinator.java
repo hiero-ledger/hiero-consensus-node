@@ -169,6 +169,9 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .put(action);
     }
 
+    /**
+     * Flush the platform status state machine
+     */
     public void flushPlatformStatus() {
         components.platformMonitorWiring().flush();
     }
