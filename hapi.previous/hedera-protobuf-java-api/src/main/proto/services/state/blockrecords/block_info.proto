@@ -1,0 +1,197 @@
+/**
+ * # Block Info
+ * Information about the most recent block; including block hashes, current and
+ * previous start times, etc...
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto.services.state.blockrecords;
+
+/*
+ * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import "services/timestamp.proto";
+import "platform/state/platform_state.proto";
+import "services/auxiliary/blockrecords/migration_root_hash_vote.proto";
+import "services/state/blockrecords/migration_wrapped_hashes.proto";
+
+option csharp_namespace = "Hiero.Proto.Services.State.BlockRecords";
+option java_package = "com.hiero.proto.services.state.blockrecords";
+// <<<pbj.java_package = "com.hiero.node.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A node vote for wrapped-record migration root-hash agreement.
+ */
+message NodeMigrationRootHashVote {
+    /**
+     * The node submitting this vote.
+     */
+    proto.platform.state.NodeID node_id = 1;
+
+    /**
+     * The submitted vote body.
+     */
+    proto.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody vote = 2;
+}
+
+/**
+ * Information for a transaction block.
+ *
+ * This includes:
+ * - last block number.
+ * - consensus times for:
+ *    - previous block start.
+ *    - current block start.
+ *    - last handled transaction.
+ * - hash data for a rolling window of 256 blocks.
+ * - whether migration records were produced.
+ */
+message BlockInfo {
+
+    /**
+     * A block number.
+     * <p>
+     * The block number of the last completed immutable block.
+     */
+    int64 last_block_number = 1;
+
+    /**
+     * A consensus timestamp.
+     * <p>
+     * The consensus time of the first transaction for the last completed immutable block.
+     */
+    proto.services.Timestamp first_cons_time_of_last_block = 2;
+
+    /**
+     * A list of the last 256 block hashes.<br/>
+     * This is the SHA384 48 byte hashes of the previous 256 blocks,
+     * collected in a single byte array.
+     * <p>
+     * The first 48 bytes SHALL be the oldest block in the list.<br/>
+     * The last 48 bytes SHALL be the newest block, which is the last fully
+     * completed immutable block.<br/>
+     * This SHALL contain less than 256 block hashes if there are less than 256
+     * preceding blocks; for instance, shortly after network genesis the network
+     * will not have processed 256 blocks yet.
+     * <p>
+     * This MAY change significantly for Block Stream (HIP TBD).
+     */
+    bytes block_hashes = 3;
+
+    /**
+     * A consensus timestamp.
+     * <p>
+     * The consensus time of the last transaction that was handled by the node
+     * within the current block.<br/>
+     * This property is how we 'advance the consensus clock'. The node MUST
+     * continually set this property to the consensus timestamp for the most
+     * recent transaction completed by the node.
+     */
+    proto.services.Timestamp cons_time_of_last_handled_txn = 4;
+
+    /**
+     * A flag indicating that migration records have been published.
+     * <p>
+     * This property SHALL be `false` immediately following a node upgrade<br/>
+     * This SHALL be set 'true' as migration records, if any, are published.
+     * Migration records are typically published "during" the first transaction
+     * handled by the node following startup.
+     */
+    bool migration_records_streamed = 5;
+
+    /**
+     * A consensus timestamp.
+     * <p>
+     * The consensus time of the first transaction in the current block;
+     * necessary for reconnecting nodes to detect when the current block
+     * is finished.
+     */
+    proto.services.Timestamp first_cons_time_of_current_block = 6;
+
+    /**
+     * The consensus time of the last transaction that was handled by the node.
+     * <p>
+     * This property is how we 'advance the consensus clock'. The node MUST
+     * continually set this property to the consensus timestamp for the most
+     * recent transaction completed by the node.
+     */
+    proto.services.Timestamp last_used_cons_time = 7;
+
+    /**
+     * The time stamp at which the last interval process was done.
+     * <p>
+     * This field SHALL hold the consensus time for the last time
+     * at which an interval of time-dependent events were processed.
+     */
+    proto.services.Timestamp last_interval_process_time = 8;
+
+    /**
+     * The root hash of the previous wrapped record block.
+     */
+    bytes previous_wrapped_record_block_root_hash = 10;
+
+    /**
+     * The intermediate hashes, calculated for all historical wrapped
+     * record blocks, needed for subroot 2 in the block merkle
+     * tree structure. These hashes SHALL include the minimum required
+     * wrapped record block root hashes needed to construct subroot 2's
+     * final state at the end of the previous block.
+     */
+    repeated bytes wrapped_intermediate_previous_block_root_hashes = 11;
+
+    /**
+     * The number of leaves in the intermediate wrapped record block
+     * roots subtree.
+     */
+    uint64 wrapped_intermediate_block_roots_leaf_count = 12;
+
+    /**
+     * Whether migration root-hash voting has finalized.
+     */
+    bool voting_complete = 13;
+
+    /**
+     * The block number at or after which voting is no longer pending.
+     */
+    uint64 voting_completion_deadline_block_number = 14;
+
+    /**
+     * Collected migration root-hash votes from nodes.
+     */
+    repeated NodeMigrationRootHashVote migration_root_hash_votes = 15;
+
+    /**
+     * Wrapped hashes captured while voting is pending.
+     */
+    repeated proto.services.state.blockrecords.MigrationWrappedHashes migration_wrapped_hashes = 16;
+
+    /**
+     * A flag indicating that the preview `BlockStreamInfo` object has been
+     * overwritten with the real wrapped record block hashes data from `BlockInfo`,
+     * i.e. as part of the block streams cutover release.
+     * <p>
+     * This SHALL be set to `true` only after the schema overwrite logic
+     * has run, to prevent any block streams cutover logic from repeating.
+     */
+    bool preview_stream_overwritten = 17;
+}

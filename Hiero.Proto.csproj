@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<LangVersion>14</LangVersion>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<Authors>Hiero Hackers</Authors>
+		<Copyright>Copyright © $(Authors) $([System.DateTime]::Now.ToString('yyyy'))</Copyright>
+		<Description>Unofficial SDK Consensus Node for the Hedera Hashgraph network</Description>
+		<GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+		<IncludeSymbols>False</IncludeSymbols>
+		<PackageId>$(AssemblyName)</PackageId>
+		<PackageOutputPath>../../sdk-package</PackageOutputPath>
+		<PackageReleaseNotes>Unofficial and to be used for internal purposes</PackageReleaseNotes>
+		<PackageTags>hiero;ledger;consensus;node;c#;hedera;hashgraph;sdk</PackageTags>
+		<RepositoryUrl>https://github.com/hiero-hackers/hiero-sdk-csharp</RepositoryUrl>
+		<Title>$(AssemblyName)</Title>
+		<Version>0.0.0</Version>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+			<_Parameter1>Hiero.SDK</_Parameter1>
+		</AssemblyAttribute>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+			<_Parameter1>Hiero.Tests.SDK</_Parameter1>
+		</AssemblyAttribute>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+			<_Parameter1>Hiero.Tests.Integration</_Parameter1>
+		</AssemblyAttribute>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Grpc" Version="2.46.6" />
+		<PackageReference Include="Grpc.Tools" Version="2.80.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<PropertyGroup>
+		<Hapi>hapi</Hapi>
+		<HapiGenerated>hapi.generated</HapiGenerated>
+		<HapiProtoRoot>$(MSBuildProjectDirectory)\$(HapiGenerated)\hapi\src\main\proto</HapiProtoRoot>
+		<HederaProtoRoot>$(MSBuildProjectDirectory)\$(HapiGenerated)\hedera-protobuf-java-api\src\main\proto</HederaProtoRoot>
+	</PropertyGroup>
+
+	<Target Name="TransformProtos" BeforeTargets="BeforeBuild">
+		<Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\Hiero.Tools\Hiero.Tools.csproj&quot; -- transform-protos &quot;$(MSBuildThisFileDirectory)$(HapiGenerated)&quot; &quot;$(MSBuildThisFileDirectory)$(HapiGenerated)&quot;" ConsoleToMSBuild="true" />
+	</Target>
+
+	<ItemGroup>
+		<Protobuf GrpcServices="Both" ProtoRoot="$(HapiProtoRoot)" Include="$(HapiProtoRoot)\**\*.proto" AdditionalImportDirs="$(HederaProtoRoot)" />
+		<Protobuf GrpcServices="Both" ProtoRoot="$(HederaProtoRoot)" Include="$(HederaProtoRoot)\**\*.proto" AdditionalImportDirs="$(HapiProtoRoot)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Hiero\Hiero.csproj" />
+	</ItemGroup>
+
+</Project>

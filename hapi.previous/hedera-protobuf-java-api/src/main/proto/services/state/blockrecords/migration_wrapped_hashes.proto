@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package proto.services.state.blockrecords;
+
+// SPDX-License-Identifier: Apache-2.0
+option csharp_namespace = "Hiero.Proto.Services.State.BlockRecords";
+option java_package = "com.Hiero.Proto.Services.State.BlockRecords";
+// <<<pbj.java_package = "com.hiero.proto.services.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Values needed to replay wrapped record hash progression while voting is in progress.
+ */
+message MigrationWrappedHashes {
+  /**
+   * The block number these wrapped hashes belong to.
+   */
+  uint64 block_number = 1;
+
+  /**
+   * The wrapped-record consensus timestamp hash for a block.
+   */
+  bytes consensus_timestamp_hash = 2;
+
+  /**
+   * The wrapped-record output items tree root hash for a block.
+   */
+  bytes output_items_tree_root_hash = 3;
+}

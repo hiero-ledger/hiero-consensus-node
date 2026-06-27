@@ -1,0 +1,57 @@
+/*-
+ * ‌
+ * Hedera Mirror Node
+ * ​
+ * Copyright (C) 2019-2022 Hedera Hashgraph, LLC
+ * ​
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ‍
+ */
+
+syntax = "proto3";
+
+package proto.mirror;
+
+option java_multiple_files = true; // Required for the reactor-grpc generator to work correctly
+option csharp_namespace = "Hiero.Proto.Mirror";
+option java_package = "com.hiero.proto.mirror";
+
+import "services/basic_types.proto";
+
+/**
+ * Request object to query an address book for its list of nodes
+ */
+message AddressBookQuery {
+    /**
+     * The ID of the address book file on the network. Can be either 0.0.101 or 0.0.102.
+     */
+    proto.services.FileID file_id = 1;
+
+    /**
+     * The maximum number of node addresses to receive before stopping. If not set or set to zero it will return all node addresses in the database.
+     */
+    int32 limit = 2;
+}
+
+/**
+ * Provides cross network APIs like address book queries
+ */
+service NetworkService {
+    /*
+     * Query for an address book and return its nodes. The nodes are returned in ascending order by node ID. The
+     * response is not guaranteed to be a byte-for-byte equivalent to the NodeAddress in the Hedera file on
+     * the network since it is reconstructed from a normalized database table.
+     */
+    rpc getNodes (AddressBookQuery) returns (stream proto.services.NodeAddress);
+}
+
