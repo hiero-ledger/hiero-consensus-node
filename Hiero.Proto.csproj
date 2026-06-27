@@ -43,19 +43,36 @@
 	</ItemGroup>
 
 	<PropertyGroup>
-		<Hapi>hapi</Hapi>
-		<HapiGenerated>hapi.generated</HapiGenerated>
-		<HapiProtoRoot>$(MSBuildProjectDirectory)\$(HapiGenerated)\hapi\src\main\proto</HapiProtoRoot>
-		<HederaProtoRoot>$(MSBuildProjectDirectory)\$(HapiGenerated)\hedera-protobuf-java-api\src\main\proto</HederaProtoRoot>
+		<DirectoryHapi>hapi</DirectoryHapi>
+		<DirectoryHapiGenerated>hapi.generated</DirectoryHapiGenerated>
+
+		<ProtoProject>$(MSBuildThisFileDirectory)..\Hiero.Tools\Hiero.Tools.csproj</ProtoProject>
+		<ProtoInputDir>--src $(MSBuildThisFileDirectory)$(DirectoryHapi)</ProtoInputDir>
+		<ProtoOutputDir>--output $(MSBuildThisFileDirectory)$(DirectoryHapiGenerated)</ProtoOutputDir>
+		<ProtoRoot>--root proto</ProtoRoot>
+		<ProtoSkip>--skip "publish_stream_request_bytes.proto"</ProtoSkip>
+
+		<ProtobufHapi>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hapi\src\main\proto</ProtobufHapi>
+		<ProtobufHedera>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hedera-protobuf-java-api\src\main\proto</ProtobufHedera>
+
+		<TransformProtoCommand>
+			dotnet run
+			--project "$(ProtoProject)"
+			--transform-protos
+			"$(ProtoInputDir)"
+			"$(ProtoOutputDir)"
+			"$(ProtoRoot)"
+			"$(ProtoSkip)"
+		</TransformProtoCommand>
 	</PropertyGroup>
 
 	<Target Name="TransformProtos" BeforeTargets="BeforeBuild">
-		<Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\Hiero.Tools\Hiero.Tools.csproj&quot; -- transform-protos &quot;$(MSBuildThisFileDirectory)$(HapiGenerated)&quot; &quot;$(MSBuildThisFileDirectory)$(HapiGenerated)&quot;" ConsoleToMSBuild="true" />
+		<Exec Command="$(TransformProtoCommand)" ConsoleToMSBuild="true" />
 	</Target>
 
 	<ItemGroup>
-		<Protobuf GrpcServices="Both" ProtoRoot="$(HapiProtoRoot)" Include="$(HapiProtoRoot)\**\*.proto" AdditionalImportDirs="$(HederaProtoRoot)" />
-		<Protobuf GrpcServices="Both" ProtoRoot="$(HederaProtoRoot)" Include="$(HederaProtoRoot)\**\*.proto" AdditionalImportDirs="$(HapiProtoRoot)" />
+		<Protobuf GrpcServices="Both" ProtoRoot="$(ProtobufHapi)" Include="$(ProtobufHapi)\**\*.proto" AdditionalImportDirs="$(ProtobufHedera)" />
+		<Protobuf GrpcServices="Both" ProtoRoot="$(ProtobufHedera)" Include="$(ProtobufHedera)\**\*.proto" AdditionalImportDirs="$(ProtobufHapi)" />
 	</ItemGroup>
 
 	<ItemGroup>
