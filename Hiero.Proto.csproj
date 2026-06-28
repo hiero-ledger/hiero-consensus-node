@@ -47,23 +47,15 @@
 		<DirectoryHapiGenerated>hapi.generated</DirectoryHapiGenerated>
 
 		<ProtoProject>$(MSBuildThisFileDirectory)..\Hiero.Tools\Hiero.Tools.csproj</ProtoProject>
-		<ProtoInputDir>--src $(MSBuildThisFileDirectory)$(DirectoryHapi)</ProtoInputDir>
-		<ProtoOutputDir>--output $(MSBuildThisFileDirectory)$(DirectoryHapiGenerated)</ProtoOutputDir>
+		<ProtoInputDir>--src "$(MSBuildThisFileDirectory)$(DirectoryHapi)"</ProtoInputDir>
+		<ProtoOutputDir>--output "$(MSBuildThisFileDirectory)$(DirectoryHapiGenerated)"</ProtoOutputDir>
 		<ProtoRoot>--root proto</ProtoRoot>
-		<ProtoSkip>--skip "publish_stream_request_bytes.proto"</ProtoSkip>
+		<ProtoSkip>--skip publish_stream_request_bytes.proto</ProtoSkip>
 
 		<ProtobufHapi>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hapi\src\main\proto</ProtobufHapi>
 		<ProtobufHedera>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hedera-protobuf-java-api\src\main\proto</ProtobufHedera>
 
-		<TransformProtoCommand>
-			dotnet run
-			--project "$(ProtoProject)"
-			--transform-protos
-			"$(ProtoInputDir)"
-			"$(ProtoOutputDir)"
-			"$(ProtoRoot)"
-			"$(ProtoSkip)"
-		</TransformProtoCommand>
+		<TransformProtoCommand>dotnet run --project "$(ProtoProject)" transform-protos $(ProtoInputDir) $(ProtoOutputDir) $(ProtoRoot) $(ProtoSkip)</TransformProtoCommand>
 	</PropertyGroup>
 
 	<Target Name="TransformProtos" BeforeTargets="BeforeBuild">
