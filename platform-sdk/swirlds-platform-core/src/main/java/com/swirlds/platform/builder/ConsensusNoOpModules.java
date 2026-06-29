@@ -139,6 +139,7 @@ public class ConsensusNoOpModules {
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
         final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
         final Runnable stateHasherFlusher = () -> {};
+        final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
@@ -157,6 +158,7 @@ public class ConsensusNoOpModules {
                 flushTransactionHandling,
                 latestImmutableStateSupplier,
                 statusActionConsumer,
+                platformStatusFlusher,
                 stateHasherFlusher,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
