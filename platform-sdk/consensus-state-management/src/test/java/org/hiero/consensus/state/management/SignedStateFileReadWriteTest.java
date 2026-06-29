@@ -191,7 +191,7 @@ class SignedStateFileReadWriteTest {
 
         writeSignedStateToDisk(
                 configuration,
-                new FileSystemManager(),
+                new FileSystemManager(testDirectory),
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
