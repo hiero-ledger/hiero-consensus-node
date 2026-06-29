@@ -7,6 +7,7 @@ open module org.hiero.otter.test {
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.transaction.handling;
     requires org.hiero.otter.fixtures;
     requires org.junit.jupiter.params;
     requires static com.github.spotbugs.annotations;
