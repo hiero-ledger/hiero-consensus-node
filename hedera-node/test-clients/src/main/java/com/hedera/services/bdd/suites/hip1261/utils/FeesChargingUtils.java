@@ -9,11 +9,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -2237,46 +2234,21 @@ public class FeesChargingUtils {
 
     // -------- Dual-mode validation utils ---------//
 
-    /*
-     * Dual-mode fee validation that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
-     */
-    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithin(txn, simpleFee, 0.1);
-            } else {
-                return validateChargedUsdWithin(txn, legacyFee, 1);
-            }
-        });
-    }
-
     public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
         return validateInnerTxnFees(txn, parent, legacyFee, simpleFee, 0.1);
     }
 
     /**
-     * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
+     * Validates the simple fee charged for an inner atomic batch transaction.
      * @param allowedDiff the allowed percent difference.
      */
     public static SpecOperation validateInnerTxnFees(
             String txn, String parent, double legacyFee, double simpleFee, double allowedDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateInnerTxnChargedUsd(txn, parent, simpleFee, allowedDiff);
-            } else {
-                return validateInnerTxnChargedUsd(txn, parent, legacyFee, allowedDiff);
-            }
-        });
+        return validateInnerTxnChargedUsd(txn, parent, simpleFee, allowedDiff);
     }
 
     /**
-     * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code expectedSimpleFeesUsd} using the provided function;
-     * otherwise validates against {@code legacyExpectedUsd}.
+     * Validates the simple fee charged for an inner atomic batch transaction using the provided txn-size function.
      */
     public static SpecOperation validateInnerTxnFeesWithTxnSize(
             final String innerTxnId,
@@ -2285,31 +2257,8 @@ public class FeesChargingUtils {
             final double legacyAllowedPercentDiff,
             final IntToDoubleFunction expectedSimpleFeesUsd,
             final double simpleFeesAllowedPercentDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateInnerChargedUsdWithinWithTxnSize(
-                        innerTxnId, parentTxnId, expectedSimpleFeesUsd, simpleFeesAllowedPercentDiff);
-            } else {
-                return validateInnerTxnChargedUsd(innerTxnId, parentTxnId, legacyExpectedUsd, legacyAllowedPercentDiff);
-            }
-        });
-    }
-
-    /**
-     * Dual-mode fee validation with child records that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
-     * Uses {@code validateChargedUsdWithChild} which includes child dispatch fees.
-     */
-    public static SpecOperation validateFeesWithChild(
-            final String txn, final double legacyFee, final double simpleFee, final double tolerance) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithChild(txn, simpleFee, tolerance);
-            } else {
-                return validateChargedUsdWithChild(txn, legacyFee, tolerance);
-            }
-        });
+        return validateInnerChargedUsdWithinWithTxnSize(
+                innerTxnId, parentTxnId, expectedSimpleFeesUsd, simpleFeesAllowedPercentDiff);
     }
 
     public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
@@ -2324,17 +2273,10 @@ public class FeesChargingUtils {
     }
 
     public static SpecOperation validateBatchFee(final String batchTxnName, final double legacyExpectedUsd) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithinWithTxnSize(
-                        batchTxnName,
-                        txnSize ->
-                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                        0.1);
-            } else {
-                return validateChargedUsd(batchTxnName, legacyExpectedUsd);
-            }
-        });
+        return validateChargedUsdWithinWithTxnSize(
+                batchTxnName,
+                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                0.1);
     }
 
     // --------- Utils for dual-mode validation ---------//
@@ -2357,22 +2299,13 @@ public class FeesChargingUtils {
             final Map<LegacyFeeParam, Double> legacyParams,
             final double simpleFeesAllowedPercentDiff,
             final ExpectedUsdFromExtras expectedUsdSimpleFees) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithinWithTxnSize(
-                        txnId,
-                        txnSize -> {
-                            final var extrasWithProcessingBytes = new HashMap<>(simpleFeesExtras);
-                            extrasWithProcessingBytes.put(Extra.PROCESSING_BYTES, (long) txnSize);
-                            return expectedUsdSimpleFees.compute(extrasWithProcessingBytes);
-                        },
-                        simpleFeesAllowedPercentDiff);
-            } else {
-                final double expectedUsd = legacyParams.getOrDefault(LegacyFeeParam.LEGACY_EXPECTED_USD, 0.0);
-                final double allowedPercentDiff =
-                        legacyParams.getOrDefault(LegacyFeeParam.LEGACY_ALLOWED_PERCENT_DIFF, 1.0);
-                return validateChargedUsdWithin(txnId, expectedUsd, allowedPercentDiff);
-            }
-        });
+        return validateChargedUsdWithinWithTxnSize(
+                txnId,
+                txnSize -> {
+                    final var extrasWithProcessingBytes = new HashMap<>(simpleFeesExtras);
+                    extrasWithProcessingBytes.put(Extra.PROCESSING_BYTES, (long) txnSize);
+                    return expectedUsdSimpleFees.compute(extrasWithProcessingBytes);
+                },
+                simpleFeesAllowedPercentDiff);
     }
 }

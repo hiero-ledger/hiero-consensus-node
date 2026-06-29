@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.time.Time;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -16,15 +15,11 @@ import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -42,7 +37,6 @@ public class TeachingSynchronizer {
     private static final String WORK_GROUP_NAME = "reconnect-teacher";
 
     private final RecordAccessor teacherView;
-    private final Time time;
     private final ThreadManager threadManager;
     private final ReconnectConfig reconnectConfig;
 
@@ -50,18 +44,15 @@ public class TeachingSynchronizer {
      * Constructs a new teaching synchronizer.
      *
      * @param teacherMap teacher virtual map that would be detached so it can be released after this instance is created
-     * @param time the wall clock time
      * @param threadManager responsible for managing thread lifecycles
      * @param reconnectConfig the reconnect configuration
      */
     public TeachingSynchronizer(
             @NonNull final VirtualMap teacherMap,
-            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectConfig reconnectConfig) {
 
         teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
-        this.time = Objects.requireNonNull(time, "time is null");
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
     }
@@ -85,36 +76,15 @@ public class TeachingSynchronizer {
         Objects.requireNonNull(out, "output stream cannot be null");
         Objects.requireNonNull(breakConnection, "break connection action cannot be null");
 
-        final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-        final Function<Throwable, Boolean> reconnectExceptionListener = e -> {
-            Throwable cause = e;
-            while (cause != null) {
-                if (cause instanceof SocketException socketEx) {
-                    if (socketEx.getMessage().equalsIgnoreCase("Connection reset by peer")) {
-                        // Connection issues during reconnects are expected and recoverable, just
-                        // log them as info. All other exceptions should be treated as real errors
-                        logger.info(RECONNECT.getMarker(), "Connection reset while sending tree. Aborting");
-                        return true;
-                    }
-                }
-                cause = cause.getCause();
-            }
-            firstReconnectException.compareAndSet(null, e);
-            // Let StandardWorkGroup log it as an error using the EXCEPTION marker
-            return false;
-        };
-        final StandardWorkGroup workGroup =
-                createStandardWorkGroup(threadManager, breakConnection, reconnectExceptionListener);
+        try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
+            logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
 
-        logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
+            final AsyncInputStream input = new AsyncInputStream(
+                    in, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
+            input.start(workGroup);
+            final AsyncOutputStream output = buildOutputStream(out, reconnectConfig);
+            output.start(workGroup);
 
-        final AsyncInputStream input = new AsyncInputStream(
-                in, workGroup, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
-        input.start();
-        final AsyncOutputStream output = buildOutputStream(workGroup, out, reconnectConfig);
-        output.start();
-
-        try {
             // Perform the root-node (path 0) request/response handshake synchronously before forking
             // any parallel tasks. The root response carries the teacher's first/last leaf path range.
             // Once sent, the learner will start sending non-root requests, which the parallel tasks
@@ -126,9 +96,9 @@ public class TeachingSynchronizer {
             final int teacherTasks = 16;
             final CountDownLatch tasksDone = new CountDownLatch(teacherTasks);
             for (int i = 0; i < teacherTasks; i++) {
-                final TeacherPullVirtualTreeReceiveTask teacherReceiveTask = new TeacherPullVirtualTreeReceiveTask(
-                        time, reconnectConfig, workGroup, input, output, teacherView, tasksDone);
-                teacherReceiveTask.exec();
+                workGroup.fork(
+                        "reconnect-teacher-receiver",
+                        new TeacherPullVirtualTreeReceiveTask(input, output, teacherView, tasksDone));
             }
 
             // when all receive tasks done, output can be closed, which signals the learner that no more responses will
@@ -142,13 +112,13 @@ public class TeachingSynchronizer {
                 output.done(); // always signal the peer, even on interrupt
             }
 
-            workGroup.waitForTermination();
+            workGroup.join();
         } catch (final InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw ie;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while synchronizing tree", t);
-            workGroup.handleError(t);
+            throwCause(t);
         } finally {
             try {
                 teacherView.close();
@@ -157,31 +127,31 @@ public class TeachingSynchronizer {
             }
         }
 
-        if (workGroup.hasExceptions()) {
-            throw new MerkleSynchronizationException(
-                    "Synchronization failed with exceptions", firstReconnectException.get());
-        }
-
         logger.info(RECONNECT.getMarker(), "Finished sending tree");
     }
 
+    private void throwCause(Throwable ex) throws MerkleSynchronizationException {
+        if (ex instanceof MerkleSynchronizationException) {
+            throw (MerkleSynchronizationException) ex;
+        } else if (ex.getCause() instanceof MerkleSynchronizationException) {
+            throw (MerkleSynchronizationException) ex.getCause();
+        } else {
+            throw new MerkleSynchronizationException("Synchronization failed with exceptions", ex);
+        }
+    }
+
     protected StandardWorkGroup createStandardWorkGroup(
-            @NonNull final ThreadManager threadManager,
-            @NonNull final Runnable breakConnection,
-            @Nullable final Function<Throwable, Boolean> exceptionListener) {
-        return new StandardWorkGroup(threadManager, WORK_GROUP_NAME, breakConnection, exceptionListener);
+            @NonNull final ThreadManager threadManager, @NonNull final Runnable breakConnection) {
+        return new StandardWorkGroup(threadManager, WORK_GROUP_NAME, breakConnection);
     }
 
     /**
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final StandardWorkGroup workGroup,
-            @NonNull final DataOutputStream out,
-            @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final DataOutputStream out, @NonNull final ReconnectConfig reconnectConfig) {
         return new AsyncOutputStream(
                 out,
-                workGroup,
                 reconnectConfig.asyncStreamBufferSize(),
                 reconnectConfig.asyncOutputStreamFlush(),
                 reconnectConfig.asyncStreamTimeout());

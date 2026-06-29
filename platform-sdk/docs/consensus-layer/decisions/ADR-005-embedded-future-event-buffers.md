@@ -44,7 +44,7 @@ event creator, releasing events to both as the event window advances, or (b)
 it.
 
 This interacts directly with the intake-pipeline flush
-([RUL-002](../rules/RUL-002-intake-flush-ordering.md)). The flush walks the
+(RUL-002). The flush walks the
 pipeline component-by-component in topological order, waiting for each
 component's queue to drain and its last task to complete before advancing to
 the next. That single ordered pass is only guaranteed to leave every event
@@ -98,7 +98,7 @@ Because each loop is contained inside a single component's task handling, the
 loop never crosses a wiring edge. When that component's task queue is empty,
 no further rounds will reach consensus and no further buffered events will be
 released **on the component's own initiative**. That is precisely the property
-[RUL-002](../rules/RUL-002-intake-flush-ordering.md) relies on: the
+RUL-002 relies on: the
 intake-pipeline flush remains a single ordered, component-by-component pass,
 with no special fixed-point iteration.
 
@@ -157,7 +157,7 @@ as the event window advances.
   iterating the buffer/hashgraph pair to a fixed point — to keep its guarantee
   that no event is left stranded mid-pipeline after PCES replay. That
   complexity is exactly what threatens the no-branching guarantee in
-  [RUL-002](../rules/RUL-002-intake-flush-ordering.md).
+  RUL-002.
 
 ### 2. Status quo — no future-event buffering at all
 
@@ -186,5 +186,5 @@ See **Decision** above.
   `setEventWindow(...)`.
 - `swirlds-platform-core/.../PlatformCoordinator.java` —
   `flushIntakePipeline()`, the ordered flush this decision keeps simple.
-- [RUL-002](../rules/RUL-002-intake-flush-ordering.md) — the flush-ordering
+- RUL-002 — the flush-ordering
   rule whose single-pass guarantee depends on this decision.
