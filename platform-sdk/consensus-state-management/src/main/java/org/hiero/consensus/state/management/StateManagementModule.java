@@ -321,7 +321,8 @@ public class StateManagementModule {
      */
     @NonNull
     public OutputWire<Long> oldestMinimumBirthRoundOnDiskOutputWire() {
-        return stateSnapshotManagerWiring.getTransformedOutput((_, result) -> result.oldestMinimumBirthRoundOnDisk());
+        return stateSnapshotManagerWiring.getTransformedOutput(
+                StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk);
     }
 
     /**
