@@ -35,10 +35,11 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * Flushes replayed PCES events through the system. After this method is called, all components in the system that
-     * must operate on and know about replayed PCES events will have been flushed. Additionally, things will be flushed
-     * an order that guarantees that there will be no remaining work in the following components/modules as long as
-     * there are no additional events added to the event intake module:
+     * Flushes the primary consensus-layer pipeline. After this method is called, all components in the event pipeline
+     * including state hashing will have been flushed. Additionally, things will be flushed an order that
+     * guarantees that there will be no remaining work as long as there are no additional events
+     * added to the intake pipeline, and as long as there are no events released by the orphan buffer.
+     *
      * <ol>
      *     <li>intake module</li>
      *     <li>pces module</li>
@@ -49,7 +50,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      *     <li>state hasher</li>
      * </ol>
      */
-    public void flushReplayedPcesEvents() {
+    public void flushPrimaryPipeline() {
         // Important: the order of the lines within this function matters. Do not alter the order of these
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
@@ -140,20 +141,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
         components.hashgraphModule().consensusSnapshotInputWire().inject(consensusSnapshot);
-    }
-
-    /**
-     * Flush the transaction handler.
-     */
-    public void flushTransactionHandler() {
-        components.transactionHandlingModule().flushTransactionHandler();
-    }
-
-    /**
-     * Flush the state hasher.
-     */
-    public void flushStateHasher() {
-        components.stateHasherWiring().flush();
     }
 
     /**
