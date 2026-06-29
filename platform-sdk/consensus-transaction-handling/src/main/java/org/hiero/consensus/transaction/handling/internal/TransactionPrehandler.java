@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.component.InputWireLabel;

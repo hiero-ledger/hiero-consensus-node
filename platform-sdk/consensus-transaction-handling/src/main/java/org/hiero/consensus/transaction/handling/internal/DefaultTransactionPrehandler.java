@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
@@ -21,15 +20,13 @@ import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 
 /**
  * Default implementation of the {@link TransactionPrehandler} interface
  */
 public class DefaultTransactionPrehandler implements TransactionPrehandler {
     private static final Logger logger = LogManager.getLogger(DefaultTransactionPrehandler.class);
-
-    public static final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> NO_OP_CONSUMER =
-            systemTransactions -> {};
 
     /**
      * A source to get the latest immutable state
@@ -41,32 +38,34 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      */
     private final AverageTimeStat preHandleTime;
 
-    private final ConsensusStateEventHandler consensusStateEventHandler;
+    private final TransactionCallbacks transactionCallbacks;
 
     private final Time time;
 
     /**
      * Constructs a new TransactionPrehandler
      *
-     * @param platformContext     the platform context
+     * @param metrics the metrics system
+     * @param time the time source
      * @param latestStateSupplier provides access to the latest immutable state, may return null (implementation detail
      *                            of locking mechanism within the supplier)
-     * @param consensusStateEventHandler    the state lifecycles
+     * @param transactionCallbacks the consensus state event handler
      */
     public DefaultTransactionPrehandler(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
-            @NonNull ConsensusStateEventHandler consensusStateEventHandler) {
-        this.time = platformContext.getTime();
-        this.latestStateSupplier = Objects.requireNonNull(latestStateSupplier);
+            @NonNull final TransactionCallbacks transactionCallbacks) {
+        this.time = requireNonNull(time);
+        this.latestStateSupplier = requireNonNull(latestStateSupplier);
 
         preHandleTime = new AverageTimeStat(
-                platformContext.getMetrics(),
+                metrics,
                 ChronoUnit.MICROS,
                 INTERNAL_CATEGORY,
                 "preHandleMicros",
                 "average time it takes to perform preHandle (in microseconds)");
-        this.consensusStateEventHandler = consensusStateEventHandler;
+        this.transactionCallbacks = transactionCallbacks;
     }
 
     /**
@@ -88,7 +87,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
             }
 
             try {
-                consensusStateEventHandler.onPreHandle(
+                transactionCallbacks.onPreHandle(
                         event, latestImmutableState.get().getState(), consumer);
             } catch (final Throwable t) {
                 logger.error(

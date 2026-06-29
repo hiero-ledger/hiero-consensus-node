@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -10,8 +10,10 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -21,7 +23,10 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
@@ -54,8 +59,10 @@ public class TransactionHandlerTester implements AutoCloseable {
         freezeTime = Instant.now();
         consensusTimestamp = freezeTime.minusMillis(1);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final FileSystemManager fileSystemManager = new FileSystemManager();
         platformState = new PlatformStateValueAccumulator();
         final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
         final SignedState state = randomSignedStateGenerator.build();
@@ -63,11 +70,7 @@ public class TransactionHandlerTester implements AutoCloseable {
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getFileSystemManager());
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         stateLifecycleManager.initWithState(state.getState());
         doAnswer(i -> {
                     handledRounds.add(i.getArgument(0));
@@ -75,12 +78,15 @@ public class TransactionHandlerTester implements AutoCloseable {
                 })
                 .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(stateLifecycleManager.getMutableState()), any());
-        final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference =
+                new AtomicReference<>(submittedActions::add);
         defaultTransactionHandler = new DefaultTransactionHandler(
-                platformContext,
+                time,
+                configuration,
+                metrics,
                 stateLifecycleManager,
-                statusActionSubmitter,
-                mock(SemanticVersion.class),
+                statusActionSubmitterReference,
+                SemanticVersion.DEFAULT,
                 consensusStateEventHandler,
                 NodeId.of(1),
                 0L);

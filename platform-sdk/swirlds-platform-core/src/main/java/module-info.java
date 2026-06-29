@@ -26,7 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
-    exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -54,7 +53,8 @@ module com.swirlds.platform.core {
             com.hedera.node.test.clients;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.state.nexus to
-            org.hiero.consensus.reconnect.impl;
+            org.hiero.consensus.reconnect.impl,
+            org.hiero.consensus.transaction.handling; // temporary until state management extracted
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.state.snapshot;
@@ -86,6 +86,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;

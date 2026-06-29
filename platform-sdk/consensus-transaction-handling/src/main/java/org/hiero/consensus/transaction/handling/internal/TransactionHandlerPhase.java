@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.eventhandling;
+package org.hiero.consensus.transaction.handling.internal;
 
 /**
  * The phase of the transaction handling process.

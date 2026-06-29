@@ -43,6 +43,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +70,9 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -491,6 +494,24 @@ public final class PlatformBuilder {
                 SystemExitUtils::handleFatalError);
     }
 
+    @NonNull
+    private TransactionHandlingModule createTransactionHandlingModule(
+            @NonNull final AtomicReference<Function<String, ReservedSignedState>> latestCompleteStateReference,
+            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
+        return new TransactionHandlingModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                latestCompleteStateReference,
+                consensusStateEventHandler,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                softwareVersion,
+                selfId,
+                transactionOffsetNanos);
+    }
+
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -561,7 +582,10 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<Supplier<ReservedSignedState>> latestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
@@ -582,6 +606,8 @@ public final class PlatformBuilder {
         }
 
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
+        final TransactionHandlingModule transactionHandlingModule =
+                createTransactionHandlingModule(latestImmutableStateProviderReference, statusActionSubmitterReference);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -591,9 +617,11 @@ public final class PlatformBuilder {
                 pcesModule,
                 hashgraphModule,
                 gossipModule,
-                issDetectionModule);
+                issDetectionModule,
+                transactionHandlingModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
+        statusActionSubmitterReference.set(platformCoordinator);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
@@ -613,7 +641,7 @@ public final class PlatformBuilder {
         initializeHashgraphModule(pipelineTracker);
         initializeGossipModule(
                 intakeEventCounter,
-                getLatestCompleteStateReference,
+                latestCompleteStateReference,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor);
 
@@ -633,12 +661,12 @@ public final class PlatformBuilder {
                 intakeEventCounter,
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                new AtomicReference<>(),
+                latestImmutableStateProviderReference,
                 consensusEventStreamName,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                new AtomicReference<>(),
+                statusActionSubmitterReference,
                 stateLifecycleManager,
-                getLatestCompleteStateReference,
+                latestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
