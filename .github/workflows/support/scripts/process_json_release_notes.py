@@ -123,25 +123,31 @@ class MarkdownRenderer:
     # commit types.
     has_other = self._notes.has_lines(self._other_keys)
 
+    # Build the document as a list of lines. Each populated section is followed
+    # by an empty string, which renders as a blank-line separator once joined.
+    # Joining (rather than trailing each section with "\n") leaves exactly one
+    # newline at end of file.
+    lines = []
     if self._notes.has_lines(self._top_level_keys) or has_other:
-      out.write("# Release Notes\n")
+      lines.append("# Release Notes")
 
     for key in self._top_level_keys:
-      self._write_section(out, key, level=2)
+      self._append_section(lines, key, level=2)
 
     if has_other:
-      out.write("## Other Changes\n")
+      lines.append("## Other Changes")
       for key in self._other_keys:
-        self._write_section(out, key, level=3)
+        self._append_section(lines, key, level=3)
 
-  def _write_section(self, out, key, level):
-    lines = self._notes.lines_for(key)
-    if not lines:
+    out.write("\n".join(lines))
+
+  def _append_section(self, lines, key, level):
+    entries = self._notes.lines_for(key)
+    if not entries:
       return
-    out.write(f"{'#' * level} {self._notes.heading_for(key)}\n")
-    for line in lines:
-      out.write(f"- {line}\n")
-    out.write("\n")
+    lines.append(f"{'#' * level} {self._notes.heading_for(key)}")
+    lines.extend(f"- {entry}" for entry in entries)
+    lines.append("")  # blank-line separator after the section
 
 
 def main():
