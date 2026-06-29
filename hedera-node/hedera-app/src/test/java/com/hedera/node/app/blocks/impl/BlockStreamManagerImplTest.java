@@ -1610,11 +1610,12 @@ class BlockStreamManagerImplTest {
 
     @Test
     void cutoverSkippedWhenEnableCutoverIsFalse() {
-        // enableCutover defaults to false in HederaTestConfigBuilder; the genesis branch (HASH_OF_ZERO)
+        // enableCutover now defaults to true, so disable it explicitly here; the genesis branch (HASH_OF_ZERO)
         // is the simplest non-cutover path to exercise.
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
@@ -1794,6 +1795,9 @@ class BlockStreamManagerImplTest {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
+                // enableCutover now defaults to true; these tests exercise normal block management rather than
+                // the cutover migration, so keep it disabled here (the dedicated cutover tests set it true).
+                .withValue("blockStream.enableCutover", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
