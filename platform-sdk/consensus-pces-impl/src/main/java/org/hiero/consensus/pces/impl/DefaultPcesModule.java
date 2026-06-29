@@ -74,13 +74,11 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
+            @NonNull final Runnable flushPcesEvents,
+            @NonNull final Runnable signalEndOfPcesReplay,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
-            @NonNull final Runnable stateHasherFlusher,
-            @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (pcesWriterWiring != null) {
@@ -129,20 +127,14 @@ public class DefaultPcesModule implements PcesModule {
                 configuration,
                 time,
                 pcesReplayerWiring.eventOutput(),
-                flushIntake,
-                flushTransactionHandling,
+                flushPcesEvents,
+                signalEndOfPcesReplay,
                 latestImmutableStateSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
 
         this.pcesCoordinator = new PcesCoordinator(
-                time,
-                initialPcesFiles,
-                pcesReplayerWiring,
-                statusActionConsumer,
-                platformStatusFlusher,
-                stateHasherFlusher,
-                signalEndOfPcesReplay);
+                time, initialPcesFiles, pcesReplayerWiring, statusActionConsumer, platformStatusFlusher);
     }
 
     /**

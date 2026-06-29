@@ -83,14 +83,17 @@ public class ReconnectCoordinator {
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
         // be handled.
         components.transactionHandlingModule().startSquelchingTransactionHandler();
+        components.transactionHandlingModule().flushTransactionPreHandler();
         components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
-        platformCoordinator.flushIntakePipeline();
+        components.eventIntakeModule().flush();
+        components.pcesModule().flush();
+        components.gossipModule().flush();
+
         components.stateHasherWiring().flush();
         components.stateSignatureCollectorWiring().flush();
-        components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.

@@ -40,10 +40,10 @@ class PcesReplayerTests {
     private FakeTime time;
     private StandardOutputWire<PlatformEvent> eventOutputWire;
     private AtomicInteger eventOutputCount;
-    private AtomicBoolean flushIntakeCalled;
-    private Runnable flushIntake;
-    private AtomicBoolean flushTransactionHandlingCalled;
-    private Runnable flushTransactionHandling;
+    private AtomicBoolean flushPcesCalled;
+    private Runnable flushPces;
+    private Runnable signalEndOfPcesReplay;
+    private AtomicBoolean signalEndOfPcesReplayCalled;
     private Supplier<ReservedSignedState> latestImmutableStateSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
@@ -64,11 +64,11 @@ class PcesReplayerTests {
                 .when(eventOutputWire)
                 .forward(any());
 
-        flushIntakeCalled = new AtomicBoolean(false);
-        flushIntake = () -> flushIntakeCalled.set(true);
+        flushPcesCalled = new AtomicBoolean(false);
+        flushPces = () -> flushPcesCalled.set(true);
 
-        flushTransactionHandlingCalled = new AtomicBoolean(false);
-        flushTransactionHandling = () -> flushTransactionHandlingCalled.set(true);
+        signalEndOfPcesReplayCalled = new AtomicBoolean(false);
+        signalEndOfPcesReplay = () -> signalEndOfPcesReplayCalled.set(true);
 
         final ReservedSignedState latestImmutableState = mock(ReservedSignedState.class);
         final SignedState signedState = mock(SignedState.class);
@@ -111,16 +111,16 @@ class PcesReplayerTests {
                 configuration,
                 time,
                 eventOutputWire,
-                flushIntake,
-                flushTransactionHandling,
+                flushPces,
+                signalEndOfPcesReplay,
                 latestImmutableStateSupplier,
                 () -> true);
 
         replayer.replayPces(ioIterator);
 
         assertEquals(eventCount, eventOutputCount.get());
-        assertTrue(flushIntakeCalled.get());
-        assertTrue(flushTransactionHandlingCalled.get());
+        assertTrue(flushPcesCalled.get());
+        assertTrue(signalEndOfPcesReplayCalled.get());
     }
 
     @Test
@@ -135,8 +135,8 @@ class PcesReplayerTests {
                 configuration,
                 time,
                 eventOutputWire,
-                flushIntake,
-                flushTransactionHandling,
+                flushPces,
+                signalEndOfPcesReplay,
                 latestImmutableStateSupplier,
                 () -> true);
 
@@ -159,9 +159,9 @@ class PcesReplayerTests {
         }
 
         assertEventuallyTrue(
-                () -> flushIntakeCalled.get(), Duration.ofSeconds(1), "Flush intake should have been called");
+                () -> flushPcesCalled.get(), Duration.ofSeconds(1), "Flush intake should have been called");
         assertEventuallyTrue(
-                () -> flushTransactionHandlingCalled.get(),
+                () -> signalEndOfPcesReplayCalled.get(),
                 Duration.ofSeconds(1),
                 "Flush transaction handling should have been called");
     }

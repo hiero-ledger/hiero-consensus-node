@@ -53,26 +53,22 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
+            @NonNull final Runnable flushPcesEvents,
+            @NonNull final Runnable signalEndOfPcesReplay,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
-            @NonNull final Runnable stateHasherFlusher,
-            @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         requireNonNull(model);
         requireNonNull(configuration);
         requireNonNull(metrics);
         requireNonNull(selfId);
         requireNonNull(recycleBin);
-        requireNonNull(flushIntake);
-        requireNonNull(flushTransactionHandling);
+        requireNonNull(flushPcesEvents);
+        requireNonNull(signalEndOfPcesReplay);
         requireNonNull(latestImmutableStateSupplier);
         requireNonNull(platformStatusFlusher);
         requireNonNull(statusActionConsumer);
-        requireNonNull(stateHasherFlusher);
-        requireNonNull(signalEndOfPcesReplay);
 
         final var scheduler = model.<PlatformEvent>schedulerBuilder("InlinePcesWriter")
                 .withType(TaskSchedulerType.SEQUENTIAL)

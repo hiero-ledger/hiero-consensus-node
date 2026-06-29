@@ -35,12 +35,21 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * Flushes the intake pipeline. After this method is called, all components in the intake pipeline (i.e. components
-     * prior to the consensus engine) will have been flushed. Additionally, things will be flushed an order that
-     * guarantees that there will be no remaining work in the intake pipeline (as long as there are no additional events
-     * added to the intake pipeline, and as long as there are no events released by the orphan buffer).
+     * Flushes replayed PCES events through the system. After this method is called, all components in the system that
+     * must operate on and know about replayed PCES events will have been flushed. Additionally, things will be flushed
+     * an order that guarantees that there will be no remaining work in the following components/modules as long as
+     * there are no additional events added to the event intake module:
+     * <ol>
+     *     <li>intake module</li>
+     *     <li>pces module</li>
+     *     <li>gossip module</li>
+     *     <li>hashgraph module</li>
+     *     <li>transaction handling module</li>
+     *     <li>event creation module</li>
+     *     <li>state hasher</li>
+     * </ol>
      */
-    public void flushIntakePipeline() {
+    public void flushReplayedPcesEvents() {
         // Important: the order of the lines within this function matters. Do not alter the order of these
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
@@ -50,7 +59,9 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.gossipModule().flush();
         components.hashgraphModule().flush();
         components.transactionHandlingModule().flushTransactionPreHandler();
+        components.transactionHandlingModule().flushTransactionHandler();
         components.eventCreatorModule().flush();
+        components.stateHasherWiring().flush();
     }
 
     /**
