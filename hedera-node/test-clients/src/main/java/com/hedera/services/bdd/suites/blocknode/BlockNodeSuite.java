@@ -41,7 +41,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         })
             })
     @Order(1)
@@ -64,7 +68,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -72,7 +80,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -80,7 +92,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -88,7 +104,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         })
             })
     @Order(2)

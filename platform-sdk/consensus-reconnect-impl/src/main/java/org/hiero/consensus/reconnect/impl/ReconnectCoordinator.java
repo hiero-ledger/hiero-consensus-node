@@ -12,14 +12,12 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -29,6 +27,8 @@ import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
@@ -82,21 +82,21 @@ public class ReconnectCoordinator {
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
         // be handled.
-        components.transactionHandlerWiring().startSquelching();
-        components.transactionHandlerWiring().flush();
+        components.transactionHandlingModule().startSquelchingTransactionHandler();
+        components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
         platformCoordinator.flushIntakePipeline();
         components.stateHasherWiring().flush();
         components.stateSignatureCollectorWiring().flush();
-        components.transactionHandlerWiring().flush();
+        components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         components.hashgraphModule().stopSquelching();
         components.eventCreatorModule().stopSquelching();
-        components.transactionHandlerWiring().stopSquelching();
+        components.transactionHandlingModule().stopSquelchingTransactionHandler();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.

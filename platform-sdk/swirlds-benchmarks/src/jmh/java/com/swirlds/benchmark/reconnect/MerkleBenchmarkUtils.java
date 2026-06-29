@@ -4,7 +4,6 @@ package com.swirlds.benchmark.reconnect;
 import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
@@ -12,25 +11,16 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
-import java.io.IOException;
+import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.gossip.config.GossipConfig;
-import org.hiero.consensus.gossip.config.SocketConfig;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
-
-    private static final Logger logger = LogManager.getLogger(MerkleBenchmarkUtils.class);
 
     public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree,
@@ -40,7 +30,6 @@ public class MerkleBenchmarkUtils {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            final NodeId selfId,
             final Configuration configuration)
             throws Exception {
         printVirtualMap("Starting Tree", startingTree);
@@ -62,7 +51,6 @@ public class MerkleBenchmarkUtils {
                 delayStorageFuzzRangePercent,
                 delayNetworkMicroseconds,
                 delayNetworkFuzzRangePercent,
-                selfId,
                 configuration);
     }
 
@@ -77,23 +65,19 @@ public class MerkleBenchmarkUtils {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            final NodeId selfId,
             final Configuration configuration)
             throws Exception {
-        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
-        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (PairedStreams streams = new PairedStreams(selfId, socketConfig, gossipConfig)) {
+        try (final PairedStreams streams = new PairedStreams()) {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
-                teacher = new TeachingSynchronizer(
-                        desiredTree, Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
+                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), reconnectConfig);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         reconnectConfig,
@@ -113,30 +97,18 @@ public class MerkleBenchmarkUtils {
                         delayNetworkFuzzRangePercent);
             }
 
-            final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = t -> {
-                firstReconnectException.compareAndSet(null, t);
-                return false;
-            };
+            final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
 
-            AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
-            workGroup.execute(
-                    "learning-synchronizer-main",
-                    () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
-
-            try {
-                workGroup.waitForTermination();
+            try (final StandardWorkGroup workGroup =
+                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", streams::disconnect)) {
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
+                        "learning-synchronizer-main",
+                        () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
+                workGroup.join();
             } catch (InterruptedException e) {
-                workGroup.shutdown();
                 Thread.currentThread().interrupt();
-            }
-
-            if (workGroup.hasExceptions()) {
-                throw new MerkleSynchronizationException(
-                        "Exception(s) in synchronization test", firstReconnectException.get());
+                throw new RuntimeException(e);
             }
 
             return syncMapContainer.get();
@@ -145,14 +117,7 @@ public class MerkleBenchmarkUtils {
 
     private static void teachingSynchronizerThread(final PairedStreams streams, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), () -> {
-                try {
-                    streams.disconnect();
-                } catch (final IOException e) {
-                    // test code, no danger
-                    logger.error("Error while shutting down sockets", e);
-                }
-            });
+            teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
@@ -164,15 +129,8 @@ public class MerkleBenchmarkUtils {
             final LearningSynchronizer learner,
             final AtomicReference<VirtualMap> syncMapContainer) {
         try {
-            syncMapContainer.set(
-                    learner.synchronize(startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), () -> {
-                        try {
-                            streams.disconnect();
-                        } catch (final IOException e) {
-                            // test code, no danger
-                            logger.error("Error while shutting down sockets", e);
-                        }
-                    }));
+            syncMapContainer.set(learner.synchronize(
+                    startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         }

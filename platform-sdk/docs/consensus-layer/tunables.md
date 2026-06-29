@@ -224,20 +224,16 @@ Module: `consensus-utility`. Source: [RecycleBinConfig.java](../../consensus-uti
 
 Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-reconnect/src/main/java/org/hiero/consensus/reconnect/config/ReconnectConfig.java).
 
-|   ID    |                        Key                         |   Type   | Default |                                                                Effect                                                                | Range | Fragility |
-|---------|----------------------------------------------------|----------|---------|--------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                                          |       | —         |
-| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`).               |       | —         |
-| TUN-069 | `reconnect.asyncStreamTimeout`                     | Duration | `300s`  | Time an `AsyncInputStream` / `AsyncOutputStream` waits before throwing a timeout.                                                    |       | —         |
-| TUN-070 | `reconnect.asyncOutputStreamFlush`                 | Duration | `8ms`   | Period of the periodic flush that drains the async output stream buffer.                                                             |       | —         |
-| TUN-071 | `reconnect.asyncStreamBufferSize`                  | int      | `10000` | Size of the buffers for async input and output streams.                                                                              |       | —         |
-| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                                 |       | —         |
-| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                                        |       | —         |
-| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                                           |       | —         |
-| TUN-075 | `reconnect.teacherMaxNodesPerSecond`               | int      | `0`     | Maximum number of nodes a teacher will send per second; `0` means no limit.                                                          |       | —         |
-| TUN-076 | `reconnect.teacherRateLimiterSleep`                | Duration | `1us`   | Sleep applied by the teacher when throttling is engaged.                                                                             |       | —         |
-| TUN-077 | `reconnect.pullLearnerRootResponseTimeout`         | Duration | `60s`   | Pull-based reconnect: learner-side timeout to receive a virtual root-node response from the teacher.                                 |       | —         |
-| TUN-078 | `reconnect.allMessagesReceivedTimeout`             | Duration | `300s`  | Pull-based reconnect: learner-side timeout to wait until all virtual-view messages are processed after the teacher's final response. |       | —         |
+|   ID    |                        Key                         |   Type   | Default |                                                         Effect                                                         | Range | Fragility |
+|---------|----------------------------------------------------|----------|---------|------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                            |       | —         |
+| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`). |       | —         |
+| TUN-069 | `reconnect.asyncStreamTimeout`                     | Duration | `300s`  | Time an `AsyncInputStream` / `AsyncOutputStream` waits before throwing a timeout.                                      |       | —         |
+| TUN-070 | `reconnect.asyncOutputStreamFlush`                 | Duration | `8ms`   | Period of the periodic flush that drains the async output stream buffer.                                               |       | —         |
+| TUN-071 | `reconnect.asyncStreamBufferSize`                  | int      | `10000` | Size of the buffers for async input and output streams.                                                                |       | —         |
+| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
+| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
+| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
 
 ## `state.*` — StateConfig
 
@@ -363,7 +359,7 @@ Module: `consensus-event-creator`. Source: [EventCreationConfig.java](../../cons
 | TUN-137 | `event.creation.eventIntakeThrottle`                 | int      | `1024`  | When the event intake queue equals or exceeds this size, new self-event creation is suspended.                                          |       | —         |
 | TUN-138 | `event.creation.maximumPermissibleUnhealthyDuration` | Duration | `1s`    | Maximum time the system can be unhealthy before event creation stops.                                                                   |       | —         |
 | TUN-139 | `event.creation.maxAllowedSyncLag`                   | int      | `15`    | If the node is lagging more than this many rounds on average, stop creating events; very large values effectively disable the rule.     |       | —         |
-| TUN-140 | `event.creation.maxOtherParents`                     | int      | `1`     | Maximum allowed number of other parents; `1` reproduces the classic single-self-parent / single-other-parent shape.                     |       | —         |
+| TUN-140 | `event.creation.maxOtherParents`                     | int      | `4`     | Maximum number of other parents an event may reference.                                                                                 |       | —         |
 
 ## `event.creation.wiring.*` — EventCreationWiringConfig
 

@@ -9,7 +9,6 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.UncheckedSubmitBody;
 import java.util.function.Consumer;
@@ -47,11 +46,6 @@ public class HapiUncheckedSubmit<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiU
                 .<UncheckedSubmitBody, UncheckedSubmitBody.Builder>body(
                         UncheckedSubmitBody.class, b -> b.setTransactionBytes(ByteString.copyFrom(subOpBytes)));
         return b -> b.setUncheckedSubmit(opBody);
-    }
-
-    @Override
-    protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) {
-        return 0L;
     }
 
     @Override

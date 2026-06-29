@@ -269,9 +269,7 @@ for how reconnect crosses the Consensus / Execution boundary.
 **Other catalogs**
 
 - Tunables — [`../../tunables.md`](../../tunables.md) (pending).
-- Invariants — [TBD: INV-NNN once `invariants.md` catalog populates;
-  the fallen-behind-threshold proportion and the
-  state-ownership-flip-at-validation step are likely candidates].
+- Invariants — INV-008 — consensus, once reached, is permanent; INV-012 — the minimum non-ancient round never decreases; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - Decisions — [TBD: ADR-NNN once `decisions/` catalog populates].
 - Scenarios — [TBD: SCN-NNN — reconnect failure modes (failure to
   reconnect within retry cap, reconnect succeeded but next freeze

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.PruneResult;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -123,6 +124,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Mock
     private BlockStreamMetrics blockStreamMetrics;
+
+    @Mock
+    private BlockStreamingObs streamingObs;
 
     private BlockBufferService blockBufferService;
 
@@ -1597,7 +1601,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             writeBlockToDisk(block, true, new File(blockDir, "block-" + block.blockNumber() + ".bin"));
         }
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         blockBufferService.start();
 
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
@@ -1844,7 +1848,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         Files.createDirectories(testDirFile.toPath());
 
         // Create service but don't start it
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         // Note: not calling initBufferService which would set isStarted to true
 
         // Try to persist - should do nothing since not started
@@ -2255,7 +2259,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     private BlockBufferService initBufferService(final ConfigProvider configProvider, final boolean realStart) {
-        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics);
+        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
 
         if (realStart) {
             svc.start();

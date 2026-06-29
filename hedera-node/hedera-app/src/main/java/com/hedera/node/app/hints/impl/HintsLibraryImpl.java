@@ -8,16 +8,17 @@ import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.SplittableRandom;
+import org.hiero.base.crypto.CryptoUtils;
 
 /**
  * Default implementation of {@link HintsLibrary}.
  */
 public class HintsLibraryImpl implements HintsLibrary {
-    private static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
     private static final int MIN_AGGREGATION_KEY_LENGTH = 49;
 
