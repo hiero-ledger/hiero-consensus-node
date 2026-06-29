@@ -326,6 +326,7 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 WORK_DIR="$(mktemp -d)"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 NETWORK_PROBE_SCRIPT="${WORK_DIR}/sdk-network-probe.js"
+FREEZE_SCRIPT="${WORK_DIR}/sdk-freeze-only.js"
 JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
 TMP_075_UPGRADE_APP_PROPS="${WORK_DIR}/application-075-jumpstart.properties"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-cutover-values.yaml"
@@ -1858,6 +1859,60 @@ verify_wraps_on_consensus_nodes() {
   echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
 }
 
+# Block until every consensus node's MOST RECENT platform-status line equals
+# ${1} (e.g. FREEZE_COMPLETE, ACTIVE). hgcaa.log persists across restarts and
+# already holds the status transitions of earlier Solo upgrades, so we read the
+# last "Platform status is now ..." line per node rather than grepping for the
+# string anywhere (which would match a stale transition) — robust to both log
+# accumulation and rotation.
+wait_for_platform_status() {
+  local want="$1" timeout_secs="${2:-180}"
+  local nodes=() node pod last deadline
+  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  deadline=$(( SECONDS + timeout_secs ))
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    printf '  waiting for %s platform status %s (up to %ss)... ' "${pod}" "${want}" "${timeout_secs}"
+    while :; do
+      last="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+        "grep 'Platform status is now' '${hgcaa}' 2>/dev/null | tail -1" 2>/dev/null || true)"
+      if [[ "${last}" == *"Platform status is now ${want}"* ]]; then
+        echo "ok"
+        break
+      fi
+      if (( SECONDS >= deadline )); then
+        echo "TIMEOUT"
+        echo "Node ${pod} did not reach platform status ${want} within ${timeout_secs}s (last: ${last:-<none>})" >&2
+        return 1
+      fi
+      sleep 3
+    done
+  done
+}
+
+# Quiesce the network at a clean freeze boundary before a non-Solo rolling
+# restart. inject_wraps_env_into_statefulsets() below patches the StatefulSets
+# with `kubectl set env`, which triggers an *un-frozen* rolling restart. A node
+# restarted off a periodic signed state must replay the in-flight event stream,
+# and on the cutover binary that replay diverges from the online-signed state ->
+# a deterministic, network-wide SELF_ISS at the mismatching round -> every node
+# goes CATASTROPHIC_FAILURE and Solo's subsequent upgrade can never SDK-ping
+# them. A FREEZE_ONLY first makes every node write + reload an identical
+# freeze-boundary state, so the roll replays nothing; the network resumes to
+# ACTIVE on restart. Requires the CN gRPC port-forward + SDK runtime (set up by
+# the prior step) to submit the freeze tx.
+freeze_network_and_wait() {
+  wait_for_sdk_responsive "${FREEZE_SDK_READY_TIMEOUT_SECS:-180}" \
+    || { echo "Network not SDK-responsive; cannot submit freeze before WRAPS env roll" >&2; return 1; }
+  echo "Submitting FREEZE_ONLY via SDK to quiesce the network before the WRAPS env roll"
+  if ! node "${FREEZE_SCRIPT}"; then
+    echo "FREEZE_ONLY submission failed" >&2
+    return 1
+  fi
+  wait_for_platform_status FREEZE_COMPLETE "${FREEZE_COMPLETE_TIMEOUT_SECS:-180}"
+}
+
 # Wraps remedy strategy:
 # 1. Each CN downloads + extracts the WRAPS proving-key archive itself from the
 #    tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties.
@@ -1925,18 +1980,28 @@ run_076_upgrade() {
   # 0.76 properties (tss.wrapsProvingKeyDownloadEnabled flow).
 
   # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet's container spec
-  # BEFORE Solo's upgrade fires. The rolling restart triggered here runs against
-  # the 0.75 binary, which doesn't use the env var, so it's harmless. Solo's
-  # subsequent freeze-restart is coordinated across all 4 nodes (they all stop
-  # at the same consensus round and resume at the same round) and the env we
-  # pre-injected is preserved through helm's strategic-merge upgrade, so the
-  # 0.76 JVMs all initialize WRAPS in lockstep.
+  # BEFORE Solo's upgrade fires, so the env is preserved through helm's
+  # strategic-merge upgrade and all 0.76 JVMs initialize WRAPS in lockstep
+  # during Solo's coordinated freeze-restart.
   #
-  # If we instead inject AFTER Solo's upgrade, kubectl set env triggers a
-  # rolling restart on each StatefulSet independently — one pod finishes WRAPS
-  # init and publishes a proof key while others are still on the old config,
-  # which causes a SELF_ISS catastrophic failure on every node.
+  # `kubectl set env` triggers its own rolling restart of the (still-0.75)
+  # StatefulSets. That restart must NOT land on a live, unfrozen network: a node
+  # restarted off a periodic signed state replays the in-flight event stream,
+  # and on the cutover binary that replay diverges from the online-signed state
+  # -> a deterministic, network-wide SELF_ISS that leaves Solo's upgrade unable
+  # to SDK-ping any node. So FREEZE_ONLY first: every node reloads an identical
+  # freeze-boundary state, the roll replays nothing, and the network resumes to
+  # ACTIVE.
+  #
+  # (Injecting AFTER Solo's upgrade is also wrong: kubectl set env restarts each
+  # StatefulSet independently, so one pod publishes a WRAPS proof key while
+  # others are still on the old config — another SELF_ISS path.)
+  freeze_network_and_wait
   inject_wraps_env_into_statefulsets
+  # The frozen nodes were just restarted off the clean freeze state by the roll
+  # above; wait for them to resume to ACTIVE before handing off to Solo's
+  # upgrade, which SDK-pings every node during its Initialize step.
+  wait_for_platform_status ACTIVE "${POST_INJECT_ACTIVE_TIMEOUT_SECS:-600}"
 
   # Note: --wraps-key-path intentionally omitted. Solo only honors it on
   # `consensus network deploy`; on upgrade it's silently dropped.
@@ -2560,6 +2625,60 @@ main().catch((err) => {
 EOF
 }
 
+# Submits a FREEZE_ONLY freeze a few seconds in the future. A FREEZE_ONLY halts
+# the whole network at the freeze boundary and writes an identical signed state
+# on every node; the nodes resume to ACTIVE when next restarted (no software
+# change, unlike FREEZE_UPGRADE). We use it to quiesce the network at a clean
+# boundary right before the non-Solo WRAPS env roll so the rolling restart has
+# nothing to replay (see freeze_network_and_wait). Operator 0.0.2 is in the
+# `freeze = 2-58` HAPI permission range, so it may submit freezes.
+write_sdk_freeze() {
+  cat > "${FREEZE_SCRIPT}" <<'EOF'
+const {
+  Client,
+  FreezeTransaction,
+  FreezeType,
+  PrivateKey,
+  Status,
+  Timestamp,
+} = require("@hashgraph/sdk");
+
+async function main() {
+  const grpcEndpoint = process.env.GRPC_ENDPOINT || "127.0.0.1:50211";
+  const operatorAccountId = process.env.OPERATOR_ACCOUNT_ID || "0.0.2";
+  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
+  // Freeze start time is compared against consensus time; keep enough lead so
+  // the freeze tx reaches consensus first even with mild client/network skew.
+  const startDelayMs = Number(process.env.FREEZE_START_DELAY_MS || "15000");
+  if (!operatorPrivateKey) {
+    throw new Error("OPERATOR_PRIVATE_KEY is required");
+  }
+
+  const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
+  client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
+  client.setMaxAttempts(5);
+  client.setRequestTimeout(15000);
+
+  const startAt = new Date(Date.now() + startDelayMs);
+  const tx = new FreezeTransaction()
+    .setFreezeType(FreezeType.FreezeOnly)
+    .setStartTimestamp(Timestamp.fromDate(startAt));
+  const response = await tx.execute(client);
+  const receipt = await response.getReceipt(client);
+  if (receipt.status !== Status.Success) {
+    throw new Error(`FREEZE_ONLY returned non-success status: ${receipt.status.toString()}`);
+  }
+  console.log(`  FREEZE_ONLY accepted; network freezes at ${startAt.toISOString()}`);
+  await client.close();
+}
+
+main().catch((err) => {
+  console.error(`FAIL: ${err.message}`);
+  process.exit(1);
+});
+EOF
+}
+
 write_jumpstart_parser() {
   cat > "${JUMPSTART_PARSE_SCRIPT}" <<'EOF'
 const fs = require("fs");
@@ -3160,6 +3279,7 @@ compare_replay_to_migration_vote() {
 prepare_js_sdk_runtime() {
   write_sdk_verifier
   write_sdk_network_probe
+  write_sdk_freeze
   cd "${WORK_DIR}"
   npm init -y >/dev/null 2>&1
   npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
