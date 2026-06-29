@@ -322,7 +322,14 @@ public class ConsensusNoOpModules {
             @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final KeysAndCerts keysAndCerts;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(selfId);
+        } catch (final Exception e) {
+            throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
+        }
 
-        return new StateManagementModule(model, configuration, metrics, time);
+        return new StateManagementModule(model, configuration, metrics, time, keysAndCerts);
     }
 }

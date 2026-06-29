@@ -516,7 +516,11 @@ public final class PlatformBuilder {
     @NonNull
     private StateManagementModule createStateManagementModule() {
         return new StateManagementModule(
-                model, platformContext.getConfiguration(), platformContext.getMetrics(), platformContext.getTime());
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                keysAndCerts);
     }
 
     /**

@@ -31,7 +31,6 @@ import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import java.nio.file.Path;
@@ -124,8 +123,7 @@ class PlatformWiringTests {
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))
-                .withStateSnapshotManager(mock(StateSnapshotManager.class))
-                .withStateSigner(mock(StateSigner.class));
+                .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
         platformComponents.bind(
                 componentBuilder,

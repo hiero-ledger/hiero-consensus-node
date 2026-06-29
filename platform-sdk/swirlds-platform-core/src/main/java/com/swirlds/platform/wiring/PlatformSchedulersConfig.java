@@ -10,7 +10,6 @@ import java.time.Duration;
  * Contains configuration values for the platform schedulers.
  *
  * @param consensusEngine                      configuration for the consensus engine scheduler
- * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param stateSignatureCollector              configuration for the state signature collector scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
@@ -32,9 +31,6 @@ public record PlatformSchedulersConfig(
 
         @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSnapshotManager,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration stateSigner,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration futureEventBuffer,

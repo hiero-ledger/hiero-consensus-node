@@ -5,7 +5,6 @@ import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfig
 module org.hiero.consensus.transaction.handling {
     exports org.hiero.consensus.transaction.handling;
     exports org.hiero.consensus.transaction.handling.config;
-    exports org.hiero.consensus.transaction.handling.internal;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;

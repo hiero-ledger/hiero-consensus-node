@@ -16,7 +16,6 @@ import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
@@ -236,8 +235,7 @@ public class PlatformWiring {
                         OFFER);
 
         final OutputWire<ReservedSignedState> hashedStateOutputWire =
-                components.stateManagementModule().stateOutputWire();
-        hashedStateOutputWire.solderTo(components.stateSignerWiring().getInputWire(StateSigner::signState));
+                components.stateManagementModule().hashedStateOutputWire();
         hashedStateOutputWire.solderTo(components.issDetectionModule().stateInputWire());
         hashedStateOutputWire
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
@@ -245,8 +243,8 @@ public class PlatformWiring {
 
         // send state signatures to execution
         components
-                .stateSignerWiring()
-                .getOutputWire()
+                .stateManagementModule()
+                .stateSignaturesOutputWire()
                 .solderTo("ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.

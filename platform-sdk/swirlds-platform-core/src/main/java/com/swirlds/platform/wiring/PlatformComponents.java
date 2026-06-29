@@ -3,7 +3,6 @@ package com.swirlds.platform.wiring;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
@@ -16,7 +15,6 @@ import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -55,7 +53,6 @@ public record PlatformComponents(
         StateManagementModule stateManagementModule,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
         ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
-        ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
@@ -88,7 +85,6 @@ public record PlatformComponents(
             @NonNull final AppNotifier notifier) {
 
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
-        stateSignerWiring.bind(builder::buildStateSigner);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
@@ -139,7 +135,6 @@ public record PlatformComponents(
                 stateManagementModule,
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
-                new ComponentWiring<>(model, StateSigner.class, config.stateSigner()),
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),

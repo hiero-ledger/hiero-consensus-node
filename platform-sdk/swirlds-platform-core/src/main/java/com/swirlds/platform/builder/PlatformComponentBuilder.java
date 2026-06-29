@@ -8,8 +8,6 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.signed.DefaultSignedStateSentinel;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signer.DefaultStateSigner;
-import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.DefaultPlatformMonitor;
@@ -25,7 +23,6 @@ import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
-import org.hiero.consensus.transaction.handling.internal.TransactionHandler;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -54,8 +51,6 @@ public class PlatformComponentBuilder {
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private StateSnapshotManager stateSnapshotManager;
-    private StateSigner stateSigner;
-    private TransactionHandler transactionHandler;
 
     private SwirldsPlatform swirldsPlatform;
 
@@ -289,35 +284,5 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager());
         }
         return stateSnapshotManager;
-    }
-
-    /**
-     * Provide a state signer in place of the platform's default state signer.
-     *
-     * @param stateSigner the state signer to use
-     * @return this builder
-     */
-    public PlatformComponentBuilder withStateSigner(@NonNull final StateSigner stateSigner) {
-        throwIfAlreadyUsed();
-        if (this.stateSigner != null) {
-            throw new IllegalStateException("State signer has already been set");
-        }
-        this.stateSigner = Objects.requireNonNull(stateSigner);
-        return this;
-    }
-
-    /**
-     * Build the state signer if it has not yet been built. If one has been provided via
-     * {@link #withStateSigner(StateSigner)}, that signer will be used. If this method is called more than once, only
-     * the first call will build the state signer. Otherwise, the default signer will be created and returned.
-     *
-     * @return the state signer
-     */
-    @NonNull
-    public StateSigner buildStateSigner() {
-        if (stateSigner == null) {
-            stateSigner = new DefaultStateSigner(new PlatformSigner(blocks.keysAndCerts()));
-        }
-        return stateSigner;
     }
 }

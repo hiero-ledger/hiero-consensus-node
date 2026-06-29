@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.management;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.component.InputWireLabel;
@@ -10,11 +11,15 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.state.management.config.StateManagementWiringConfig;
 import org.hiero.consensus.state.management.hashing.DefaultHashLogger;
 import org.hiero.consensus.state.management.hashing.DefaultStateHasher;
 import org.hiero.consensus.state.management.hashing.HashLogger;
 import org.hiero.consensus.state.management.hashing.StateHasher;
+import org.hiero.consensus.state.management.signing.DefaultStateSigner;
+import org.hiero.consensus.state.management.signing.StateSigner;
 import org.hiero.consensus.state.management.utils.SignedStateReserver;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
@@ -26,6 +31,8 @@ public class StateManagementModule {
 
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final ComponentWiring<HashLogger, Void> hashLoggerWiring;
+
+    private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
 
     private final OutputWire<ReservedSignedState> hashedStateOutputWire;
 
@@ -41,7 +48,8 @@ public class StateManagementModule {
             @NonNull final WiringModel model,
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
-            @NonNull final Time time) {
+            @NonNull final Time time,
+            @NonNull final KeysAndCerts keysAndCerts) {
 
         // Set up wiring
         final StateManagementWiringConfig wiringConfig = configuration.getConfigData(StateManagementWiringConfig.class);
@@ -51,6 +59,7 @@ public class StateManagementModule {
                 wiringConfig.stateHasher(),
                 data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1);
         this.hashLoggerWiring = new ComponentWiring<>(model, HashLogger.class, wiringConfig.hashLogger());
+        this.stateSignerWiring = new ComponentWiring<>(model, StateSigner.class, wiringConfig.stateSigner());
 
         // The state hasher needs to pass its data through a transformer.
         hashedStateOutputWire = stateHasherWiring
@@ -59,6 +68,7 @@ public class StateManagementModule {
 
         // Wire components
         hashedStateOutputWire.solderTo(hashedStatesToLogInputWire());
+        hashedStateOutputWire.solderTo(stateSignerWiring.getInputWire(StateSigner::signState));
 
         // Force not soldered wires to be built
 
@@ -67,6 +77,8 @@ public class StateManagementModule {
         stateHasherWiring.bind(stateHasher);
         final HashLogger hashLogger = new DefaultHashLogger(configuration);
         hashLoggerWiring.bind(hashLogger);
+        final StateSigner stateSigner = new DefaultStateSigner(new PlatformSigner(keysAndCerts));
+        stateSignerWiring.bind(stateSigner);
     }
 
     /**
@@ -94,11 +106,21 @@ public class StateManagementModule {
     /**
      * Get the output wire for hashed states
      *
-     * @return the output wire for state
+     * @return the output wire for hashed states
      */
     @NonNull
-    public OutputWire<ReservedSignedState> stateOutputWire() {
+    public OutputWire<ReservedSignedState> hashedStateOutputWire() {
         return hashedStateOutputWire;
+    }
+
+    /**
+     * Get the output wire for state signature transactions
+     *
+     * @return the output wire for state signature transactions
+     */
+    @NonNull
+    public OutputWire<StateSignatureTransaction> stateSignaturesOutputWire() {
+        return stateSignerWiring.getOutputWire();
     }
 
     /**
