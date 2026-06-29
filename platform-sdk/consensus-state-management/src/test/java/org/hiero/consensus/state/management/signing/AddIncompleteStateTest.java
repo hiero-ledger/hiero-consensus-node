@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.manager;
+package org.hiero.consensus.state.management.signing;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
@@ -10,11 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.state.StateSignatureCollectorTester;
 import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
@@ -77,10 +74,7 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
     @DisplayName("Add Incomplete State Test")
     void addIncompleteStateTest() {
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(buildStateConfig())
-                .build();
-        final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(platformContext)
+        final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(buildStateConfig())
                 .stateLacksSignaturesConsumer(stateLacksSignaturesConsumer())
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
                 .build();

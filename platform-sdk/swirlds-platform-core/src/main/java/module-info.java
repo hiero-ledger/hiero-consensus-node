@@ -52,9 +52,6 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             com.hedera.node.test.clients;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.state.nexus to
-            org.hiero.consensus.reconnect.impl,
-            org.hiero.consensus.transaction.handling; // temporary until state management extracted
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.state.snapshot;

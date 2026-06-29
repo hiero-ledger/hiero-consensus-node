@@ -34,12 +34,6 @@ import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
-import com.swirlds.platform.state.signed.SignedStateMetrics;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.InitTrigger;
@@ -67,6 +61,9 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.access.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
+import org.hiero.consensus.state.management.access.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -163,13 +160,10 @@ public class SwirldsPlatform implements Platform {
 
         keysAndCerts = blocks.keysAndCerts();
 
-        final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(platformContext.getConfiguration(), metrics);
 
         savedStateController = new DefaultSavedStateController(platformContext);
-
-        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(metrics);
-        final StateSignatureCollector stateSignatureCollector =
-                new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
 
         this.platformComponents = blocks.platformComponents();
         this.platformCoordinator = blocks.platformCoordinator();
@@ -216,7 +210,6 @@ public class SwirldsPlatform implements Platform {
 
         platformComponents.bind(
                 builder,
-                stateSignatureCollector,
                 eventWindowManager,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,

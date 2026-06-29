@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.management.signing;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -60,12 +60,12 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
      * Start empty, with no known signed states. A signed state is considered completed when it has signatures from a
      * sufficient threshold of nodes.
      *
-     * @param platformContext    the platform context
+     * @param configuration the configuration to read from
      * @param signedStateMetrics a collection of signed state metrics
      */
     public DefaultStateSignatureCollector(
-            @NonNull final PlatformContext platformContext, @NonNull final SignedStateMetrics signedStateMetrics) {
-        this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+            @NonNull final Configuration configuration, @NonNull final SignedStateMetrics signedStateMetrics) {
+        this.stateConfig = configuration.getConfigData(StateConfig.class);
         this.signedStateMetrics = Objects.requireNonNull(signedStateMetrics);
 
         this.savedSignatures =

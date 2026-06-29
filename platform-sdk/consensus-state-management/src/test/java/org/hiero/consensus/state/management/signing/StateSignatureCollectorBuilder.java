@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.manager;
+package org.hiero.consensus.state.management.signing;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.state.StateSignatureCollectorTester;
-import com.swirlds.platform.state.signed.SignedStateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -13,15 +11,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class StateSignatureCollectorBuilder {
 
-    private final PlatformContext platformContext;
-    private final SignedStateMetrics metrics;
+    private final Configuration configuration;
     private StateHasEnoughSignaturesConsumer stateHasEnoughSignaturesConsumer = x -> {};
     private StateLacksSignaturesConsumer stateLacksSignaturesConsumer = x -> {};
 
-    public StateSignatureCollectorBuilder(@NonNull final PlatformContext platformContext) {
-        this.platformContext = platformContext;
-
-        this.metrics = new SignedStateMetrics(platformContext.getMetrics());
+    public StateSignatureCollectorBuilder(@NonNull final Configuration configuration) {
+        this.configuration = configuration;
     }
 
     public StateSignatureCollectorBuilder stateHasEnoughSignaturesConsumer(
@@ -37,6 +32,6 @@ public class StateSignatureCollectorBuilder {
 
     public StateSignatureCollectorTester build() {
         return StateSignatureCollectorTester.create(
-                platformContext, metrics, stateHasEnoughSignaturesConsumer, stateLacksSignaturesConsumer);
+                configuration, stateHasEnoughSignaturesConsumer, stateLacksSignaturesConsumer);
     }
 }

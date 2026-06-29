@@ -11,7 +11,6 @@ import java.time.Duration;
  *
  * @param consensusEngine                      configuration for the consensus engine scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
- * @param stateSignatureCollector              configuration for the state signature collector scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
  *                                             collector
@@ -36,9 +35,6 @@ public record PlatformSchedulersConfig(
         TaskSchedulerConfiguration futureEventBuffer,
 
         @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration pcesSequencer,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration stateSignatureCollector,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateGarbageCollector,

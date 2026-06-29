@@ -4,7 +4,6 @@ package com.swirlds.platform.wiring;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
@@ -188,13 +187,10 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * @see StateSignatureCollector#addReservedState(ReservedSignedState)
+     * see {@code StateSignatureCollector.addReservedState(ReservedSignedState)}
      */
     public void injectSignatureCollectorState(@NonNull final ReservedSignedState reservedSignedState) {
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::addReservedState)
-                .put(reservedSignedState);
+        components.stateManagementModule().stateToCollectInputWire().put(reservedSignedState);
     }
 
     /**

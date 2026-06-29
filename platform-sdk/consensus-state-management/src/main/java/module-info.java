@@ -4,6 +4,7 @@ import org.hiero.consensus.state.management.config.StateManagementConfigurationE
 
 module org.hiero.consensus.state.management {
     exports org.hiero.consensus.state.management;
+    exports org.hiero.consensus.state.management.access;
     exports org.hiero.consensus.state.management.config;
     exports org.hiero.consensus.state.management.utils;
 

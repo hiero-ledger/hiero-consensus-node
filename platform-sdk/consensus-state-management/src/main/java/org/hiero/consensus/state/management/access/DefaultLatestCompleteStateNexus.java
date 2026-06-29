@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.nexus;
+package org.hiero.consensus.state.management.access;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,12 +29,12 @@ public class DefaultLatestCompleteStateNexus implements LatestCompleteStateNexus
     /**
      * Create a new nexus that holds the latest complete signed state.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration to use
+     * @param metrics the metrics to use
      */
-    public DefaultLatestCompleteStateNexus(@NonNull final PlatformContext platformContext) {
-        this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+    public DefaultLatestCompleteStateNexus(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        this.stateConfig = configuration.getConfigData(StateConfig.class);
 
-        final Metrics metrics = platformContext.getMetrics();
         final RunningAverageMetric avgRoundSupermajority = metrics.getOrCreate(AVG_ROUND_SUPERMAJORITY_CONFIG);
         metrics.addUpdater(() -> avgRoundSupermajority.update(getRound()));
     }

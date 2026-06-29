@@ -27,10 +27,7 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import java.nio.file.Path;
@@ -54,6 +51,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
+import org.hiero.consensus.state.management.access.SignedStateNexus;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
@@ -127,7 +126,6 @@ class PlatformWiringTests {
 
         platformComponents.bind(
                 componentBuilder,
-                mock(StateSignatureCollector.class),
                 mock(EventWindowManager.class),
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),

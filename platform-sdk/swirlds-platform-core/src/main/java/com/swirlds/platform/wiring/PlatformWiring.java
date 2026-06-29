@@ -12,10 +12,7 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
@@ -28,6 +25,8 @@ import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
+import org.hiero.consensus.state.management.access.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 
@@ -124,19 +123,10 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .preHandleSignaturesOutputWire()
-                .solderTo(components
-                        .stateSignatureCollectorWiring()
-                        .getInputWire(StateSignatureCollector::handlePreconsensusSignatures));
+                .solderTo(components.stateManagementModule().preconsensusSystemTranscationsInputWire());
 
-        // Split output of StateSignatureCollector into single ReservedSignedStates.
-        final OutputWire<ReservedSignedState> splitReservedSignedStateWire = components
-                .stateSignatureCollectorWiring()
-                .getOutputWire()
-                .buildSplitter("reservedStateSplitter", "reserved state lists");
-        // Add another reservation to the signed states since we are soldering to two different input wires
         final OutputWire<ReservedSignedState> allReservedSignedStatesWire =
-                splitReservedSignedStateWire.buildAdvancedTransformer(
-                        new org.hiero.consensus.state.management.utils.SignedStateReserver("allStatesReserver"));
+                components.stateManagementModule().collectedSignedStatesOutputWire();
 
         // Future work: this should be a full component in its own right or folded in with the state file manager.
         final WireFilter<ReservedSignedState> saveToDiskFilter =
@@ -194,9 +184,7 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .handleSignaturesOutputWire()
-                .solderTo(components
-                        .stateSignatureCollectorWiring()
-                        .getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
+                .solderTo(components.stateManagementModule().postconsensusSystemTranscationsInputWire());
         components
                 .transactionHandlingModule()
                 .handleSignaturesOutputWire()
@@ -249,10 +237,6 @@ public class PlatformWiring {
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
-
-        // Solder the state output as input to the state signature collector.
-        hashedStateOutputWire.solderTo(
-                components.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::addReservedState));
 
         components
                 .stateSnapshotManagerWiring()
@@ -353,7 +337,6 @@ public class PlatformWiring {
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
-        components.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::clear);
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);

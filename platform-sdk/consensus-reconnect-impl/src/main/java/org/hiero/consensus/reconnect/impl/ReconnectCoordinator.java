@@ -10,8 +10,6 @@ import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
@@ -25,6 +23,7 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.state.management.access.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusStateMachine;
@@ -89,7 +88,6 @@ public class ReconnectCoordinator {
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
         platformCoordinator.flushIntakePipeline();
         components.stateManagementModule().flush();
-        components.stateSignatureCollectorWiring().flush();
         components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 3: stop squelching
@@ -102,10 +100,7 @@ public class ReconnectCoordinator {
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
         components.gossipModule().clearInputWire().inject(NoInput.getInstance());
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::clear)
-                .inject(NoInput.getInstance());
+        components.stateManagementModule().clearInputWire().inject(NoInput.getInstance());
         components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
     }
 
@@ -174,13 +169,10 @@ public class ReconnectCoordinator {
     }
 
     /**
-     * @see StateSignatureCollector#addReservedState
+     * see {@code StateSignatureCollector.addReservedState()}
      */
     private void putSignatureCollectorState(@NonNull final ReservedSignedState reserve) {
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::addReservedState)
-                .put(reserve);
+        components.stateManagementModule().stateToCollectInputWire().put(reserve);
     }
 
     /**

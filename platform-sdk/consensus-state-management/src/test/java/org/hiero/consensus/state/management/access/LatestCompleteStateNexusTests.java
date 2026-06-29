@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.nexus;
+package org.hiero.consensus.state.management.access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -7,8 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -25,9 +26,8 @@ public class LatestCompleteStateNexusTests {
      */
     @Test
     void platformStatusUpdateToFreezingTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(platformContext);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics());
         final int round = 456;
         final SignedState state =
                 new RandomSignedStateGenerator().setRound(round).build();
@@ -55,9 +55,8 @@ public class LatestCompleteStateNexusTests {
      */
     @Test
     void platformStatusUpdateToNotFreezingTest() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(platformContext);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics());
         final int round = 456;
         final SignedState state =
                 new RandomSignedStateGenerator().setRound(round).build();

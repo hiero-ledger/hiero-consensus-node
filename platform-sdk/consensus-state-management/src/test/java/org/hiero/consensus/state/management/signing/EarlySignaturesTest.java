@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.manager;
+package org.hiero.consensus.state.management.signing;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.consensus.state.test.fixtures.manager.SignatureVerificationTestUtils.buildFakeSignatureBytes;
@@ -8,11 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.state.StateSignatureCollectorTester;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,14 +74,10 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
     @DisplayName("Early Signatures Test")
     void earlySignaturesTest() throws InterruptedException {
         final int count = 100;
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(buildStateConfig())
-                .build();
-        final int futureSignatures = platformContext
-                .getConfiguration()
-                .getConfigData(StateConfig.class)
-                .maxAgeOfFutureStateSignatures();
-        final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(platformContext)
+        final Configuration configuration = buildStateConfig();
+        final int futureSignatures =
+                configuration.getConfigData(StateConfig.class).maxAgeOfFutureStateSignatures();
+        final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(configuration)
                 .stateLacksSignaturesConsumer(stateLacksSignaturesConsumer())
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
                 .build();

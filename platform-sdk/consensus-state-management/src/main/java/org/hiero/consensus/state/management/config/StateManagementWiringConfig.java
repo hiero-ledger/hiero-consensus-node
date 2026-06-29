@@ -11,6 +11,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param stateHasher configuration for the state hasher scheduler
  * @param hashLogger configuration for the hash logger scheduler
  * @param stateSigner configuration for the state signer scheduler
+ * @param stateSignatureCollector configuration for the state signature collector scheduler
  */
 @ConfigData("state.management.wiring")
 public record StateManagementWiringConfig(
@@ -23,4 +24,7 @@ public record StateManagementWiringConfig(
         TaskSchedulerConfiguration hashLogger,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration stateSigner) {}
+        TaskSchedulerConfiguration stateSigner,
+
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
+        TaskSchedulerConfiguration stateSignatureCollector) {}

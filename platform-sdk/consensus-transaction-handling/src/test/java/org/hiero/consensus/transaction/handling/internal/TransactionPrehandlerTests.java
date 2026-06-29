@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.state.merkle.VirtualMapState;
 import java.time.Duration;
 import java.util.Random;
@@ -19,6 +18,7 @@ import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.state.management.access.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;

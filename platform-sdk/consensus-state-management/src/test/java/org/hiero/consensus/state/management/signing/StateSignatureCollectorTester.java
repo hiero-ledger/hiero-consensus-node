@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.state.management.signing;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
-import com.swirlds.platform.state.signed.SignedStateMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.management.access.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -31,25 +31,26 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
     private final StateLacksSignaturesConsumer stateLacksSignaturesConsumer;
 
     private StateSignatureCollectorTester(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final SignedStateMetrics signedStateMetrics,
             @NonNull final LatestCompleteStateNexus latestSignedState,
             @NonNull final StateHasEnoughSignaturesConsumer stateHasEnoughSignaturesConsumer,
             @NonNull final StateLacksSignaturesConsumer stateLacksSignaturesConsumer) {
-        super(platformContext, signedStateMetrics);
+        super(configuration, signedStateMetrics);
         this.latestSignedState = latestSignedState;
         this.stateHasEnoughSignaturesConsumer = stateHasEnoughSignaturesConsumer;
         this.stateLacksSignaturesConsumer = stateLacksSignaturesConsumer;
     }
 
     public static StateSignatureCollectorTester create(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final SignedStateMetrics signedStateMetrics,
+            @NonNull final Configuration configuration,
             @NonNull final StateHasEnoughSignaturesConsumer stateHasEnoughSignaturesConsumer,
             @NonNull final StateLacksSignaturesConsumer stateLacksSignaturesConsumer) {
-        final LatestCompleteStateNexus latestSignedState = new DefaultLatestCompleteStateNexus(platformContext);
+        final Metrics metrics = new NoOpMetrics();
+        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(metrics);
+        final LatestCompleteStateNexus latestSignedState = new DefaultLatestCompleteStateNexus(configuration, metrics);
         return new StateSignatureCollectorTester(
-                platformContext,
+                configuration,
                 signedStateMetrics,
                 latestSignedState,
                 stateHasEnoughSignaturesConsumer,

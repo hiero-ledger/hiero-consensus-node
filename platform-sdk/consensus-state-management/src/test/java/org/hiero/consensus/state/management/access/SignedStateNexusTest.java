@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.nexus;
+package org.hiero.consensus.state.management.access;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,13 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -27,13 +28,14 @@ import org.mockito.Mockito;
 
 class SignedStateNexusTest {
     private static Stream<SignedStateNexus> allInstances() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        return Stream.concat(raceConditionInstances(), Stream.of(new DefaultLatestCompleteStateNexus(platformContext)));
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        return Stream.concat(
+                raceConditionInstances(),
+                Stream.of(new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics())));
     }
 
     private static Stream<SignedStateNexus> raceConditionInstances() {
-        return Stream.of(new LockFreeStateNexus());
+        return Stream.of(new org.hiero.consensus.state.management.access.LockFreeStateNexus());
     }
 
     @AfterEach

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.manager;
+package org.hiero.consensus.state.management.signing;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -7,11 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.state.StateSignatureCollectorTester;
 import java.util.HashMap;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -70,10 +67,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
     @DisplayName("Sequential Signatures Test")
     void sequentialSignaturesTest() throws InterruptedException {
         this.roundsToKeepAfterSigning = 4;
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(buildStateConfig())
-                .build();
-        final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(platformContext)
+        final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(buildStateConfig())
                 .stateLacksSignaturesConsumer(stateLacksSignaturesConsumer())
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
                 .build();
