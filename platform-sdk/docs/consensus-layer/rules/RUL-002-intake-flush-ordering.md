@@ -6,8 +6,10 @@ class: structural
 topics: [restart-and-pces, event-intake, wiring-framework]
 components:
   - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java
+  - swirlds-platform-core/src/main/java/com/swirlds/platform/SwirldsPlatform.java
   - consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/DefaultConsensusEngine.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java
+  - consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java
 related:
   invariants: []
   decisions: [ADR-005]
@@ -42,30 +44,36 @@ most recent prior self event would produce two self events with the same
 self-parent — a **branch**, which is **byzantine behavior** that the network
 detects and can penalize.
 
-The same flush sequencing is also applied, via separate calls, to the
-transaction handler and state hasher. That extension is **not** a correctness
-requirement against branching; it is a performance choice — finish the work
-already in flight before admitting new work that may push the system to its
-throughput limit.
+The same ordered pass also flushes the transaction handler (pre-handler then
+handler) and the state hasher, in the same method. Those extensions are **not** a
+correctness requirement against branching; they are a performance choice —
+finish the work already in flight before admitting new work that may push the
+system to its throughput limit.
 
 ## Why it holds now
 
-The order is enforced by `PlatformCoordinator.flushIntakePipeline()`, whose
+The order is enforced by `PlatformCoordinator.flushPrimaryPipeline()`, whose
 body is a fixed sequence of per-component `flush()` calls and carries an
 explicit warning that the order must not be changed without consulting the
 wiring diagram:
 
 ```java
-public void flushIntakePipeline() {
+public void flushPrimaryPipeline() {
     components.eventIntakeModule().flush();
     components.pcesModule().flush();
     components.gossipModule().flush();
     components.hashgraphModule().flush();
-    components.applicationTransactionPrehandlerWiring().flush();
+    components.transactionHandlingModule().flush();
     components.eventCreatorModule().flush();
-    components.branchDetectorWiring().flush();
+    components.stateHasherWiring().flush();
 }
 ```
+
+The method only flushes; it does not decide whether the flushed work is
+delivered or discarded. That depends on the state of the components when it is
+called — live components deliver (the PCES-replay caller), squelched components
+discard (the reconnect caller). The branching guarantee below concerns the
+replay caller, where the components are live.
 
 Each `flush()` is a wiring-framework primitive that blocks until the
 component's input queue has drained and the in-progress task has finished.
@@ -94,17 +102,39 @@ sufficient. Had the buffer been a free-standing component feeding both the
 hashgraph and the event creator, consensus progress would feed back into that
 upstream component and a single ordered pass would not converge.
 
-The transaction-handler and state-hasher flushes are issued separately
-(`PlatformCoordinator.flushTransactionHandler()`,
-`PlatformCoordinator.flushStateHasher()`) as part of the restart
-sequencing, for the performance reason stated above rather than to protect
+The hashgraph's future-event buffer is not the only event-holding component,
+and there *is* a real feedback edge in the wiring: each consensus round emits a
+new event window, which is injected back into the **orphan buffer** inside the
+event intake module (`DefaultOrphanBuffer`). A window advance can un-orphan
+events whose missing parents have just become ancient
+(`DefaultOrphanBuffer.setEventWindow` → `missingParentBecameAncient`), feeding
+fresh events back toward a hashgraph that has already been flushed. Because the
+pass is single and never re-flushes the intake module, any such release would
+strand events behind it — so single-pass sufficiency additionally requires that
+**the orphan buffer is inert during the flush.** On the replay path it is,
+for a reason that is *not* the topological ordering of the PCES stream: before
+replay begins, the orphan buffer is seeded with the loaded state's event window
+(`SwirldsPlatform` startup calls `PlatformCoordinator.updateEventWindow` with
+the window derived from the loaded snapshot), and the replay set contains only
+events non-ancient at that window. Every parent of a replayed event is therefore
+either present (non-ancient ⇒ also replayed) or already ancient (⇒ excluded by
+`DefaultOrphanBuffer.getMissingParents`), so no event is ever held to be
+released later by a window advance. The seeded window is what closes this edge,
+not the stream order — an event released live only because a never-arriving
+parent went ancient has no parent in the stream at all, yet still passes
+straight through on replay because that parent is already ancient in the seeded
+window.
+
+The transaction-handler and state-hasher flushes are part of the same single
+ordered pass (the last entries in `flushPrimaryPipeline()`), not separate calls,
+and are included for the performance reason stated above rather than to protect
 against branching.
 
 ## Change risk
 
 Several distinct mechanisms would break this rule:
 
-- **Reordering or removing lines in `flushIntakePipeline()`.** Flushing a
+- **Reordering or removing lines in `flushPrimaryPipeline()`.** Flushing a
   component before an upstream one that still feeds it leaves events stranded
   between them. The event creator could then create a self event without
   having seen the latest self event still sitting in an unflushed upstream
@@ -114,9 +144,17 @@ Several distinct mechanisms would break this rule:
   a downstream component's progress causes an upstream component to emit more
   events. A single ordered pass would no longer converge, and "queue empty"
   on one component would no longer imply "no more events will be produced."
+- **Making the orphan buffer release events during the flush.** The
+  event-window feedback edge into `DefaultOrphanBuffer` is real but inert on the
+  replay path only because the buffer is seeded with the loaded state's window
+  (see *Why it holds now*). Anything that breaks that seeding — replaying events
+  ancient or non-ancient relative to a *different* window than the orphan buffer
+  holds, or seeding the orphan buffer after replay starts — could cause a
+  window advance mid-flush to un-orphan events behind the already-flushed
+  hashgraph, stranding them.
 - **Making `flush()` non-blocking** (returning before the queue drains or
   before the last task is fully handled) for any component in the chain.
-- **Allowing event creation to start before `flushIntakePipeline()` returns**
+- **Allowing event creation to start before `flushPrimaryPipeline()` returns**
   at the post-replay boundary.
 
 Breaking this rule is a **flag for confirmation**, not automatically a defect:
@@ -141,3 +179,16 @@ and must be rejected.
   `DefaultEventCreationManager` rather than factored into a single standalone
   component, which is the structural precondition that makes one ordered
   flush pass sufficient.
+- The embedded future-event buffers are not the only precondition. The orphan
+  buffer is a second event-holding component, and the hashgraph→event-window→
+  orphan-buffer feedback edge is real; single-pass sufficiency also depends on
+  the orphan buffer being inert during the flush. On the replay path that comes
+  from seeding it with the loaded state's window before replay (so it never
+  holds an event); on the reconnect path it comes from squelching the upstream
+  components (so no windows are produced). The "orphan buffer releases no events"
+  condition is load-bearing enough to be a candidate for its own rule.
+- `flushPrimaryPipeline()` is shared by two callers with opposite intent — PCES
+  replay (deliver every recovered event) and reconnect `clear()` (discard all
+  obsolete in-flight data while squelched). The method only flushes in dataflow
+  order; deliver-vs-discard is set by the caller's squelch state, not by the
+  method.

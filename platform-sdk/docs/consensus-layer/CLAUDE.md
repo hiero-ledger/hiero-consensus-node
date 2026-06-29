@@ -67,7 +67,7 @@ Behavioral claims tie to the specific code that makes them true. Match that bar
 
 - **Coverage, not just honesty.** A behavioral claim names the class, and where
   it matters the method, that realizes it — the way RUL-002 ties its ordering
-  claim to `PlatformCoordinator.flushIntakePipeline()`. A load-bearing claim a
+  claim to `PlatformCoordinator.flushPrimaryPipeline()`. A load-bearing claim a
   reader cannot trace to code is either raised to a cited authority (a paper or
   protocol, the way invariants use `source`) or cut. "Don't fabricate an anchor"
   is the floor; **"every load-bearing claim carries one" is the bar.**

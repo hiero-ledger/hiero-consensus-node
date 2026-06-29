@@ -35,20 +35,47 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * Flushes the primary consensus-layer pipeline. After this method is called, all components in the event pipeline
-     * including state hashing will have been flushed. Additionally, things will be flushed an order that
-     * guarantees that there will be no remaining work as long as there are no additional events
-     * added to the intake pipeline, and as long as there are no events released by the orphan buffer.
+     * Flushes the primary consensus-layer pipeline component-by-component, in the upstream-to-downstream order the
+     * components are listed below:
      *
      * <ol>
      *     <li>intake module</li>
      *     <li>pces module</li>
      *     <li>gossip module</li>
      *     <li>hashgraph module</li>
-     *     <li>transaction handling module</li>
+     *     <li>transaction handling module (pre-handler, then handler)</li>
      *     <li>event creation module</li>
      *     <li>state hasher</li>
      * </ol>
+     *
+     * <p>This method only flushes the pipeline; it does not change what each component does with its in-flight work.
+     * Whether the flushed data is delivered (components live) or discarded (components squelched) depends entirely on
+     * the state of the components when this is called — that is the caller's concern, not this method's.
+     *
+     * <p>A single ordered pass leaves no work remaining anywhere in the pipeline provided two conditions hold:
+     * <ol>
+     *     <li>no new events are added to the intake module while the flush is in progress, and</li>
+     *     <li>the orphan buffer (inside the intake module) releases no events in response to an event-window update.</li>
+     * </ol>
+     * The second condition is the subtle one: the hashgraph emits a new event window with each consensus round, that
+     * window is injected back into the orphan buffer, and a window advance can un-orphan events whose missing parents
+     * have just become ancient — feeding fresh events back to a hashgraph that has already been flushed. Because the
+     * flush makes only one pass and never re-flushes the intake module, any such release would strand events behind it.
+     *
+     * <p>Both callers satisfy the second condition, but for different reasons:
+     * <ul>
+     *     <li><b>PCES replay.</b> The orphan buffer is seeded with the loaded state's event window before replay
+     *     begins (see {@code SwirldsPlatform} startup, which calls {@link #updateEventWindow}), and the replay set
+     *     contains only events that are non-ancient at that window. So every parent of a replayed event is either
+     *     present (non-ancient, therefore also replayed) or already ancient (therefore ignored by the orphan buffer):
+     *     no event is ever held to be released later by a window advance. The guarantee comes from the seeded window,
+     *     not from the topological ordering of the PCES stream.</li>
+     *     <li><b>Reconnect.</b> The upstream components are squelched before this is called, so the hashgraph produces
+     *     no consensus rounds and therefore distributes no event windows; the feedback edge cannot fire.</li>
+     * </ul>
+     *
+     * <p>Important: the order of the calls below must not change without consulting the wiring diagram. See
+     * {@code rules/RUL-002} in the consensus-layer knowledge base for why a single ordered pass is sufficient.
      */
     public void flushPrimaryPipeline() {
         // Important: the order of the lines within this function matters. Do not alter the order of these
@@ -59,8 +86,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.pcesModule().flush();
         components.gossipModule().flush();
         components.hashgraphModule().flush();
-        components.transactionHandlingModule().flushTransactionPreHandler();
-        components.transactionHandlingModule().flushTransactionHandler();
+        components.transactionHandlingModule().flush();
         components.eventCreatorModule().flush();
         components.stateHasherWiring().flush();
     }
