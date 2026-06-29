@@ -3,6 +3,8 @@ package com.swirlds.platform.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.ConfigUtils;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -13,12 +15,17 @@ class PlatformConfigurationExtensionTests {
     void testIfAllConfigDataTypesAreRegistered() {
         // given
         final var allRecordsFound = ConfigUtils.loadAllConfigDataRecords(Set.of("com.swirlds"));
-        final var extension = new PlatformConfigurationExtension();
+        final Configuration config =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
-        // when
-        final var allConfigDataTypes = extension.getConfigDataTypes();
+        for (Class<? extends Record> record : allRecordsFound) {
+            // when
+            final var configData = config.getConfigData(record);
 
-        // then
-        assertThat(allConfigDataTypes).containsExactlyInAnyOrderElementsOf(allRecordsFound);
+            // then
+            assertThat(configData)
+                    .as("Config data for " + record.getName() + " should be registered.")
+                    .isNotNull();
+        }
     }
 }

@@ -58,6 +58,7 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
     runtimeOnly("org.hiero.consensus.pces.noop.impl.test.fixtures")
+    runtimeOnly("com.swirlds.config.impl")
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
     opensTo("org.hiero.junit.extensions")
 }
