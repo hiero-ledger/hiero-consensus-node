@@ -269,6 +269,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "PROD")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x03")
                             .getOrCreateConfig(),
                     1);
@@ -295,6 +296,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x00")
                             .getOrCreateConfig(),
                     1);
@@ -321,6 +323,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x01")
                             .getOrCreateConfig(),
                     1);
@@ -347,6 +350,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x02")
                             .getOrCreateConfig(),
                     1);
