@@ -12,6 +12,7 @@ import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.swirlds.state.State;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +40,13 @@ class SavepointStackImplBlocksStreamModeTest {
     @BeforeEach
     void setUp() {
         subject = SavepointStackImpl.newRootStack(
-                state, 3, 50, boundaryStateChangeListener, immediateStateChangeListener, BLOCKS);
+                state,
+                3,
+                50,
+                boundaryStateChangeListener,
+                immediateStateChangeListener,
+                BLOCKS,
+                TraceDataSizeLimiter.NO_LIMIT);
     }
 
     @Test

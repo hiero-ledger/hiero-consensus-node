@@ -59,6 +59,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -148,13 +149,15 @@ public class StandaloneDispatchFactory {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
         final var stack = SavepointStackImpl.newRootStack(
                 state,
                 consensusConfig.handleMaxPrecedingRecords(),
                 consensusConfig.handleMaxFollowingRecords(),
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new ImmediateStateChangeListener(),
-                blockStreamConfig.streamMode());
+                blockStreamConfig.streamMode(),
+                contractsConfig.maxSerializedTraceDataBytes());
         final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
