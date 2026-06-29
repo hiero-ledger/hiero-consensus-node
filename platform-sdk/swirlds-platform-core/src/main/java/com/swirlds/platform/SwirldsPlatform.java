@@ -28,9 +28,7 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
 import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -64,6 +62,8 @@ import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.management.access.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
 import org.hiero.consensus.state.management.access.SignedStateNexus;
+import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 

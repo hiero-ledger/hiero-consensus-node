@@ -7,6 +7,9 @@ module org.hiero.consensus.state.management {
     exports org.hiero.consensus.state.management.access;
     exports org.hiero.consensus.state.management.config;
     exports org.hiero.consensus.state.management.utils;
+    exports org.hiero.consensus.state.management.persistence to
+            com.swirlds.platform.core,
+            org.hiero.consensus.reconnect.impl;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;

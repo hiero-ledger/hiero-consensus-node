@@ -11,7 +11,6 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
@@ -27,6 +26,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
 import org.hiero.consensus.state.management.access.SignedStateNexus;
+import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 

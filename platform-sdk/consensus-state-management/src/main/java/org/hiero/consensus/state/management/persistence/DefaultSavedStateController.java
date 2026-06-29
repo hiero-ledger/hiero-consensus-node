@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.components;
+package org.hiero.consensus.state.management.persistence;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.FIRST_ROUND_AFTER_GENESIS;
