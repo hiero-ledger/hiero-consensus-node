@@ -57,6 +57,7 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final Runnable flushTransactionHandling,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable stateHasherFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -68,6 +69,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(flushIntake);
         requireNonNull(flushTransactionHandling);
         requireNonNull(latestImmutableStateSupplier);
+        requireNonNull(platformStatusFlusher);
         requireNonNull(statusActionConsumer);
         requireNonNull(stateHasherFlusher);
         requireNonNull(signalEndOfPcesReplay);
