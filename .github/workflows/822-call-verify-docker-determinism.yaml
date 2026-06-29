@@ -102,6 +102,16 @@ jobs:
           echo "sha-abbrev=$(git rev-parse HEAD | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
           echo "source-date=$(git log -1 --pretty=%ct)" >> "${GITHUB_OUTPUT}"
 
+      - name: Compute Commit Prefix
+        id: commit-prefix
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          BRANCH_NAME="${BRANCH_NAME##origin/}"
+          BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
+          COMMIT_PREFIX="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
+          [[ -z "${COMMIT_PREFIX}" ]] && COMMIT_PREFIX="adhoc"
+          echo "prefix=${COMMIT_PREFIX}" | tee "${GITHUB_OUTPUT}"
+
       - name: Baseline Existence Check
         id: baseline
         run: |
@@ -146,6 +156,10 @@ jobs:
       - name: Show Docker Info
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: docker info
+
+      - name: Gradle Update Version (Branch Commit)
+        if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
+        run: ./gradlew versionAsPrefixedCommit "-PcommitPrefix=${{ steps.commit-prefix.outputs.prefix }}"
 
       - name: Build Gradle Artifacts
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}

@@ -55,6 +55,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FREEZE_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -69,7 +70,6 @@ import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSu
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.setExpectedCreate2Address;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.TransferWithCustomFixedFees.htsFee;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
@@ -335,11 +335,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
                                 .payingWith(OWNER)
                                 .via("second airdrop"),
-                        validateFees(
-                                "airdrop",
-                                0.1004310852,
-                                TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD),
-                        validateFees("second airdrop", 0.050431086, TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
+                        validateChargedUsdWithin(
+                                "airdrop", TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_EXTRA_FEE_USD, 0.1),
+                        validateChargedUsdWithin("second airdrop", TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD, 0.1));
             }
 
             @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1002,10 +1000,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     // assert collector balance is not changed
                     doingContextual(
                             _ -> Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
-                    validateFees(
+                    validateChargedUsdWithin(
                             "NFT with royalty fee airdrop to collector",
-                            0.0008029,
-                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER,
+                            0.1));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1082,10 +1080,10 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         // assert treasury balance is not changed
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
-                    validateFees(
+                    validateChargedUsdWithin(
                             "NFT with royalty fee airdrop to treasury",
-                            0.0008029,
-                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                            TOKEN_TRANSFER_WITH_CUSTOM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER,
+                            0.1));
         }
 
         @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

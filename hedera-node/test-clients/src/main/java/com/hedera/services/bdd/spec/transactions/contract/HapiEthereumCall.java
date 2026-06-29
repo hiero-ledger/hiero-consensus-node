@@ -334,16 +334,6 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     }
 
     @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.EthereumTransaction,
-                        scFees::getEthereumTransactionFeeMatrices,
-                        txn,
-                        numPayerKeys);
-    }
-
-    @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(HapiSpec spec) throws Throwable {
         if (signedBytes != null) {
             return getSignedBytesBuilder(spec);

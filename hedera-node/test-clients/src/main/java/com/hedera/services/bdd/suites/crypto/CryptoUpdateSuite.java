@@ -34,6 +34,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -42,7 +43,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
@@ -278,11 +278,11 @@ public class CryptoUpdateSuite {
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
                 getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(-1),
-                validateFees(baseTxn, baseFeeWithExpiry, CRYPTO_UPDATE_FEE),
-                validateFees(plusOneTxn, baseFee, CRYPTO_UPDATE_FEE),
-                validateFees(plusTenTxn, baseFee, CRYPTO_UPDATE_FEE),
-                validateFees(plusFiveKTxn, baseFee, CRYPTO_UPDATE_FEE),
-                validateFees(validNegativeTxn, baseFee, CRYPTO_UPDATE_FEE));
+                validateChargedUsdWithin(baseTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusOneTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusTenTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusFiveKTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(validNegativeTxn, CRYPTO_UPDATE_FEE, 0.1));
     }
 
     @HapiTest

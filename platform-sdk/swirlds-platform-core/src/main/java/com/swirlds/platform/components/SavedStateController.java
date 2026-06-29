@@ -2,10 +2,10 @@
 package com.swirlds.platform.components;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
 /**
  * Controls which signed states should be written to disk based on input from other components.

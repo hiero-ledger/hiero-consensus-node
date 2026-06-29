@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asShard;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
@@ -17,14 +16,9 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.infrastructure.meta.InitialAccountIdentifiers;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -34,12 +28,10 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.CryptoCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.Duration;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -284,19 +276,6 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
     @Override
     protected HapiCryptoCreate self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        return spec.fees().forActivityBasedOp(HederaFunctionality.CryptoCreate, this::usageEstimate, txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final var opMeta = new CryptoCreateMeta(txn.getCryptoCreateAccount());
-        final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoCreateUsage(suFrom(svo), baseMeta, opMeta, accumulator);
-        return AdapterUtils.feeDataFrom(accumulator);
     }
 
     @Override

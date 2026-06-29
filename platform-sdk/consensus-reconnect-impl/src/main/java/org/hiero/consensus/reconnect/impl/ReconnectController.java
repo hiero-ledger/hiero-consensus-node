@@ -20,8 +20,6 @@ import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -46,6 +44,8 @@ import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.system.SystemExitCode;
+import org.hiero.consensus.system.SystemExitUtils;
 
 /**
  * Orchestrates the reconnect process when a node falls behind.

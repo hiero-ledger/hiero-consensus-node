@@ -4,7 +4,6 @@ package com.hedera.services.bdd.spec.transactions.crypto;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.*;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
@@ -16,24 +15,15 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoUpdateMeta;
-import com.hedera.node.app.hapi.fees.usage.crypto.ExtantCryptoContext;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
-import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.*;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -292,51 +282,6 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
         return defaultUpdateSigners(account, updKeyName, this::effectivePayer);
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        try {
-            final CryptoGetInfoResponse.AccountInfo info = lookupInfo(spec);
-            FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
-                var ctx = ExtantCryptoContext.newBuilder()
-                        .setCurrentNumTokenRels(info.getTokenRelationshipsCount())
-                        .setCurrentExpiry(info.getExpirationTime().getSeconds())
-                        .setCurrentMemo(info.getMemo())
-                        .setCurrentKey(info.getKey())
-                        .setCurrentlyHasProxy(info.hasProxyAccountID())
-                        .setCurrentMaxAutomaticAssociations(info.getMaxAutomaticTokenAssociations())
-                        // We can't get this information from the query, so leave it empty
-                        .setCurrentCryptoAllowances(Collections.emptyList())
-                        .setCurrentTokenAllowances(Collections.emptyMap())
-                        .setCurrentApproveForAllNftAllowances(Collections.emptySet())
-                        .build();
-                var baseMeta = new BaseTransactionMeta(_txn.getMemoBytes().size(), 0);
-                var opMeta = new CryptoUpdateMeta(
-                        _txn.getCryptoUpdateAccount(),
-                        _txn.getTransactionID().getTransactionValidStart().getSeconds());
-                var accumulator = new UsageAccumulator();
-                // Once account auto-renew is enabled, we could instead leave the explicit auto-assoc lifetime at 0
-                cryptoOpsUsage.cryptoUpdateUsage(suFrom(svo), baseMeta, opMeta, ctx, accumulator, 7776000L);
-                return AdapterUtils.feeDataFrom(accumulator);
-            };
-            return spec.fees().forActivityBasedOp(HederaFunctionality.CryptoUpdate, metricsCalc, txn, numPayerKeys);
-        } catch (Throwable ignore) {
-            return HapiSuite.ONE_HBAR;
-        }
-    }
-
-    @SuppressWarnings("java:S112")
-    private CryptoGetInfoResponse.AccountInfo lookupInfo(HapiSpec spec) throws Throwable {
-        HapiGetAccountInfo subOp = getAccountInfo(account).noLogging();
-        Optional<Throwable> error = subOp.execFor(spec);
-        if (error.isPresent()) {
-            if (!loggingOff) {
-                log.warn("Unable to look up current account info!", error.get());
-            }
-            throw error.get();
-        }
-        return subOp.getResponse().getCryptoGetInfo().getAccountInfo();
     }
 
     @Override

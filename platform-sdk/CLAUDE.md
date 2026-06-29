@@ -60,7 +60,7 @@ principles as `consensus-*` modules.
 
 - **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
 - **Allowed in functional-api and functional-impl modules only (not supporting modules):** `swirlds-component-framework`
-- **Allowed in `consensus-platformstate` and `consensus-roster` only:** `swirlds-state-api`, `swirlds-state-impl`
+- **Allowed in `consensus-platformstate`, `consensus-roster`, and `consensus-iss-detection` only:** `swirlds-state-api`, `swirlds-state-impl`
 - **Allowed in `consensus-state` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Transitional — currently present in `consensus-gossip`, `consensus-gossip-impl`, and `consensus-reconnect-impl` but not permitted in the final architecture:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
@@ -85,6 +85,7 @@ paired API and any supporting module. Must not depend on other impl modules:
 **Structural-transitional modules** — treated like impl modules (rule 3 applies); temporary, awaiting either a move to the execution layer or removal:
 - `consensus-state` — will move to the execution layer.
 - `consensus-event-stream` — will be deleted once the consensus event stream is superseded by the block stream.
+- `consensus-iss-detection` — will move to the execution layer alongside the state machinery it validates.
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
 - `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
