@@ -356,7 +356,9 @@ public class SwirldsPlatform implements Platform {
         platformCoordinator.start();
 
         platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
-        platformCoordinator.startGossip();
+        logger.info(STARTUP.getMarker(),
+                "Gossip skipped (hedera.skipGossipOnStartup=true). "
+                        + "Node will not communicate with peers.");
     }
 
     @Override

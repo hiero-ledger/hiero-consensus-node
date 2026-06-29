@@ -90,7 +90,7 @@ public record PcesConfig(
 
         @ConfigProperty(defaultValue = "true") boolean copyRecentStreamToStateSnapshots,
         @ConfigProperty(defaultValue = "true") boolean compactLastFileOnStartup,
-        @ConfigProperty(defaultValue = "false") boolean forceIgnorePcesSignatures,
+        @ConfigProperty(defaultValue = "true") boolean forceIgnorePcesSignatures,
         @ConfigProperty(defaultValue = "true") boolean allowUnsignedPcesEvents,
         @ConfigProperty(defaultValue = "1ms") Duration replayHealthThreshold,
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,

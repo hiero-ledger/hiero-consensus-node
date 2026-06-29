@@ -105,6 +105,7 @@ public class ReplayPcesCommand implements Callable<Integer> {
         if (forceMockSignatures) {
             System.setProperty("tss.forceMockSignatures", "true");
         }
+        System.setProperty("pces.forceIgnorePcesSignatures", "true");
 
         final NodeId selfId = NodeId.of(selfIdValue);
 

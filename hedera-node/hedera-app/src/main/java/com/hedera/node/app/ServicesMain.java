@@ -73,6 +73,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -212,7 +214,14 @@ public class ServicesMain {
             final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
             rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
+        final KeysAndCerts keysAndCerts;
+        logger.info("Generating ephemeral keys for node {} (hedera.generateEphemeralKeys=true)", selfId);
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generateKeysAndCerts(java.util.List.of(selfId))
+                    .get(selfId);
+        } catch (final Exception e) {
+            throw new RuntimeException("Failed to generate ephemeral keys", e);
+        }
 
         final String consensusEventStreamName = isGenesis
                 // If at genesis, base the event stream location on the genesis network metadata
