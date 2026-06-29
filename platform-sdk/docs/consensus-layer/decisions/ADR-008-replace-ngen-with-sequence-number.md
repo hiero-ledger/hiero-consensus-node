@@ -119,7 +119,7 @@ a dependency on it.
   | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done    |
   | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
   | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | pending |
-  | Sync                                                     | `consensus-gossip-impl`                | #24843             | pending |
+  | Sync                                                     | `consensus-gossip-impl`                | #24843             | done    |
   | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | pending |
   | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending |
   | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | pending |
@@ -230,7 +230,7 @@ See **Decision** above.
   `RoundElections`, `ConsensusSorter`, `LocalConsensusGeneration`: the consensus
   and `cGen` consumers still on `nGen` (#24844, #24883).
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
-  `nGen` (#24843).
+  `sequenceNumber` (#24843).
 - `consensus-gui/.../hashgraph/util/PictureMetadata.java`,
   `HashgraphPicture.java` — use `nGen` as graph height for layout (#24885).
 - `consensus-hashgraph-impl/.../EventImpl.java`, `.../metrics/Sequencer.java` —
@@ -255,9 +255,9 @@ See **Decision** above.
   (closed 2026-04-08); the decision date above reflects that approval. Staged
   implementation followed: PR #24937 (2026-04-16) added the counter and renamed
   the consensus-side `sequence` to `consensusSequence`; PR #24991 (2026-04-30)
-  migrated the tipset. Consensus (#24844), sync (#24843), `cGen` (#24883), tools
-  (#24885), and the final `nGen` removal (#24846) remain open at the time of
-  writing.
+  migrated the tipset. Sync (#24843) migrated the send-list sort to the sequence
+  number. Consensus (#24844), `cGen` (#24883), tools (#24885), and the final
+  `nGen` removal (#24846) remain open at the time of writing.
 - This entry fulfills #25482 ("Create ADR for replacing nGen with sequence
   number"). It supersedes an earlier draft scoped to event creation only; the
   scope was broadened to the full `nGen` removal.

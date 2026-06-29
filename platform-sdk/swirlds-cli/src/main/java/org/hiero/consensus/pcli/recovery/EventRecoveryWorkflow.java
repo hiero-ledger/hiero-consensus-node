@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
@@ -11,6 +10,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
+import static org.hiero.consensus.transaction.handling.TransactionHandlingModule.NO_OP_CONSUMER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;

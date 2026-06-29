@@ -82,21 +82,21 @@ public class ReconnectCoordinator {
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
         // be handled.
-        components.transactionHandlerWiring().startSquelching();
-        components.transactionHandlerWiring().flush();
+        components.transactionHandlingModule().startSquelchingTransactionHandler();
+        components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
         platformCoordinator.flushIntakePipeline();
         components.stateHasherWiring().flush();
         components.stateSignatureCollectorWiring().flush();
-        components.transactionHandlerWiring().flush();
+        components.transactionHandlingModule().flushTransactionHandler();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         components.hashgraphModule().stopSquelching();
         components.eventCreatorModule().stopSquelching();
-        components.transactionHandlerWiring().stopSquelching();
+        components.transactionHandlingModule().stopSquelchingTransactionHandler();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
