@@ -136,6 +136,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(recordBuilder);
+        givenNoTraceDataSizeLimitExceeded();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -167,8 +168,14 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(recordBuilder);
+        givenNoTraceDataSizeLimitExceeded();
 
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+    }
+
+    private void givenNoTraceDataSizeLimitExceeded() {
+        given(recordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(recordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
     }
 
     @Test
