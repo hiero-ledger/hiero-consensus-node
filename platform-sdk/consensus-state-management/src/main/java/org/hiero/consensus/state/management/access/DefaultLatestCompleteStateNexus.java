@@ -12,6 +12,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**

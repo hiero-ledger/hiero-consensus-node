@@ -23,7 +23,6 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.state.management.access.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusStateMachine;
@@ -139,8 +138,8 @@ public class ReconnectCoordinator {
         platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
         components
-                .latestImmutableStateNexusWiring()
-                .getInputWire(SignedStateNexus::setState)
+                .stateManagementModule()
+                .latestImmutableStateInputWire()
                 .put(signedState.reserve("set latest immutable to reconnect state"));
         platformCoordinator.sendStateToHashLogger(signedState);
         // this will send the state to the signature collector which will send it to be written to disk.

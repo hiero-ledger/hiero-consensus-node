@@ -50,7 +50,10 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.LatestCompleteStateNexus;
+import org.hiero.consensus.state.management.SignedStateNexus;
 import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.access.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
@@ -319,7 +322,9 @@ public class ConsensusNoOpModules {
      */
     @NonNull
     public static StateManagementModule createNoOpStateManagementModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -329,7 +334,26 @@ public class ConsensusNoOpModules {
         } catch (final Exception e) {
             throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
         }
+        final String mainClassName = "mainClassName";
+        final String swirldName = "swirldName";
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final SignedStateNexus signedStateNexus = new DefaultLatestCompleteStateNexus(configuration, metrics);
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(configuration, metrics);
 
-        return new StateManagementModule(model, configuration, metrics, time, keysAndCerts);
+        return new StateManagementModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                keysAndCerts,
+                mainClassName,
+                selfId,
+                swirldName,
+                stateLifecycleManager,
+                signedStateNexus,
+                latestCompleteStateNexus);
     }
 }

@@ -26,7 +26,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.access.SignedStateNexus;
+import org.hiero.consensus.state.management.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 
@@ -61,7 +61,7 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  *                                               platform status management is handled by the wiring framework
  * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
  *                                               reconnect
- * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
+ * @param latestCompleteStateSupplier        a reference to a supplier that supplies the latest immutable state,
  *                                               this is exposed here due to reconnect, can be removed once reconnect is
  *                                               made compatible with the wiring framework
  * @param firstPlatform                          if this is the first platform being built (there is static setup that
@@ -95,7 +95,7 @@ public record PlatformBuildingBlocks(
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
         @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-        @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
+        @NonNull Supplier<ReservedSignedState> latestCompleteStateSupplier,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
@@ -123,7 +123,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
         requireNonNull(stateLifecycleManager);
-        requireNonNull(getLatestCompleteStateReference);
+        requireNonNull(latestCompleteStateSupplier);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(execution);
         requireNonNull(fallenBehindMonitor);

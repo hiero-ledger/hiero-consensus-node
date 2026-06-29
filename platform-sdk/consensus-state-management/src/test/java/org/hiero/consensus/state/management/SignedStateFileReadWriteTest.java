@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.consensus.state.management;
 
-import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
-import static com.swirlds.platform.StateFileManagerTests.hashState;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeHashInfoFile;
-import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignatureSetFile;
-import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Bytes;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
+import static org.hiero.consensus.state.management.SignedStateFileReader.readState;
+import static org.hiero.consensus.state.management.SignedStateFileWriter.writeHashInfoFile;
+import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignatureSetFile;
+import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignedStateToDisk;
+import static org.hiero.consensus.state.management.StateFileManagerTests.hashState;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.HASH_INFO_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,13 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -52,6 +47,8 @@ import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.management.persistence.SignedStateFileUtils;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -86,9 +83,11 @@ class SignedStateFileReadWriteTest {
             FileUtils.delete(testDirectory);
         }
         Files.createDirectories(testDirectory);
+        final Time time = Time.getCurrent();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final FileSystemManager fileSystemManager = new TestFileSystemManager(testDirectory);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                new NoOpMetrics(), new FakeTime(), CONFIGURATION, fileSystemManager);
+        stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), time, configuration, fileSystemManager);
     }
 
     @AfterEach
@@ -141,10 +140,9 @@ class SignedStateFileReadWriteTest {
 
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final DeserializedSignedState deserializedSignedState =
-                readState(testDirectory, platformContext, stateLifecycleManager);
+                readState(testDirectory, configuration, stateLifecycleManager);
         hashState(deserializedSignedState.reservedSignedState().get());
 
         final VirtualMapMetadata originalMetadata =
@@ -188,15 +186,12 @@ class SignedStateFileReadWriteTest {
         final String configDir = testDirectory.resolve("data/saved").toString();
         final Configuration configuration = changeConfigAndConfigHolder(configDir);
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-
         // Async snapshot requires all references to the state being written to disk to be released
         stateLifecycleManager.getLatestImmutableState().release();
 
         writeSignedStateToDisk(
-                platformContext,
+                configuration,
+                new FileSystemManager(),
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,

@@ -16,9 +16,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.platform.state.SavedStateUtils;
-import com.swirlds.platform.state.snapshot.SavedStateInfo;
-import com.swirlds.platform.state.snapshot.SavedStateMetadata;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.HederaUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,6 +40,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.saved.SavedStateInfo;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
 import picocli.CommandLine;
 
 @CommandLine.Command(

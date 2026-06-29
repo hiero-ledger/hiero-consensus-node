@@ -130,7 +130,8 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule statemanagementModule = createNoOpStateManagementModule(model, configuration);
+        final StateManagementModule statemanagementModule =
+                createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,

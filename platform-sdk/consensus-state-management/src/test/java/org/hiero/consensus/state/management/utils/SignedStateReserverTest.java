@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.wiring;
+package org.hiero.consensus.state.management.utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -8,14 +8,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.List;
@@ -34,20 +34,13 @@ class SignedStateReserverTest {
     void basicTest() {
         final int numConsumers = 3;
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         VirtualMapState mockState = mock(VirtualMapState.class);
         VirtualMap root = mock(VirtualMap.class);
         when(mockState.getRoot()).thenReturn(root);
-        final SignedState signedState = new SignedState(
-                platformContext.getConfiguration(),
-                mock(SignatureVerifier.class),
-                mockState,
-                "create",
-                false,
-                false,
-                false);
+        final SignedState signedState =
+                new SignedState(configuration, mock(SignatureVerifier.class), mockState, "create", false, false, false);
 
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
@@ -55,10 +48,8 @@ class SignedStateReserverTest {
                         "scheduler")
                 .withType(TaskSchedulerType.DIRECT)
                 .build();
-        final OutputWire<ReservedSignedState> outputWire = taskScheduler
-                .getOutputWire()
-                .buildAdvancedTransformer(
-                        new org.hiero.consensus.state.management.utils.SignedStateReserver("reserver"));
+        final OutputWire<ReservedSignedState> outputWire =
+                taskScheduler.getOutputWire().buildAdvancedTransformer(new SignedStateReserver("reserver"));
         final BindableInputWire<ReservedSignedState, ReservedSignedState> inputWire =
                 taskScheduler.buildInputWire("in");
         inputWire.bind(s -> s);

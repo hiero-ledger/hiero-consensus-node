@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management.persistence;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,11 +35,9 @@ public class StateSnapshotManagerMetrics {
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system
      */
-    public StateSnapshotManagerMetrics(@NonNull final PlatformContext platformContext) {
-        final Metrics metrics = platformContext.getMetrics();
-
+    public StateSnapshotManagerMetrics(@NonNull final Metrics metrics) {
         stateToDiskTime = metrics.getOrCreate(STATE_TO_DISK_TIME_CONFIG);
         writeStateToDiskTime = metrics.getOrCreate(WRITE_STATE_TO_DISK_TIME_CONFIG);
         totalNeverSignedDiskStates = metrics.getOrCreate(TOTAL_NEVER_SIGNED_DISK_STATES_CONFIG);

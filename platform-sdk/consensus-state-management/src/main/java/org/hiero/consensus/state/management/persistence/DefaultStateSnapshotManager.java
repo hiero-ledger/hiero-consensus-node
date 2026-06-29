@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management.persistence;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -28,6 +28,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.SignedStateFileWriter;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -60,11 +61,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private final Configuration configuration;
 
     /**
-     * the platform context
-     */
-    private final PlatformContext platformContext;
-
-    /**
      * Provides system time
      */
     private final Time time;
@@ -82,27 +78,32 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Creates a new instance.
      *
-     * @param platformContext       the platform context
+     * @param configuration the configuration
+     * @param metrics the metrics system
+     * @param time the time provider
+     * @param fileSystemManager the file system manager
      * @param mainClassName the main class name of this node
-     * @param selfId        the ID of this node
-     * @param swirldName    the name of the swirld
+     * @param selfId the ID of this node
+     * @param swirldName the name of the swirld
      * @param stateLifecycleManager the state lifecycle manager
      */
     public DefaultStateSnapshotManager(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.fileSystemManager = platformContext.getFileSystemManager();
-        this.time = platformContext.getTime();
-        this.selfId = Objects.requireNonNull(selfId);
-        this.configuration = platformContext.getConfiguration();
+        this.fileSystemManager = requireNonNull(fileSystemManager);
+        this.time = requireNonNull(time);
+        this.selfId = requireNonNull(selfId);
+        this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = stateLifecycleManager;
         signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
-        metrics = new StateSnapshotManagerMetrics(platformContext);
+        this.metrics = new StateSnapshotManagerMetrics(metrics);
     }
 
     /**
@@ -155,7 +156,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * {@inheritDoc}
      */
     @Override
-    public void dumpStateTask(@NonNull final StateDumpRequest request) {
+    public void dumpStateTask(@NonNull final org.hiero.consensus.state.saved.StateDumpRequest request) {
         final ReservedSignedState reservedSignedState = request.reservedSignedState();
         final SignedState signedState = reservedSignedState.get();
 
@@ -202,7 +203,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
 
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext,
+                    configuration,
+                    fileSystemManager,
                     selfId,
                     directory,
                     getReason(signedState),
@@ -294,14 +296,15 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
-        final List<SavedStateInfo> savedStates = signedStateFilePath.getSavedStateFiles();
+        final List<org.hiero.consensus.state.saved.SavedStateInfo> savedStates =
+                signedStateFilePath.getSavedStateFiles();
 
         // States are returned newest to oldest. So delete from the end of the list to delete the oldest states.
         int index = savedStates.size() - 1;
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         for (; index >= stateConfig.signedStateDisk(); index--) {
 
-            final SavedStateInfo savedStateInfo = savedStates.get(index);
+            final org.hiero.consensus.state.saved.SavedStateInfo savedStateInfo = savedStates.get(index);
             try {
                 deleteDirectoryAndLog(savedStateInfo.stateDirectory());
             } catch (final IOException e) {
@@ -312,7 +315,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         if (index < 0) {
             return EventConstants.GENERATION_UNDEFINED;
         }
-        final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
+        final org.hiero.consensus.state.saved.SavedStateMetadata oldestStateMetadata =
+                savedStates.get(index).metadata();
         return oldestStateMetadata.minimumBirthRoundNonAncient();
     }
 }

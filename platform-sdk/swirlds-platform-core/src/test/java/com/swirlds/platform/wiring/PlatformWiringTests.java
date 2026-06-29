@@ -27,7 +27,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -50,9 +49,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
-import org.hiero.consensus.state.management.access.SignedStateNexus;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
+import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
@@ -98,7 +95,8 @@ class PlatformWiringTests {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule stateManagementModule = createNoOpStateManagementModule(model, configuration);
+        final StateManagementModule stateManagementModule =
+                createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -124,13 +122,7 @@ class PlatformWiringTests {
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
-        platformComponents.bind(
-                componentBuilder,
-                mock(EventWindowManager.class),
-                mock(SignedStateNexus.class),
-                mock(LatestCompleteStateNexus.class),
-                mock(SavedStateController.class),
-                mock(AppNotifier.class));
+        platformComponents.bind(componentBuilder, mock(EventWindowManager.class), mock(AppNotifier.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());

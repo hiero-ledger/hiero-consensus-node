@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management.persistence;
 
-import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -57,27 +57,4 @@ public interface StateSnapshotManager {
      *                by the caller; this method takes ownership and will release the reservation
      */
     void dumpStateTask(@NonNull StateDumpRequest request);
-
-    /**
-     * Convert a {@link StateSavingResult} to a {@link StateWriteToDiskCompleteNotification}.
-     *
-     * @param result the result of the state saving operation
-     * @return the notification
-     */
-    @NonNull
-    default StateWriteToDiskCompleteNotification toNotification(@NonNull final StateSavingResult result) {
-        return new StateWriteToDiskCompleteNotification(
-                result.round(), result.consensusTimestamp(), result.freezeState());
-    }
-
-    /**
-     * Extract the oldest minimum birth round on disk from a {@link StateSavingResult}.
-     *
-     * @param result the result of the state saving operation
-     * @return the oldest minimum birth round on disk
-     */
-    @NonNull
-    default Long extractOldestMinimumBirthRoundOnDisk(@NonNull final StateSavingResult result) {
-        return result.oldestMinimumBirthRoundOnDisk();
-    }
 }

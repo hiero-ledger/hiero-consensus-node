@@ -4,8 +4,6 @@ package com.swirlds.platform.wiring;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.snapshot.StateDumpRequest;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -14,6 +12,8 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
+import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
@@ -180,10 +180,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      * @see StateSnapshotManager#dumpStateTask
      */
     public void dumpStateToDisk(@NonNull final StateDumpRequest request) {
-        components
-                .stateSnapshotManagerWiring()
-                .getInputWire(StateSnapshotManager::dumpStateTask)
-                .put(request);
+        components.stateManagementModule().stateDumpRequestInputWire().put(request);
     }
 
     /**

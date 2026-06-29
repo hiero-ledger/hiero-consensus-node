@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management;
 
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -28,6 +26,8 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.schemas.V0540RosterBaseSchema;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -46,7 +46,7 @@ public final class SignedStateFileReader {
      * immutable snapshot. The loaded state is then available via {@link StateLifecycleManager#getMutableState()}.
      *
      * @param stateDir              the directory to read from
-     * @param platformContext       the platform context
+     * @param configuration         the platform configuration
      * @param stateLifecycleManager the state lifecycle manager
      * @return a signed state with its associated hash (as computed when the state was serialized)
      * @throws IOException    if there are any problems reading from a file
@@ -54,13 +54,11 @@ public final class SignedStateFileReader {
      */
     public static @NonNull DeserializedSignedState readState(
             @NonNull final Path stateDir,
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException, ParseException {
 
         requireNonNull(stateDir);
-        requireNonNull(platformContext);
-        final Configuration conf = platformContext.getConfiguration();
 
         checkSignedStateFilePath(stateDir);
 
@@ -81,7 +79,7 @@ public final class SignedStateFileReader {
         }
 
         final SignedState newSignedState = new SignedState(
-                conf,
+                configuration,
                 CryptoUtils::verifySignature,
                 virtualMapState,
                 "SignedStateFileReader.readState()",

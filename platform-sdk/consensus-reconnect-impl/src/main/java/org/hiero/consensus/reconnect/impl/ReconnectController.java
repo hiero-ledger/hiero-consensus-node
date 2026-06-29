@@ -16,7 +16,6 @@ import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformCoordinator;
@@ -40,6 +39,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.state.management.SignedStateFileReader;
 import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.actions.FallenBehindAction;

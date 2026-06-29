@@ -54,8 +54,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.state.snapshot;
-    exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
 

@@ -7,7 +7,7 @@ import static org.hiero.consensus.state.snapshot.StateToDiskReason.FREEZE_STATE;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.RECONNECT;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -35,10 +35,10 @@ public class DefaultSavedStateController implements SavedStateController {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
      */
-    public DefaultSavedStateController(@NonNull final PlatformContext platformContext) {
-        this.stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+    public DefaultSavedStateController(@NonNull final Configuration configuration) {
+        this.stateConfig = configuration.getConfigData(StateConfig.class);
     }
 
     /**

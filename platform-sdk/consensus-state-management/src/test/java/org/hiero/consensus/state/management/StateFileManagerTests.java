@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.consensus.state.management;
 
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
+import static org.hiero.consensus.state.management.SignedStateFileReader.readState;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.ISS;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
@@ -17,18 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SavedStateInfo;
-import com.swirlds.platform.state.snapshot.SavedStateMetadata;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
-import com.swirlds.platform.state.snapshot.StateDumpRequest;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -48,11 +40,20 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.management.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.management.persistence.SavedStateController;
+import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.management.persistence.SignedStateFileUtils;
+import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
+import org.hiero.consensus.state.saved.SavedStateInfo;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
+import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
@@ -72,7 +73,9 @@ class StateFileManagerTests {
     private static final String MAIN_CLASS_NAME = "com.swirlds.foobar";
     private static final String SWIRLD_NAME = "mySwirld";
 
-    private PlatformContext context;
+    private Configuration configuration;
+    private Metrics metrics;
+    private Time time;
     private SignedStateFilePath signedStateFilePath;
 
     @TempDir
@@ -91,12 +94,11 @@ class StateFileManagerTests {
     void beforeEach() {
         testDirectory = tmpDir.resolve("StateFileManagerTests");
         fileSystemManager = new FileSystemManager(testDirectory);
-        context = TestPlatformContextBuilder.create()
-                .withFileSystemManager(fileSystemManager)
-                .build();
+        configuration = new TestConfigBuilder().getOrCreateConfig();
+        metrics = new NoOpMetrics();
+        time = Time.getCurrent();
         signedStateFilePath = new SignedStateFilePath(fileSystemManager, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
     }
 
     @AfterEach
@@ -131,8 +133,9 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final DeserializedSignedState deserializedSignedState =
-                readState(stateDirectory, TestPlatformContextBuilder.create().build(), stateLifecycleManager);
+                readState(stateDirectory, configuration, stateLifecycleManager);
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         hashState(signedState);
 
@@ -159,8 +162,15 @@ class StateFileManagerTests {
             Files.createFile(savedDir);
         }
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                MAIN_CLASS_NAME,
+                SELF_ID,
+                SWIRLD_NAME,
+                stateLifecycleManager);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
         // This state is irrelevant in this test context and thus should be released
@@ -179,8 +189,15 @@ class StateFileManagerTests {
     void saveISSignedState() throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                MAIN_CLASS_NAME,
+                SELF_ID,
+                SWIRLD_NAME,
+                stateLifecycleManager);
         signedState.markAsStateToSave(ISS);
         initLifecycleManagerAndMakeStateImmutable(signedState);
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
@@ -207,10 +224,7 @@ class StateFileManagerTests {
                 .withValue(StateConfig_.SAVE_STATE_PERIOD, stateSavePeriod)
                 .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
                 .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory.toFile().toString());
-        final PlatformContext context = TestPlatformContextBuilder.create()
-                .withConfiguration(configBuilder.getOrCreateConfig())
-                .withFileSystemManager(fileSystemManager)
-                .build();
+        final Configuration configuration = configBuilder.getOrCreateConfig();
 
         // Each state now has a VirtualMap for ROSTERS, and each VirtualMap consumes a lot of RAM.
         // So one cannot keep too many VirtualMaps in memory at once, or OOMs pop up.
@@ -219,9 +233,16 @@ class StateFileManagerTests {
         final int averageTimeBetweenStates = 10;
         final double standardDeviationTimeBetweenStates = 0.5;
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
-        final SavedStateController controller = new DefaultSavedStateController(context);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                MAIN_CLASS_NAME,
+                SELF_ID,
+                SWIRLD_NAME,
+                stateLifecycleManager);
+        final SavedStateController controller = new DefaultSavedStateController(configuration);
 
         Instant timestamp;
         final long firstRound;
@@ -296,7 +317,7 @@ class StateFileManagerTests {
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readState(
-                                            savedStateInfo.stateDirectory(), context, stateLifecycleManager)
+                                            savedStateInfo.stateDirectory(), configuration, stateLifecycleManager)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");
@@ -334,15 +355,19 @@ class StateFileManagerTests {
                 .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
                 .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory.toFile().toString())
                 .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory);
-        final PlatformContext context = TestPlatformContextBuilder.create()
-                .withConfiguration(configBuilder.getOrCreateConfig())
-                .withFileSystemManager(fileSystemManager)
-                .build();
+        final Configuration configuration = configBuilder.getOrCreateConfig();
 
         final int count = 10;
 
-        final StateSnapshotManager manager =
-                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                MAIN_CLASS_NAME,
+                SELF_ID,
+                SWIRLD_NAME,
+                stateLifecycleManager);
 
         final Path statesDirectory = signedStateFilePath.getSignedStatesDirectoryForSwirld();
 

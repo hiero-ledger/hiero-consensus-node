@@ -4,6 +4,7 @@ import org.hiero.consensus.state.config.StateConfigurationExtension;
 
 module org.hiero.consensus.state {
     exports org.hiero.consensus.state.config;
+    exports org.hiero.consensus.state.saved;
     exports org.hiero.consensus.state.signed;
     exports org.hiero.consensus.state.snapshot;
 

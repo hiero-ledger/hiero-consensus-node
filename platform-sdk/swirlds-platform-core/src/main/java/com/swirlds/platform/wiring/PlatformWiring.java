@@ -6,13 +6,12 @@ import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
+import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -24,9 +23,6 @@ import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
-import org.hiero.consensus.state.management.access.SignedStateNexus;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 
@@ -125,39 +121,6 @@ public class PlatformWiring {
                 .preHandleSignaturesOutputWire()
                 .solderTo(components.stateManagementModule().preconsensusSystemTranscationsInputWire());
 
-        final OutputWire<ReservedSignedState> allReservedSignedStatesWire =
-                components.stateManagementModule().collectedSignedStatesOutputWire();
-
-        // Future work: this should be a full component in its own right or folded in with the state file manager.
-        final WireFilter<ReservedSignedState> saveToDiskFilter =
-                new WireFilter<>(components.model(), "saveToDiskFilter", "states", state -> {
-                    if (state.get().isStateToSave()) {
-                        return true;
-                    }
-                    state.close();
-                    return false;
-                });
-
-        allReservedSignedStatesWire.solderTo(saveToDiskFilter.getInputWire());
-
-        saveToDiskFilter
-                .getOutputWire()
-                .solderTo(components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::saveStateTask));
-
-        // Filter to complete states only
-        final OutputWire<ReservedSignedState> completeReservedSignedStatesWire =
-                allReservedSignedStatesWire.buildFilter("completeStateFilter", "states", rs -> {
-                    if (rs.get().isComplete()) {
-                        return true;
-                    } else {
-                        // close the second reservation on states that are not passed on.
-                        rs.close();
-                        return false;
-                    }
-                });
-        completeReservedSignedStatesWire.solderTo(
-                components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::setStateIfNewer));
-
         solderEventWindow(components);
 
         components
@@ -193,21 +156,16 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .stateWithHashComplexityOutputWire()
-                .solderTo(components.savedStateControllerWiring().getInputWire(SavedStateController::markSavedState));
+                .solderTo(components.stateManagementModule().stateToMarkInputWire());
 
         components
                 .transactionHandlingModule()
                 .stateOutputWire()
-                .solderTo(components.latestImmutableStateNexusWiring().getInputWire(SignedStateNexus::setState));
+                .solderTo(components.stateManagementModule().latestImmutableStateInputWire());
         components
                 .transactionHandlingModule()
                 .stateOutputWire()
                 .solderTo(components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
-
-        components
-                .savedStateControllerWiring()
-                .getOutputWire()
-                .solderTo(components.stateManagementModule().unhashedStatesInputWire());
 
         final var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
         components
@@ -239,13 +197,13 @@ public class PlatformWiring {
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
 
         components
-                .stateSnapshotManagerWiring()
-                .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
+                .stateManagementModule()
+                .oldestMinimumBirthRoundOnDiskOutputWire()
                 .solderTo(components.pcesModule().minimumBirthRoundInputWire(), INJECT);
 
         components
-                .stateSnapshotManagerWiring()
-                .getOutputWire()
+                .stateManagementModule()
+                .stateSavingResultOutputWire()
                 .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
 
         components
@@ -282,11 +240,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(
-                        components
-                                .latestCompleteStateNexusWiring()
-                                .getInputWire(LatestCompleteStateNexus::updatePlatformStatus),
-                        INJECT);
+                .solderTo(components.stateManagementModule().platformStatusInputWire(), INJECT);
 
         solderNotifier(components);
         buildUnsolderedWires(components);
@@ -303,8 +257,7 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(components.gossipModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(components.pcesModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(components.eventCreatorModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(
-                components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::updateEventWindow));
+        eventWindowOutputWire.solderTo(components.stateManagementModule().eventWindowInputWire());
     }
 
     /**
@@ -312,8 +265,13 @@ public class PlatformWiring {
      */
     private static void solderNotifier(final PlatformComponents components) {
         components
-                .stateSnapshotManagerWiring()
-                .getTransformedOutput(StateSnapshotManager::toNotification)
+                .stateManagementModule()
+                .stateSavingResultOutputWire()
+                .buildTransformer(
+                        "stateSavedNotifier",
+                        "state saved results",
+                        result -> new StateWriteToDiskCompleteNotification(
+                                result.round(), result.consensusTimestamp(), result.freezeState()))
                 .solderTo(
                         components.notifierWiring().getInputWire(AppNotifier::sendStateWrittenToDiskNotification),
                         INJECT);
@@ -337,7 +295,6 @@ public class PlatformWiring {
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
-        components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
     }

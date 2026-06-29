@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management.persistence;
 
 /**
  * Utility methods for dealing with signed states on disk.

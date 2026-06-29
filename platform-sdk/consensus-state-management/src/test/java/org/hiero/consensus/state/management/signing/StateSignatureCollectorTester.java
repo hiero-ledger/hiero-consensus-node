@@ -17,8 +17,8 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.management.LatestCompleteStateNexus;
 import org.hiero.consensus.state.management.access.DefaultLatestCompleteStateNexus;
-import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**

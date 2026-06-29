@@ -1,29 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.saved;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.FREEZE_STATE;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH_MNEMONIC;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH_MNEMONIC;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_BIRTH_ROUND_NON_ANCIENT;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NODE_ID;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NUMBER_OF_CONSENSUS_EVENTS;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.ROUND;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.SIGNING_NODES;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.SIGNING_WEIGHT_SUM;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.SOFTWARE_VERSION;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.TOTAL_WEIGHT;
-import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_CLOCK_TIME;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.FREEZE_STATE;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.HASH;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.HASH_MNEMONIC;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH_MNEMONIC;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.MINIMUM_BIRTH_ROUND_NON_ANCIENT;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.NODE_ID;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.NUMBER_OF_CONSENSUS_EVENTS;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.ROUND;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.SIGNING_NODES;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.SIGNING_WEIGHT_SUM;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.SOFTWARE_VERSION;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.TOTAL_WEIGHT;
+import static org.hiero.consensus.state.saved.SavedStateMetadataField.WALL_CLOCK_TIME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.formatting.TextTable;

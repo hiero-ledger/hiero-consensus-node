@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management.persistence;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.nio.file.Files.exists;
@@ -121,7 +121,7 @@ public class SignedStateFilePath {
      */
     @SuppressWarnings("resource")
     @NonNull
-    public List<SavedStateInfo> getSavedStateFiles() {
+    public List<org.hiero.consensus.state.saved.SavedStateInfo> getSavedStateFiles() {
         final Path dir = getSignedStatesDirectoryForSwirld();
         return getSavedStateFiles(dir);
     }
@@ -132,7 +132,7 @@ public class SignedStateFilePath {
      * @param dir the path for reading
      * @return Information about saved states on disk, or null if none are found
      */
-    public static List<SavedStateInfo> getSavedStateFiles(final Path dir) {
+    public static List<org.hiero.consensus.state.saved.SavedStateInfo> getSavedStateFiles(final Path dir) {
         if (!exists(dir) || !isDirectory(dir)) {
             return List.of();
         }
@@ -141,14 +141,15 @@ public class SignedStateFilePath {
 
                 final List<Path> dirs = list.filter(Files::isDirectory).toList();
 
-                final TreeMap<Long, SavedStateInfo> savedStates = new TreeMap<>();
+                final TreeMap<Long, org.hiero.consensus.state.saved.SavedStateInfo> savedStates = new TreeMap<>();
                 for (final Path subDir : dirs) {
                     try {
                         final long round = Long.parseLong(subDir.getFileName().toString());
-                        final Path stateMetadataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
-                        final SavedStateMetadata metadata;
+                        final Path stateMetadataPath =
+                                subDir.resolve(org.hiero.consensus.state.saved.SavedStateMetadata.FILE_NAME);
+                        final org.hiero.consensus.state.saved.SavedStateMetadata metadata;
                         try {
-                            metadata = SavedStateMetadata.parse(stateMetadataPath);
+                            metadata = org.hiero.consensus.state.saved.SavedStateMetadata.parse(stateMetadataPath);
                         } catch (final IOException e) {
                             logger.error(
                                     EXCEPTION.getMarker(),
@@ -157,7 +158,7 @@ public class SignedStateFilePath {
                             continue;
                         }
 
-                        savedStates.put(round, new SavedStateInfo(subDir, metadata));
+                        savedStates.put(round, new org.hiero.consensus.state.saved.SavedStateInfo(subDir, metadata));
 
                     } catch (final NumberFormatException e) {
                         logger.warn(

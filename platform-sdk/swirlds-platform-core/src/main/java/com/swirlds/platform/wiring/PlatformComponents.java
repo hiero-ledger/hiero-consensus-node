@@ -11,7 +11,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,15 +23,10 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.access.LatestCompleteStateNexus;
-import org.hiero.consensus.state.management.access.SignedStateNexus;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
-import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
@@ -48,13 +42,9 @@ public record PlatformComponents(
         IssDetectionModule issDetectionModule,
         TransactionHandlingModule transactionHandlingModule,
         StateManagementModule stateManagementModule,
-        ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
-        ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring,
-        ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring,
-        ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
         ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
         ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
@@ -65,25 +55,15 @@ public record PlatformComponents(
      *
      * @param builder                   builds platform components that need to be bound to wires
      * @param eventWindowManager        the event window manager to bind
-     * @param latestImmutableStateNexus the latest immutable state nexus to bind
-     * @param latestCompleteStateNexus  the latest complete state nexus to bind
-     * @param savedStateController      the saved state controller to bind
      * @param notifier                  the notifier to bind
      */
     public void bind(
             @NonNull final PlatformComponentBuilder builder,
             @NonNull final EventWindowManager eventWindowManager,
-            @NonNull final SignedStateNexus latestImmutableStateNexus,
-            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
-            @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         eventWindowManagerWiring.bind(eventWindowManager);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
-        latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
-        latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
-        savedStateControllerWiring.bind(savedStateController);
         notifierWiring.bind(notifier);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
@@ -126,13 +106,9 @@ public record PlatformComponents(
                 issDetectionModule,
                 transactionHandlingModule,
                 stateManagementModule,
-                new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
-                new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
-                new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
-                new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector()),
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel()),

@@ -4,14 +4,16 @@ import org.hiero.consensus.state.management.config.StateManagementConfigurationE
 
 module org.hiero.consensus.state.management {
     exports org.hiero.consensus.state.management;
-    exports org.hiero.consensus.state.management.access;
     exports org.hiero.consensus.state.management.config;
-    exports org.hiero.consensus.state.management.utils;
+    exports org.hiero.consensus.state.management.access to
+            com.swirlds.platform.core;
     exports org.hiero.consensus.state.management.persistence to
             com.swirlds.platform.core,
-            org.hiero.consensus.reconnect.impl;
+            org.hiero.consensus.reconnect.impl,
+            org.hiero.consensus.pcli;
 
     requires transitive com.hedera.node.hapi;
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
@@ -19,16 +21,17 @@ module org.hiero.consensus.state.management {
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
+    requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.state;
-    requires transitive org.hiero.consensus.utility;
     requires com.swirlds.logging;
-    requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
-    requires org.hiero.consensus.event.stream;
-    requires org.hiero.consensus.hashgraph;
-    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.pces.impl;
+    requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
     requires java.management;
     requires java.scripting;

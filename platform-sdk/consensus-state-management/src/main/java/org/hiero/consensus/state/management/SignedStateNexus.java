@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.state.management.access;
+package org.hiero.consensus.state.management;
 
 import com.swirlds.component.framework.component.SchedulerLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.saved;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -10,4 +10,5 @@ import java.nio.file.Path;
  * @param stateDirectory the path of the state directory.
  * @param metadata  the metadata of the signed state
  */
-public record SavedStateInfo(@NonNull Path stateDirectory, @NonNull SavedStateMetadata metadata) {}
+public record SavedStateInfo(
+        @NonNull Path stateDirectory, @NonNull SavedStateMetadata metadata) {}

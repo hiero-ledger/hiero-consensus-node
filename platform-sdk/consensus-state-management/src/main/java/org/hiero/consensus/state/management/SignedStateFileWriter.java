@@ -1,24 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.snapshot;
+package org.hiero.consensus.state.management;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
-import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.executeAndRename;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.HASH_INFO_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
-import com.swirlds.platform.builder.ConsensusModuleBuilder;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -28,20 +25,28 @@ import java.io.BufferedWriter;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.impl.DefaultPcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -52,6 +57,8 @@ import org.hiero.consensus.state.snapshot.StateToDiskReason;
 public final class SignedStateFileWriter {
 
     private static final Logger logger = LogManager.getLogger(SignedStateFileWriter.class);
+
+    private static final String SETTING_USED_FILENAME = "settingsUsed.txt";
 
     private SignedStateFileWriter() {}
 
@@ -94,9 +101,10 @@ public final class SignedStateFileWriter {
         requireNonNull(directory, "directory must not be null");
         requireNonNull(signedState, "signedState must not be null");
 
-        final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
+        final Path metadataFile = directory.resolve(org.hiero.consensus.state.saved.SavedStateMetadata.FILE_NAME);
 
-        SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
+        org.hiero.consensus.state.saved.SavedStateMetadata.create(signedState, selfId, Instant.now())
+                .write(metadataFile);
     }
 
     /**
@@ -147,7 +155,8 @@ public final class SignedStateFileWriter {
      * files. Do not reorder this unless PCES copying is changed to explicitly coordinate with, or sync
      * with the PCES writer.
      *
-     * @param platformContext       the platform context
+     * @param configuration         the platform configuration
+     * @param fileSystemManager     the file system manager
      * @param selfId                the id of the platform
      * @param directory             the directory where all files should be placed
      * @param reservedSignedState   the reserved state to be written. Must be reserved by the caller;
@@ -156,18 +165,17 @@ public final class SignedStateFileWriter {
      * @throws IOException if the snapshot creation fails, times out, or is interrupted
      */
     public static void writeSignedStateFilesToDirectory(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final ReservedSignedState reservedSignedState,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
-        requireNonNull(platformContext);
         requireNonNull(directory);
         requireNonNull(reservedSignedState);
         requireNonNull(stateLifecycleManager);
 
-        final Configuration configuration = platformContext.getConfiguration();
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final SignedState signedState = reservedSignedState.get();
         final long pcesLowerBound = ancientThresholdOf(signedState.getState());
@@ -199,8 +207,7 @@ public final class SignedStateFileWriter {
             // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
             // on disk and does not coordinate with the PCES writer; scanning before the snapshot has
             // previously raced with PCES writes and found no files to copy.
-            copyPcesFiles(
-                    selfId, directory, configuration, platformContext.getFileSystemManager(), pcesLowerBound, round);
+            copyPcesFiles(selfId, directory, configuration, fileSystemManager, pcesLowerBound, round);
         } catch (final TimeoutException e) {
             logger.error(
                     EXCEPTION.getMarker(),
@@ -299,7 +306,7 @@ public final class SignedStateFileWriter {
 
         // This is a temporary measure that allows us to move this functionality into the consensus module
         // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-        final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
+        final PcesModule pcesModule = new DefaultPcesModule();
         pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, fileSystemManager, directory, lowerBound, round);
     }
 
@@ -349,10 +356,61 @@ public final class SignedStateFileWriter {
     }
 
     /**
+     * Write all the settings to the file settingsUsed.txt, some of which might have been changed by settings.txt.
+     *
+     * @param directory the directory to write to
+     */
+    public static void writeSettingsUsed(@NonNull final Path directory, @NonNull final Configuration configuration) {
+        requireNonNull(directory);
+        requireNonNull(configuration);
+
+        try (final BufferedWriter writer = Files.newBufferedWriter(directory.resolve(SETTING_USED_FILENAME))) {
+            final StringBuilder stringBuilder = new StringBuilder();
+            generateSettingsUsed(stringBuilder, configuration);
+            writer.write(stringBuilder.toString());
+
+            writer.flush();
+        } catch (final IOException e) {
+            logger.error(EXCEPTION.getMarker(), "Error in writing to settingsUsed.txt", e);
+        }
+    }
+
+    /**
+     * Generate the settings used, some of which might have been changed by settings.txt.
+     *
+     * @param stringBuilder the string builder to write to
+     * @param configuration the configuration to use
+     */
+    private static void generateSettingsUsed(
+            @NonNull final StringBuilder stringBuilder, @NonNull final Configuration configuration) {
+        requireNonNull(stringBuilder);
+        requireNonNull(configuration);
+
+        stringBuilder.append("------------- Configuration Overrides -------------");
+        stringBuilder.append(System.lineSeparator());
+        stringBuilder.append(System.lineSeparator());
+
+        final Set<String> propertyNames =
+                configuration.getPropertyNames().collect(Collectors.toCollection(TreeSet::new));
+        for (final String propertyName : propertyNames) {
+            if (configuration.isListValue(propertyName)) {
+                final String value =
+                        Objects.requireNonNullElse(configuration.getValues(propertyName), List.of()).stream()
+                                .map(Object::toString)
+                                .collect(Collectors.joining(", "));
+                stringBuilder.append(String.format("%s, %s%n", propertyName, value));
+            } else {
+                stringBuilder.append(String.format("%s, %s%n", propertyName, configuration.getValue(propertyName)));
+            }
+        }
+    }
+
+    /**
      * Writes a SignedState to a file. Also writes auxiliary files such as "settingsUsed.txt". This is the top level
      * method called by the platform when it is ready to write a state.
      *
-     * @param platformContext     the platform context
+     * @param configuration       the platform configuration
+     * @param fileSystemManager   the file system manager
      * @param selfId              the id of the platform
      * @param savedStateDirectory the directory where the state will be stored
      * @param stateToDiskReason   the reason the state is being written to disk
@@ -360,7 +418,8 @@ public final class SignedStateFileWriter {
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateToDisk(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @Nullable final NodeId selfId,
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
@@ -369,7 +428,6 @@ public final class SignedStateFileWriter {
             throws IOException {
 
         requireNonNull(reservedSignedState);
-        requireNonNull(platformContext);
         requireNonNull(savedStateDirectory);
         requireNonNull(stateLifecycleManager);
 
@@ -385,9 +443,14 @@ public final class SignedStateFileWriter {
 
             executeAndRename(
                     savedStateDirectory,
-                    platformContext.getFileSystemManager().resolveNewTemp(),
+                    fileSystemManager.resolveNewTemp(),
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager));
+                            configuration,
+                            fileSystemManager,
+                            selfId,
+                            directory,
+                            reservedSignedState,
+                            stateLifecycleManager));
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
                             signedState.getRound(),

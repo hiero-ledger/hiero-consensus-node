@@ -27,4 +27,7 @@ public record StateManagementWiringConfig(
         TaskSchedulerConfiguration stateSigner,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration stateSignatureCollector) {}
+        TaskSchedulerConfiguration stateSignatureCollector,
+
+        @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC")
+        TaskSchedulerConfiguration stateSnapshotManager) {}
