@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.hasher;
+package org.hiero.consensus.state.management.hashing;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -14,17 +14,17 @@ import org.hiero.consensus.state.signed.StateWithHashComplexity;
  */
 public class DefaultStateHasher implements StateHasher {
 
-    private final StateHasherMetrics metrics;
+    private final StateHasherMetrics stateHasherMetrics;
 
     /**
      * Constructs a SignedStateHasher to hash SignedStates.  If the signedStateMetrics object is not null, the time
      * spent hashing is recorded. Any fatal errors that occur are passed to the provided FatalErrorConsumer. The hash is
      * dispatched to the provided StateHashedTrigger.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics object
      */
-    public DefaultStateHasher(@NonNull final PlatformContext platformContext) {
-        metrics = new StateHasherMetrics(platformContext.getMetrics());
+    public DefaultStateHasher(@NonNull final Metrics metrics) {
+        stateHasherMetrics = new StateHasherMetrics(metrics);
     }
 
     /**
@@ -36,7 +36,7 @@ public class DefaultStateHasher implements StateHasher {
         final ReservedSignedState reservedSignedState = stateWithHashComplexity.reservedSignedState();
         final Instant start = Instant.now();
         reservedSignedState.get().getState().getHash();
-        metrics.reportHashingTime(Duration.between(start, Instant.now()));
+        stateHasherMetrics.reportHashingTime(Duration.between(start, Instant.now()));
 
         return reservedSignedState;
     }

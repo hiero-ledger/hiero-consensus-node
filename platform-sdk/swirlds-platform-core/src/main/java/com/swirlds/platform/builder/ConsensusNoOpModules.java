@@ -50,6 +50,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.StateManagementModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
@@ -307,5 +308,21 @@ public class ConsensusNoOpModules {
                 appVersion,
                 selfId,
                 transactionOffsetNanos);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link StateManagementModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code StateManagementModule}
+     */
+    @NonNull
+    public static StateManagementModule createNoOpStateManagementModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+
+        return new StateManagementModule(model, configuration, metrics, time);
     }
 }

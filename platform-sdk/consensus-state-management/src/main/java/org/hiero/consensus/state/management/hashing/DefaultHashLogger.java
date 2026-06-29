@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.hashlogger;
+package org.hiero.consensus.state.management.hashing;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,20 +33,20 @@ public class DefaultHashLogger implements HashLogger {
     /**
      * Construct a HashLogger.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration to read from
      */
-    public DefaultHashLogger(@NonNull final PlatformContext platformContext) {
-        this(platformContext, logger);
+    public DefaultHashLogger(@NonNull final Configuration configuration) {
+        this(configuration, logger);
     }
 
     /**
      * Internal constructor visible for testing.
      *
-     * @param platformContext the platform context
-     * @param logOutput       the logger to write to
+     * @param configuration the configuration to read from
+     * @param logOutput the logger to write to
      */
-    DefaultHashLogger(@NonNull final PlatformContext platformContext, @NonNull final Logger logOutput) {
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+    DefaultHashLogger(@NonNull final Configuration configuration, @NonNull final Logger logOutput) {
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         depth = stateConfig.debugHashDepth();
         isEnabled = stateConfig.enableHashStreamLogging();
         this.logOutput = Objects.requireNonNull(logOutput);

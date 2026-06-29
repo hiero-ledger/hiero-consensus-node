@@ -32,6 +32,7 @@ module org.hiero.consensus.reconnect.impl {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state.management;
     requires org.hiero.consensus.transaction.handling;
     requires com.github.spotbugs.annotations;
     requires java.management;

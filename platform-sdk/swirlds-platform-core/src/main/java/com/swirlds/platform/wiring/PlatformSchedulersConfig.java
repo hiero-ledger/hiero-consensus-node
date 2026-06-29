@@ -13,8 +13,6 @@ import java.time.Duration;
  * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param stateSignatureCollector              configuration for the state signature collector scheduler
- * @param hashLogger                           configuration for the hash logger scheduler
- * @param stateHasher                          configuration for the state hasher scheduler
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
  *                                             collector
@@ -45,14 +43,6 @@ public record PlatformSchedulersConfig(
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSignatureCollector,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration hashLogger,
-
-        @ConfigProperty(
-                defaultValue =
-                        "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-        TaskSchedulerConfiguration stateHasher,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateGarbageCollector,

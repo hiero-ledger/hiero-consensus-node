@@ -69,6 +69,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.StateManagementModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
@@ -512,6 +513,12 @@ public final class PlatformBuilder {
                 transactionOffsetNanos);
     }
 
+    @NonNull
+    private StateManagementModule createStateManagementModule() {
+        return new StateManagementModule(
+                model, platformContext.getConfiguration(), platformContext.getMetrics(), platformContext.getTime());
+    }
+
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -608,6 +615,7 @@ public final class PlatformBuilder {
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
         final TransactionHandlingModule transactionHandlingModule =
                 createTransactionHandlingModule(latestImmutableStateProviderReference, statusActionSubmitterReference);
+        final StateManagementModule stateManagementModule = createStateManagementModule();
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -618,7 +626,8 @@ public final class PlatformBuilder {
                 hashgraphModule,
                 gossipModule,
                 issDetectionModule,
-                transactionHandlingModule);
+                transactionHandlingModule,
+                stateManagementModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         statusActionSubmitterReference.set(platformCoordinator);

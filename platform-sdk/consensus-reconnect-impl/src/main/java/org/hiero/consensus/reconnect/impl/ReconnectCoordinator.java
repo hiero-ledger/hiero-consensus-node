@@ -88,7 +88,7 @@ public class ReconnectCoordinator {
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
         platformCoordinator.flushIntakePipeline();
-        components.stateHasherWiring().flush();
+        components.stateManagementModule().flush();
         components.stateSignatureCollectorWiring().flush();
         components.transactionHandlingModule().flushTransactionHandler();
 

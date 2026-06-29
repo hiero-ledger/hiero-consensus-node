@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.management.hashing;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.state.hasher.DefaultStateHasher;
-import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.state.merkle.VirtualMapState;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
@@ -23,11 +20,8 @@ public class DefaultStateHasherTests {
     @Test
     @DisplayName("Normal operation")
     void normalOperation() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         // create the hasher
-        final StateHasher hasher = new DefaultStateHasher(platformContext);
+        final StateHasher hasher = new DefaultStateHasher(new NoOpMetrics());
 
         // mock a state
         final SignedState signedState = mock(SignedState.class);

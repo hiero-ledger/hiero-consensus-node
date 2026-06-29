@@ -12,8 +12,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
@@ -138,7 +136,8 @@ public class PlatformWiring {
                 .buildSplitter("reservedStateSplitter", "reserved state lists");
         // Add another reservation to the signed states since we are soldering to two different input wires
         final OutputWire<ReservedSignedState> allReservedSignedStatesWire =
-                splitReservedSignedStateWire.buildAdvancedTransformer(new SignedStateReserver("allStatesReserver"));
+                splitReservedSignedStateWire.buildAdvancedTransformer(
+                        new org.hiero.consensus.state.management.utils.SignedStateReserver("allStatesReserver"));
 
         // Future work: this should be a full component in its own right or folded in with the state file manager.
         final WireFilter<ReservedSignedState> saveToDiskFilter =
@@ -221,7 +220,7 @@ public class PlatformWiring {
         components
                 .savedStateControllerWiring()
                 .getOutputWire()
-                .solderTo(components.stateHasherWiring().getInputWire(StateHasher::hashState));
+                .solderTo(components.stateManagementModule().unhashedStatesInputWire());
 
         final var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
         components
@@ -236,13 +235,8 @@ public class PlatformWiring {
                         components.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates),
                         OFFER);
 
-        // The state hasher needs to pass its data through a bunch of transformers. Construct those here.
-        final OutputWire<ReservedSignedState> hashedStateOutputWire = components
-                .stateHasherWiring()
-                .getOutputWire()
-                .buildAdvancedTransformer(new SignedStateReserver("postHasher_stateReserver"));
-
-        hashedStateOutputWire.solderTo(components.hashLoggerWiring().getInputWire(HashLogger::logHashes));
+        final OutputWire<ReservedSignedState> hashedStateOutputWire =
+                components.stateManagementModule().stateOutputWire();
         hashedStateOutputWire.solderTo(components.stateSignerWiring().getInputWire(StateSigner::signState));
         hashedStateOutputWire.solderTo(components.issDetectionModule().stateInputWire());
         hashedStateOutputWire

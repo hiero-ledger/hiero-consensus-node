@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.swirlds.config.api.ConfigurationExtension;
-import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfigurationExtension;
+import org.hiero.consensus.state.management.config.StateManagementConfigurationExtension;
 
-module org.hiero.consensus.transaction.handling {
-    exports org.hiero.consensus.transaction.handling;
-    exports org.hiero.consensus.transaction.handling.config;
-    exports org.hiero.consensus.transaction.handling.internal;
+module org.hiero.consensus.state.management {
+    exports org.hiero.consensus.state.management;
+    exports org.hiero.consensus.state.management.config;
+    exports org.hiero.consensus.state.management.utils;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
@@ -33,5 +33,5 @@ module org.hiero.consensus.transaction.handling {
     requires org.apache.logging.log4j;
 
     provides ConfigurationExtension with
-            TransactionHandlingConfigurationExtension;
+            StateManagementConfigurationExtension;
 }

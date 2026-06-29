@@ -4,7 +4,6 @@ package com.swirlds.platform.wiring;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
@@ -72,8 +71,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
             final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
 
             final boolean offerResult = components
-                    .hashLoggerWiring()
-                    .getInputWire(HashLogger::logHashes)
+                    .stateManagementModule()
+                    .hashedStatesToLogInputWire()
                     .offer(stateReservedForHasher);
             if (!offerResult) {
                 stateReservedForHasher.close();
@@ -144,7 +143,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      * Flush the state hasher.
      */
     public void flushStateHasher() {
-        components.stateHasherWiring().flush();
+        components.stateManagementModule().flush();
     }
 
     /**

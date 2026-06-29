@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.hashlogger;
+package org.hiero.consensus.state.management.hashing;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,8 +14,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -75,10 +73,9 @@ public class HashLoggerTest {
     public void setUp() {
         mockLogger = mock(Logger.class);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
+        hashLogger = new DefaultHashLogger(configuration, mockLogger);
         logged = new ArrayList<>();
 
         doAnswer(invocation -> {
@@ -134,21 +131,17 @@ public class HashLoggerTest {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(StateConfig_.ENABLE_HASH_STREAM_LOGGING, false)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
+        hashLogger = new DefaultHashLogger(configuration, mockLogger);
         hashLogger.logHashes(createSignedState(1));
         assertThat(logged).isEmpty();
     }
 
     @Test
     public void loggerWithDefaultConstructorWorks() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         assertDoesNotThrow(() -> {
-            hashLogger = new DefaultHashLogger(platformContext);
+            hashLogger = new DefaultHashLogger(configuration);
             hashLogger.logHashes(createSignedState(1));
         });
     }

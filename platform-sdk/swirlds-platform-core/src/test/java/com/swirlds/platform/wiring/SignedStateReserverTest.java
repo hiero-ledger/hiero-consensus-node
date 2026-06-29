@@ -55,8 +55,10 @@ class SignedStateReserverTest {
                         "scheduler")
                 .withType(TaskSchedulerType.DIRECT)
                 .build();
-        final OutputWire<ReservedSignedState> outputWire =
-                taskScheduler.getOutputWire().buildAdvancedTransformer(new SignedStateReserver("reserver"));
+        final OutputWire<ReservedSignedState> outputWire = taskScheduler
+                .getOutputWire()
+                .buildAdvancedTransformer(
+                        new org.hiero.consensus.state.management.utils.SignedStateReserver("reserver"));
         final BindableInputWire<ReservedSignedState, ReservedSignedState> inputWire =
                 taskScheduler.buildInputWire("in");
         inputWire.bind(s -> s);

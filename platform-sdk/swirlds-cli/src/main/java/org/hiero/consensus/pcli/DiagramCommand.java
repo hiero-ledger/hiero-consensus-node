@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossip
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 
 import com.swirlds.common.context.PlatformContext;
@@ -36,6 +37,7 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
+import org.hiero.consensus.state.management.StateManagementModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
@@ -128,6 +130,7 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
+        final StateManagementModule statemanagementModule = createNoOpStateManagementModule(model, configuration);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -138,7 +141,8 @@ public final class DiagramCommand extends AbstractCommand {
                 hashgraphModule,
                 gossipModule,
                 issDetectionModule,
-                transactionHandlingModule);
+                transactionHandlingModule,
+                statemanagementModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, null);
 

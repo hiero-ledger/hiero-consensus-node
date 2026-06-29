@@ -12,8 +12,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
@@ -36,6 +34,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.state.management.StateManagementModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
@@ -53,14 +52,13 @@ public record PlatformComponents(
         GossipModule gossipModule,
         IssDetectionModule issDetectionModule,
         TransactionHandlingModule transactionHandlingModule,
+        StateManagementModule stateManagementModule,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
         ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring,
         ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
-        ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
-        ComponentWiring<HashLogger, Void> hashLoggerWiring,
         ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring,
         ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring,
         ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring,
@@ -94,11 +92,9 @@ public record PlatformComponents(
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
-        hashLoggerWiring.bind(builder::buildHashLogger);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
         savedStateControllerWiring.bind(savedStateController);
-        stateHasherWiring.bind(builder::buildStateHasher);
         notifierWiring.bind(notifier);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
@@ -120,7 +116,8 @@ public record PlatformComponents(
             @NonNull final HashgraphModule hashgraphModule,
             @NonNull final GossipModule gossipModule,
             @NonNull final IssDetectionModule issDetectionModule,
-            @NonNull final TransactionHandlingModule transactionHandlingModule) {
+            @NonNull final TransactionHandlingModule transactionHandlingModule,
+            @NonNull final StateManagementModule stateManagementModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -139,18 +136,13 @@ public record PlatformComponents(
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
+                stateManagementModule,
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
                 new ComponentWiring<>(model, StateSigner.class, config.stateSigner()),
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
-                new ComponentWiring<>(
-                        model,
-                        StateHasher.class,
-                        config.stateHasher(),
-                        data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
-                new ComponentWiring<>(model, HashLogger.class, config.hashLogger()),
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION),
