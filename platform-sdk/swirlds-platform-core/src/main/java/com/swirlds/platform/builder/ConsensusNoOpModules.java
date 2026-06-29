@@ -60,6 +60,9 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
+/**
+ * A factory class for creating no-op instances of various consensus modules.
+ */
 public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link EventCreatorModule}.
@@ -283,6 +286,7 @@ public class ConsensusNoOpModules {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code TransactionHandlingModule}
      */
     @NonNull
@@ -320,6 +324,7 @@ public class ConsensusNoOpModules {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code StateManagementModule}
      */
     @NonNull

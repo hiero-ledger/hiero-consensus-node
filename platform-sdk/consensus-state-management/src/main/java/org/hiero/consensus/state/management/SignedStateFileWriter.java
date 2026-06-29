@@ -47,6 +47,7 @@ import org.hiero.consensus.pces.impl.DefaultPcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.management.persistence.SignedStateFileUtils;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -101,10 +102,9 @@ public final class SignedStateFileWriter {
         requireNonNull(directory, "directory must not be null");
         requireNonNull(signedState, "signedState must not be null");
 
-        final Path metadataFile = directory.resolve(org.hiero.consensus.state.saved.SavedStateMetadata.FILE_NAME);
+        final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
 
-        org.hiero.consensus.state.saved.SavedStateMetadata.create(signedState, selfId, Instant.now())
-                .write(metadataFile);
+        SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
     }
 
     /**

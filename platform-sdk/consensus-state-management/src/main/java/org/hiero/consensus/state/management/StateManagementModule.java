@@ -42,7 +42,6 @@ import org.hiero.consensus.state.management.signing.SignedStateMetrics;
 import org.hiero.consensus.state.management.signing.StateSignatureCollector;
 import org.hiero.consensus.state.management.signing.StateSigner;
 import org.hiero.consensus.state.management.utils.SignedStateReserver;
-import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
@@ -72,6 +71,14 @@ public class StateManagementModule {
      * @param configuration the configuration
      * @param metrics the metrics system
      * @param time the time source
+     * @param fileSystemManager the file system manager
+     * @param keysAndCerts the keys and certs
+     * @param mainClassName the main class name of the application
+     * @param selfId the ID of this node
+     * @param swirldName the swirld name
+     * @param stateLifecycleManager the state lifecycle manager
+     * @param signedStateNexus the signed state nexus
+     * @param latestCompleteStateNexus the latest complete state nexus
      */
     public StateManagementModule(
             @NonNull final WiringModel model,
@@ -146,7 +153,7 @@ public class StateManagementModule {
                 });
         completeReservedSignedStatesWire.solderTo(
                 latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
-        savedStateControllerWiring.getOutputWire().solderTo(unhashedStatesInputWire());
+        savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
 
         // Wire components
         hashedStateOutputWire.solderTo(hashedStatesToLogInputWire());
@@ -187,17 +194,6 @@ public class StateManagementModule {
     }
 
     /**
-     * Get the input wire for unhashed states
-     *
-     * @return the input wire for hashes states
-     */
-    @InputWireLabel("unhashed state with hash complexity")
-    @NonNull
-    public InputWire<StateWithHashComplexity> unhashedStatesInputWire() {
-        return stateHasherWiring.getInputWire(StateHasher::hashState);
-    }
-
-    /**
      * Get the input wire for hashes states to log
      *
      * @return the input wire for hashes states to log
@@ -209,7 +205,7 @@ public class StateManagementModule {
     }
 
     /**
-     * Get the input wire for hashes states to log
+     * Get the input wire for states addes to the {@link StateSignatureCollector}.
      *
      * @return the input wire for hashes states to log
      */
@@ -252,16 +248,6 @@ public class StateManagementModule {
     @NonNull
     public InputWire<StateWithHashComplexity> stateToMarkInputWire() {
         return savedStateControllerWiring.getInputWire(SavedStateController::markSavedState);
-    }
-
-    /**
-     * Get the input wire for {@link StateDumpRequest}s
-     *
-     * @return the input wire for the requests
-     */
-    @NonNull
-    public InputWire<StateDumpRequest> stateDumpRequestInputWire() {
-        return stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
     }
 
     /**

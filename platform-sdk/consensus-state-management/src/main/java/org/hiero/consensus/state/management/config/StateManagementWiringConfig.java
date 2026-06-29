@@ -12,6 +12,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param hashLogger configuration for the hash logger scheduler
  * @param stateSigner configuration for the state signer scheduler
  * @param stateSignatureCollector configuration for the state signature collector scheduler
+ * @param stateSnapshotManager configuration for the state snapshot manager scheduler
  */
 @ConfigData("state.management.wiring")
 public record StateManagementWiringConfig(

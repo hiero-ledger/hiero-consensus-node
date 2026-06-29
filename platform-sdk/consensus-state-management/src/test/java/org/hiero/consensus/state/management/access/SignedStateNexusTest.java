@@ -36,7 +36,7 @@ class SignedStateNexusTest {
     }
 
     private static Stream<SignedStateNexus> raceConditionInstances() {
-        return Stream.of(new org.hiero.consensus.state.management.access.LockFreeStateNexus());
+        return Stream.of(new LockFreeStateNexus());
     }
 
     @AfterEach

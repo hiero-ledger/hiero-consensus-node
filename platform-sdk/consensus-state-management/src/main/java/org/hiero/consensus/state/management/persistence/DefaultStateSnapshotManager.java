@@ -29,6 +29,9 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.management.SignedStateFileWriter;
+import org.hiero.consensus.state.saved.SavedStateInfo;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
+import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -53,7 +56,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Metrics provider
      */
-    private final StateSnapshotManagerMetrics metrics;
+    private final StateSnapshotManagerMetrics stateSnapshotManagerMetrics;
 
     /**
      * the configuration
@@ -102,8 +105,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         this.selfId = requireNonNull(selfId);
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = stateLifecycleManager;
-        signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
-        this.metrics = new StateSnapshotManagerMetrics(metrics);
+        this.signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
+        this.stateSnapshotManagerMetrics = new StateSnapshotManagerMetrics(metrics);
     }
 
     /**
@@ -146,8 +149,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             }
         }
 
-        metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
-        metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
+        stateSnapshotManagerMetrics
+                .getStateToDiskTimeMetric()
+                .update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
+        stateSnapshotManagerMetrics
+                .getWriteStateToDiskTimeMetric()
+                .update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
         return stateSavingResult;
     }
@@ -156,7 +163,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * {@inheritDoc}
      */
     @Override
-    public void dumpStateTask(@NonNull final org.hiero.consensus.state.saved.StateDumpRequest request) {
+    public void dumpStateTask(@NonNull final StateDumpRequest request) {
         final ReservedSignedState reservedSignedState = request.reservedSignedState();
         final SignedState signedState = reservedSignedState.get();
 
@@ -237,7 +244,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             // no signatures are generated for PCES rounds: https://github.com/hashgraph/hedera-services/issues/15229
             return;
         }
-        metrics.getTotalUnsignedDiskStatesMetric().increment();
+        stateSnapshotManagerMetrics.getTotalUnsignedDiskStatesMetric().increment();
 
         final long signingWeight2 = reservedState.getSigningWeight();
         final long totalWeight2 = RosterUtils.computeTotalWeight(reservedState.getRoster());
@@ -296,15 +303,14 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
-        final List<org.hiero.consensus.state.saved.SavedStateInfo> savedStates =
-                signedStateFilePath.getSavedStateFiles();
+        final List<SavedStateInfo> savedStates = signedStateFilePath.getSavedStateFiles();
 
         // States are returned newest to oldest. So delete from the end of the list to delete the oldest states.
         int index = savedStates.size() - 1;
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         for (; index >= stateConfig.signedStateDisk(); index--) {
 
-            final org.hiero.consensus.state.saved.SavedStateInfo savedStateInfo = savedStates.get(index);
+            final SavedStateInfo savedStateInfo = savedStates.get(index);
             try {
                 deleteDirectoryAndLog(savedStateInfo.stateDirectory());
             } catch (final IOException e) {
@@ -315,8 +321,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         if (index < 0) {
             return EventConstants.GENERATION_UNDEFINED;
         }
-        final org.hiero.consensus.state.saved.SavedStateMetadata oldestStateMetadata =
-                savedStates.get(index).metadata();
+        final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
         return oldestStateMetadata.minimumBirthRoundNonAncient();
     }
 }

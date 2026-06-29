@@ -633,7 +633,7 @@ public final class PlatformBuilder {
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final LatestCompleteStateNexus latestCompleteStateNexus =
                 new DefaultLatestCompleteStateNexus(configuration, platformContext.getMetrics());
-        Supplier<ReservedSignedState> latestCompleteStateSupplier =
+        final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         final StateManagementModule stateManagementModule =
                 createStateManagementModule(latestImmutableStateNexus, latestCompleteStateNexus);

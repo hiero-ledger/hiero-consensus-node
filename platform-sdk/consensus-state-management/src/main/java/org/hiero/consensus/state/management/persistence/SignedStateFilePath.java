@@ -19,6 +19,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.saved.SavedStateInfo;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
 
 /**
  * Utility methods for determining the path of signed states on disk.
@@ -121,7 +123,7 @@ public class SignedStateFilePath {
      */
     @SuppressWarnings("resource")
     @NonNull
-    public List<org.hiero.consensus.state.saved.SavedStateInfo> getSavedStateFiles() {
+    public List<SavedStateInfo> getSavedStateFiles() {
         final Path dir = getSignedStatesDirectoryForSwirld();
         return getSavedStateFiles(dir);
     }
@@ -132,7 +134,7 @@ public class SignedStateFilePath {
      * @param dir the path for reading
      * @return Information about saved states on disk, or null if none are found
      */
-    public static List<org.hiero.consensus.state.saved.SavedStateInfo> getSavedStateFiles(final Path dir) {
+    public static List<SavedStateInfo> getSavedStateFiles(final Path dir) {
         if (!exists(dir) || !isDirectory(dir)) {
             return List.of();
         }
@@ -141,15 +143,14 @@ public class SignedStateFilePath {
 
                 final List<Path> dirs = list.filter(Files::isDirectory).toList();
 
-                final TreeMap<Long, org.hiero.consensus.state.saved.SavedStateInfo> savedStates = new TreeMap<>();
+                final TreeMap<Long, SavedStateInfo> savedStates = new TreeMap<>();
                 for (final Path subDir : dirs) {
                     try {
                         final long round = Long.parseLong(subDir.getFileName().toString());
-                        final Path stateMetadataPath =
-                                subDir.resolve(org.hiero.consensus.state.saved.SavedStateMetadata.FILE_NAME);
-                        final org.hiero.consensus.state.saved.SavedStateMetadata metadata;
+                        final Path stateMetadataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
+                        final SavedStateMetadata metadata;
                         try {
-                            metadata = org.hiero.consensus.state.saved.SavedStateMetadata.parse(stateMetadataPath);
+                            metadata = SavedStateMetadata.parse(stateMetadataPath);
                         } catch (final IOException e) {
                             logger.error(
                                     EXCEPTION.getMarker(),
@@ -158,7 +159,7 @@ public class SignedStateFilePath {
                             continue;
                         }
 
-                        savedStates.put(round, new org.hiero.consensus.state.saved.SavedStateInfo(subDir, metadata));
+                        savedStates.put(round, new SavedStateInfo(subDir, metadata));
 
                     } catch (final NumberFormatException e) {
                         logger.warn(

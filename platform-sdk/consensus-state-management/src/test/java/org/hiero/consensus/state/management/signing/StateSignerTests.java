@@ -32,8 +32,7 @@ public class StateSignerTests {
                 new RandomSignedStateGenerator().setPcesRound(true).build();
 
         final PlatformSigner platformSigner = mock(PlatformSigner.class);
-        final StateSigner stateSigner =
-                new org.hiero.consensus.state.management.signing.DefaultStateSigner(platformSigner);
+        final StateSigner stateSigner = new DefaultStateSigner(platformSigner);
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
         final StateSignatureTransaction signatureTransaction = stateSigner.signState(reservedSignedState);
@@ -52,8 +51,7 @@ public class StateSignerTests {
         final Bytes signature = randotron.nextSignatureBytes();
         when(platformSigner.sign(any(Bytes.class))).thenReturn(signature);
 
-        final StateSigner stateSigner =
-                new org.hiero.consensus.state.management.signing.DefaultStateSigner(platformSigner);
+        final StateSigner stateSigner = new DefaultStateSigner(platformSigner);
 
         final ReservedSignedState reservedSignedState = signedState.reserve("test");
         final StateSignatureTransaction payload = stateSigner.signState(reservedSignedState);
