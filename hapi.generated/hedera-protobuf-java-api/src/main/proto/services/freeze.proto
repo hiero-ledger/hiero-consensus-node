@@ -134,5 +134,5 @@ message FreezeTransactionBody {
      * the service may schedule a freeze, prepare upgrades, perform upgrades,
      * or even abort a previously scheduled freeze.
      */
-    FreezeType freeze_type = 8;
+    proto.services.FreezeType freeze_type = 8;
 }

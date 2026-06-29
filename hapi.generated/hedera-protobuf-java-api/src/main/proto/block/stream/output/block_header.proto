@@ -97,5 +97,5 @@ message BlockHeader {
      * <p>
      * This SHOULD always be `SHA2_384`, currently.
      */
-    proto.BlockHashAlgorithm hash_algorithm = 5;
+    proto.services.BlockHashAlgorithm hash_algorithm = 5;
 }

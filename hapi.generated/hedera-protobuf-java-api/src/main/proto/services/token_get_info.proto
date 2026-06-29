@@ -213,13 +213,13 @@ message TokenInfo {
      * This SHALL NOT prevent a `tokenReject` transaction to return the tokens
      * from an account to the treasury account.
      */
-    TokenFreezeStatus defaultFreezeStatus = 12;
+    proto.services.TokenFreezeStatus defaultFreezeStatus = 12;
 
     /**
      * A flag indicating if accounts associated with this token are granted
      * KYC by default, revoked by default, or KYC is not applicable.
      */
-    TokenKycStatus defaultKycStatus = 13;
+    proto.services.TokenKycStatus defaultKycStatus = 13;
 
     /**
      * A flag indicating that this token is deleted.
@@ -275,7 +275,7 @@ message TokenInfo {
      * The value `NON_FUNGIBLE_UNIQUE` SHALL represent a
      * non-fungible/unique token.
      */
-    TokenType tokenType = 19;
+    proto.services.TokenType tokenType = 19;
 
     /**
      * A supply type for this token.
@@ -284,7 +284,7 @@ message TokenInfo {
      * If this value was omitted during token creation, the value `INFINITE`
      * SHALL be used.
      */
-    TokenSupplyType supplyType = 20;
+    proto.services.TokenSupplyType supplyType = 20;
 
     /**
      * A maximum supply of this token.<br/>
@@ -338,7 +338,7 @@ message TokenInfo {
      * A transaction involving a paused token, other than token_unpause,
      * MUST NOT succeed.
      */
-    TokenPauseStatus pause_status = 25;
+    proto.services.TokenPauseStatus pause_status = 25;
 
     /**
      * The ledger ID of the network that generated this response.

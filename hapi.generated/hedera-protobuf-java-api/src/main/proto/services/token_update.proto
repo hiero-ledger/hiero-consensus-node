@@ -300,5 +300,5 @@ message TokenUpdateTransactionBody {
      * identified token.<br/>
      * This field SHALL be treated as `FULL_VALIDATION` if not set.
      */
-    TokenKeyValidation key_verification_mode = 18;
+    proto.services.TokenKeyValidation key_verification_mode = 18;
 }

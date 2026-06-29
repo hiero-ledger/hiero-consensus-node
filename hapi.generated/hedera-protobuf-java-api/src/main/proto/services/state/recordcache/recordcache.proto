@@ -89,7 +89,7 @@ message TransactionReceiptEntry {
      * A status result.<br/>
      * This is the final status after handling the transaction.
      */
-    ResponseCodeEnum status = 3;
+    proto.services.ResponseCodeEnum status = 3;
 }
 
 /**

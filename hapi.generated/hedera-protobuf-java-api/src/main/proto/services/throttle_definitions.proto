@@ -45,7 +45,7 @@ message ThrottleGroup {
    * This list SHOULD NOT contain any item included in any other
    * active `ThrottleGroup`.
    */
-  repeated HederaFunctionality operations = 1;
+  repeated proto.services.HederaFunctionality operations = 1;
 
   /**
    * A throttle limit for this group.<br/>

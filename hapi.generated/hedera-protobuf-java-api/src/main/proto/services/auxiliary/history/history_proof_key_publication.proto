@@ -50,5 +50,5 @@ message HistoryProofKeyPublicationTransactionBody {
    * The phase of the proof construction this key is being
    * published for.
    */
-  com.hedera.hapi.node.state.history.WrapsPhase phase = 4;
+  proto.services.state.history.WrapsPhase phase = 4;
 }

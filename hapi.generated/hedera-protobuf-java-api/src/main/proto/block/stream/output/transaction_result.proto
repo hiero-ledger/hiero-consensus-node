@@ -43,7 +43,7 @@ message TransactionResult {
      * This value SHALL indicate the status of this transaction.<br/>
      * This code SHALL indicate success or a specific failure.
      */
-    proto.ResponseCodeEnum status = 1;
+    proto.services.ResponseCodeEnum status = 1;
 
     /**
      * A consensus timestamp.

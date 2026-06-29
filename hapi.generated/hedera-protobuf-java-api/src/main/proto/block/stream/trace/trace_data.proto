@@ -22,8 +22,8 @@ option csharp_namespace = "Hiero.Proto.Block.Stream.Trace";
 // <<<pbj.java_package = "com.hiero.proto.block.stream.trace">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "block/stream/trace/smart_contract_service.proto";
-import "block/stream/trace/consensus_service.proto";
+import "block/stream/output/smart_contract_service.proto";
+import "block/stream/output/consensus_service.proto";
 
 /**
  * A Trace Data.

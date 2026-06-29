@@ -45,7 +45,7 @@ message TransactionResponse {
      * This response SHALL represent the response of the individual node, and
      * SHALL NOT represent the consensus of the network.
      */
-    ResponseCodeEnum nodeTransactionPrecheckCode = 1;
+    proto.services.ResponseCodeEnum nodeTransactionPrecheckCode = 1;
 
     /**
      * An approximate transaction fee.

@@ -39,7 +39,7 @@ message EvmHookState {
   /**
    * The type of the extension point the hook implements.
    */
-  com.hedera.hapi.node.hooks.HookExtensionPoint extension_point = 3;
+  proto.services.HookExtensionPoint extension_point = 3;
 
   /**
    * The id of the contract with this hook's bytecode.

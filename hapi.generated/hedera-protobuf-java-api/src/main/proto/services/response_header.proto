@@ -37,14 +37,14 @@ message ResponseHeader {
      * <p>
      * This value SHALL indicate either success or the reason for failure.
      */
-    ResponseCodeEnum nodeTransactionPrecheckCode = 1;
+    proto.services.ResponseCodeEnum nodeTransactionPrecheckCode = 1;
 
     /**
      * The response type requested for this query.
      * <p>
      * This SHALL be the response type requested in the query header.
      */
-    ResponseType responseType = 2;
+    proto.services.ResponseType responseType = 2;
 
     /**
      * Requested cost estimate.<br/>

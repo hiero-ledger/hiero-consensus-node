@@ -233,7 +233,7 @@ message Token {
      * If this value was omitted during token creation, `FUNGIBLE_COMMON`
      * SHALL be used.
      */
-    TokenType token_type = 16;
+    proto.services.TokenType token_type = 16;
 
     /**
      * A supply type for this token.
@@ -242,7 +242,7 @@ message Token {
      * If this value was omitted during token creation, the value `INFINITE`
      * SHALL be used.
      */
-    TokenSupplyType supply_type = 17;
+    proto.services.TokenSupplyType supply_type = 17;
 
     /**
      * An identifier for the account (if any) that the network will attempt

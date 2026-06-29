@@ -5,6 +5,7 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<BuildVerbose>true</BuildVerbose>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -54,17 +55,25 @@
 
 		<ProtobufHapi>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hapi\src\main\proto</ProtobufHapi>
 		<ProtobufHedera>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hedera-protobuf-java-api\src\main\proto</ProtobufHedera>
+		<ProtobufCodeGenVerbose>true</ProtobufCodeGenVerbose>
+		<Protobuf_NoWarnMissingExpected>false</Protobuf_NoWarnMissingExpected>
 
 		<TransformProtoCommand>dotnet run --project "$(ProtoProject)" transform-protos $(ProtoInputDir) $(ProtoOutputDir) $(ProtoRoot) $(ProtoSkip)</TransformProtoCommand>
 	</PropertyGroup>
 
-	<Target Name="TransformProtos" BeforeTargets="BeforeBuild">
-		<Exec Command="$(TransformProtoCommand)" ConsoleToMSBuild="true" />
-	</Target>
-
 	<ItemGroup>
 		<Protobuf GrpcServices="Both" ProtoRoot="$(ProtobufHapi)" Include="$(ProtobufHapi)\**\*.proto" AdditionalImportDirs="$(ProtobufHedera)" />
 		<Protobuf GrpcServices="Both" ProtoRoot="$(ProtobufHedera)" Include="$(ProtobufHedera)\**\*.proto" AdditionalImportDirs="$(ProtobufHapi)" />
+	</ItemGroup>
+
+	<Target Name="TransformProtos" BeforeTargets="GenerateProto;BeforeBuild">
+		<Exec Command="$(TransformProtoCommand)" />
+	</Target>
+
+	<ItemGroup>
+	  <Compile Remove="hapi.previous\**" />
+	  <EmbeddedResource Remove="hapi.previous\**" />
+	  <None Remove="hapi.previous\**" />
 	</ItemGroup>
 
 	<ItemGroup>

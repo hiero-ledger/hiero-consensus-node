@@ -41,7 +41,7 @@ message TransactionReceipt {
      * This SHALL be `UNKNOWN` if the associated transaction did not have
      * a valid payer signature.
      */
-    ResponseCodeEnum status = 1;
+    proto.services.ResponseCodeEnum status = 1;
 
     /**
      * In the receipt of a `CryptoCreate`, the id of the newly created account.

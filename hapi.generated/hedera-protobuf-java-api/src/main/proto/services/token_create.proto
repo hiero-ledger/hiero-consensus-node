@@ -263,7 +263,7 @@ message TokenCreateTransactionBody {
      * fungible/common.<br/>
      * This field SHALL be immutable.
      */
-    TokenType tokenType = 17;
+    proto.services.TokenType tokenType = 17;
 
     /**
      * A supply type for this token, according to IWA classification.
@@ -273,7 +273,7 @@ message TokenCreateTransactionBody {
      * (2<sup><i>63</i></sup>-1)/10<sup><i>decimals</i></sup>).<br/>
      * This field SHALL be immutable.
      */
-    TokenSupplyType supplyType = 18;
+    proto.services.TokenSupplyType supplyType = 18;
 
     /**
      * A maximum supply for this token.
