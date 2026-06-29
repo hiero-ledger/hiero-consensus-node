@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeTssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -51,6 +52,49 @@ class TssStartupNetworksTest {
         final var self = metadata.get(SELF_NODE_ID);
         assertThat(self.blsPrivateKey()).isEqualTo(Bytes.EMPTY);
         assertThat(self.schnorrPrivateKey()).isEqualTo(Bytes.EMPTY);
+    }
+
+    @Test
+    void stripsExistingPrivateKeysUnderProdProfile() {
+        final Map<Long, NodeTssMetadata> metadata = new HashMap<>();
+
+        TssStartupNetworks.copyExistingNodeMetadata(config("PROD"), networkWithSelfPrivateKeys(), metadata);
+
+        final var self = metadata.get(SELF_NODE_ID);
+        assertThat(self.blsPrivateKey()).isEqualTo(Bytes.EMPTY);
+        assertThat(self.schnorrPrivateKey()).isEqualTo(Bytes.EMPTY);
+        assertThat(self.schnorrPublicKey()).isEqualTo(SCHNORR_KEY_PAIR.publicKey());
+    }
+
+    @Test
+    void keepsExistingPrivateKeysUnderNonProdProfile() {
+        final Map<Long, NodeTssMetadata> metadata = new HashMap<>();
+
+        TssStartupNetworks.copyExistingNodeMetadata(config("DEV"), networkWithSelfPrivateKeys(), metadata);
+
+        final var self = metadata.get(SELF_NODE_ID);
+        assertThat(self.blsPrivateKey()).isEqualTo(BLS_PRIVATE_KEY);
+        assertThat(self.schnorrPrivateKey()).isEqualTo(SCHNORR_KEY_PAIR.privateKey());
+    }
+
+    @Test
+    void copiesNothingWhenNoExistingNetwork() {
+        final Map<Long, NodeTssMetadata> metadata = new HashMap<>();
+
+        TssStartupNetworks.copyExistingNodeMetadata(config("PROD"), null, metadata);
+
+        assertThat(metadata).isEmpty();
+    }
+
+    private Network networkWithSelfPrivateKeys() {
+        return Network.newBuilder()
+                .nodeTssMetadata(NodeTssMetadata.newBuilder()
+                        .nodeId(SELF_NODE_ID)
+                        .blsPrivateKey(BLS_PRIVATE_KEY)
+                        .schnorrPrivateKey(SCHNORR_KEY_PAIR.privateKey())
+                        .schnorrPublicKey(SCHNORR_KEY_PAIR.publicKey())
+                        .build())
+                .build();
     }
 
     private Map<Long, NodeTssMetadata> metadataWithSelfNode() {

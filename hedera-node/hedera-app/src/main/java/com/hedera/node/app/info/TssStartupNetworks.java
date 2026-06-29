@@ -321,15 +321,7 @@ public final class TssStartupNetworks {
             @NonNull final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction) {
         final var metadata = new TreeMap<Long, NodeTssMetadata>();
-        if (existingNetwork != null) {
-            // Under the PROD profile the export must never carry private TSS key material, including any
-            // already present in a previously exported file (e.g. one written under a non-PROD profile).
-            final var stripPrivateKeys = isProdProfile(config);
-            existingNetwork
-                    .nodeTssMetadata()
-                    .forEach(nodeMetadata -> metadata.put(
-                            nodeMetadata.nodeId(), stripPrivateKeys ? withoutPrivateKeys(nodeMetadata) : nodeMetadata));
-        }
+        copyExistingNodeMetadata(config, existingNetwork, metadata);
         final var nodeIds = nodeIdsFrom(baseNetwork, existingNetwork);
         nodeIds.forEach(nodeId -> metadata.putIfAbsent(
                 nodeId, NodeTssMetadata.newBuilder().nodeId(nodeId).build()));
@@ -416,6 +408,22 @@ public final class TssStartupNetworks {
                 metadata.compute(nodeId, (ignore, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
                         .schnorrPublicKey(proofKey)
                         .build()));
+    }
+
+    static void copyExistingNodeMetadata(
+            @NonNull final Configuration config,
+            @Nullable final Network existingNetwork,
+            @NonNull final Map<Long, NodeTssMetadata> metadata) {
+        if (existingNetwork == null) {
+            return;
+        }
+        // Under the PROD profile the export must never carry private TSS key material, including any
+        // already present in a previously exported file (e.g. one written under a non-PROD profile).
+        final var stripPrivateKeys = isProdProfile(config);
+        existingNetwork
+                .nodeTssMetadata()
+                .forEach(nodeMetadata -> metadata.put(
+                        nodeMetadata.nodeId(), stripPrivateKeys ? withoutPrivateKeys(nodeMetadata) : nodeMetadata));
     }
 
     static void addPrivateKeys(
