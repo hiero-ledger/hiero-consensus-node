@@ -19,6 +19,7 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 jmhModuleInfo {
     requires("jmh.core")
     requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.config.api")
     runtimeOnly("com.swirlds.config.impl")
 }
 
@@ -38,7 +39,6 @@ testModuleInfo {
 hammerModuleInfo {
     requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
-    requires("com.swirlds.config.api")
     requires("org.apache.logging.log4j")
     requires("org.apache.logging.log4j.core")
     requires("org.junit.jupiter.api")
