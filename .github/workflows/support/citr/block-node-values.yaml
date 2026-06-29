@@ -38,6 +38,7 @@ image:
   repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
 
 plugins:
+  names: "facility-messaging,block-access-service,health,server-status,stream-publisher,stream-subscriber,verification,blocks-file-historic,blocks-file-recent,backfill,roster-bootstrap-rsa"
   repositories:
     - id: besu-maven
       url: https://artifacts.hashgraph.io/artifactory/hyperledger-besu-maven-external/
