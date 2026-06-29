@@ -49,7 +49,7 @@ service SmartContractService {
      * until the expiration, and that fee SHALL be added to this transaction
      * as part of the _transaction fee_, rather than gas.
      */
-    rpc createContract (Transaction) returns (TransactionResponse);
+    rpc createContract (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Modify a smart contract.<br/>
@@ -59,7 +59,7 @@ service SmartContractService {
      * <p>
      * Fields _not set_ on the request SHALL NOT be modified.
      */
-    rpc updateContract (Transaction) returns (TransactionResponse);
+    rpc updateContract (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Call a function of a given smart contract, providing function parameter
@@ -71,7 +71,7 @@ service SmartContractService {
      * consumed as well as the standard fees for transaction handling,
      * data transfers, signature verification, etc...
      */
-    rpc contractCallMethod (Transaction) returns (TransactionResponse);
+    rpc contractCallMethod (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Call a query function of a given smart contract, providing
@@ -95,17 +95,17 @@ service SmartContractService {
      * _entire_ amount of offered "gas" in determining the fee for this query,
      * so accurate gas estimation is important.
      */
-    rpc contractCallLocalMethod (Query) returns (Response);
+    rpc contractCallLocalMethod (proto.services.Query) returns (proto.services.Response);
 
     /**
      * A standard query to obtain detailed information for a smart contract.
      */
-    rpc getContractInfo (Query) returns (Response);
+    rpc getContractInfo (proto.services.Query) returns (proto.services.Response);
 
     /**
      * A standard query to read the current bytecode for a smart contract.
      */
-    rpc ContractGetBytecode (Query) returns (Response);
+    rpc ContractGetBytecode (proto.services.Query) returns (proto.services.Response);
 
     /**
      * A standard query to obtain account and contract identifiers for a smart
@@ -126,7 +126,7 @@ service SmartContractService {
      * If this call succeeds then all subsequent calls to that smart
      * contract SHALL fail.<br/>
      */
-    rpc deleteContract (Transaction) returns (TransactionResponse);
+    rpc deleteContract (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Delete a smart contract, as a system-initiated deletion, this
@@ -171,10 +171,10 @@ service SmartContractService {
      * data, but MAY be charged up to 80% of that value if the amount required
      * is less than this "floor" amount.
      */
-    rpc callEthereum (Transaction) returns (TransactionResponse);
+    rpc callEthereum (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update zero or more slots of an EVM hook's storage.
      */
-    rpc hookStore (Transaction) returns (TransactionResponse);
+    rpc hookStore (proto.services.Transaction) returns (proto.services.TransactionResponse);
 }

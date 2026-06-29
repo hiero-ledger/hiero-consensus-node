@@ -46,7 +46,7 @@ service ConsensusService {
      * The request body MUST be a
      * [ConsensusCreateTopicTransactionBody](#proto.ConsensusCreateTopicTransactionBody)
      */
-    rpc createTopic (Transaction) returns (TransactionResponse);
+    rpc createTopic (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update an HCS topic.
@@ -64,7 +64,7 @@ service ConsensusService {
      * The request body MUST be a
      * [ConsensusUpdateTopicTransactionBody](#proto.ConsensusUpdateTopicTransactionBody)
      */
-    rpc updateTopic (Transaction) returns (TransactionResponse);
+    rpc updateTopic (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Delete an HCS topic.
@@ -80,7 +80,7 @@ service ConsensusService {
      * The request body MUST be a
      * [ConsensusDeleteTopicTransactionBody](#proto.ConsensusDeleteTopicTransactionBody)
      */
-    rpc deleteTopic (Transaction) returns (TransactionResponse);
+    rpc deleteTopic (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Submit a message to an HCS topic.
@@ -97,7 +97,7 @@ service ConsensusService {
      * The request body MUST be a
      * [ConsensusSubmitMessageTransactionBody](#proto.ConsensusSubmitMessageTransactionBody)
      */
-    rpc submitMessage (Transaction) returns (TransactionResponse);
+    rpc submitMessage (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Retrieve the latest state of a topic. This method is unrestricted and
@@ -108,5 +108,5 @@ service ConsensusService {
      * The response body SHALL be a
      * [ConsensusGetTopicInfoResponse](#proto.ConsensusGetTopicInfoResponse)
      */
-    rpc getTopicInfo (Query) returns (Response);
+    rpc getTopicInfo (proto.services.Query) returns (proto.services.Response);
 }

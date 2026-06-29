@@ -6,6 +6,7 @@
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<BuildVerbose>true</BuildVerbose>
+		<BuildInParallel>false</BuildInParallel>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -47,7 +48,7 @@
 		<DirectoryHapi>hapi</DirectoryHapi>
 		<DirectoryHapiGenerated>hapi.generated</DirectoryHapiGenerated>
 
-		<ProtoProject>$(MSBuildThisFileDirectory)..\Hiero.Tools\Hiero.Tools.csproj</ProtoProject>
+		<ProtoProject>"$(MSBuildThisFileDirectory)..\Hiero.Tools\Hiero.Tools.csproj"</ProtoProject>
 		<ProtoInputDir>--src "$(MSBuildThisFileDirectory)$(DirectoryHapi)"</ProtoInputDir>
 		<ProtoOutputDir>--output "$(MSBuildThisFileDirectory)$(DirectoryHapiGenerated)"</ProtoOutputDir>
 		<ProtoRoot>--root proto</ProtoRoot>
@@ -56,9 +57,11 @@
 		<ProtobufHapi>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hapi\src\main\proto</ProtobufHapi>
 		<ProtobufHedera>$(MSBuildProjectDirectory)\$(DirectoryHapiGenerated)\hedera-protobuf-java-api\src\main\proto</ProtobufHedera>
 		<ProtobufCodeGenVerbose>true</ProtobufCodeGenVerbose>
+		
+		<Protobuf_DepFilesPath></Protobuf_DepFilesPath>
 		<Protobuf_NoWarnMissingExpected>false</Protobuf_NoWarnMissingExpected>
 
-		<TransformProtoCommand>dotnet run --project "$(ProtoProject)" transform-protos $(ProtoInputDir) $(ProtoOutputDir) $(ProtoRoot) $(ProtoSkip)</TransformProtoCommand>
+		<TransformProtoCommand>dotnet run --project $(ProtoProject) transform-protos $(ProtoInputDir) $(ProtoOutputDir) $(ProtoRoot) $(ProtoSkip)</TransformProtoCommand>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -66,15 +69,9 @@
 		<Protobuf GrpcServices="Both" ProtoRoot="$(ProtobufHedera)" Include="$(ProtobufHedera)\**\*.proto" AdditionalImportDirs="$(ProtobufHapi)" />
 	</ItemGroup>
 
-	<Target Name="TransformProtos" BeforeTargets="GenerateProto;BeforeBuild">
+	<Target Name="TransformProtos" BeforeTargets="BeforeBuild;GenerateProto">
 		<Exec Command="$(TransformProtoCommand)" />
 	</Target>
-
-	<ItemGroup>
-	  <Compile Remove="hapi.previous\**" />
-	  <EmbeddedResource Remove="hapi.previous\**" />
-	  <None Remove="hapi.previous\**" />
-	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\Hiero\Hiero.csproj" />

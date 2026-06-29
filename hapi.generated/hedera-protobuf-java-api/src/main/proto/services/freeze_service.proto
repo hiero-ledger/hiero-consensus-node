@@ -39,5 +39,5 @@ service FreezeService {
      * of the `FreezeTransactionBody`.<br/>
      * The transaction body MUST be a `FreezeTransactionBody`.
      */
-    rpc freeze (Transaction) returns (TransactionResponse);
+    rpc freeze (proto.services.Transaction) returns (proto.services.TransactionResponse);
 }

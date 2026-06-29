@@ -40,7 +40,7 @@ service UtilService {
        * The request body MUST be a
        * [UtilPrngTransactionBody](#proto.UtilPrngTransactionBody)
      */
-    rpc prng (Transaction) returns (TransactionResponse);
+    rpc prng (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
 
     /**
@@ -50,5 +50,5 @@ service UtilService {
     * transaction fails, the entire batch will fail.
     // TODO: Add more details about the batch transaction
     */
-    rpc atomicBatch (Transaction) returns (TransactionResponse);
+    rpc atomicBatch (proto.services.Transaction) returns (proto.services.TransactionResponse);
 }

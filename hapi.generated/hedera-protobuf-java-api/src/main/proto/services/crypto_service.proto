@@ -41,34 +41,34 @@ service CryptoService {
     /**
      * Create a new account by submitting the transaction
      */
-    rpc createAccount (Transaction) returns (TransactionResponse);
+    rpc createAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update an account by submitting the transaction
      */
-    rpc updateAccount (Transaction) returns (TransactionResponse);
+    rpc updateAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Initiate a transfer by submitting the transaction
      */
-    rpc cryptoTransfer (Transaction) returns (TransactionResponse);
+    rpc cryptoTransfer (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Delete an account by submitting the transaction
      */
-    rpc cryptoDelete (Transaction) returns (TransactionResponse);
+    rpc cryptoDelete (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Add one or more approved allowances for spenders to transfer the paying
      * account's hbar or tokens.
      */
-    rpc approveAllowances (Transaction) returns (TransactionResponse);
+    rpc approveAllowances (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Delete one or more of the specific approved NFT serial numbers on an
      * owner account.
      */
-    rpc deleteAllowances (Transaction) returns (TransactionResponse);
+    rpc deleteAllowances (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Add a livehash
@@ -99,27 +99,27 @@ service CryptoService {
      * the given account was the effective payer **and** network property
      * `ledger.keepRecordsInState` was `true`.
      */
-    rpc getAccountRecords (Query) returns (Response);
+    rpc getAccountRecords (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the balance of an account
      */
-    rpc cryptoGetBalance (Query) returns (Response);
+    rpc cryptoGetBalance (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the metadata of an account
      */
-    rpc getAccountInfo (Query) returns (Response);
+    rpc getAccountInfo (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the latest receipt for a transaction that is either awaiting
      * consensus, or reached consensus in the last 180 seconds
      */
-    rpc getTransactionReceipts (Query) returns (Response);
+    rpc getTransactionReceipts (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the record of a transaction that is either awaiting consensus,
      * or reached consensus in the last 180 seconds
      */
-    rpc getTxRecordByTxID (Query) returns (Response);
+    rpc getTxRecordByTxID (proto.services.Query) returns (proto.services.Response);
 }

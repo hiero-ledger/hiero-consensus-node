@@ -79,7 +79,7 @@ service ScheduleService {
    * If all signature requirements are met with this transaction, the
    * scheduled transaction MAY execute immediately.
    */
-  rpc createSchedule (Transaction) returns (TransactionResponse);
+  rpc createSchedule (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
   /**
    * Add signatures to an existing schedule.
@@ -88,7 +88,7 @@ service ScheduleService {
    * signatures on the schedule, and MAY result in execution of the
    * scheduled transaction if all signature requirements are met.
    */
-  rpc signSchedule (Transaction) returns (TransactionResponse);
+  rpc signSchedule (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
   /**
    * Mark an existing schedule deleted.
@@ -96,10 +96,10 @@ service ScheduleService {
    * Once deleted a schedule SHALL NOT be executed and any subsequent
    * `scheduleSign` transaction SHALL fail.
    */
-  rpc deleteSchedule (Transaction) returns (TransactionResponse);
+  rpc deleteSchedule (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
   /**
    * Retrieve the metadata for a schedule.
    */
-  rpc getScheduleInfo (Query) returns (Response);
+  rpc getScheduleInfo (proto.services.Query) returns (proto.services.Response);
 }

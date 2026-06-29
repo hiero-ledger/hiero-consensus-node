@@ -56,37 +56,37 @@ service FileService {
     /**
      * Create a file in HFS.
      */
-    rpc createFile (Transaction) returns (TransactionResponse);
+    rpc createFile (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update a file in HFS.
      */
-    rpc updateFile (Transaction) returns (TransactionResponse);
+    rpc updateFile (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Delete a file in HFS.<br/>
      * The content of a file deleted in this manner is completely removed
      * from network state, but the file metadata remains.
      */
-    rpc deleteFile (Transaction) returns (TransactionResponse);
+    rpc deleteFile (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Append content to a file in HFS.
      */
-    rpc appendContent (Transaction) returns (TransactionResponse);
+    rpc appendContent (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Retrieve the content of a file in HFS.<br/>
      * Note that this query retrieves _only_ the file content, not any of
      * the metadata for the file.
      */
-    rpc getFileContent (Query) returns (Response);
+    rpc getFileContent (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the metadata for a file in HFS.<br/>
      * Note that this query does not retrieve the file _content_.
      */
-    rpc getFileInfo (Query) returns (Response);
+    rpc getFileInfo (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Delete a "regular" file without "owner" authorization.<br/>
@@ -103,7 +103,7 @@ service FileService {
      * to call this function, by default. The actual restriction is in the
      * `api-permission.properties` file in the consensus node configuration.
      */
-    rpc systemDelete (Transaction) returns (TransactionResponse);
+    rpc systemDelete (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Undelete a "regular" file.
@@ -120,5 +120,5 @@ service FileService {
      * to call this function, by default. The actual restriction is in the
      * `api-permission.properties` file in the consensus node configuration.
      */
-    rpc systemUndelete (Transaction) returns (TransactionResponse);
+    rpc systemUndelete (proto.services.Transaction) returns (proto.services.TransactionResponse);
 }

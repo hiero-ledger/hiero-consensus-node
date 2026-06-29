@@ -33,7 +33,7 @@ service NetworkService {
     /**
      * Retrieve the active versions of Hedera Services and API messages.
      */
-    rpc getVersionInfo (Query) returns (Response);
+    rpc getVersionInfo (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Request detail information about an account.
@@ -41,7 +41,7 @@ service NetworkService {
      * The returned information SHALL include balance and allowances.<br/>
      * The returned information SHALL NOT include a list of account records.
      */
-    rpc getAccountDetails (Query) returns (Response);
+    rpc getAccountDetails (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the time, in nanoseconds, spent in direct processing for one or

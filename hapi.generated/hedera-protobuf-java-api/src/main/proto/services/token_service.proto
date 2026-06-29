@@ -33,12 +33,12 @@ service TokenService {
     /**
      * Create a new token.
      */
-    rpc createToken (Transaction) returns (TransactionResponse);
+    rpc createToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update a token.
      */
-    rpc updateToken (Transaction) returns (TransactionResponse);
+    rpc updateToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Mint one or more tokens to the treasury account.
@@ -47,7 +47,7 @@ service TokenService {
      * a list of specific non-fungible/unique tokes, but
      * MUST NOT specify both.
      */
-    rpc mintToken (Transaction) returns (TransactionResponse);
+    rpc mintToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Burn one or more tokens from the treasury account.
@@ -56,12 +56,12 @@ service TokenService {
      * a list of specific non-fungible/unique tokes, but
      * MUST NOT specify both.
      */
-    rpc burnToken (Transaction) returns (TransactionResponse);
+    rpc burnToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Delete a token.
      */
-    rpc deleteToken (Transaction) returns (TransactionResponse);
+    rpc deleteToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Wipe one or more tokens from an identified Account.
@@ -70,44 +70,44 @@ service TokenService {
      * a list of specific non-fungible/unique tokes, but
      * MUST NOT specify both.
      */
-    rpc wipeTokenAccount (Transaction) returns (TransactionResponse);
+    rpc wipeTokenAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Freeze the transfer of tokens to or from an identified Account.
      */
-    rpc freezeTokenAccount (Transaction) returns (TransactionResponse);
+    rpc freezeTokenAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Unfreeze the transfer of tokens to or from an identified Account.
      */
-    rpc unfreezeTokenAccount (Transaction) returns (TransactionResponse);
+    rpc unfreezeTokenAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Assert that KYC requirements are met for a specific account with
      * respect to a specific token.
      */
-    rpc grantKycToTokenAccount (Transaction) returns (TransactionResponse);
+    rpc grantKycToTokenAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Assert that KYC requirements are _not_ met for a specific account with
      * respect to a specific token.
      */
-    rpc revokeKycFromTokenAccount (Transaction) returns (TransactionResponse);
+    rpc revokeKycFromTokenAccount (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Associate one or more tokens to an account.
      */
-    rpc associateTokens (Transaction) returns (TransactionResponse);
+    rpc associateTokens (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Dissociate one or more tokens from an account.
      */
-    rpc dissociateTokens (Transaction) returns (TransactionResponse);
+    rpc dissociateTokens (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update the custom fee schedule for a token.
      */
-    rpc updateTokenFeeSchedule (Transaction) returns (TransactionResponse);
+    rpc updateTokenFeeSchedule (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Retrieve the detail characteristics for a token.
@@ -115,7 +115,7 @@ service TokenService {
      * This query SHALL return information for the token type as a whole.<br/>
      * This query SHALL NOT return information for individual tokens.
      */
-    rpc getTokenInfo (Query) returns (Response);
+    rpc getTokenInfo (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Retrieve the metadata for a specific non-fungible/unique token.<br/>
@@ -124,17 +124,17 @@ service TokenService {
      * This query SHALL return token metadata and, if an allowance is defined,
      * the designated "spender" account for the queried NFT.
      */
-    rpc getTokenNftInfo (Query) returns (Response);
+    rpc getTokenNftInfo (proto.services.Query) returns (proto.services.Response);
 
     /**
      * Pause a token.
      */
-    rpc pauseToken (Transaction) returns (TransactionResponse);
+    rpc pauseToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Unpause (resume) a token.
      */
-    rpc unpauseToken (Transaction) returns (TransactionResponse);
+    rpc unpauseToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Update multiple non-fungible/unique tokens (NFTs) in a collection.<br/>
@@ -144,7 +144,7 @@ service TokenService {
      * This transaction SHALL update NFT metadata only.<br/>
      * This transaction MUST be signed by the token `metadata_key`.
      */
-    rpc updateNfts (Transaction) returns (TransactionResponse);
+    rpc updateNfts (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Reject one or more tokens.
@@ -166,7 +166,7 @@ service TokenService {
      *       that was rejected.</li>
      * </li>
      */
-    rpc rejectToken (Transaction) returns (TransactionResponse);
+    rpc rejectToken (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Airdrop one or more tokens to one or more accounts.
@@ -198,7 +198,7 @@ service TokenService {
      * automatic-association slot occupied by the airdropped tokens,
      * SHALL be charged to the account submitting this transaction.
      */
-    rpc airdropTokens (Transaction) returns (TransactionResponse);
+    rpc airdropTokens (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Cancel one or more pending airdrops.
@@ -206,7 +206,7 @@ service TokenService {
      * This transaction MUST be signed by _each_ account *sending* an
      * airdrop to be canceled.
      */
-    rpc cancelAirdrop (Transaction) returns (TransactionResponse);
+    rpc cancelAirdrop (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * Claim one or more pending airdrops.
@@ -216,6 +216,6 @@ service TokenService {
      * If a "Sender" lacks sufficient balance to fulfill the airdrop at
      * the time the claim is made, that claim SHALL fail.
      */
-    rpc claimAirdrop (Transaction) returns (TransactionResponse);
+    rpc claimAirdrop (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
 }

@@ -112,7 +112,7 @@ service AddressBookService {
      * <p>
      * Hedera governing council authorization is REQUIRED for this transaction.
      */
-    rpc createNode (proto.Transaction) returns (proto.TransactionResponse);
+    rpc createNode (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * A transaction to remove a consensus node from the network address
@@ -123,7 +123,7 @@ service AddressBookService {
      * <p>
      * Hedera governing council authorization is REQUIRED for this transaction.
      */
-    rpc deleteNode (proto.Transaction) returns (proto.TransactionResponse);
+    rpc deleteNode (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * A transaction to update an existing consensus node from the network
@@ -134,7 +134,7 @@ service AddressBookService {
      * <p>
      * This transaction is authorized by the node operator
      */
-    rpc updateNode (proto.Transaction) returns (proto.TransactionResponse);
+    rpc updateNode (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * A transaction to create a new registered node in the network
@@ -145,7 +145,7 @@ service AddressBookService {
      * The new registered node SHALL be visible and discoverable upon
      * completion of this transaction.
      */
-    rpc createRegisteredNode (proto.Transaction) returns (proto.TransactionResponse);
+    rpc createRegisteredNode (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * A transaction to remove a registered node from the network address
@@ -156,7 +156,7 @@ service AddressBookService {
      * This transaction MUST be signed by the existing entry `admin_key` or
      * authorized by the Hiero network governance structure.
      */
-    rpc deleteRegisteredNode (proto.Transaction) returns (proto.TransactionResponse);
+    rpc deleteRegisteredNode (proto.services.Transaction) returns (proto.services.TransactionResponse);
 
     /**
      * A transaction to update an existing registered node in the network
@@ -165,5 +165,5 @@ service AddressBookService {
      * This transaction, once complete, SHALL modify the identified registered
      * node state as requested.
      */
-    rpc updateRegisteredNode (proto.Transaction) returns (proto.TransactionResponse);
+    rpc updateRegisteredNode (proto.services.Transaction) returns (proto.services.TransactionResponse);
 }
