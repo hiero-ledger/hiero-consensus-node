@@ -322,7 +322,7 @@ class ProofControllerImplTest {
                 .willReturn(prover);
 
         final var completedProof = recursiveProof("compressed", "uncompressed");
-        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
                 .willReturn(new HistoryProver.Outcome.Completed(completedProof));
         given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(completedProof)))
                 .willReturn(construction);
@@ -347,7 +347,7 @@ class ProofControllerImplTest {
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
 
-        verify(prover).advance(any(), any(), any(), any(), eq(tssConfig), any());
+        verify(prover).advance(any(), any(), any(), any(), eq(tssConfig), any(), eq(true));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(completedProof));
     }
 
@@ -371,7 +371,7 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void advanceConstructionDoesNothingWhenAssemblyStartedAndInactive() {
+    void advanceConstructionDelegatesToProverWhenAssemblyStartedAndInactive() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
                 .assemblyStartTime(asTimestamp(Instant.EPOCH))
@@ -395,9 +395,15 @@ class ProofControllerImplTest {
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
 
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
+                .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(construction);
+
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
 
-        verifyNoMoreInteractions(writableHistoryStore, prover);
+        verify(prover).advance(any(), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(false));
+        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
     }
 
     @Test
@@ -426,7 +432,7 @@ class ProofControllerImplTest {
                 DEFAULT_TSS_CONFIG);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
-        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
                 .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
         given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(construction);
 
@@ -434,7 +440,7 @@ class ProofControllerImplTest {
         subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
 
         verify(writableHistoryStore).getLedgerId();
-        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(true));
         verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
     }
 
@@ -466,7 +472,7 @@ class ProofControllerImplTest {
         final var proof = aValidProof();
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
-        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
                 .willReturn(new HistoryProver.Outcome.Completed(proof));
         given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
 
@@ -474,7 +480,7 @@ class ProofControllerImplTest {
         subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
 
         verify(writableHistoryStore).getLedgerId();
-        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(true));
         verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
         verify(historyService).onFinished(eq(writableHistoryStore), eq(construction), any());
     }
@@ -507,7 +513,7 @@ class ProofControllerImplTest {
         final var reason = "test-failure";
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
-        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
                 .willReturn(new HistoryProver.Outcome.Failed(reason));
         given(writableHistoryStore.failForReason(CONSTRUCTION_ID, reason)).willReturn(construction);
 
@@ -515,7 +521,7 @@ class ProofControllerImplTest {
         subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
 
         verify(writableHistoryStore).getLedgerId();
-        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(true));
         verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
     }
 
@@ -551,7 +557,7 @@ class ProofControllerImplTest {
                 .build();
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
-        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
         given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
         given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
@@ -560,6 +566,53 @@ class ProofControllerImplTest {
         final var now = Instant.EPOCH.plusSeconds(1);
         subject.advanceConstruction(now, METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
 
+        verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
+        verify(writableHistoryStore, never()).failForReason(anyLong(), any());
+    }
+
+    @Test
+    void advanceConstructionRestartsOnRecoverableWrapsFailureWhenInactive() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var restarted = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                .wrapsRetryCount(1)
+                .build();
+
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(false)))
+                .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
+        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+                .willReturn(restarted);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
+
+        verify(prover)
+                .advance(eq(now), eq(construction), eq(METADATA), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(false));
         verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
@@ -1140,7 +1193,7 @@ class ProofControllerImplTest {
 
         given(writableHistoryStore.getLedgerId()).willReturn(ledgerId);
         given(weights.sourceWeightThreshold()).willReturn(1L);
-        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(true)))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
         given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
         given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
@@ -1354,7 +1407,7 @@ class ProofControllerImplTest {
                 DEFAULT_TSS_CONFIG);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
-        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
                 .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
         given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(construction);
 

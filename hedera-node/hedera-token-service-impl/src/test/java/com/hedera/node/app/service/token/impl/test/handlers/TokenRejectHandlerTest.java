@@ -22,10 +22,6 @@ import com.hedera.hapi.node.token.TokenReference;
 import com.hedera.hapi.node.token.TokenRejectTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.handlers.TokenRejectHandler;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -165,24 +161,6 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_REFERENCE_LIST));
-    }
-
-    private void setupFeeTest(
-            final TransactionBody txn,
-            final FeeContext feeContext,
-            final FeeCalculator feeCalculator,
-            final FeeCalculatorFactory feeCalculatorFactory) {
-        config = defaultConfig()
-                .withValue("fees.tokenTransferUsageMultiplier", 2)
-                .getOrCreateConfig();
-        Fees fees = mock(Fees.class);
-        when(feeContext.body()).thenReturn(txn);
-        when(feeContext.configuration()).thenReturn(config);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
-        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.calculate()).thenReturn(fees);
     }
 
     private HandleContext mockContext(final TransactionBody txn) {

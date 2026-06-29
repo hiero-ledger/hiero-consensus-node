@@ -20,7 +20,6 @@ import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CancellationException;
@@ -40,7 +39,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *
  * <p>Lifecycle:
  * <ul>
- *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, ReconnectConfig, ReconnectMapStats)}</li>
+ *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, ReconnectConfig)}</li>
  *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long)}.</li>
  *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
  *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and return new {@link VirtualMap}.</li>
@@ -122,15 +121,10 @@ public final class VirtualMapLearner {
      *
      * @param originalMap the learner's current virtual map; must not be {@code null}
      * @param reconnectConfig reconnect configuration for this operation; must not be {@code null}
-     * @param mapStats collector for reconnect metrics; must not be {@code null}
      */
-    public VirtualMapLearner(
-            @NonNull final VirtualMap originalMap,
-            @NonNull final ReconnectConfig reconnectConfig,
-            @NonNull final ReconnectMapStats mapStats) {
+    public VirtualMapLearner(@NonNull final VirtualMap originalMap, @NonNull final ReconnectConfig reconnectConfig) {
         requireNonNull(originalMap, "originalMap must not be null");
         requireNonNull(reconnectConfig, "reconnectConfig must not be null");
-        requireNonNull(mapStats, "mapStats must not be null");
 
         // Ensure the original map is hashed. Once hashed, all internal nodes are also hashed,
         // which is required for the reconnect process — the teacher uses these hashes to decide
