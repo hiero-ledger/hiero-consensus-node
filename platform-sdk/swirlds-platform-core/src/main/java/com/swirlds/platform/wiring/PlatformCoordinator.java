@@ -12,8 +12,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
-import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
@@ -170,17 +168,17 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
+     * Flush the platform status state machine
+     */
+    public void flushPlatformStatus() {
+        components.platformMonitorWiring().flush();
+    }
+
+    /**
      * @see PcesModule#minimumBirthRoundInputWire()
      */
     public void injectPcesMinimumBirthRoundToStore(@NonNull final long minimumBirthRoundNonAncientForOldestState) {
         components.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
-    }
-
-    /**
-     * @see StateSnapshotManager#dumpStateTask
-     */
-    public void dumpStateToDisk(@NonNull final StateDumpRequest request) {
-        components.stateManagementModule().stateDumpRequestInputWire().put(request);
     }
 
     /**

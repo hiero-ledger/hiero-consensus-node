@@ -426,6 +426,7 @@ public final class PlatformBuilder {
                 platformCoordinator::flushTransactionHandler,
                 latestStateSupplier,
                 platformCoordinator::submitStatusAction,
+                platformCoordinator::flushPlatformStatus,
                 platformCoordinator::flushStateHasher,
                 platformCoordinator::signalEndOfPcesReplay,
                 pipelineTracker);

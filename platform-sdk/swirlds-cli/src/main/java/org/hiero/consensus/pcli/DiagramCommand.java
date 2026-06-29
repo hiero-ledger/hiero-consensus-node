@@ -145,7 +145,9 @@ public final class DiagramCommand extends AbstractCommand {
                 transactionHandlingModule,
                 statemanagementModule);
 
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, null);
+        // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
+        // appears in the diagram; in production Execution supplies this consumer.
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, event -> {});
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);
