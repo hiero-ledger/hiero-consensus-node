@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.state.management;
+package org.hiero.consensus.state.nexus;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;

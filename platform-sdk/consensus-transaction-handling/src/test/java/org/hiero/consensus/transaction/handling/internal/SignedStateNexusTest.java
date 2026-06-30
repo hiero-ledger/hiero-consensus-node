@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.state.management.access;
+package org.hiero.consensus.transaction.handling.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.state.management.SignedStateNexus;
+import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LockFreeStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;

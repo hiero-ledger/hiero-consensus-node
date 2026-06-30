@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction.handling;
 
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
@@ -18,12 +20,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.status.StatusActionSubmitter;
@@ -39,12 +41,12 @@ import org.hiero.consensus.transaction.handling.internal.TransactionPrehandler;
 
 public class TransactionHandlingModule {
 
-    public static final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> NO_OP_CONSUMER =
-            systemTransactions -> {};
+    public static final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> NO_OP_CONSUMER = _ -> {};
 
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             prehanderWiring;
     private final ComponentWiring<TransactionHandler, TransactionHandlerResult> handlerWiring;
+    private final ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring;
 
     private final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> handleSignaturesOutputWire;
     private final OutputWire<ReservedSignedState> stateOutputWire;
@@ -57,7 +59,7 @@ public class TransactionHandlingModule {
      * @param configuration the configuration
      * @param metrics the metrics system
      * @param time the time source
-     * @param latestImmutableStateProviderReference the latest immutable state provider reference
+     * @param latestImmutableStateNexus the latest immutable state nexus
      * @param transactionCallbacks the transaction callbacks
      * @param stateLifecycleManager the state lifecycle manager
      * @param statusActionSubmitterReference the status action submitter reference
@@ -70,7 +72,7 @@ public class TransactionHandlingModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
+            @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
@@ -87,6 +89,8 @@ public class TransactionHandlingModule {
                 TransactionHandler.class,
                 wiringConfig.handler(),
                 TransactionHandlerDataCounter.create(wiringConfig.handler()));
+        this.latestImmutableStateNexusWiring =
+                new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         this.handleSignaturesOutputWire = handlerWiring
@@ -105,13 +109,12 @@ public class TransactionHandlingModule {
                         new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
         this.stateOutputWire = stateWithHashComplexityOutputWire.buildAdvancedTransformer(
                 new StateWithHashComplexityToStateReserver("postHandler_stateWithHashComplexityToStateReserver"));
+        this.stateOutputWire.solderTo(latestImmutableStateInputWire());
 
         // Create and bind components
-        final TransactionPrehandler transactionPrehandler = new DefaultTransactionPrehandler(
-                metrics,
-                time,
-                () -> latestImmutableStateProviderReference.get().apply("transaction prehandle"),
-                transactionCallbacks);
+        latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
+        final TransactionPrehandler transactionPrehandler =
+                new DefaultTransactionPrehandler(metrics, time, latestImmutableStateNexus, transactionCallbacks);
         prehanderWiring.bind(transactionPrehandler);
         final TransactionHandler transactionHandler = new DefaultTransactionHandler(
                 time,
@@ -157,6 +160,16 @@ public class TransactionHandlingModule {
     @NonNull
     public InputWire<RunningEventHashOverride> hashOverrideInputWire() {
         return handlerWiring.getInputWire(TransactionHandler::updateLegacyRunningEventHash);
+    }
+
+    /**
+     * Get the input wire for setting the latest {@link ReservedSignedState}.
+     *
+     * @return the input wire for the transactions
+     */
+    @NonNull
+    public InputWire<ReservedSignedState> latestImmutableStateInputWire() {
+        return latestImmutableStateNexusWiring.getInputWire(SignedStateNexus::setState);
     }
 
     /**

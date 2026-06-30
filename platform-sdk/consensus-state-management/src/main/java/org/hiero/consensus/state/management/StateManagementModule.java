@@ -42,6 +42,7 @@ import org.hiero.consensus.state.management.signing.SignedStateMetrics;
 import org.hiero.consensus.state.management.signing.StateSignatureCollector;
 import org.hiero.consensus.state.management.signing.StateSigner;
 import org.hiero.consensus.state.management.utils.SignedStateReserver;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
@@ -59,7 +60,6 @@ public class StateManagementModule {
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
     private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
 
-    private final ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring;
     private final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring;
 
     private final OutputWire<ReservedSignedState> hashedStateOutputWire;
@@ -77,7 +77,6 @@ public class StateManagementModule {
      * @param selfId the ID of this node
      * @param swirldName the swirld name
      * @param stateLifecycleManager the state lifecycle manager
-     * @param signedStateNexus the signed state nexus
      * @param latestCompleteStateNexus the latest complete state nexus
      */
     public StateManagementModule(
@@ -91,7 +90,6 @@ public class StateManagementModule {
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
             @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final SignedStateNexus signedStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus) {
 
         // Set up wiring
@@ -109,8 +107,6 @@ public class StateManagementModule {
                 new ComponentWiring<>(model, StateSnapshotManager.class, wiringConfig.stateSnapshotManager());
         this.savedStateControllerWiring =
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION);
-        this.latestImmutableStateNexusWiring =
-                new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
         this.latestCompleteStateNexusWiring =
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
 
@@ -189,7 +185,6 @@ public class StateManagementModule {
         stateSnapshotManagerWiring.bind(stateSnapshotManager);
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         savedStateControllerWiring.bind(savedStateController);
-        latestImmutableStateNexusWiring.bind(signedStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
     }
 
@@ -248,16 +243,6 @@ public class StateManagementModule {
     @NonNull
     public InputWire<StateWithHashComplexity> stateToMarkInputWire() {
         return savedStateControllerWiring.getInputWire(SavedStateController::markSavedState);
-    }
-
-    /**
-     * Get the input wire for setting the latest {@link ReservedSignedState}.
-     *
-     * @return the input wire for the transactions
-     */
-    @NonNull
-    public InputWire<ReservedSignedState> latestImmutableStateInputWire() {
-        return latestImmutableStateNexusWiring.getInputWire(SignedStateNexus::setState);
     }
 
     /**

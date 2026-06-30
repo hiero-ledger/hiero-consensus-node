@@ -138,7 +138,7 @@ public class ReconnectCoordinator {
         platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
         components
-                .stateManagementModule()
+                .transactionHandlingModule()
                 .latestImmutableStateInputWire()
                 .put(signedState.reserve("set latest immutable to reconnect state"));
         platformCoordinator.sendStateToHashLogger(signedState);

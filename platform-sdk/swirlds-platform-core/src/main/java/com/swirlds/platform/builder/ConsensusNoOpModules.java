@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -50,10 +49,11 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.LatestCompleteStateNexus;
-import org.hiero.consensus.state.management.SignedStateNexus;
 import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.access.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LockFreeStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
@@ -296,8 +296,7 @@ public class ConsensusNoOpModules {
             @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
-                new AtomicReference<>();
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
@@ -310,7 +309,7 @@ public class ConsensusNoOpModules {
                 configuration,
                 metrics,
                 time,
-                latestImmutableStateProviderReference,
+                latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
                 statusActionSubmitterReference,
@@ -345,7 +344,6 @@ public class ConsensusNoOpModules {
         final String swirldName = "swirldName";
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final SignedStateNexus signedStateNexus = new DefaultLatestCompleteStateNexus(configuration, metrics);
         final LatestCompleteStateNexus latestCompleteStateNexus =
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
 
@@ -360,7 +358,6 @@ public class ConsensusNoOpModules {
                 selfId,
                 swirldName,
                 stateLifecycleManager,
-                signedStateNexus,
                 latestCompleteStateNexus);
     }
 }

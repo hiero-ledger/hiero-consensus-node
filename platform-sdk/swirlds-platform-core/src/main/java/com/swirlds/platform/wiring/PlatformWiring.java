@@ -161,10 +161,6 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .stateOutputWire()
-                .solderTo(components.stateManagementModule().latestImmutableStateInputWire());
-        components
-                .transactionHandlingModule()
-                .stateOutputWire()
                 .solderTo(components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
 
         final var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);

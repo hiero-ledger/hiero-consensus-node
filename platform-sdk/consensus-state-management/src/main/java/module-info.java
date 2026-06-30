@@ -5,8 +5,6 @@ import org.hiero.consensus.state.management.config.StateManagementConfigurationE
 module org.hiero.consensus.state.management {
     exports org.hiero.consensus.state.management;
     exports org.hiero.consensus.state.management.config;
-    exports org.hiero.consensus.state.management.access to
-            com.swirlds.platform.core;
     exports org.hiero.consensus.state.management.persistence to
             com.swirlds.platform.core,
             org.hiero.consensus.reconnect.impl,

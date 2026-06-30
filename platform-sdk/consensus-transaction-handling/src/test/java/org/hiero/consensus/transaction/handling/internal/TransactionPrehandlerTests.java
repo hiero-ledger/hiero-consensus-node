@@ -18,7 +18,7 @@ import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.state.management.SignedStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
@@ -62,8 +62,8 @@ class TransactionPrehandlerTests {
 
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final TransactionPrehandler transactionPrehandler = new DefaultTransactionPrehandler(
-                metrics, time, () -> latestImmutableStateNexus.getState("test"), preHandleCallback);
+        final TransactionPrehandler transactionPrehandler =
+                new DefaultTransactionPrehandler(metrics, time, latestImmutableStateNexus, preHandleCallback);
 
         final PlatformEvent platformEvent = new TestingEventBuilder(random).build();
 
