@@ -63,17 +63,13 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      *
      * @param signedState the state to forward
      */
-    public void sendStateToHashLogger(@NonNull final SignedState signedState) {
-        if (signedState.getState().getHash() != null) {
-            final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
+    public void sendStateToStateManagement(@NonNull final SignedState signedState) {
+        final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
 
-            final boolean offerResult = components
-                    .stateManagementModule()
-                    .hashedStatesToLogInputWire()
-                    .offer(stateReservedForHasher);
-            if (!offerResult) {
-                stateReservedForHasher.close();
-            }
+        final boolean offerResult =
+                components.stateManagementModule().hashedStatesInputWire().offer(stateReservedForHasher);
+        if (!offerResult) {
+            stateReservedForHasher.close();
         }
     }
 
@@ -179,13 +175,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void injectPcesMinimumBirthRoundToStore(@NonNull final long minimumBirthRoundNonAncientForOldestState) {
         components.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
-    }
-
-    /**
-     * see {@code StateSignatureCollector.addReservedState(ReservedSignedState)}
-     */
-    public void injectSignatureCollectorState(@NonNull final ReservedSignedState reservedSignedState) {
-        components.stateManagementModule().stateToCollectInputWire().put(reservedSignedState);
     }
 
     /**

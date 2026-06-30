@@ -23,7 +23,6 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusStateMachine;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
@@ -141,11 +140,10 @@ public class ReconnectCoordinator {
                 .transactionHandlingModule()
                 .latestImmutableStateInputWire()
                 .put(signedState.reserve("set latest immutable to reconnect state"));
-        platformCoordinator.sendStateToHashLogger(signedState);
-        // this will send the state to the signature collector which will send it to be written to disk.
+        // this will log the state and send it to the signature collector which will send it to be written to disk.
         // in the future, we might not send it to the collector because it already has all the signatures
         // if this is the case, we must make sure to send it to the writer directly
-        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+        platformCoordinator.sendStateToStateManagement(signedState);
 
         final State state = signedState.getState();
 
@@ -165,13 +163,6 @@ public class ReconnectCoordinator {
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
         platformCoordinator.updateRunningHash(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
-    }
-
-    /**
-     * see {@code StateSignatureCollector.addReservedState()}
-     */
-    private void putSignatureCollectorState(@NonNull final ReservedSignedState reserve) {
-        components.stateManagementModule().stateToCollectInputWire().put(reserve);
     }
 
     /**

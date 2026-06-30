@@ -225,9 +225,7 @@ public class SwirldsPlatform implements Platform {
             initialAncientThreshold = ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
-            platformCoordinator.sendStateToHashLogger(initialState);
-            platformCoordinator.injectSignatureCollectorState(
-                    initialState.reserve("loading initial state into sig collector"));
+            platformCoordinator.sendStateToStateManagement(initialState);
 
             savedStateController.registerSignedStateFromDisk(initialState);
 

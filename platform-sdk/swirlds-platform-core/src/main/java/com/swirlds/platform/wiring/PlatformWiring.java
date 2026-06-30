@@ -156,7 +156,7 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .stateWithHashComplexityOutputWire()
-                .solderTo(components.stateManagementModule().stateToMarkInputWire());
+                .solderTo(components.stateManagementModule().unhashedStatesInputWire());
 
         components
                 .transactionHandlingModule()

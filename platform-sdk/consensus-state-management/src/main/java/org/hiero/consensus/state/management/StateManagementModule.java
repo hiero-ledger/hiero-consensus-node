@@ -9,6 +9,7 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.transformers.WireFilter;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -18,6 +19,7 @@ import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Queue;
+import java.util.function.UnaryOperator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -50,6 +52,8 @@ import org.hiero.consensus.state.signed.StateWithHashComplexity;
  * Module for signed state management.
  */
 public class StateManagementModule {
+
+    private WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final ComponentWiring<HashLogger, Void> hashLoggerWiring;
@@ -93,6 +97,9 @@ public class StateManagementModule {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus) {
 
         // Set up wiring
+        this.stateDispatcher =
+                new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
+
         final StateManagementWiringConfig wiringConfig = configuration.getConfigData(StateManagementWiringConfig.class);
         this.stateHasherWiring = new ComponentWiring<>(
                 model,
@@ -110,10 +117,23 @@ public class StateManagementModule {
         this.latestCompleteStateNexusWiring =
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
 
+        // Eventually mark unhashed state for storage and forward to StateHasher
+        savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
+
         // The state hasher needs to pass its data through a transformer.
         hashedStateOutputWire = stateHasherWiring
                 .getOutputWire()
                 .buildAdvancedTransformer(new SignedStateReserver("postHasher_stateReserver"));
+        hashedStateOutputWire.solderTo(stateSignerWiring.getInputWire(StateSigner::signState));
+
+        // The hashed state has to be dispatched to the logger and signature collector.
+        hashedStateOutputWire.solderTo(stateDispatcher.getInputWire());
+        final OutputWire<ReservedSignedState> dispatcherOutputWire = stateDispatcher
+                .getOutputWire()
+                .buildAdvancedTransformer(new SignedStateReserver("postDispatcher_stateReserver"));
+        dispatcherOutputWire.solderTo(hashLoggerWiring.getInputWire(HashLogger::logHashes));
+        dispatcherOutputWire.solderTo(
+                stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::addReservedState));
 
         // Split output of StateSignatureCollector into single ReservedSignedStates.
         final OutputWire<ReservedSignedState> allReservedSignedStatesWire = stateSignatureCollectorWiring
@@ -121,7 +141,7 @@ public class StateManagementModule {
                 .<ReservedSignedState>buildSplitter("reservedStateSplitter", "reserved state lists")
                 .buildAdvancedTransformer(new SignedStateReserver("allStatesReserver"));
 
-        // Future work: this should be a full component in its own right or folded in with the state file manager.
+        // Filter states that need to be saved to disk and pass them to StateSnapshotManager
         final WireFilter<ReservedSignedState> saveToDiskFilter =
                 new WireFilter<>(model, "saveToDiskFilter", "states", state -> {
                     if (state.get().isStateToSave()) {
@@ -131,14 +151,13 @@ public class StateManagementModule {
                     return false;
                 });
         allReservedSignedStatesWire.solderTo(saveToDiskFilter.getInputWire());
-
         saveToDiskFilter
                 .getOutputWire()
                 .solderTo(stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::saveStateTask));
 
-        // Filter to complete states only
-        final OutputWire<ReservedSignedState> completeReservedSignedStatesWire =
-                allReservedSignedStatesWire.buildFilter("completeStateFilter", "states", rs -> {
+        // Filter to complete states only and store in latestCompleteStateNexus
+        allReservedSignedStatesWire
+                .buildFilter("completeStateFilter", "states", rs -> {
                     if (rs.get().isComplete()) {
                         return true;
                     } else {
@@ -146,15 +165,8 @@ public class StateManagementModule {
                         rs.close();
                         return false;
                     }
-                });
-        completeReservedSignedStatesWire.solderTo(
-                latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
-        savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
-
-        // Wire components
-        hashedStateOutputWire.solderTo(hashedStatesToLogInputWire());
-        hashedStateOutputWire.solderTo(stateSignerWiring.getInputWire(StateSigner::signState));
-        hashedStateOutputWire.solderTo(stateToCollectInputWire());
+                })
+                .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
 
         // Force not soldered wires to be built
         stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
@@ -189,25 +201,26 @@ public class StateManagementModule {
     }
 
     /**
-     * Get the input wire for hashes states to log
+     * Get the input wire for {@link StateWithHashComplexity}s to handle post-conensus.
      *
-     * @return the input wire for hashes states to log
+     * @return the input wire for the transactions
      */
-    @InputWireLabel("hashed states to log")
+    @InputWireLabel("state to hash")
     @NonNull
-    public InputWire<ReservedSignedState> hashedStatesToLogInputWire() {
-        return hashLoggerWiring.getInputWire(HashLogger::logHashes);
+    public InputWire<StateWithHashComplexity> unhashedStatesInputWire() {
+        return savedStateControllerWiring.getInputWire(SavedStateController::markSavedState);
     }
 
     /**
-     * Get the input wire for states addes to the {@link StateSignatureCollector}.
+     * Get the input wire for hashed states for further processing
+     * (used during initialization and reconnect).
      *
      * @return the input wire for hashes states to log
      */
     @InputWireLabel("hashed states")
     @NonNull
-    public InputWire<ReservedSignedState> stateToCollectInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::addReservedState);
+    public InputWire<ReservedSignedState> hashedStatesInputWire() {
+        return stateDispatcher.getInputWire();
     }
 
     /**
@@ -232,17 +245,6 @@ public class StateManagementModule {
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             postconsensusSystemTranscationsInputWire() {
         return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePreconsensusSignatures);
-    }
-
-    /**
-     * Get the input wire for {@link StateSignatureTransaction}s to handle post-conensus.
-     *
-     * @return the input wire for the transactions
-     */
-    @InputWireLabel("state to mark")
-    @NonNull
-    public InputWire<StateWithHashComplexity> stateToMarkInputWire() {
-        return savedStateControllerWiring.getInputWire(SavedStateController::markSavedState);
     }
 
     /**
