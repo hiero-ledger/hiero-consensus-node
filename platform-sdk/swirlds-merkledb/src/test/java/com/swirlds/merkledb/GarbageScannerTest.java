@@ -2,7 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.files.DataFileCommon.dataLocation;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -21,8 +20,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class GarbageScannerTest {
-
-    private static final MerkleDbConfig DEFAULT_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     @Test
     void scanTracksAliveItemsAcrossMultipleFiles() {
@@ -121,8 +118,8 @@ class GarbageScannerTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of());
 
-        final LongList index =
-                new LongListHeap(DEFAULT_CONFIG.longListChunkSize(), 1, DEFAULT_CONFIG.longListReservedBufferSize());
+        final LongList index = new LongListHeap(
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(), 1, DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
 
         final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
@@ -165,9 +162,9 @@ class GarbageScannerTest {
         }
 
         final LongList index = new LongListHeap(
-                DEFAULT_CONFIG.longListChunkSize(),
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
                 Math.max(1, maxKey + 1),
-                DEFAULT_CONFIG.longListReservedBufferSize());
+                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
         index.updateValidRange(0, Math.max(0, maxKey));
 
         for (final Map.Entry<Long, Long> entry : indexEntries.entrySet()) {

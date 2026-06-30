@@ -4,7 +4,7 @@ package com.swirlds.merkledb.collections;
 import static java.lang.Math.toIntExact;
 import static java.nio.file.Files.exists;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -111,12 +111,12 @@ public class LongListDisk extends AbstractLongList<Long> {
      * reserved buffer size are read from the provided configuration.
      *
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration merkle db configuration
      * @param fileSystemManager File system manager to use for resolving temp files
      */
     public LongListDisk(
             final long capacity,
-            @NonNull final Configuration configuration,
+            @NonNull final MerkleDbConfig configuration,
             @NonNull final FileSystemManager fileSystemManager) {
         super(capacity, configuration);
         initFileChannel(DEFAULT_FILE_NAME, fileSystemManager);
@@ -154,7 +154,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      *
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration merkle db configuration
      * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
@@ -162,7 +162,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     public LongListDisk(
             @NonNull final Path file,
             final long capacity,
-            @NonNull final Configuration configuration,
+            @NonNull final MerkleDbConfig configuration,
             @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
         super(capacity, configuration);

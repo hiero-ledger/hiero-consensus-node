@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.base.time.StopWatch;
 import com.swirlds.merkledb.collections.LongListSegment;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -80,9 +79,8 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
 
         // Collection of database files and index
         LongListSegment storeIndex = new LongListSegment(1024 * 1024, 2L * 1024 * 1024, 256 * 1024);
-        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
-                dbConfig,
+                DEFAULT_MERKLE_DB_CONFIG,
                 testDirectory.resolve("megaMergeHammerTest"),
                 "megaMergeHammerTest",
                 null,

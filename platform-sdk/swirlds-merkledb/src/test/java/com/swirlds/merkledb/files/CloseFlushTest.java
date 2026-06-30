@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -72,12 +72,12 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
         Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
             final MerkleDbDataSource dataSource = MerkleDbTestUtils.createDataSource(
-                    CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
+                    DEFAULT_CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder =
-                    new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION, fileSystemManager);
-            VirtualMap map = new VirtualMap(builder, CONFIGURATION);
+                    new CustomDataSourceBuilder(dataSource, exception, DEFAULT_CONFIGURATION, fileSystemManager);
+            VirtualMap map = new VirtualMap(builder, DEFAULT_CONFIGURATION);
             for (int i = 0; i < count; i++) {
                 final Bytes key = ExampleLongKey.longToKey(i);
                 final ExampleFixedValue value = new ExampleFixedValue(i);
