@@ -39,7 +39,7 @@ public interface PcesModule {
      * @param recycleBin the recycle bin for deleting old PCES files
      * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
-     * @param flushPcesEvents a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
+     * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
      * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete
      * @param latestImmutableStateSupplier a supplier of the latest immutable state
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
@@ -55,7 +55,7 @@ public interface PcesModule {
             @NonNull RecycleBin recycleBin,
             @NonNull FileSystemManager fileSystemManager,
             long startingRound,
-            @NonNull Runnable flushPcesEvents,
+            @NonNull Runnable flushPrimaryPipeline,
             @NonNull Runnable signalEndOfPcesReplay,
             @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull Consumer<PlatformStatusAction> statusActionConsumer,

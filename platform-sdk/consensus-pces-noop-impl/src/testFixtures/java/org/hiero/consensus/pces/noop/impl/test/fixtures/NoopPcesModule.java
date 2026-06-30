@@ -53,7 +53,7 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushPcesEvents,
+            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Runnable signalEndOfPcesReplay,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
@@ -64,7 +64,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(metrics);
         requireNonNull(selfId);
         requireNonNull(recycleBin);
-        requireNonNull(flushPcesEvents);
+        requireNonNull(flushPrimaryPipeline);
         requireNonNull(signalEndOfPcesReplay);
         requireNonNull(latestImmutableStateSupplier);
         requireNonNull(platformStatusFlusher);

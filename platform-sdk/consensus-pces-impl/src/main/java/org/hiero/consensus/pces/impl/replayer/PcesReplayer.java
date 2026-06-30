@@ -38,9 +38,6 @@ public class PcesReplayer {
 
     private final StandardOutputWire<PlatformEvent> eventOutputWire;
 
-    private final Runnable flushPcesEvents;
-    private final Runnable signalEndOfPcesReplay;
-
     private final Supplier<ReservedSignedState> latestImmutableState;
     private final Supplier<Boolean> isSystemHealthy;
 
@@ -52,8 +49,6 @@ public class PcesReplayer {
      * @param configuration the platform configuration
      * @param time the time source
      * @param eventOutputWire the wire to put events on, to be replayed
-     * @param flushPcesEvents a runnable that flushes PCES events through the system to all the locations they need to be before resuming normal operations
-     * @param signalEndOfPcesReplay a runnable that signals to the system that PCES replay is complete
      * @param latestImmutableState a supplier of the latest immutable state
      * @param isSystemHealthy a supplier that returns true if the system is healthy and false if the system is
      * overwhelmed
@@ -62,15 +57,11 @@ public class PcesReplayer {
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final StandardOutputWire<PlatformEvent> eventOutputWire,
-            @NonNull final Runnable flushPcesEvents,
-            @NonNull final Runnable signalEndOfPcesReplay,
             @NonNull final Supplier<ReservedSignedState> latestImmutableState,
             @NonNull final Supplier<Boolean> isSystemHealthy) {
 
         this.time = requireNonNull(time);
         this.eventOutputWire = requireNonNull(eventOutputWire);
-        this.flushPcesEvents = requireNonNull(flushPcesEvents);
-        this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
         this.latestImmutableState = requireNonNull(latestImmutableState);
         this.isSystemHealthy = requireNonNull(isSystemHealthy);
 
@@ -187,11 +178,6 @@ public class PcesReplayer {
         } catch (final IOException e) {
             throw new UncheckedIOException("error encountered while reading from the PCES", e);
         }
-
-        // We have to wait for all the PCES transactions to reach the ISS detector before telling it that PCES replay is
-        // done. The PCES replay will flush the intake pipeline, but we have to flush the hasher
-        flushPcesEvents.run();
-        signalEndOfPcesReplay.run();
 
         final Duration elapsedTime = Duration.between(start, time.now());
 

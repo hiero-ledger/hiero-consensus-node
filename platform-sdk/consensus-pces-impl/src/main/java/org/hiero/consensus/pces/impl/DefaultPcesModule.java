@@ -74,7 +74,7 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushPcesEvents,
+            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Runnable signalEndOfPcesReplay,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
@@ -127,14 +127,18 @@ public class DefaultPcesModule implements PcesModule {
                 configuration,
                 time,
                 pcesReplayerWiring.eventOutput(),
-                flushPcesEvents,
-                signalEndOfPcesReplay,
                 latestImmutableStateSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
 
         this.pcesCoordinator = new PcesCoordinator(
-                time, initialPcesFiles, pcesReplayerWiring, statusActionConsumer, platformStatusFlusher);
+                time,
+                initialPcesFiles,
+                pcesReplayerWiring,
+                statusActionConsumer,
+                platformStatusFlusher,
+                flushPrimaryPipeline,
+                signalEndOfPcesReplay);
     }
 
     /**

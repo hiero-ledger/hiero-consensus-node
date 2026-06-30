@@ -33,6 +33,8 @@ public class PcesCoordinator {
     private final PcesReplayerWiring pcesReplayerWiring;
     private final Consumer<PlatformStatusAction> statusActionConsumer;
     private final Runnable platformStatusFlusher;
+    private final Runnable flushPrimaryPipeline;
+    private final Runnable signalEndOfPcesReplay;
 
     /**
      * Creates a new {@link PcesCoordinator}.
@@ -41,18 +43,24 @@ public class PcesCoordinator {
      * @param initialPcesFiles the {@link PcesFileTracker} to read the PCES files from
      * @param pcesReplayerWiring the wiring for the {@link PcesReplayer}
      * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
+     * @param flushPrimaryPipeline a runnable that flushes PCES events through the system to all the locations they need to be before resuming normal operations
+     * @param signalEndOfPcesReplay a runnable that signals to the system that PCES replay is complete
      */
     public PcesCoordinator(
             @NonNull final Time time,
             @NonNull final PcesFileTracker initialPcesFiles,
             @NonNull final PcesReplayerWiring pcesReplayerWiring,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable platformStatusFlusher) {
+            @NonNull final Runnable platformStatusFlusher,
+            @NonNull final Runnable flushPrimaryPipeline,
+            @NonNull final Runnable signalEndOfPcesReplay) {
         this.time = requireNonNull(time);
         this.initialPcesFiles = requireNonNull(initialPcesFiles);
         this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
         this.statusActionConsumer = requireNonNull(statusActionConsumer);
         this.platformStatusFlusher = requireNonNull(platformStatusFlusher);
+        this.flushPrimaryPipeline = requireNonNull(flushPrimaryPipeline);
+        this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
     }
 
     /**
@@ -75,7 +83,10 @@ public class PcesCoordinator {
 
         pcesReplayerWiring.pcesIteratorInputWire().inject(iterator);
 
-        // FUTURE WORK: These flushes can be done by the PCES replayer.
+        // First we flush the primary pipeline so that all required components finish processing all tasks produced by
+        // the PCES replay, then we signal the end of replay.
+        flushPrimaryPipeline.run();
+        signalEndOfPcesReplay.run();
 
         statusActionConsumer.accept(new DoneReplayingEventsAction(time.now()));
     }

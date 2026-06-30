@@ -2,9 +2,7 @@
 package org.hiero.consensus.pces.impl.replayer;
 
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
-import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -18,7 +16,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
@@ -40,10 +37,6 @@ class PcesReplayerTests {
     private FakeTime time;
     private StandardOutputWire<PlatformEvent> eventOutputWire;
     private AtomicInteger eventOutputCount;
-    private AtomicBoolean flushPcesCalled;
-    private Runnable flushPces;
-    private Runnable signalEndOfPcesReplay;
-    private AtomicBoolean signalEndOfPcesReplayCalled;
     private Supplier<ReservedSignedState> latestImmutableStateSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
@@ -63,12 +56,6 @@ class PcesReplayerTests {
                 })
                 .when(eventOutputWire)
                 .forward(any());
-
-        flushPcesCalled = new AtomicBoolean(false);
-        flushPces = () -> flushPcesCalled.set(true);
-
-        signalEndOfPcesReplayCalled = new AtomicBoolean(false);
-        signalEndOfPcesReplay = () -> signalEndOfPcesReplayCalled.set(true);
 
         final ReservedSignedState latestImmutableState = mock(ReservedSignedState.class);
         final SignedState signedState = mock(SignedState.class);
@@ -107,20 +94,12 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration,
-                time,
-                eventOutputWire,
-                flushPces,
-                signalEndOfPcesReplay,
-                latestImmutableStateSupplier,
-                () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, latestImmutableStateSupplier, () -> true);
 
         replayer.replayPces(ioIterator);
 
         assertEquals(eventCount, eventOutputCount.get());
-        assertTrue(flushPcesCalled.get());
-        assertTrue(signalEndOfPcesReplayCalled.get());
     }
 
     @Test
@@ -131,14 +110,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration,
-                time,
-                eventOutputWire,
-                flushPces,
-                signalEndOfPcesReplay,
-                latestImmutableStateSupplier,
-                () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, latestImmutableStateSupplier, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);
@@ -157,12 +130,5 @@ class PcesReplayerTests {
                     Duration.ofSeconds(1),
                     "Event count should have increased from %s to %s".formatted(i - 1, i));
         }
-
-        assertEventuallyTrue(
-                () -> flushPcesCalled.get(), Duration.ofSeconds(1), "Flush intake should have been called");
-        assertEventuallyTrue(
-                () -> signalEndOfPcesReplayCalled.get(),
-                Duration.ofSeconds(1),
-                "Flush transaction handling should have been called");
     }
 }
