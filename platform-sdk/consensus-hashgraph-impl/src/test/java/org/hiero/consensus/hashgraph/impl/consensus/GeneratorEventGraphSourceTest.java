@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
+import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -356,6 +357,9 @@ class GeneratorEventGraphSourceTest {
             assertTrue(
                     event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
                     "ngen should be at least FIRST_GENERATION");
+            assertTrue(
+                    event.getSequenceNumber() >= UNASSIGNED_SEQUENCE_NUMBER,
+                    "sequence number should be at least UNASSIGNED_SEQUENCE_NUMBER");
         }
 
         // Verify that ngen actually advances beyond FIRST_GENERATION
@@ -363,6 +367,15 @@ class GeneratorEventGraphSourceTest {
                 events.stream().mapToLong(PlatformEvent::getNGen).max().orElse(0);
         assertTrue(
                 maxNGen > NonDeterministicGeneration.FIRST_GENERATION, "ngen should advance beyond FIRST_GENERATION");
+
+        // Verify that sequence number actually advances beyond UNASSIGNED_SEQUENCE_NUMBER
+        final long maxSeqNum = events.stream()
+                .mapToLong(PlatformEvent::getSequenceNumber)
+                .max()
+                .orElse(0);
+        assertTrue(
+                maxSeqNum > UNASSIGNED_SEQUENCE_NUMBER,
+                "sequence number should advance beyond UNASSIGNED_SEQUENCE_NUMBER");
     }
 
     @Test
@@ -376,6 +389,12 @@ class GeneratorEventGraphSourceTest {
 
         for (final PlatformEvent event : events) {
             assertFalse(event.hasNGen(), "events should not have ngen set when populateNgen is disabled");
+            assertTrue(
+                    event.hasSequenceNumber(),
+                    "every event should have sequence number assigned even if nGen is disabled");
+            assertTrue(
+                    event.getSequenceNumber() >= UNASSIGNED_SEQUENCE_NUMBER,
+                    "sequence number should be at least UNASSIGNED_SEQUENCE_NUMBER");
         }
     }
 

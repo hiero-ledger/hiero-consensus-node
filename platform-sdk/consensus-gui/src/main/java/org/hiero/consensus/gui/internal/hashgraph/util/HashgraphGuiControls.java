@@ -45,6 +45,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox labelConsTimestampCheckbox;
     /** the Ngen number for the event */
     private final Checkbox labelNGenCheckbox;
+    /** the Sequence number for the event */
+    private final Checkbox labelSeqNumCheckbox;
     /** the birth round number for the event */
     private final Checkbox labelBirthroundCheckbox;
     /** the branch number for the event */
@@ -71,6 +73,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelConsOrderCheckbox = new Checkbox("Labels: Order (consensus)");
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
         labelNGenCheckbox = new Checkbox("Labels: NGen (non-deterministic generation)");
+        labelSeqNumCheckbox = new Checkbox("Labels: Sequence Number");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
         labelDeGenCheckbox = new Checkbox("Labels: DeGen");
@@ -110,6 +113,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelConsOrderCheckbox,
             labelConsTimestampCheckbox,
             labelNGenCheckbox,
+            labelSeqNumCheckbox,
             labelBirthroundCheckbox,
             labelBranchNumberCheckbox,
             labelDeGenCheckbox,
@@ -234,6 +238,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean writeNGen() {
         return labelNGenCheckbox.getState();
+    }
+
+    @Override
+    public boolean writeSeqNum() {
+        return labelSeqNumCheckbox.getState();
     }
 
     @Override
