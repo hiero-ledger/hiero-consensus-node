@@ -3,8 +3,8 @@ package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static com.hedera.node.app.hapi.fees.test.IdUtils.asAccount;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoDeleteAllowanceMeta.countNftDeleteSerials;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_DELETE_ALLOWANCE_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.fees.test.IdUtils;

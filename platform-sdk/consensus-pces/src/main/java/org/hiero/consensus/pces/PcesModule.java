@@ -44,6 +44,7 @@ public interface PcesModule {
      * @param latestImmutableStateSupplier a supplier of the latest immutable state
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
      * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
+     * @param platformStatusFlusher a {@link Runnable} that triggers flushing of the platform status
      * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
      * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector,
      */
@@ -60,6 +61,7 @@ public interface PcesModule {
             @NonNull Runnable flushTransactionHandling,
             @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull Runnable platformStatusFlusher,
             @NonNull Runnable stateHasherFlusher,
             @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);

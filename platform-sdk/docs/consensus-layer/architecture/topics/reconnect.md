@@ -191,6 +191,11 @@ The orchestration lives in
 see that method for the exact set of overrides and injections it
 performs.
 
+As at restart, the re-initialised hashgraph emits no rounds until it has
+re-identified the judges of the learned state's snapshot, so it never
+re-emits a round already baked into that state — see
+[`restart-and-pces.md`](restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
+
 Status transitions follow loading in two stages.
 `ReconnectController` submits a `ReconnectCompleteAction` once a
 valid state has been learned, and the platform status machine moves
@@ -269,9 +274,7 @@ for how reconnect crosses the Consensus / Execution boundary.
 **Other catalogs**
 
 - Tunables — [`../../tunables.md`](../../tunables.md) (pending).
-- Invariants — [TBD: INV-NNN once `invariants.md` catalog populates;
-  the fallen-behind-threshold proportion and the
-  state-ownership-flip-at-validation step are likely candidates].
+- Invariants — INV-008 — consensus, once reached, is permanent; INV-012 — the minimum non-ancient round never decreases; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - Decisions — [TBD: ADR-NNN once `decisions/` catalog populates].
 - Scenarios — [TBD: SCN-NNN — reconnect failure modes (failure to
   reconnect within retry cap, reconnect succeeded but next freeze

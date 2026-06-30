@@ -92,15 +92,6 @@ tasks.register<JavaExec>("runTestClient") {
     mainClass = providers.gradleProperty("testClient")
 }
 
-tasks.jacocoTestReport {
-    classDirectories.setFrom(files(project(":app").layout.buildDirectory.dir("classes/java/main")))
-    sourceDirectories.setFrom(files(project(":app").projectDir.resolve("src/main/java")))
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
-}
-
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
@@ -123,10 +114,6 @@ tasks.test {
     )
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
-    // These INTEGRATION/STREAM_VALIDATION specs run the CN in-process; pin writerMode=FILE +
-    // forceMockSignatures=true for the same reasons as testEmbedded (no block node, fake TSS).
-    systemProperty("blockStream.writerMode", "FILE")
-    systemProperty("tss.forceMockSignatures", "true")
 
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
@@ -156,7 +143,6 @@ val prCheckTags =
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestBlockNodeSimCommunication" to "BLOCK_NODE_SIM",
         "hapiTestMisc" to miscTags,
-        "hapiTestGenesisSubProcess" to "GENESIS_SUBPROCESS",
         "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
         "hapiTestMiscRecordsSerial" to miscTagsSerial,
@@ -208,18 +194,20 @@ val prCheckStartPorts =
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
         "hapiTestBlockNodeSimCommunication" to "29600",
-        "hapiTestGenesisSubProcess" to "29800",
     )
 val prCheckPropOverrides =
     mapOf(
-        "hapiTestAdhoc" to "block.stateproof.verification.enabled=true",
+        "hapiTestAdhoc" to
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
         "hapiTestToken" to
             "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestCrypto" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
-        "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+        "hapiTestSmartContract" to
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
         // tss.historyEnabled=false by config default; with the new branch default of true the
         // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
@@ -228,16 +216,17 @@ val prCheckPropOverrides =
         // start timing out as the network falls behind. Pin historyEnabled to its main-branch
         // value here to preserve the test's original (hints-only) TSS surface.
         "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestWrapsDownload" to
-            "tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
+            "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestWraps" to "staking.periodMins=16",
+        "hapiTestWraps" to
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
         "hapiTestCutover" to
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
@@ -250,9 +239,6 @@ val prCheckPropOverrides =
             "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
         "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
-        // ISS suites read the block stream from disk and intentionally diverge one node's state,
-        // which a block node would reject, so keep a FILE writer (no block node needed for ISS).
-        "hapiTestIss" to "blockStream.writerMode=FILE",
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
@@ -330,13 +316,9 @@ tasks.register<Test>("testSubprocess") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
-            // We don't want to run typical stream or log validation for
-            // ISS, BLOCK_NODE or GENESIS_SUBPROCESS
-            else if (
-                ciTagExpression.contains("ISS") ||
-                    ciTagExpression.contains("BLOCK_NODE") ||
-                    ciTagExpression.contains("GENESIS_SUBPROCESS")
-            )
+            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
+            // cases
+            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)"
         )
@@ -437,15 +419,6 @@ tasks.register<Test>("testSubprocess") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -473,11 +446,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
             // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
-            else if (
-                ciTagExpression.contains("ISS") ||
-                    ciTagExpression.contains("BLOCK_NODE") ||
-                    ciTagExpression.contains("GENESIS_SUBPROCESS")
-            )
+            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
@@ -584,14 +553,6 @@ tasks.register<Test>("testSubprocessConcurrent") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -741,15 +702,6 @@ tasks.register<Test>("testEmbedded") {
     // so we can maintain confidence that there are no regressions in the code.
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
-    // Embedded networks run the CN in-process with fake TSS services and no block node, so pin two
-    // node properties to their pre-cutover values. writerMode=FILE keeps block-buffer back-pressure
-    // off (active only for BLOCKS + gRPC; otherwise the in-process handle thread blocks in
-    // ensureNewBlocksPermitted). forceMockSignatures=true keeps the signer ready (the fake TSS
-    // services never establish a ledger id, so real signing wedges ingest at
-    // WAITING_FOR_LEDGER_ID).
-    // streamMode stays BLOCKS, the new default.
-    systemProperty("blockStream.writerMode", "FILE")
-    systemProperty("tss.forceMockSignatures", "true")
 
     if (gradle.startParameter.taskNames.contains("hapiTestSimpleFeesEmbedded")) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
@@ -807,19 +759,13 @@ tasks.register<Test>("testRepeatable") {
     )
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
-    // Repeatable networks also run the CN in-process; pin writerMode=FILE +
-    // forceMockSignatures=true
-    // (see testEmbedded for the rationale). -PsysProp.* below can still override these for local
-    // runs.
-    systemProperty("blockStream.writerMode", "FILE")
-    systemProperty("tss.forceMockSignatures", "true")
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
-    project.properties
-        .filter { (k, _) -> k.startsWith("sysProp.") }
-        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v.toString()) }
+    providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
+        systemProperty(k.removePrefix("sysProp."), v)
+    }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

@@ -118,7 +118,7 @@ Gossip permits, queue-overflow signalling, and the global health-monitor feedbac
 - **Topics:** [event-intake.md](event-intake.md), [reconnect.md](reconnect.md), [event-creator.md](event-creator.md), [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md), [reasons-not-to-gossip.md](reasons-not-to-gossip.md). [TBD: these topic files are forthcoming.]
 - **Source docs:** [gossip.md](../../../core/gossip/gossip.md), [rpc-gossip.md](../../../core/gossip/rpc/rpc-gossip.md), [simple-broadcast.md](../../../core/gossip/rpc/simple-broadcast.md), [fair-sync-selector.md](../../../core/gossip/syncing/fair-sync-selector.md), [sync-protocol.md](../../../core/gossip/syncing/sync-protocol.md).
 - **Tunables:** [../../tunables.md](../../tunables.md).
-- **Invariants:** [TBD: INV-NNN once invariants.md catalog populates].
+- **Invariants:** INV-005 — every honest event eventually reaches consensus or becomes stale; INV-004 — a stale event is never ordered on any node.
 - **Decisions:** [TBD: ADR-NNN once decisions/ catalog populates].
 
 ## Future state (sidebar)

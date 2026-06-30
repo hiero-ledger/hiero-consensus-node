@@ -13,7 +13,6 @@ import com.google.common.io.ByteSource;
 import com.google.common.io.CharSink;
 import com.google.common.io.CharSource;
 import com.google.common.io.Files;
-import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ErroringAssertsProvider;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
@@ -199,14 +198,6 @@ public class HapiGetAccountRecords extends HapiQueryOp<HapiGetAccountRecords> {
                 .setAccountID(id)
                 .build();
         return Query.newBuilder().setCryptoGetAccountRecords(query).build();
-    }
-
-    @Override
-    protected long costOnlyNodePayment(HapiSpec spec) throws Throwable {
-        return spec.fees()
-                .forOp(
-                        HederaFunctionality.CryptoGetAccountRecords,
-                        CryptoFeeBuilder.getCostCryptoAccountRecordsQueryFeeMatrices());
     }
 
     @Override
