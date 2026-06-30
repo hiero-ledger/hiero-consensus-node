@@ -11,7 +11,6 @@ jmhModuleInfo {
     requires("org.hiero.consensus.event.creator.impl")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("com.hedera.node.hapi")
-    requires("org.hiero.consensus.utility.test.fixtures")
     requires("jmh.core")
 }
 
