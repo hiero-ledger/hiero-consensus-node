@@ -2,7 +2,7 @@
 package org.hiero.consensus.state.management;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Bytes;
-import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
 import static org.hiero.consensus.state.management.SignedStateFileReader.readState;

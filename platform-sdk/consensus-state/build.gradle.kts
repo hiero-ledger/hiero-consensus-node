@@ -12,7 +12,6 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")

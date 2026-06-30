@@ -27,7 +27,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.internal to
             org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
     exports com.swirlds.platform.listeners;

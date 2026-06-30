@@ -7,7 +7,6 @@ module org.hiero.consensus.pces.impl {
             org.hiero.consensus.state.management;
     exports org.hiero.consensus.pces.impl.common to
             com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.pcli,
             org.hiero.otter.fixtures,
             org.hiero.sloth.fixtures,
