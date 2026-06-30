@@ -599,22 +599,19 @@ EOF
 # and the live retention threshold is large, so it is still in live storage (never archived
 # to the historic zip store). We decompress, extract the body, drop it into the BN volume at
 # verification.tssParametersFilePath, then roll the BN so init() loads it.
-seed_block_node_tss_parameters() {
-  local bn_pod="block-node-${BLOCK_NODE_ID}-0"
-  local bn_live_dir="/opt/hiero/block-node/data/live"
-
-  # Pull the block files from the BN's live storage. The BN solo-dev image ships findutils +
-  # bash (but not tar), so list with find and stream each file out tar-free via
-  # `kubectl exec ... cat` (kubectl cp needs tar in the target container). Stdout without a
-  # TTY is a raw binary stream, so the compressed bytes survive intact.
-  #
-  # Run discovery + pull with errexit OFF: under the script's global `set -e -o pipefail`, a
-  # transient kubectl/find hiccup in a `$(...)`/pipeline here would abort the whole scenario
-  # with no diagnostic (observed). Handle errors explicitly and log per-stage counts instead,
-  # then restore errexit.
+# One attempt to pull the BN's live block files and extract the LedgerIdPublication into
+# BN_TSS_PARAMS_LOCAL. Returns 0 once the publication is found + written; 1 if there are no
+# blocks yet or none of them carry the publication yet (the caller polls). The caller is
+# responsible for python3 + extractor setup. The BN solo-dev image ships findutils + bash (no
+# tar), so we list with find and stream each file out tar-free via `kubectl exec ... cat`.
+pull_bn_blocks_and_extract_ledger_id() {
+  local bn_pod="$1" bn_live_dir="$2"
+  local rel base dest pulled=0 pull_failures=0 bn_block_list="" listed=0
   echo "Copying block-stream files from Block Node ${bn_pod}:${bn_live_dir}"
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
-  local rel base dest pulled=0 pull_failures=0 bn_block_list="" listed=0
+  # Discovery + pull with errexit OFF: under the global `set -e -o pipefail`, a transient
+  # kubectl/find hiccup in a `$(...)`/pipeline would abort the whole scenario with no diagnostic.
+  # Handle errors explicitly and log per-stage counts, then restore errexit.
   local errexit_was_set=0; [[ $- == *e* ]] && errexit_was_set=1
   set +e
   bn_block_list="$(kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- \
@@ -637,17 +634,14 @@ seed_block_node_tss_parameters() {
   (( errexit_was_set )) && set -e
 
   local blk_files=()
-  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) | sort)
+  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)
   if [[ "${#blk_files[@]}" -eq 0 ]]; then
-    echo "seed_block_node_tss_parameters: no .blk/.blk.gz/.blk.zstd files retrieved from BN live storage ${bn_pod}:${bn_live_dir} (pulled=${pulled}, pull_failures=${pull_failures})" >&2
-    echo "BN live-storage listing for diagnostics:" >&2
-    kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- find "${bn_live_dir}" -type f 2>/dev/null | head -n 120 >&2 || true
+    echo "  no .blk* files retrieved from BN live storage yet (pulled=${pulled}, pull_failures=${pull_failures})"
     return 1
   fi
 
-  # Block-stream files are zstd-compressed (.blk.zstd) in current builds — only the record streams are
-  # gzip. The extractor below reads gzip or raw (not zstd), so decompress any .blk.zstd to a raw .blk
-  # first, reusing the Block Node zstd command (system zstd, else the bundled zstd-jni wrapper).
+  # Block-stream files are zstd-compressed (.blk.zstd); the extractor reads gzip/raw (not zstd),
+  # so decompress any .blk.zstd to a raw .blk first (system zstd, else the bundled zstd-jni wrapper).
   if printf '%s\n' "${blk_files[@]}" | grep -q '\.blk\.zstd$'; then
     ensure_zstd_command_for_block_node || return 1
     local zi zdst
@@ -661,16 +655,45 @@ seed_block_node_tss_parameters() {
       fi
     done
   fi
-  echo "Retrieved ${#blk_files[@]} block-stream files (pull_failures=${pull_failures}); extracting LedgerIdPublication"
+  echo "  scanning ${#blk_files[@]} block-stream file(s) for LedgerIdPublication"
+
+  rm -f "${BN_TSS_PARAMS_LOCAL}"
+  python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}" >/dev/null 2>&1 || return 1
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || return 1
+  return 0
+}
+
+seed_block_node_tss_parameters() {
+  local bn_pod="block-node-${BLOCK_NODE_ID}-0"
+  local bn_live_dir="/opt/hiero/block-node/data/live"
 
   require_cmd python3
   write_ledger_id_extractor || return 1
-  rm -f "${BN_TSS_PARAMS_LOCAL}"
-  if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed_block_node_tss_parameters: extractor found no LedgerIdPublication in block stream" >&2
-    return 1
-  fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed_block_node_tss_parameters: extracted tss-parameters.bin is empty" >&2; return 1; }
+
+  # Poll for the LedgerIdPublication BEFORE the 0.77 cutover. The ledger id is published
+  # mid-chain only after the TSS history proof finalizes (during/just after the 0.76 step), so it
+  # is typically NOT in a closed, BN-streamed block the instant Step 11 begins (observed: the
+  # history proof finalizes ~seconds before this runs). Re-pull the BN's live blocks and
+  # re-extract until the publication appears; the BN needs it to verify the real-TSS blocks the
+  # 0.77 cutover produces. The network keeps closing blocks on its block-period timer, so the
+  # publication lands + streams to the BN within a few rounds.
+  local deadline=$(( SECONDS + ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300} ))
+  local attempt=0
+  echo "Waiting for the LedgerIdPublication to appear in the Block Node stream (up to ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s) before the 0.77 cutover"
+  while :; do
+    attempt=$(( attempt + 1 ))
+    if pull_bn_blocks_and_extract_ledger_id "${bn_pod}" "${bn_live_dir}"; then
+      echo "Extracted LedgerIdPublication from the BN block stream (attempt ${attempt})"
+      break
+    fi
+    if (( SECONDS >= deadline )); then
+      echo "seed_block_node_tss_parameters: LedgerIdPublication did not appear in the BN block stream within ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s (${attempt} attempts)" >&2
+      kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- find "${bn_live_dir}" -type f 2>/dev/null | head -n 120 >&2 || true
+      return 1
+    fi
+    echo "  LedgerIdPublication not in the BN stream yet (attempt ${attempt}); re-checking in ${LEDGER_ID_PUBLICATION_POLL_SECS:-10}s..."
+    sleep "${LEDGER_ID_PUBLICATION_POLL_SECS:-10}"
+  done
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   echo "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
