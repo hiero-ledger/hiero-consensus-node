@@ -102,28 +102,35 @@ sufficient. Had the buffer been a free-standing component feeding both the
 hashgraph and the event creator, consensus progress would feed back into that
 upstream component and a single ordered pass would not converge.
 
-The hashgraph's future-event buffer is not the only event-holding component,
-and there *is* a real feedback edge in the wiring: each consensus round emits a
-new event window, which is injected back into the **orphan buffer** inside the
-event intake module (`DefaultOrphanBuffer`). A window advance can un-orphan
-events whose missing parents have just become ancient
-(`DefaultOrphanBuffer.setEventWindow` → `missingParentBecameAncient`), feeding
-fresh events back toward a hashgraph that has already been flushed. Because the
-pass is single and never re-flushes the intake module, any such release would
-strand events behind it — so single-pass sufficiency additionally requires that
-**the orphan buffer is inert during the flush.** On the replay path it is,
-for a reason that is *not* the topological ordering of the PCES stream: before
-replay begins, the orphan buffer is seeded with the loaded state's event window
-(`SwirldsPlatform` startup calls `PlatformCoordinator.updateEventWindow` with
-the window derived from the loaded snapshot), and the replay set contains only
-events non-ancient at that window. Every parent of a replayed event is therefore
-either present (non-ancient ⇒ also replayed) or already ancient (⇒ excluded by
-`DefaultOrphanBuffer.getMissingParents`), so no event is ever held to be
-released later by a window advance. The seeded window is what closes this edge,
-not the stream order — an event released live only because a never-arriving
-parent went ancient has no parent in the stream at all, yet still passes
-straight through on replay because that parent is already ancient in the seeded
-window.
+The hashgraph's future-event buffer is not the only event-holding component.
+There *is* a real feedback edge in the wiring:
+
+1. Each consensus round makes the hashgraph emit a new event window.
+2. The window is injected back into the **orphan buffer** in the intake module
+   (`DefaultOrphanBuffer.setEventWindow`).
+3. A window advance can un-orphan events whose missing parents have just become
+   ancient (`missingParentBecameAncient`), feeding fresh events back toward a
+   hashgraph that has already been flushed.
+
+The pass is single and never re-flushes the intake module, so any such release
+would strand events behind it. Single-pass sufficiency therefore needs a third
+condition: **the orphan buffer is inert during the flush.**
+
+On the replay path it is — because of the seeded window, not the PCES stream
+order. Before replay, the orphan buffer is seeded with the loaded state's event
+window (`SwirldsPlatform` startup → `PlatformCoordinator.updateEventWindow`),
+and the replay lower bound is that same loaded-state ancient threshold
+(`SwirldsPlatform` sets `pcesReplayLowerBound = initialAncientThreshold`). So
+the replay set holds only events non-ancient at the seeded window, and every
+parent of a replayed event is either:
+
+- present — non-ancient, so itself replayed; or
+- already ancient — excluded by `DefaultOrphanBuffer.getMissingParents`.
+
+No event is ever held for later release by a window advance. Stream order is not
+the reason: an event released live only because a never-arriving parent went
+ancient has no parent in the stream at all, yet still passes straight through —
+that parent is already ancient in the seeded window.
 
 The transaction-handler and state-hasher flushes are part of the same single
 ordered pass (the last entries in `flushPrimaryPipeline()`), not separate calls,
@@ -179,16 +186,9 @@ and must be rejected.
   `DefaultEventCreationManager` rather than factored into a single standalone
   component, which is the structural precondition that makes one ordered
   flush pass sufficient.
-- The embedded future-event buffers are not the only precondition. The orphan
-  buffer is a second event-holding component, and the hashgraph→event-window→
-  orphan-buffer feedback edge is real; single-pass sufficiency also depends on
-  the orphan buffer being inert during the flush. On the replay path that comes
-  from seeding it with the loaded state's window before replay (so it never
-  holds an event); on the reconnect path it comes from squelching the upstream
-  components (so no windows are produced). The "orphan buffer releases no events"
+- The orphan buffer is a second event-holding component; single-pass
+  sufficiency also depends on it being inert during the flush. *Why it holds
+  now* covers the replay path (the seeded window). On the reconnect path it is
+  inert for a different reason: the upstream components are squelched, so the
+  hashgraph produces no event windows. This "orphan buffer releases no events"
   condition is load-bearing enough to be a candidate for its own rule.
-- `flushPrimaryPipeline()` is shared by two callers with opposite intent — PCES
-  replay (deliver every recovered event) and reconnect `clear()` (discard all
-  obsolete in-flight data while squelched). The method only flushes in dataflow
-  order; deliver-vs-discard is set by the caller's squelch state, not by the
-  method.

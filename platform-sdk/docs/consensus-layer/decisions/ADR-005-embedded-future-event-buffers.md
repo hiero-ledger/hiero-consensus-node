@@ -113,14 +113,11 @@ with no special fixed-point iteration.
 - **Adds no feedback edge from the future-event buffer.** Embedding keeps the
   consensus-advance → window-advance → release loop internal to
   `DefaultConsensusEngine.addEvent(...)`, invisible to the wiring topology and
-  the flush logic. An event-window feedback edge *does* exist independently of
-  this decision — the hashgraph sends each round's event window back to the
-  orphan buffer (`DefaultOrphanBuffer.setEventWindow`), which can un-orphan
-  events — but it has no effect during PCES replay: the orphan buffer is seeded
-  with the loaded state's window beforehand (`SwirldsPlatform` startup →
-  `PlatformCoordinator.updateEventWindow`), so it holds nothing to release. A
-  standalone future-event buffer would have added a *second* such edge, one that
-  *is* active during replay and would break the single ordered flush (RUL-002).
+  the flush logic. A separate event-window edge into the orphan buffer
+  (`DefaultOrphanBuffer.setEventWindow`) does exist independently of this
+  decision, but it is inert during PCES replay (RUL-002). A standalone
+  future-event buffer would have added a *second* such edge — one that *is*
+  active during replay and would break the single ordered flush.
 - **Logic stays reusable without being centralized.** The holding mechanism is
   still written once in `FutureEventBuffer`; only its *placement* is
   distributed.
