@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -42,6 +43,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * Manages the fee schedule used to calculate fees. Whenever the fee schedule is updated,
@@ -239,6 +241,10 @@ public final class FeeManager {
      */
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
         requireNonNull(consensusTime);
+        final var gasExtra = lookupExtraFee(getSimpleFeesSchedule(), Extra.GAS);
+        if (gasExtra != null) {
+            return gasExtra.fee();
+        }
         return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
                         .servicedataOrThrow()
                         .gas()

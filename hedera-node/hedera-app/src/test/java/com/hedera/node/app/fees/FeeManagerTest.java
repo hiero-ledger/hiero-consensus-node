@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
@@ -100,6 +101,66 @@ class FeeManagerTest {
         final var result = subject.updateSimpleFees(bytes);
 
         assertEquals(SUCCESS, result);
+    }
+
+    @Test
+    void getGasPriceInTinyCentsUsesSimpleFeesWhenGasExtraPresent() {
+        final var simpleSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.GAS, 100_000L))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 0)))
+                .build();
+        subject.updateSimpleFees(org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(simpleSchedule));
+
+        assertEquals(100_000L, subject.getGasPriceInTinyCents(Instant.now()));
+    }
+
+    @Test
+    void getGasPriceInTinyCentsFallsBackToLegacyWhenGasExtraAbsent() {
+        final var simpleSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.KEYS, 1_000L))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 0)))
+                .build();
+        subject.updateSimpleFees(org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(simpleSchedule));
+        subject.update(legacyScheduleWithContractCallGas(5_000L));
+
+        assertEquals(5L, subject.getGasPriceInTinyCents(Instant.ofEpochSecond(1L)));
+    }
+
+    @Test
+    void getGasPriceInTinyCentsFallsBackToLegacyWhenSimpleFeesNotLoaded() {
+        subject.update(legacyScheduleWithContractCallGas(5_000L));
+
+        assertEquals(5L, subject.getGasPriceInTinyCents(Instant.ofEpochSecond(1L)));
+    }
+
+    private static com.hedera.pbj.runtime.io.buffer.Bytes legacyScheduleWithContractCallGas(final long gas) {
+        final var gasComponents = FeeComponents.newBuilder()
+                .min(100L)
+                .max(50_000L)
+                .gas(gas)
+                .build();
+        final var feeData = FeeData.newBuilder()
+                .servicedata(gasComponents)
+                .subType(SubType.DEFAULT)
+                .build();
+        final var txFeeSchedule = TransactionFeeSchedule.newBuilder()
+                .hederaFunctionality(CONTRACT_CALL)
+                .fees(List.of(feeData))
+                .build();
+        final var legacySchedule = com.hedera.hapi.node.base.FeeSchedule.newBuilder()
+                .transactionFeeSchedule(List.of(txFeeSchedule))
+                .expiryTime(TimestampSeconds.newBuilder().seconds(9_999_999L).build())
+                .build();
+        return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(CurrentAndNextFeeSchedule.newBuilder()
+                .currentFeeSchedule(legacySchedule)
+                .nextFeeSchedule(legacySchedule)
+                .build());
     }
 
     private static @NonNull FeeComponents feeComponents() {
