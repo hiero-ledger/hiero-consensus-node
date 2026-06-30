@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures;
+package org.hiero.consensus.pcli.graph;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -15,17 +15,9 @@ import java.util.function.Function;
 /**
  * Platform level unit test base class for common setup and teardown.
  */
-public class PlatformTestUtils {
+public class PlatformContextFactory {
 
-    public static final String TEST_MARKER_FILE_DIRECTORY = "marker_files";
-
-    /**
-     * Creates a default platform context for the tests
-     */
-    @NonNull
-    public static PlatformContext createDefaultPlatformContext() {
-        return createPlatformContext(null, null);
-    }
+    private PlatformContextFactory() {}
 
     /**
      * Creates a platform context for the tests with the given builder modifications. Modifications are applied in the
