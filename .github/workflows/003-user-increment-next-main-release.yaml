@@ -37,7 +37,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -48,6 +48,7 @@ jobs:
           java-distribution: "temurin"
           setup-gradle: "true"
           gradle-cache-disabled: "true"
+          setup-semver: "true"
 
       - name: Import GPG Key
         id: gpg_importer
@@ -58,19 +59,6 @@ jobs:
           git_user_signingkey: true
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
-
-      - name: Install Semantic Version Tools
-        id: install_semver
-        run: |
-          echo "::group::Download SemVer Binary"
-          sudo curl -L -o /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
-          echo "::endgroup::"
-          echo "::group::Change SemVer Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/semver
-          echo "::endgroup::"
-          echo "::group::Show SemVer Binary Version Info"
-          semver --version
-          echo "::endgroup::"
 
       - name: Read Current Version
         id: read_version
