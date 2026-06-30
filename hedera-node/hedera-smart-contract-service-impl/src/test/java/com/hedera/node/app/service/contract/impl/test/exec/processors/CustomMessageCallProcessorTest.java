@@ -30,12 +30,14 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Optional;
@@ -49,6 +51,7 @@ import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,7 +60,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CustomMessageCallProcessorTest {
-    private static final long ZERO_GAS_REQUIREMENT = 0L;
+
     private static final long GAS_REQUIREMENT = 2L;
     private static final Bytes INPUT_DATA = Bytes.fromHexString("0x1234");
     private static final Bytes OUTPUT_DATA = Bytes.fromHexString("0x5678");
@@ -67,6 +70,9 @@ class CustomMessageCallProcessorTest {
     private static final Address SENDER_ADDRESS = Address.fromHexString("0x222333444");
     private static final Address RECEIVER_ADDRESS = Address.fromHexString("0x33344455");
     private static final Address ADDRESS_6 = Address.fromHexString("0x6");
+
+    private static final OpsDurationSchedule OPS_DURATION_TEST_SCHEDULE =
+            new OpsDurationSchedule(Collections.nCopies(256, 1L), 1, 1, 1, 1, 1);
 
     @Mock
     private HEVM evm;
@@ -125,10 +131,12 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void callPrngSystemContractHappyPath() {
-        givenPrngCall(ZERO_GAS_REQUIREMENT);
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenPrngCall(GAS_REQUIREMENT);
+        given(frame.getRemainingGas()).willReturn(GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
         given(stack.getLast()).willReturn(frame);
         given(result.getOutput()).willReturn(OUTPUT_DATA);
         given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
@@ -136,9 +144,10 @@ class CustomMessageCallProcessorTest {
 
         subject.start(frame, operationTracer);
 
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
         verify(result).isRefundGas();
-        verify(frame).decrementRemainingGas(ZERO_GAS_REQUIREMENT);
+        verify(frame).decrementRemainingGas(GAS_REQUIREMENT);
         verify(frame).setOutputData(OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
@@ -147,11 +156,16 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void callPrngSystemContractInsufficientGas() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenExecutingFrame();
         givenPrngCall(GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verify(prngPrecompile).computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, frame);
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
@@ -229,18 +243,23 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void haltsAndTracesInsufficientGasIfPrecompileGasRequirementExceedsRemaining() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
         givenEvmPrecompileCall();
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(1L);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
     }
 
     @Test
     void updatesFrameBySuccessfulPrecompileResultWithGasRefund() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
         givenEvmPrecompileCall();
         when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
         final var result = new PrecompiledContract.PrecompileContractResult(
@@ -249,11 +268,12 @@ class CustomMessageCallProcessorTest {
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
         given(stack.getLast()).willReturn(frame);
 
         subject.start(frame, operationTracer);
 
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verify(frame).decrementRemainingGas(GAS_REQUIREMENT);
         verify(frame).incrementRemainingGas(GAS_REQUIREMENT);
         verify(frame).setOutputData(OUTPUT_DATA);
@@ -263,6 +283,7 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void revertsFrameFromPrecompileResult() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
         givenEvmPrecompileCall();
         when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
         final var result = new PrecompiledContract.PrecompileContractResult(
@@ -271,12 +292,13 @@ class CustomMessageCallProcessorTest {
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
         given(stack.getLast()).willReturn(frame);
         given(frame.getContractAddress()).willReturn(Address.ALTBN128_ADD);
 
         subject.start(frame, operationTracer);
 
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verify(frame).decrementRemainingGas(GAS_REQUIREMENT);
         verify(frame).setRevertReason(OUTPUT_DATA);
         verify(frame, never()).setOutputData(OUTPUT_DATA);
@@ -327,24 +349,15 @@ class CustomMessageCallProcessorTest {
     }
 
     private void givenHaltableFrame(@NonNull final AtomicBoolean isHalted) {
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     isHalted.set(true);
                     return null;
                 })
                 .when(frame)
                 .setExceptionalHaltReason(any());
-        doAnswer(invocation -> isHalted.get() ? MessageFrame.State.EXCEPTIONAL_HALT : MessageFrame.State.NOT_STARTED)
+        doAnswer(_ -> isHalted.get() ? MessageFrame.State.EXCEPTIONAL_HALT : MessageFrame.State.NOT_STARTED)
                 .when(frame)
                 .getState();
-    }
-
-    private void givenCallWithIsTopLevelTransaction(@NonNull final AtomicBoolean isTopLevelTransaction) {
-        doAnswer(invocation -> {
-                    isTopLevelTransaction.set(false);
-                    return null;
-                })
-                .when(frame)
-                .setExceptionalHaltReason(any());
     }
 
     private void givenCallWithCode(@NonNull final Address contract) {
@@ -384,10 +397,6 @@ class CustomMessageCallProcessorTest {
         given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
         given(prngPrecompile.computeFully(any(), any(), any()))
                 .willReturn(new FullResult(result, gasRequirement, null));
-    }
-
-    private void verifyHalt(@NonNull final ExceptionalHaltReason reason) {
-        verifyHalt(reason, true);
     }
 
     private void verifyHalt(@NonNull final ExceptionalHaltReason reason, final boolean alsoVerifyTrace) {
