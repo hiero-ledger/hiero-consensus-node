@@ -6,5 +6,5 @@ mqpt-cluster=Dallas_n10
 tck-version=v0.11.0
 js-sdk-version=v2.85.0
 block-node-version=v0.35.1
-bn-mirror-node-version=v0.157.0
+bn-mirror-node-version=rc1
 json-rpc-relay-version=v0.77.1
