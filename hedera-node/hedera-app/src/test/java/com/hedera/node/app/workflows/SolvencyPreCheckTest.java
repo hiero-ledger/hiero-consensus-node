@@ -7,13 +7,13 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
@@ -408,14 +408,18 @@ class SolvencyPreCheckTest extends AppTestBase {
                     .extras(makeExtraDef(Extra.GAS, 1_000_000L))
                     .build();
             when(feeManager.getSimpleFeesSchedule()).thenReturn(simpleSchedule);
-            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any())).thenReturn(2L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
 
             // gas=10, initialBalance=5 → additionalCosts = 5 + 10 * 2 = 25
             final var builder = TransactionBody.newBuilder()
                     .contractCreateInstance(
                             ContractCreateTransactionBody.newBuilder().gas(10L).initialBalance(5L));
             final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CREATE, builder);
-            final var payer = ALICE.account().copyBuilder().tinybarBalance(FEE.totalFee() + 25L).build();
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
 
             assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
                     .doesNotThrowAnyException();
@@ -423,8 +427,7 @@ class SolvencyPreCheckTest extends AppTestBase {
 
         @Test
         void testContractCreateFallsBackToLegacyGasPrice() {
-            when(feeManager.getSimpleFeesSchedule())
-                    .thenReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
+            when(feeManager.getSimpleFeesSchedule()).thenReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
             final var legacyFeeData = FeeData.newBuilder()
                     .servicedata(FeeComponents.newBuilder().gas(3_000L).build())
                     .subType(SubType.DEFAULT)
@@ -438,7 +441,10 @@ class SolvencyPreCheckTest extends AppTestBase {
                     .contractCreateInstance(
                             ContractCreateTransactionBody.newBuilder().gas(10L).initialBalance(5L));
             final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CREATE, builder);
-            final var payer = ALICE.account().copyBuilder().tinybarBalance(FEE.totalFee() + 45L).build();
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 45L)
+                    .build();
 
             assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
                     .doesNotThrowAnyException();
@@ -457,13 +463,18 @@ class SolvencyPreCheckTest extends AppTestBase {
                     .extras(makeExtraDef(Extra.GAS, 1_000_000L))
                     .build();
             when(feeManager.getSimpleFeesSchedule()).thenReturn(simpleSchedule);
-            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any())).thenReturn(2L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
 
             // gas=10, amount=5 → additionalCosts = 5 + 10 * 2 = 25
             final var builder = TransactionBody.newBuilder()
-                    .contractCall(ContractCallTransactionBody.newBuilder().gas(10L).amount(5L));
+                    .contractCall(
+                            ContractCallTransactionBody.newBuilder().gas(10L).amount(5L));
             final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
-            final var payer = ALICE.account().copyBuilder().tinybarBalance(FEE.totalFee() + 25L).build();
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
 
             assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
                     .doesNotThrowAnyException();
@@ -471,8 +482,7 @@ class SolvencyPreCheckTest extends AppTestBase {
 
         @Test
         void testContractCallFallsBackToLegacyGasPrice() {
-            when(feeManager.getSimpleFeesSchedule())
-                    .thenReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
+            when(feeManager.getSimpleFeesSchedule()).thenReturn(org.hiero.hapi.support.fees.FeeSchedule.DEFAULT);
             final var legacyFeeData = FeeData.newBuilder()
                     .servicedata(FeeComponents.newBuilder().gas(3_000L).build())
                     .subType(SubType.DEFAULT)
@@ -483,9 +493,13 @@ class SolvencyPreCheckTest extends AppTestBase {
 
             // gas=10, amount=5 → additionalCosts = 5 + 10 * 4 = 45
             final var builder = TransactionBody.newBuilder()
-                    .contractCall(ContractCallTransactionBody.newBuilder().gas(10L).amount(5L));
+                    .contractCall(
+                            ContractCallTransactionBody.newBuilder().gas(10L).amount(5L));
             final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
-            final var payer = ALICE.account().copyBuilder().tinybarBalance(FEE.totalFee() + 45L).build();
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 45L)
+                    .build();
 
             assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
                     .doesNotThrowAnyException();

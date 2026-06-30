@@ -140,11 +140,8 @@ class FeeManagerTest {
     }
 
     private static com.hedera.pbj.runtime.io.buffer.Bytes legacyScheduleWithContractCallGas(final long gas) {
-        final var gasComponents = FeeComponents.newBuilder()
-                .min(100L)
-                .max(50_000L)
-                .gas(gas)
-                .build();
+        final var gasComponents =
+                FeeComponents.newBuilder().min(100L).max(50_000L).gas(gas).build();
         final var feeData = FeeData.newBuilder()
                 .servicedata(gasComponents)
                 .subType(SubType.DEFAULT)
