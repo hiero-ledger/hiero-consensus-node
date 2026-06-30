@@ -2,12 +2,14 @@
 package com.hedera.node.app.hapi.fees.calc;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.HRS_DIVISOR;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_DIVISOR_FACTOR;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.HRS_DIVISOR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
+import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -34,7 +36,7 @@ class OverflowCheckingCalcTest {
     @Test
     void converterCanFallbackToBigDecimal() {
         final var highFee = Long.MAX_VALUE / rateTinycentComponent;
-        final var expectedTinybarFee = FeeBuilder.getTinybarsFromTinyCents(someRate, highFee);
+        final var expectedTinybarFee = FeeConstants.getTinybarsFromTinyCents(someRate, highFee);
 
         final long computedTinybarFee = OverflowCheckingCalc.tinycentsToTinybars(highFee, someRate);
 
@@ -43,7 +45,7 @@ class OverflowCheckingCalcTest {
 
     @Test
     void matchesLegacyCalc() {
-        final var legacyFees = FeeBuilder.getFeeObject(mockPrices, mockUsage, mockRate, multiplier);
+        final var legacyFees = legacyFeeObject(mockPrices, mockUsage, mockRate, multiplier);
         final var usage = new UsageAccumulator();
         copyData(mockUsage, usage);
 
@@ -56,7 +58,7 @@ class OverflowCheckingCalcTest {
 
     @Test
     void ceilingIsEnforced() {
-        final var cappedFees = FeeBuilder.getFeeObject(mockLowCeilPrices, mockUsage, mockRate, multiplier);
+        final var cappedFees = legacyFeeObject(mockLowCeilPrices, mockUsage, mockRate, multiplier);
         final var usage = new UsageAccumulator();
         copyData(mockUsage, usage);
 
@@ -69,7 +71,7 @@ class OverflowCheckingCalcTest {
 
     @Test
     void floorIsEnforced() {
-        final var cappedFees = FeeBuilder.getFeeObject(mockHighFloorPrices, mockUsage, mockRate, multiplier);
+        final var cappedFees = legacyFeeObject(mockHighFloorPrices, mockUsage, mockRate, multiplier);
         final var usage = new UsageAccumulator();
         copyData(mockUsage, usage);
 
@@ -183,6 +185,37 @@ class OverflowCheckingCalcTest {
             .build();
     private static final FeeData mockUsage =
             ESTIMATOR_UTILS.withDefaultTxnPartitioning(mockUsageVector, SubType.DEFAULT, network_rbh, 3);
+
+    /* Local reimplementation of the removed legacy FeeBuilder.getFeeObject, kept as an independent
+     * oracle to cross-check OverflowCheckingCalc against the original pricing formula. */
+    private static FeeObject legacyFeeObject(
+            final FeeData feeData, final FeeData feeMatrices, final ExchangeRate exchangeRate, final long multiplier) {
+        long networkFee = componentFeeInTinycents(feeData.getNetworkdata(), feeMatrices.getNetworkdata());
+        long nodeFee = componentFeeInTinycents(feeData.getNodedata(), feeMatrices.getNodedata());
+        long serviceFee = componentFeeInTinycents(feeData.getServicedata(), feeMatrices.getServicedata());
+        networkFee = FeeConstants.getTinybarsFromTinyCents(exchangeRate, networkFee) * multiplier;
+        nodeFee = FeeConstants.getTinybarsFromTinyCents(exchangeRate, nodeFee) * multiplier;
+        serviceFee = FeeConstants.getTinybarsFromTinyCents(exchangeRate, serviceFee) * multiplier;
+        return new FeeObject(nodeFee, networkFee, serviceFee);
+    }
+
+    private static long componentFeeInTinycents(final FeeComponents coeff, final FeeComponents metrics) {
+        long total = coeff.getConstant() * metrics.getConstant()
+                + coeff.getBpt() * metrics.getBpt()
+                + coeff.getVpt() * metrics.getVpt()
+                + coeff.getRbh() * metrics.getRbh()
+                + coeff.getSbh() * metrics.getSbh()
+                + coeff.getGas() * metrics.getGas()
+                + coeff.getTv() * metrics.getTv()
+                + coeff.getBpr() * metrics.getBpr()
+                + coeff.getSbpr() * metrics.getSbpr();
+        if (total < coeff.getMin()) {
+            total = coeff.getMin();
+        } else if (total > coeff.getMax()) {
+            total = coeff.getMax();
+        }
+        return Math.max(total > 0 ? 1 : 0, total / FEE_DIVISOR_FACTOR);
+    }
 
     private static final void copyData(final FeeData feeData, final UsageAccumulator into) {
         into.setNumPayerKeys(feeData.getNodedata().getVpt());

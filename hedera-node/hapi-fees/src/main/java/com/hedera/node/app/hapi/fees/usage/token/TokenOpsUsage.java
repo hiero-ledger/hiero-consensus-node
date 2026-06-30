@@ -4,8 +4,8 @@ package com.hedera.node.app.hapi.fees.usage.token;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
 
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
