@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
@@ -37,6 +38,8 @@ class PcesReplayerTests {
     private FakeTime time;
     private StandardOutputWire<PlatformEvent> eventOutputWire;
     private AtomicInteger eventOutputCount;
+    private AtomicBoolean flushPrimaryPipelineCalled;
+    private Runnable flushPrimaryPipeline;
     private Supplier<ReservedSignedState> latestImmutableStateSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
@@ -56,6 +59,9 @@ class PcesReplayerTests {
                 })
                 .when(eventOutputWire)
                 .forward(any());
+
+        flushPrimaryPipelineCalled = new AtomicBoolean(false);
+        flushPrimaryPipeline = () -> flushPrimaryPipelineCalled.set(true);
 
         final ReservedSignedState latestImmutableState = mock(ReservedSignedState.class);
         final SignedState signedState = mock(SignedState.class);
@@ -94,8 +100,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer =
-                new PcesReplayer(configuration, time, eventOutputWire, latestImmutableStateSupplier, () -> true);
+        final PcesReplayer replayer = new PcesReplayer(
+                configuration, time, eventOutputWire, flushPrimaryPipeline, latestImmutableStateSupplier, () -> true);
 
         replayer.replayPces(ioIterator);
 
@@ -110,8 +116,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer =
-                new PcesReplayer(configuration, time, eventOutputWire, latestImmutableStateSupplier, () -> true);
+        final PcesReplayer replayer = new PcesReplayer(
+                configuration, time, eventOutputWire, flushPrimaryPipeline, latestImmutableStateSupplier, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);

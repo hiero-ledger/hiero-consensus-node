@@ -127,6 +127,7 @@ public class DefaultPcesModule implements PcesModule {
                 configuration,
                 time,
                 pcesReplayerWiring.eventOutput(),
+                flushPrimaryPipeline,
                 latestImmutableStateSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
@@ -137,7 +138,6 @@ public class DefaultPcesModule implements PcesModule {
                 pcesReplayerWiring,
                 statusActionConsumer,
                 platformStatusFlusher,
-                flushPrimaryPipeline,
                 signalEndOfPcesReplay);
     }
 

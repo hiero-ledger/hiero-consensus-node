@@ -44,7 +44,6 @@ class PcesCoordinatorTests {
     private PcesReplayerWiring pcesReplayerWiring;
     private Consumer<PlatformStatusAction> statusActionConsumer;
     private Runnable platformStatusFlusher;
-    private Runnable flushPrimaryPipeline;
     private Runnable signalEndOfPcesReplay;
 
     private PcesMultiFileIterator iterator;
@@ -59,7 +58,6 @@ class PcesCoordinatorTests {
         pcesIteratorInputWire = mock(InputWire.class);
         statusActionConsumer = mock(Consumer.class);
         platformStatusFlusher = mock(Runnable.class);
-        flushPrimaryPipeline = mock(Runnable.class);
         signalEndOfPcesReplay = mock(Runnable.class);
 
         // Only pcesIteratorInputWire() is exercised by the coordinator; the other wires are placeholders.
@@ -75,7 +73,6 @@ class PcesCoordinatorTests {
                 pcesReplayerWiring,
                 statusActionConsumer,
                 platformStatusFlusher,
-                flushPrimaryPipeline,
                 signalEndOfPcesReplay);
     }
 
@@ -92,14 +89,12 @@ class PcesCoordinatorTests {
                 platformStatusFlusher,
                 initialPcesFiles,
                 pcesIteratorInputWire,
-                flushPrimaryPipeline,
                 signalEndOfPcesReplay);
 
         inOrder.verify(statusActionConsumer).accept(isA(StartedReplayingEventsAction.class));
         inOrder.verify(platformStatusFlusher).run();
         inOrder.verify(initialPcesFiles).getEventIterator(LOWER_BOUND, STARTING_ROUND);
         inOrder.verify(pcesIteratorInputWire).inject(iterator);
-        inOrder.verify(flushPrimaryPipeline).run();
         inOrder.verify(signalEndOfPcesReplay).run();
         inOrder.verify(statusActionConsumer).accept(isA(DoneReplayingEventsAction.class));
         inOrder.verifyNoMoreInteractions();
