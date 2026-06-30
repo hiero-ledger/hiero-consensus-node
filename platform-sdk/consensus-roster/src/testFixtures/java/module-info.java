@@ -3,6 +3,7 @@ open module org.hiero.consensus.roster.test.fixtures {
     exports org.hiero.consensus.roster.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
+    requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.roster;
