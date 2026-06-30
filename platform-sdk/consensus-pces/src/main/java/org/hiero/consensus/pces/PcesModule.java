@@ -41,7 +41,6 @@ public interface PcesModule {
      * @param startingRound the round from which to start replaying events
      * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
      * @param latestImmutableStateSupplier a supplier of the latest immutable state
-     * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
      * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
      * @param platformStatusFlusher a {@link Runnable} that triggers flushing of the platform status
      * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete

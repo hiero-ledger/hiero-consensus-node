@@ -2,6 +2,7 @@
 package org.hiero.consensus.pces.impl.replayer;
 
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
+import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -136,5 +137,10 @@ class PcesReplayerTests {
                     Duration.ofSeconds(1),
                     "Event count should have increased from %s to %s".formatted(i - 1, i));
         }
+
+        assertEventuallyTrue(
+                () -> flushPrimaryPipelineCalled.get(),
+                Duration.ofSeconds(1),
+                "Flush primary pipeline should have been called");
     }
 }

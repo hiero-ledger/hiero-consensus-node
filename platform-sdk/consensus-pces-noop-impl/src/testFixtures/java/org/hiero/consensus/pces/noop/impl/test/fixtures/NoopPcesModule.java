@@ -65,10 +65,10 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(selfId);
         requireNonNull(recycleBin);
         requireNonNull(flushPrimaryPipeline);
-        requireNonNull(signalEndOfPcesReplay);
         requireNonNull(latestImmutableStateSupplier);
         requireNonNull(platformStatusFlusher);
         requireNonNull(statusActionConsumer);
+        requireNonNull(signalEndOfPcesReplay);
 
         final var scheduler = model.<PlatformEvent>schedulerBuilder("InlinePcesWriter")
                 .withType(TaskSchedulerType.SEQUENTIAL)
