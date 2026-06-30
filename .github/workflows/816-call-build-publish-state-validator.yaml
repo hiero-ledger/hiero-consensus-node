@@ -77,7 +77,14 @@ jobs:
         id: version-and-artifact
         run: |
           set -euo pipefail
-          FULL_VER=$(./gradlew --no-daemon :hedera-state-validator:properties | grep '^version:' | cut -d ' ' -f2)
+          # Read the version from the authoritative source (version.txt) rather than
+          # `gradlew :hedera-state-validator:properties`. The `properties` task reaches
+          # into the parent project, which is forbidden under Gradle project isolation
+          # (org.gradle.unsafe.isolated-projects=true) and fails the build.
+          FULL_VER=$(tr -d '[:space:]' < version.txt)
+          if [[ -z "${FULL_VER}" ]]; then
+            echo "Could not read version from version.txt" >&2; exit 1
+          fi
           # Remove -SNAPSHOT suffix if present
           VER_WITHOUT_SNAPSHOT=${FULL_VER%-SNAPSHOT}
           # Extract major.minor (first two segments)
