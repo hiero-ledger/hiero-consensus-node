@@ -6,8 +6,6 @@ import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.snapshot.StateDumpRequest;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -172,20 +170,17 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
+     * Flush the platform status state machine
+     */
+    public void flushPlatformStatus() {
+        components.platformMonitorWiring().flush();
+    }
+
+    /**
      * @see PcesModule#minimumBirthRoundInputWire()
      */
     public void injectPcesMinimumBirthRoundToStore(@NonNull final long minimumBirthRoundNonAncientForOldestState) {
         components.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
-    }
-
-    /**
-     * @see StateSnapshotManager#dumpStateTask
-     */
-    public void dumpStateToDisk(@NonNull final StateDumpRequest request) {
-        components
-                .stateSnapshotManagerWiring()
-                .getInputWire(StateSnapshotManager::dumpStateTask)
-                .put(request);
     }
 
     /**

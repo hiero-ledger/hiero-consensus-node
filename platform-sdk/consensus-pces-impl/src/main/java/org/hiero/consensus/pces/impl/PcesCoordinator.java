@@ -32,6 +32,7 @@ public class PcesCoordinator {
     private final PcesFileTracker initialPcesFiles;
     private final PcesReplayerWiring pcesReplayerWiring;
     private final Consumer<PlatformStatusAction> statusActionConsumer;
+    private final Runnable platformStatusFlusher;
     private final Runnable stateHasherFlusher;
     private final Runnable signalEndOfPcesReplay;
 
@@ -50,12 +51,14 @@ public class PcesCoordinator {
             @NonNull final PcesFileTracker initialPcesFiles,
             @NonNull final PcesReplayerWiring pcesReplayerWiring,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable stateHasherFlusher,
             @NonNull final Runnable signalEndOfPcesReplay) {
         this.time = requireNonNull(time);
         this.initialPcesFiles = requireNonNull(initialPcesFiles);
         this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
         this.statusActionConsumer = requireNonNull(statusActionConsumer);
+        this.platformStatusFlusher = requireNonNull(platformStatusFlusher);
         this.stateHasherFlusher = requireNonNull(stateHasherFlusher);
         this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
     }
@@ -69,6 +72,9 @@ public class PcesCoordinator {
     public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
         requireNonNull(initialPcesFiles, "Not initialized");
         statusActionConsumer.accept(new StartedReplayingEventsAction());
+        // Flush the replay started action so that the status is up to date when rounds start reaching consensus
+        // and the ConsensusRound#pcesRound boolean is guaranteed to be accurate.
+        platformStatusFlusher.run();
 
         final IOIterator<PlatformEvent> iterator =
                 initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
