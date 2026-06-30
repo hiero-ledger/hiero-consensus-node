@@ -68,6 +68,9 @@ public record HederaConfig(
         @ConfigProperty(value = "profiles.active", defaultValue = "PROD") @NodeProperty
         Profile activeProfile,
 
+        @ConfigProperty(value = "uncheckedSubmit.enabled", defaultValue = "false") @NodeProperty
+        boolean uncheckedSubmitEnabled,
+
         @ConfigProperty(value = "workflow.verificationTimeoutMS", defaultValue = "20000") @NetworkProperty
         long workflowVerificationTimeoutMS,
         // FUTURE: Set<HederaFunctionality>.

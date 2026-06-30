@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-06-12
+last_reviewed: 2026-06-26
 ---
 
 # Restart and PCES
@@ -141,6 +141,18 @@ on-disk PCES files rather than gossip.
   read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
   health-monitor mechanism.
 
+## Consensus initialization and the init-judge gate
+
+Replay (above) feeds events back through the consensus algorithm, but many of them already reached consensus in the run
+that produced the signed state being loaded — their transactions are already reflected in that state. Re-emitting those
+rounds would corrupt the resulting state, and even if the application detected and dropped the duplicates, recomputing
+them is wasted work.
+
+To prevent that, consensus emits no rounds during initialization until the snapshot round's judges have been replayed,
+then marks the events they already decided as consensus *without* emitting them — so no round that fed the loaded state
+flows out of the hashgraph a second time (upholding INV-008). The gate lives in the consensus algorithm, not in PCES;
+its mechanics are detailed in [`hashgraph.md`](hashgraph.md#algorithm-in-current-code) under *Init-judge gate*.
+
 ## Offline ISS recovery
 
 A network-wide ISS that prevents progress is resolved offline by replaying PCES on top of a known-good signed state
@@ -150,7 +162,7 @@ recipe any driver must follow, and the record/block-file coordination with the e
 
 ## Cross-references
 
-- **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
+- **Topics:** `hashgraph.md`, `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
   `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
 - **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.test;
 
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_MATRICES_CONST;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_MATRICES_CONST;
 
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hederahashgraph.api.proto.java.FeeComponents;
