@@ -159,7 +159,7 @@ class IngestCheckerTest extends AppTestBase {
         final var app = appBuilder().withSelfNode(selfNodeInfo).build();
         when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
 
-        configuration = configWithFeatureFlags(false, false);
+        configuration = configWithFeatureFlags(false);
 
         txBody = TransactionBody.newBuilder()
                 .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
@@ -457,7 +457,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("High volume transaction should throw NOT_SUPPORTED when feature is disabled")
         void highVolumeTransactionRejectedWhenFeatureDisabled() throws PreCheckException {
             // Given a transaction with highVolume=true and both features disabled
-            final var disabledConfig = configWithFeatureFlags(false, false);
+            final var disabledConfig = configWithFeatureFlags(false);
             final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
                     .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
                     .highVolume(true)
@@ -493,7 +493,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("High volume transaction should be allowed when feature is enabled")
         void highVolumeTransactionAllowedWhenFeatureEnabled() throws Exception {
             // Given a transaction with highVolume=true and the feature enabled
-            final var enabledConfig = configWithFeatureFlags(true, true);
+            final var enabledConfig = configWithFeatureFlags(true);
 
             final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
                     .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
@@ -949,12 +949,10 @@ class IngestCheckerTest extends AppTestBase {
                 null);
     }
 
-    private VersionedConfigImpl configWithFeatureFlags(
-            final boolean simpleFeesEnabled, final boolean highVolumeThrottlesEnabled) {
+    private VersionedConfigImpl configWithFeatureFlags(final boolean highVolumeThrottlesEnabled) {
         return new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
                         .withValue("networkAdmin.highVolumeThrottlesEnabled", highVolumeThrottlesEnabled)
-                        .withValue("fees.simpleFeesEnabled", simpleFeesEnabled)
                         .getOrCreateConfig(),
                 1L);
     }

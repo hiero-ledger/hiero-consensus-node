@@ -13,8 +13,8 @@ val bouncycastle = "1.83"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.8.1"
-val helidon = "4.4.1"
+val hederaCryptography = "3.11.0"
+val helidon = "4.5.0"
 val jackson = "2.22.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.26.0"
@@ -22,7 +22,7 @@ val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.34.0"
-val blockNodeProtobufSources = "0.35.1"
+val blockNodeProtobufSources = "0.36.0"
 val testContainers = "2.0.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -78,7 +78,6 @@ dependencies.constraints {
     }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
-    api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.22.0") { because("org.apache.commons.codec") }
@@ -127,6 +126,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
+    }
+    api("com.hedera.cryptography:libsodium:$hederaCryptography") {
+        because("com.hedera.cryptography.libsodium")
     }
 
     // Versions of additional tools that are not part of the product or test module paths

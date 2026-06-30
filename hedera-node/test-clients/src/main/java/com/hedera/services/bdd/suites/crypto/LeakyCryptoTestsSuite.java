@@ -53,6 +53,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -81,7 +82,6 @@ import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.THIRD_SPENDER;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_TOTAL_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY;
@@ -189,7 +189,7 @@ public class LeakyCryptoTestsSuite {
                         .payingWith(shortLivedAutoAssocUser)
                         .maxAutomaticAssociations(10)
                         .via(updateWithExpiredAccount),
-                validateFees(updateWithExpiredAccount, baseFee, CRYPTO_UPDATE_FEE));
+                validateChargedUsdWithin(updateWithExpiredAccount, CRYPTO_UPDATE_FEE, 0.1));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)

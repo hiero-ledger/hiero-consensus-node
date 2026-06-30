@@ -2,12 +2,12 @@
 package com.swirlds.platform.state.hasher;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
 /**
  * Hashes signed states after all modifications for a round have been completed.

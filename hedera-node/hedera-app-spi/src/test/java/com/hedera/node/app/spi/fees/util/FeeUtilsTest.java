@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import org.hiero.hapi.fees.FeeResult;
@@ -35,8 +35,8 @@ class FeeUtilsTest {
         when(rate.getHbarEquiv()).thenReturn(Integer.MAX_VALUE);
         when(rate.getCentEquiv()).thenReturn(1);
 
-        try (MockedStatic<FeeBuilder> fb = mockStatic(FeeBuilder.class)) {
-            fb.when(() -> FeeBuilder.getTinybarsFromTinyCents(rate, Long.MAX_VALUE))
+        try (MockedStatic<FeeConstants> fb = mockStatic(FeeConstants.class)) {
+            fb.when(() -> FeeConstants.getTinybarsFromTinyCents(rate, Long.MAX_VALUE))
                     .thenReturn(999L);
 
             long result = FeeUtils.tinycentsToTinybars(Long.MAX_VALUE, rate);

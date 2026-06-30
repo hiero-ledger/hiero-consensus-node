@@ -8,11 +8,9 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -38,9 +36,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -65,13 +63,6 @@ final class ReconnectTest {
     @TempDir
     Path tempDir;
 
-    private FileSystemManager fileSystemManager;
-
-    @BeforeEach
-    void setupFileSystemManager() {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-    }
-
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerSyncConstructables();
@@ -85,7 +76,9 @@ final class ReconnectTest {
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
-            executeReconnect(reconnectMetrics);
+            // Use a different data dir for every reconnect attempt
+            final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir.resolve("" + index));
+            executeReconnect(fileSystemManager, reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
             verify(reconnectMetrics, times(index)).incrementReceiverEndTimes();
@@ -93,7 +86,8 @@ final class ReconnectTest {
         }
     }
 
-    private void executeReconnect(final ReconnectMetrics reconnectMetrics) throws InterruptedException, IOException {
+    private void executeReconnect(final FileSystemManager fileSystemManager, final ReconnectMetrics reconnectMetrics)
+            throws InterruptedException, IOException {
         final long weightPerNode = 100L;
         final int numNodes = 4;
         final List<NodeId> nodeIds =
@@ -158,7 +152,6 @@ final class ReconnectTest {
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
                 configuration,
-                Time.getCurrent(),
                 getStaticThreadManager(),
                 connection,
                 RECONNECT_SOCKET_TIMEOUT,

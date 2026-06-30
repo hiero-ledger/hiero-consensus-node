@@ -83,7 +83,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -119,12 +119,12 @@ jobs:
           if [[ "${{ inputs.bn-release-version }}" != "latest" ]]; then
             bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/tags/${{ inputs.bn-release-version }}"
           fi
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
           BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${BN_RELEASE_TAG}" ]]; then
             echo "ERROR: Could not parse BN_RELEASE_TAG from response"
-            return 1
+            exit 1
           fi
 
           echo "Block Node Release tag: ${BN_RELEASE_TAG}"
@@ -136,12 +136,12 @@ jobs:
           if [[ "${{ inputs.bn-mirror-node-version }}" != "latest" ]]; then
             mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.bn-mirror-node-version }}"
           fi
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || exit 1
           MN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${MN_RELEASE_TAG}" ]]; then
             echo "ERROR: Could not parse MN_RELEASE_TAG from response"
-            return 1
+            exit 1
           fi
 
           echo "Mirror Node Release tag: ${MN_RELEASE_TAG}"
@@ -220,9 +220,13 @@ jobs:
           echo "Using long version: ${LONG_VERSION}"
           echo "Using proto version: ${PROTO_VERSION}"
 
-          # Install with the extracted versions
+          # pnpm add installs tck-specific deps and updates the lockfile entries.
+          # pnpm install --no-frozen-lockfile fixes remaining specifier drift
+          # (e.g. protobufjs 8.0.1 in lockfile vs 8.2.0 in manifest, caused by
+          # pnpm.overrides being silently ignored in pnpm v11+).
+          # --ignore-scripts skips unapproved build scripts (ERR_PNPM_IGNORED_BUILDS).
           pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
-          pnpm install
+          pnpm install --no-frozen-lockfile --ignore-scripts
           nohup pnpm start &
           server_pid=$!
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
@@ -249,31 +253,57 @@ jobs:
       # and the latest version of blockstream in `0.68.0`
       - name: Create Mirror Values Override File
         run: |
-          cat <<EOF > mirror-bn-values.yaml
-          importer:
-            config:
-              hiero:
-                mirror:
-                  importer:
-                    block:
-                      enabled: true
-                      nodes:
-                        - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
-                          port: 40840
-                      sourceType: BLOCK_NODE
-                    downloader:
-                      record:
-                        enabled: false
-                    startDate: 1970-01-01T00:00:00Z
-                    stream:
-                      maxSubscribeAttempts: 10
-                      responseTimeout: 10s
-            # custom image to support preview streams hash verification
-            image:
-              registry: docker.io
-              repository: xin323/importer-native
-              tag: 0.154.0-rc1-f65a7d8e8
+          MINOR_VERSION=$(echo "${MIRROR_NODE_TAG#v}" | cut -d. -f2 | grep -o '^[0-9]*')
+          echo "MIRROR_NODE_TAG=${MIRROR_NODE_TAG}, MINOR_VERSION=${MINOR_VERSION}"
+          if [[ -z "${MINOR_VERSION}" ]]; then
+            echo "ERROR: Could not extract minor version from MIRROR_NODE_TAG=${MIRROR_NODE_TAG}"
+            exit 1
+          fi
+          if [[ "${MINOR_VERSION}" -lt 157 ]]; then
+            cat <<EOF > mirror-bn-values.yaml
+            importer:
+              config:
+                hiero:
+                  mirror:
+                    importer:
+                      block:
+                        enabled: true
+                        nodes:
+                          - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                            port: 40840
+                        sourceType: BLOCK_NODE
+                      downloader:
+                        record:
+                          enabled: false
+              # custom image to support preview streams hash verification
+              image:
+                registry: docker.io
+                repository: xin323/importer-native
+                tag: 0.154.0-rc1-f65a7d8e8
+              env:
+                SPRING_PROFILES_ACTIVE: 'blocknode'
           EOF
+          else
+            cat <<EOF > mirror-bn-values.yaml
+            importer:
+              config:
+                hiero:
+                  mirror:
+                    importer:
+                      block:
+                        enabled: true
+                        nodes:
+                          - endpoints:
+                              - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                        sourceType: BLOCK_NODE
+                      downloader:
+                        record:
+                          enabled: false
+              env:
+                SPRING_PROFILES_ACTIVE: 'blocknode'
+                HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
+          EOF
+          fi
 
       - name: Print MN Override Values
         run: cat mirror-bn-values.yaml
@@ -291,12 +321,34 @@ jobs:
           solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
           solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
 
+      - name: Create CN application properties File
+        run: |
+          cat <<EOF > application.env
+          TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps
+          EOF
+
+          echo "=== application.env ==="
+          cat ./application.env
+
+          # application.properties only applies to CN >= 0.77; skip for 0.75 and 0.76
+          if [[ "${CN_LATEST_TAG}" != 0.75* && "${CN_LATEST_TAG}" != 0.76* ]]; then
+            cat <<EOF > application.properties
+            blockStream.streamWrappedRecordBlocks=false
+          EOF
+
+            echo "=== application.properties ==="
+            cat ./application.properties
+          fi
+
       # node deployment
       - name: Solo Nodes deployment (BN/CN/MN)
         run: |
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --pvcs true
+          SOLO_PROPS_ARG=""
+          [[ -f ./application.properties ]] && SOLO_PROPS_ARG="--application-properties ./application.properties"
+          # shellcheck disable=SC2086
+          solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --pvcs true --application-env ./application.env ${SOLO_PROPS_ARG}
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml

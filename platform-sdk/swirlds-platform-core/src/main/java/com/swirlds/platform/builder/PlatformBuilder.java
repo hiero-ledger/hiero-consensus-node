@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -24,7 +25,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
@@ -43,6 +43,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,6 +61,7 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -67,8 +69,10 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.system.SystemExitUtils;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -419,6 +423,7 @@ public final class PlatformBuilder {
                 platformCoordinator::flushTransactionHandler,
                 latestStateSupplier,
                 platformCoordinator::submitStatusAction,
+                platformCoordinator::flushPlatformStatus,
                 platformCoordinator::flushStateHasher,
                 platformCoordinator::signalEndOfPcesReplay,
                 pipelineTracker);
@@ -476,6 +481,38 @@ public final class PlatformBuilder {
                 stateLifecycleManager);
     }
 
+    private IssDetectionModule createIssDetectionModule() {
+        return new IssDetectionModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                platformContext.getFileSystemManager(),
+                initialState.get().getRound(),
+                latestFreezeRoundOf(initialState.get().getState()),
+                SystemExitUtils::handleFatalError);
+    }
+
+    @NonNull
+    private TransactionHandlingModule createTransactionHandlingModule(
+            @NonNull final AtomicReference<Function<String, ReservedSignedState>> latestCompleteStateReference,
+            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
+        return new TransactionHandlingModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                latestCompleteStateReference,
+                consensusStateEventHandler,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                softwareVersion,
+                selfId,
+                transactionOffsetNanos);
+    }
+
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -513,10 +550,6 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final Scratchpad<IssScratchpad> issScratchpad =
-                Scratchpad.create(platformContext.getFileSystemManager(), selfId, IssScratchpad.class, "platform.iss");
-        issScratchpad.logContents();
-
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
 
@@ -550,7 +583,10 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<Supplier<ReservedSignedState>> latestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
@@ -570,6 +606,10 @@ public final class PlatformBuilder {
             this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
+        final IssDetectionModule issDetectionModule = createIssDetectionModule();
+        final TransactionHandlingModule transactionHandlingModule =
+                createTransactionHandlingModule(latestImmutableStateProviderReference, statusActionSubmitterReference);
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -577,9 +617,12 @@ public final class PlatformBuilder {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
+        statusActionSubmitterReference.set(platformCoordinator);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
@@ -599,7 +642,7 @@ public final class PlatformBuilder {
         initializeHashgraphModule(pipelineTracker);
         initializeGossipModule(
                 intakeEventCounter,
-                getLatestCompleteStateReference,
+                latestCompleteStateReference,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor);
 
@@ -619,13 +662,12 @@ public final class PlatformBuilder {
                 intakeEventCounter,
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                new AtomicReference<>(),
+                latestImmutableStateProviderReference,
                 consensusEventStreamName,
-                issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                new AtomicReference<>(),
+                statusActionSubmitterReference,
                 stateLifecycleManager,
-                getLatestCompleteStateReference,
+                latestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
