@@ -92,15 +92,6 @@ tasks.register<JavaExec>("runTestClient") {
     mainClass = providers.gradleProperty("testClient")
 }
 
-tasks.jacocoTestReport {
-    classDirectories.setFrom(files(project(":app").layout.buildDirectory.dir("classes/java/main")))
-    sourceDirectories.setFrom(files(project(":app").projectDir.resolve("src/main/java")))
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
-}
-
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
@@ -428,15 +419,6 @@ tasks.register<Test>("testSubprocess") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -571,14 +553,6 @@ tasks.register<Test>("testSubprocessConcurrent") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -789,9 +763,9 @@ tasks.register<Test>("testRepeatable") {
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
-    project.properties
-        .filter { (k, _) -> k.startsWith("sysProp.") }
-        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v.toString()) }
+    providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
+        systemProperty(k.removePrefix("sysProp."), v)
+    }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
