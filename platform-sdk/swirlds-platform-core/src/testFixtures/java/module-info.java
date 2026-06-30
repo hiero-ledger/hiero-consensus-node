@@ -27,6 +27,5 @@ open module com.swirlds.platform.core.test.fixtures {
 
     exports com.swirlds.platform.test.fixtures;
     exports com.swirlds.platform.test.fixtures.config;
-    exports com.swirlds.platform.test.fixtures.simulated;
     exports com.swirlds.platform.test.fixtures.state;
 }
