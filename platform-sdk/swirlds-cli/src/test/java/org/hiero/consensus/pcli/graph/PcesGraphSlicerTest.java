@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -59,7 +58,7 @@ public class PcesGraphSlicerTest {
         pcesOutputLocation = baseDir.resolve(Path.of("migrated/preconsensus-events/"));
         FileUtils.deleteDirectory(pcesOutputLocation);
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final Roster roster = RosterFactory.generateRoster(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, 5000);
@@ -70,7 +69,7 @@ public class PcesGraphSlicerTest {
     public void sliceByPropertyTest(@NonNull final EventGraphPipeline.EventFilter filter)
             throws IOException, KeyStoreException, ExecutionException, InterruptedException {
         final PlatformContext newContext =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final Map<NodeId, KeysAndCerts> newKeysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()

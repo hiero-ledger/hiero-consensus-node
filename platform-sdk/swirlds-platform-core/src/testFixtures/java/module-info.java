@@ -25,7 +25,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.junit.jupiter.api;
     requires org.mockito;
 
-    exports com.swirlds.platform.test.fixtures;
     exports com.swirlds.platform.test.fixtures.config;
     exports com.swirlds.platform.test.fixtures.state;
 }
