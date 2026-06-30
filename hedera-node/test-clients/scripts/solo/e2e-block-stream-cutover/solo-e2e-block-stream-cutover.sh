@@ -593,82 +593,30 @@ EOF
 # and can be deleted.
 #
 # Source: the LedgerIdPublication tx is a synthetic "Ledger id" admin tx in the block
-# stream; we pull the block files the CN block-stream uploader writes to the MinIO
-# solo-streams bucket (under blockStreams/, zstd-compressed .blk.zstd in current builds —
-# unlike the gzip .rcd.gz record streams), decompress them, extract the body, drop it into
-# the BN volume at verification.tssParametersFilePath, then roll the BN so init() loads it.
+# stream. Post-cutover the CN streams blocks to the Block Node (not MinIO), so we pull the
+# block files straight from the BN's own live storage (/opt/hiero/block-node/data/live,
+# zstd-compressed .blk.zstd per the BN's FilesRecentConfig). The publication block is recent
+# and the live retention threshold is large, so it is still in live storage (never archived
+# to the historic zip store). We decompress, extract the body, drop it into the BN volume at
+# verification.tssParametersFilePath, then roll the BN so init() loads it.
 seed_block_node_tss_parameters() {
-  local minio_pod creds_tmp u p in_pod_dir bn_pod
-  minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
-    .items[].metadata.name | select(test("^minio-"))' | head -n 1)"
-  if [[ -z "${minio_pod}" ]]; then
-    echo "seed_block_node_tss_parameters: no MinIO pod found in ${MINIO_NAMESPACE}" >&2
-    return 1
-  fi
+  local bn_pod="block-node-${BLOCK_NODE_ID}-0"
+  local bn_live_dir="/opt/hiero/block-node/data/live"
 
-  creds_tmp="$(mktemp)"
-  if ! minio_discover_pod_credentials "${MINIO_NAMESPACE}" >"${creds_tmp}"; then
-    rm -f "${creds_tmp}"
-    echo "seed_block_node_tss_parameters: could not discover MinIO credentials" >&2
-    return 1
-  fi
-  u="$(sed -n '1p' "${creds_tmp}")"
-  p="$(sed -n '2p' "${creds_tmp}")"
-  rm -f "${creds_tmp}"
-
-  # Copy block-stream objects out of MinIO via in-pod mc, then stream them out file-by-file.
-  # Be resilient to MinIO reconnect races and object-prefix casing drift.
-  in_pod_dir="/tmp/bn-blk-$$"
-  local minio_prefixes=("blockStreams" "blockstreams")
-  local minio_prefix=""
-  local minio_copy_ok=0
-  local minio_attempt=0
-  local minio_max_attempts=10
-  local minio_sleep_secs=5
-  local minio_copy_err=""
-  local prefix
-  echo "Copying block-stream files from MinIO ${MINIO_BUCKET}/blockStreams via in-pod mc"
-  for prefix in "${minio_prefixes[@]}"; do
-    for (( minio_attempt=1; minio_attempt<=minio_max_attempts; minio_attempt++ )); do
-      minio_copy_err="$(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-        "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
-         mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-         mc cp --recursive 'local/${MINIO_BUCKET}/${prefix}/' '${in_pod_dir}/'" 2>&1)" && {
-          minio_copy_ok=1
-          minio_prefix="${prefix}"
-          break 2
-        }
-      echo "  MinIO copy attempt ${minio_attempt}/${minio_max_attempts} failed for prefix '${prefix}', retrying in ${minio_sleep_secs}s"
-      sleep "${minio_sleep_secs}"
-    done
-  done
-  if (( minio_copy_ok == 0 )); then
-    echo "seed_block_node_tss_parameters: in-pod mc cp of blockStreams/blockstreams failed after ${minio_max_attempts} attempts per prefix" >&2
-    if [[ -n "${minio_copy_err}" ]]; then
-      echo "Last mc error output:" >&2
-      echo "${minio_copy_err}" >&2
-    fi
-    echo "MinIO bucket listing for diagnostics:" >&2
-    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-      "mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-       mc ls 'local/${MINIO_BUCKET}/' || true; \
-       mc ls --recursive 'local/${MINIO_BUCKET}/' | sed -n '1,80p' || true" >&2 || true
-    return 1
-  fi
-  echo "Copied block-stream objects from MinIO prefix '${minio_prefix}'"
+  # Pull the block files from the BN's live storage. The BN solo-dev image ships findutils +
+  # bash (but not tar), so list with find and stream each file out tar-free via
+  # `kubectl exec ... cat` (kubectl cp needs tar in the target container). Stdout without a
+  # TTY is a raw binary stream, so the compressed bytes survive intact.
+  echo "Copying block-stream files from Block Node ${bn_pod}:${bn_live_dir}"
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
-  # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
-  # to tar, which the distroless MinIO image does not ship). Discover block files recursively
-  # to tolerate MinIO CLI layout differences (some variants keep a blockStreams/ level).
-  # Stdout without a TTY is a raw binary stream, so compressed bytes survive intact.
   local rel base dest pulled=0 pull_failures=0
   while IFS= read -r rel; do
     [[ -n "${rel}" ]] || continue
     base="$(basename "${rel}")"
     dest="${BN_BLOCK_FILES_DIR}/${base}"
-    if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null; then
+    if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- cat "${rel}" > "${dest}" 2>/dev/null; then
       ((pull_failures++))
-      echo "  WARN: failed to copy MinIO block object '${rel}'"
+      echo "  WARN: failed to copy BN block file '${rel}'"
       rm -f "${dest}"
       continue
     fi
@@ -678,18 +626,15 @@ seed_block_node_tss_parameters() {
       ((pull_failures++))
       rm -f "${dest}"
     fi
-  done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-            "find '${in_pod_dir}' -type f \\( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \\) | sort" 2>/dev/null)
-  kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
+  done < <(kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- \
+            find "${bn_live_dir}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)
 
   local blk_files=()
   while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) | sort)
   if [[ "${#blk_files[@]}" -eq 0 ]]; then
-    echo "seed_block_node_tss_parameters: no .blk/.blk.gz/.blk.zstd files retrieved from MinIO (pulled=${pulled}, pull_failures=${pull_failures})" >&2
-    echo "MinIO bucket listing for diagnostics:" >&2
-    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-      "mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-       mc ls --recursive 'local/${MINIO_BUCKET}/' | sed -n '1,120p' || true" >&2 || true
+    echo "seed_block_node_tss_parameters: no .blk/.blk.gz/.blk.zstd files retrieved from BN live storage ${bn_pod}:${bn_live_dir} (pulled=${pulled}, pull_failures=${pull_failures})" >&2
+    echo "BN live-storage listing for diagnostics:" >&2
+    kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- find "${bn_live_dir}" -type f 2>/dev/null | head -n 120 >&2 || true
     return 1
   fi
 
