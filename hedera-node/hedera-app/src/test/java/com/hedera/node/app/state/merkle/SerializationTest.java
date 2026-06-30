@@ -14,7 +14,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.test.fixtures.state.TestStateUtils;
+import com.swirlds.state.test.fixtures.merkle.TestStateUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;

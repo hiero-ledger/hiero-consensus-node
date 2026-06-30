@@ -15,7 +15,6 @@ module org.hiero.base.crypto {
     opens org.hiero.base.crypto to
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.base.crypto.test.fixtures,
             org.hiero.otter.test,
             com.fasterxml.jackson.databind;
