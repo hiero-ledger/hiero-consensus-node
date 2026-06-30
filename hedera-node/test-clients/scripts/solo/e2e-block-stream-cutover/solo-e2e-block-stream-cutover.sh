@@ -703,7 +703,9 @@ seed_block_node_tss_parameters() {
   local deadline=$((SECONDS + 180))
   local bn_logs=""
   while (( SECONDS < deadline )); do
-    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
+    # `|| true`: kubectl logs can transiently fail on a pod still transitioning right after the
+    # roll; under set -e a failing `var="$(...)"` would abort instead of letting the loop retry.
+    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)" || true
     if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
       echo "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
       return 0
@@ -728,7 +730,11 @@ ensure_zstd_command_for_block_node() {
 
   require_cmd java
 
-  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)"
+  # `|| true`: under `set -euo pipefail`, `var="$(find <missing-dir> ... | head)"` aborts the
+  # whole script silently (find exits non-zero on a missing path, pipefail propagates it, and a
+  # failing command substitution trips set -e). Guard it so a missing cache just yields an empty
+  # jar and the explicit check below reports it.
+  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)" || true
   if [[ -z "${zstd_jar}" || ! -f "${zstd_jar}" ]]; then
     echo "zstd command not found and zstd-jni jar was not found in ~/.gradle cache." >&2
     echo "Install zstd (for example: brew install zstd) or run one block-node tools task once to download zstd-jni, then retry." >&2
@@ -3160,7 +3166,6 @@ build_default_block_node_priority_mapping() {
 # Note: nodeId is a STRING and is omitted when 0 (proto default).
 generate_rsa_bootstrap_roster_json() {
   require_cmd openssl
-  require_cmd xxd
   local node node_idx node_id pem hex
   local nodes=()
   local cn_pod="network-node1-0"
@@ -3179,7 +3184,7 @@ generate_rsa_bootstrap_roster_json() {
     hex="$(printf '%s' "${pem}" \
       | openssl x509 -pubkey -noout 2>/dev/null \
       | openssl pkey -pubin -outform DER 2>/dev/null \
-      | xxd -p | tr -d '\n')"
+      | od -An -v -t x1 | tr -d ' \n')"
     if [[ -z "${hex}" ]]; then
       echo "Failed to extract X.509 SPKI hex for node${node_idx}" >&2
       return 1

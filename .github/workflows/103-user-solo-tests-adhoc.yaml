@@ -385,14 +385,18 @@ jobs:
           if command -v kind >/dev/null 2>&1; then kind --version; fi
           kubectl version --client=true
 
-      - name: Install xxd
+      - name: Install zstd
         run: |
           set -eo pipefail
-          if ! command -v xxd >/dev/null 2>&1; then
+          # zstd decompresses the .blk.zstd block files the cutover scenario pulls from the
+          # Block Node (Step 11 TSS-parameter seeding). There's no pre-installed substitute on
+          # the runner (no system zstd; the BN's zstd-jni isn't in the gradle cache), so install
+          # the small zstd package. (xxd was dropped — the script uses `od` for DER->hex.)
+          if ! command -v zstd >/dev/null 2>&1; then
             sudo apt-get update -y
-            sudo apt-get install -y xxd
+            sudo apt-get install -y zstd
           fi
-          xxd -v
+          zstd --version
 
       - name: Install grpcurl
         run: |
