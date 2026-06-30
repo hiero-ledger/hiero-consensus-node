@@ -326,7 +326,7 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 WORK_DIR="$(mktemp -d)"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 NETWORK_PROBE_SCRIPT="${WORK_DIR}/sdk-network-probe.js"
-FREEZE_SCRIPT="${WORK_DIR}/sdk-freeze-only.js"
+WRAPS_ENV_VALUES_FILE="${WORK_DIR}/wraps-extra-env-values.yaml"
 JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
 TMP_075_UPGRADE_APP_PROPS="${WORK_DIR}/application-075-jumpstart.properties"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-cutover-values.yaml"
@@ -1859,159 +1859,63 @@ verify_wraps_on_consensus_nodes() {
   echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
 }
 
-# Block until every consensus node's MOST RECENT platform-status line equals
-# ${1} (e.g. FREEZE_COMPLETE, ACTIVE). hgcaa.log persists across restarts and
-# already holds the status transitions of earlier Solo upgrades, so we read the
-# last "Platform status is now ..." line per node rather than grepping for the
-# string anywhere (which would match a stale transition) — robust to both log
-# accumulation and rotation.
-wait_for_platform_status() {
-  local want="$1" timeout_secs="${2:-180}"
-  local nodes=() node pod last deadline
-  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  deadline=$(( SECONDS + timeout_secs ))
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    printf '  waiting for %s platform status %s (up to %ss)... ' "${pod}" "${want}" "${timeout_secs}"
-    while :; do
-      last="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-        "grep 'Platform status is now' '${hgcaa}' 2>/dev/null | tail -1" 2>/dev/null || true)"
-      if [[ "${last}" == *"Platform status is now ${want}"* ]]; then
-        echo "ok"
-        break
-      fi
-      if (( SECONDS >= deadline )); then
-        echo "TIMEOUT"
-        echo "Node ${pod} did not reach platform status ${want} within ${timeout_secs}s (last: ${last:-<none>})" >&2
-        return 1
-      fi
-      sleep 3
-    done
-  done
-}
-
-# Quiesce the network at a clean freeze boundary before a non-Solo rolling
-# restart. inject_wraps_env_into_statefulsets() below patches the StatefulSets
-# with `kubectl set env`, which triggers an *un-frozen* rolling restart. A node
-# restarted off a periodic signed state must replay the in-flight event stream,
-# and on the cutover binary that replay diverges from the online-signed state ->
-# a deterministic, network-wide SELF_ISS at the mismatching round -> every node
-# goes CATASTROPHIC_FAILURE and Solo's subsequent upgrade can never SDK-ping
-# them. A FREEZE_ONLY first makes every node write + reload an identical
-# freeze-boundary state, so the roll replays nothing; the network resumes to
-# ACTIVE on restart. Requires the CN gRPC port-forward + SDK runtime (set up by
-# the prior step) to submit the freeze tx.
-freeze_network_and_wait() {
-  wait_for_sdk_responsive "${FREEZE_SDK_READY_TIMEOUT_SECS:-180}" \
-    || { echo "Network not SDK-responsive; cannot submit freeze before WRAPS env roll" >&2; return 1; }
-  echo "Submitting FREEZE_ONLY via SDK to quiesce the network before the WRAPS env roll"
-  if ! node "${FREEZE_SCRIPT}"; then
-    echo "FREEZE_ONLY submission failed" >&2
-    return 1
-  fi
-  wait_for_platform_status FREEZE_COMPLETE "${FREEZE_COMPLETE_TIMEOUT_SECS:-180}"
-}
-
-# Wraps remedy strategy:
-# 1. Each CN downloads + extracts the WRAPS proving-key archive itself from the
-#    tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties.
-#    No host-side pre-download or local nginx server is involved; to use a different
-#    URL, point APP_PROPS_076_FILE/APP_PROPS_077_FILE at edited copies.
-# 2. Inject TSS_LIB_WRAPS_ARTIFACTS_PATH directly into each network-nodeX
-#    StatefulSet's container spec via `kubectl set env`. This is the only path
-#    we've confirmed actually reaches the JVM `/proc/$pid/environ`. Solo's
-#    --application-env drops the file at /etc/network-node/env/application.env
-#    but the container entrypoint never sources it. Setting via the spec also
-#    survives subsequent pod restarts (kubectl delete pod, freeze-upgrades,
-#    container crashes), which the ephemeral kubectl-cp + entrypoint patch
-#    approach did NOT survive.
-# 3. After Solo's upgrade returns (success OR timeout), recover any CN that
-#    failed to reach ACTIVE/CHECKING/OBSERVING. Jars + state live on the PVC,
-#    so a `kubectl delete pod` re-rolls the JVM from a settled disk and
-#    sidesteps the "jars still copying" startup race that intermittently kills
-#    one or two nodes per upgrade.
-
-inject_wraps_env_into_statefulsets() {
-  local node sts log_file
-  local wraps_dir nodes=()
+# Build a Solo values file that adds the WRAPS env vars to every consensus node's
+# container spec. Solo reads `defaults.root.extraEnv` from a --values-file and applies
+# it to all nodes unconditionally (independent of the wraps/version gate that guards
+# --wraps-key-path), so it is honored from the genesis deploy onward.
+#
+# WHY we set this at the genesis deploy (Step 2) rather than at Step 10 where WRAPS
+# actually turns on: `solo consensus network upgrade` cannot set container env vars.
+# It has no --values-file/extra-env input, it restarts the JVM in place (so a later
+# `kubectl set env` never reaches the running process), and the chart task that does
+# apply extraEnv runs only in `node add/update`, not in `upgrade`. Injecting the env
+# ourselves at 0.76 therefore means a rolling pod restart of the live 0.75 network;
+# that restart replays the in-flight event stream and, on the cutover binary, diverges
+# into a deterministic network-wide SELF_ISS that leaves Solo's upgrade unable to
+# SDK-ping any node. Baking the env in at deploy sidesteps all of that: Solo's in-place
+# `network upgrade` preserves it (helm --reuse-values), and the 0.73-0.75 binaries simply
+# ignore the unused var until 0.76 reads it. The CN still self-downloads the WRAPS
+# proving-key archive from tss.wrapsProvingKeyDownloadUrl (resources/0.76|0.77
+# application.properties) into ${wraps_dir} at 0.76. This is the cleaner interim approach;
+# revert to a 0.76-time injection once Solo's upgrade command can set extraEnv itself.
+write_wraps_env_values_file() {
+  local wraps_dir
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  log_file="${WORK_DIR}/inject-wraps-env.log"
-  : > "${log_file}"
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
-  if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
-    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
-  fi
-  echo "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
-
-  # `kubectl set env` emits a wave of duplicate-port warnings on every call
-  # because Solo's pod template has `pprof`/`stats` named ports duplicated
-  # across containers — and `kubectl rollout status` chats incrementally. Both
-  # streams are noise the operator can read from the log file if needed; the
-  # script just emits one summary line per node.
-  for node in "${nodes[@]}"; do
-    sts="network-${node}"
-    {
-      echo "=== set env statefulset/${sts} ==="
-      kubectl -n "${SOLO_NAMESPACE}" set env "statefulset/${sts}" -c root-container \
-        "${wraps_env_args[@]}" 2>&1
-    } >> "${log_file}"
-  done
-
-  for node in "${nodes[@]}"; do
-    sts="network-${node}"
-    printf '  injecting env into statefulset/%s... ' "${sts}"
-    if {
-        echo "=== rollout status statefulset/${sts} ==="
-        kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/${sts}" --timeout=600s 2>&1
-      } >> "${log_file}"; then
-      echo "rolled out"
-    else
-      echo "FAILED (see ${log_file})"
-      return 1
+  {
+    echo "defaults:"
+    echo "  root:"
+    echo "    extraEnv:"
+    echo "      - name: TSS_LIB_WRAPS_ARTIFACTS_PATH"
+    echo "        value: ${wraps_dir}"
+    if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "      - name: TSS_LIB_NUM_OF_CORES"
+      echo "        value: \"${WRAPS_NUM_CORES}\""
     fi
-  done
+  } > "${WRAPS_ENV_VALUES_FILE}"
+  echo "Wrote WRAPS extraEnv values file (${WRAPS_ENV_VALUES_FILE}): TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
 }
 
 run_076_upgrade() {
   # The CN pulls the WRAPS proving key itself from the tss.wrapsProvingKeyDownloadUrl in the
   # 0.76 properties (tss.wrapsProvingKeyDownloadEnabled flow).
-
-  # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet's container spec
-  # BEFORE Solo's upgrade fires, so the env is preserved through helm's
-  # strategic-merge upgrade and all 0.76 JVMs initialize WRAPS in lockstep
-  # during Solo's coordinated freeze-restart.
   #
-  # `kubectl set env` triggers its own rolling restart of the (still-0.75)
-  # StatefulSets. That restart must NOT land on a live, unfrozen network: a node
-  # restarted off a periodic signed state replays the in-flight event stream,
-  # and on the cutover binary that replay diverges from the online-signed state
-  # -> a deterministic, network-wide SELF_ISS that leaves Solo's upgrade unable
-  # to SDK-ping any node. So FREEZE_ONLY first: every node reloads an identical
-  # freeze-boundary state, the roll replays nothing, and the network resumes to
-  # ACTIVE.
+  # No WRAPS env injection here: TSS_LIB_WRAPS_ARTIFACTS_PATH (+ TSS_LIB_NUM_OF_CORES) is
+  # baked into the consensus node container spec at the genesis deploy (Step 2, via
+  # write_wraps_env_values_file) and rides through this in-place upgrade untouched. See
+  # write_wraps_env_values_file for why it cannot be applied at this step.
   #
-  # (Injecting AFTER Solo's upgrade is also wrong: kubectl set env restarts each
-  # StatefulSet independently, so one pod publishes a WRAPS proof key while
-  # others are still on the old config — another SELF_ISS path.)
-  freeze_network_and_wait
-  inject_wraps_env_into_statefulsets
-  # The frozen nodes were just restarted off the clean freeze state by the roll
-  # above; wait for them to resume to ACTIVE before handing off to Solo's
-  # upgrade, which SDK-pings every node during its Initialize step.
-  wait_for_platform_status ACTIVE "${POST_INJECT_ACTIVE_TIMEOUT_SECS:-600}"
-
-  # Note: --wraps-key-path intentionally omitted. Solo only honors it on
-  # `consensus network deploy`; on upgrade it's silently dropped.
+  # Note: --wraps-key-path and --application-env intentionally omitted.
+  # --wraps-key-path is silently dropped on upgrade (Solo only honors it on
+  # `consensus network deploy`). --application-env is a no-op here: Solo drops the
+  # file at /etc/network-node/env/application.env but the container entrypoint
+  # never sources it, and its only var (TSS_LIB_WRAPS_ARTIFACTS_PATH) is now baked
+  # into the pod spec at the genesis deploy (see write_wraps_env_values_file).
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --upgrade-version "${UPGRADE_076_VERSION}"
     --application-properties "${APP_PROPS_076_FILE}"
-    --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
     --force
   )
@@ -2625,60 +2529,6 @@ main().catch((err) => {
 EOF
 }
 
-# Submits a FREEZE_ONLY freeze a few seconds in the future. A FREEZE_ONLY halts
-# the whole network at the freeze boundary and writes an identical signed state
-# on every node; the nodes resume to ACTIVE when next restarted (no software
-# change, unlike FREEZE_UPGRADE). We use it to quiesce the network at a clean
-# boundary right before the non-Solo WRAPS env roll so the rolling restart has
-# nothing to replay (see freeze_network_and_wait). Operator 0.0.2 is in the
-# `freeze = 2-58` HAPI permission range, so it may submit freezes.
-write_sdk_freeze() {
-  cat > "${FREEZE_SCRIPT}" <<'EOF'
-const {
-  Client,
-  FreezeTransaction,
-  FreezeType,
-  PrivateKey,
-  Status,
-  Timestamp,
-} = require("@hashgraph/sdk");
-
-async function main() {
-  const grpcEndpoint = process.env.GRPC_ENDPOINT || "127.0.0.1:50211";
-  const operatorAccountId = process.env.OPERATOR_ACCOUNT_ID || "0.0.2";
-  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
-  // Freeze start time is compared against consensus time; keep enough lead so
-  // the freeze tx reaches consensus first even with mild client/network skew.
-  const startDelayMs = Number(process.env.FREEZE_START_DELAY_MS || "15000");
-  if (!operatorPrivateKey) {
-    throw new Error("OPERATOR_PRIVATE_KEY is required");
-  }
-
-  const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
-  client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
-  client.setMaxAttempts(5);
-  client.setRequestTimeout(15000);
-
-  const startAt = new Date(Date.now() + startDelayMs);
-  const tx = new FreezeTransaction()
-    .setFreezeType(FreezeType.FreezeOnly)
-    .setStartTimestamp(Timestamp.fromDate(startAt));
-  const response = await tx.execute(client);
-  const receipt = await response.getReceipt(client);
-  if (receipt.status !== Status.Success) {
-    throw new Error(`FREEZE_ONLY returned non-success status: ${receipt.status.toString()}`);
-  }
-  console.log(`  FREEZE_ONLY accepted; network freezes at ${startAt.toISOString()}`);
-  await client.close();
-}
-
-main().catch((err) => {
-  console.error(`FAIL: ${err.message}`);
-  process.exit(1);
-});
-EOF
-}
-
 write_jumpstart_parser() {
   cat > "${JUMPSTART_PARSE_SCRIPT}" <<'EOF'
 const fs = require("fs");
@@ -3279,7 +3129,6 @@ compare_replay_to_migration_vote() {
 prepare_js_sdk_runtime() {
   write_sdk_verifier
   write_sdk_network_probe
-  write_sdk_freeze
   cd "${WORK_DIR}"
   npm init -y >/dev/null 2>&1
   npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
@@ -3860,20 +3709,26 @@ if should_run_step 2; then
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
-  # Deploy with PVCs on BOTH targets. Step 10 (run_076_upgrade) injects the WRAPS env via
-  # `kubectl set env`, which rolls the consensus StatefulSets BEFORE Solo's upgrade fires. With the
-  # old remote `--pvcs false` (emptyDir), that roll wiped the local-build jars, so the rolled pod
-  # could not restart and Solo's upgrade SDK-ping failed (its retries never found a serving node).
-  # On remote we now use PVCs backed by the local-path StorageClass (made default in
-  # remote_reset_and_prepare_deployment): local-path PVs are node-pinned, so the rolled pod
-  # reschedules to the same node and its data survives the roll. Remote also needs the
-  # scheduling/storage value overrides.
+  # Bake the WRAPS env (TSS_LIB_WRAPS_ARTIFACTS_PATH[, TSS_LIB_NUM_OF_CORES]) into the consensus
+  # node container spec here, at the genesis deploy, via Solo's native extraEnv values file. It
+  # rides through every later in-place `network upgrade` untouched and the 0.73-0.75 binaries
+  # ignore it until 0.76 reads it. See write_wraps_env_values_file for the full rationale (chiefly:
+  # `solo consensus network upgrade` cannot set container env, so injecting at the 0.76 step would
+  # force an unfrozen rolling restart that SELF_ISSes the network).
+  write_wraps_env_values_file
+  network_values_files=("${WRAPS_ENV_VALUES_FILE}")
+  # Deploy with PVCs on BOTH targets so consensus state + jars survive Solo's restarts and the
+  # block-node cutover. On remote, PVCs use the node-pinned local-path StorageClass (made default
+  # in remote_reset_and_prepare_deployment) and the deployment also needs the scheduling/storage
+  # value overrides.
   cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
     --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
     --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}" --pvcs true)
   if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-    cutover_deploy+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+    network_values_files+=("${REMOTE_CLUSTER_NETWORK_VALUES}")
   fi
+  # Solo's --values-file takes a single comma-separated list (later files win on conflicts).
+  cutover_deploy+=(--values-file "$(IFS=,; echo "${network_values_files[*]}")")
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
     "${cutover_deploy[@]}"
   run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
