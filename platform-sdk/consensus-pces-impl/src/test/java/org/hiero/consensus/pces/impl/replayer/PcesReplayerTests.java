@@ -4,6 +4,7 @@ package org.hiero.consensus.pces.impl.replayer;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -106,6 +107,7 @@ class PcesReplayerTests {
 
         replayer.replayPces(ioIterator);
 
+        assertTrue(flushPrimaryPipelineCalled.get());
         assertEquals(eventCount, eventOutputCount.get());
     }
 
