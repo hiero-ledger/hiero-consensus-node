@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A "block state" is the collection of items contained with a single block and can be streamed to a block node.
@@ -48,7 +49,7 @@ public class BlockState {
     /**
      * The size of the block in bytes.
      */
-    private long sizeBytes;
+    private final LongAdder sizeBytes = new LongAdder();
     /**
      * Monotonic nanoTime when this block was opened. Used for latency computation.
      */
@@ -100,7 +101,7 @@ public class BlockState {
             openedNanos = System.nanoTime();
             openedTimestamp = Instant.now();
         }
-        sizeBytes += serializedItem.length();
+        sizeBytes.add(serializedItem.length());
 
         return index;
     }
@@ -175,7 +176,7 @@ public class BlockState {
      * @return the size of the block in bytes
      */
     public long sizeBytes() {
-        return sizeBytes;
+        return sizeBytes.sum();
     }
 
     /**

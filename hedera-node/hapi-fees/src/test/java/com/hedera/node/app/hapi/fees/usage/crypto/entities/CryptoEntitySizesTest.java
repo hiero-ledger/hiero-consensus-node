@@ -2,8 +2,8 @@
 package com.hedera.node.app.hapi.fees.usage.crypto.entities;
 
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BOOL_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
