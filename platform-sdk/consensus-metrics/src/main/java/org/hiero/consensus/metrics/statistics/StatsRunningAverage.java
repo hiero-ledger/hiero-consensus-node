@@ -144,8 +144,9 @@ public class StatsRunningAverage implements StatsBuffered {
             } else {
                 mean = values.update(value) / times.update(1);
             }
-            allHistory.recordValue(mean);
-            recentHistory.recordValue(mean);
+            final long now = time.nanoTime();
+            allHistory.recordValue(mean, now);
+            recentHistory.recordValue(mean, now);
         } catch (Exception e) {
             logger.error(LogMarker.EXCEPTION.getMarker(), "Exception while updating statistics!", e);
         }

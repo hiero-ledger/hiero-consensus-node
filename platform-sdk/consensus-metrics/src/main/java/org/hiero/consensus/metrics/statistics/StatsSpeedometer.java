@@ -15,7 +15,7 @@ import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
  *
  * @deprecated Use {@link SpeedometerMetric} instead
  */
-@Deprecated(forRemoval = true)
+@Deprecated
 public class StatsSpeedometer implements StatsBuffered {
 
     private static final double LN_2 = Math.log(2);
@@ -218,8 +218,8 @@ public class StatsSpeedometer implements StatsBuffered {
         }
         lastTime = currentTime;
         if (allHistory != null && recordData) {
-            allHistory.recordValue(cyclesPerSecond);
-            recentHistory.recordValue(cyclesPerSecond);
+            allHistory.recordValue(cyclesPerSecond, currentTime);
+            recentHistory.recordValue(cyclesPerSecond, currentTime);
         }
         return cyclesPerSecond;
     }
