@@ -607,27 +607,34 @@ seed_block_node_tss_parameters() {
   # bash (but not tar), so list with find and stream each file out tar-free via
   # `kubectl exec ... cat` (kubectl cp needs tar in the target container). Stdout without a
   # TTY is a raw binary stream, so the compressed bytes survive intact.
+  #
+  # Run discovery + pull with errexit OFF: under the script's global `set -e -o pipefail`, a
+  # transient kubectl/find hiccup in a `$(...)`/pipeline here would abort the whole scenario
+  # with no diagnostic (observed). Handle errors explicitly and log per-stage counts instead,
+  # then restore errexit.
   echo "Copying block-stream files from Block Node ${bn_pod}:${bn_live_dir}"
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
-  local rel base dest pulled=0 pull_failures=0
+  local rel base dest pulled=0 pull_failures=0 bn_block_list="" listed=0
+  local errexit_was_set=0; [[ $- == *e* ]] && errexit_was_set=1
+  set +e
+  bn_block_list="$(kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- \
+    find "${bn_live_dir}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)"
+  listed="$(printf '%s' "${bn_block_list}" | grep -c . 2>/dev/null)"
+  echo "  BN reports ${listed:-0} block file(s) under ${bn_live_dir}"
   while IFS= read -r rel; do
     [[ -n "${rel}" ]] || continue
     base="$(basename "${rel}")"
     dest="${BN_BLOCK_FILES_DIR}/${base}"
-    if ! kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- cat "${rel}" > "${dest}" 2>/dev/null; then
-      ((pull_failures++))
+    if kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- cat "${rel}" > "${dest}" 2>/dev/null && [[ -s "${dest}" ]]; then
+      pulled=$((pulled + 1))
+    else
+      pull_failures=$((pull_failures + 1))
       echo "  WARN: failed to copy BN block file '${rel}'"
       rm -f "${dest}"
-      continue
     fi
-    if [[ -s "${dest}" ]]; then
-      ((pulled++))
-    else
-      ((pull_failures++))
-      rm -f "${dest}"
-    fi
-  done < <(kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- \
-            find "${bn_live_dir}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)
+  done <<< "${bn_block_list}"
+  echo "  pulled ${pulled} block file(s) from BN (pull_failures=${pull_failures})"
+  (( errexit_was_set )) && set -e
 
   local blk_files=()
   while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) | sort)
