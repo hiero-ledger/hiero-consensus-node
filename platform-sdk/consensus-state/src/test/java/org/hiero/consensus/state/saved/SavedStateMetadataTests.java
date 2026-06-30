@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import org.hiero.consensus.roster.test.fixtures.RosterServiceStateMock;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
