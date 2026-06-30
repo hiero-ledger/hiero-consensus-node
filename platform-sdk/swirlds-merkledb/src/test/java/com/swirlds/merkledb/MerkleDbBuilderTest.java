@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -41,7 +41,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
     }
 
     final MerkleDbDataSourceBuilder createDefaultBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, INITIAL_SIZE);
+        return new MerkleDbDataSourceBuilder(DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
     }
 
     @ParameterizedTest
@@ -133,7 +133,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
             Files.deleteIfExists(defaultPath);
         }
         final MerkleDbDataSourceBuilder builder =
-                new MerkleDbDataSourceBuilder("merkledb-state", CONFIGURATION, fileSystemManager, INITIAL_SIZE);
+                new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
         final VirtualDataSource dataSource = builder.build("test", null, false, false);
         try {
             // Check the folder gets created
@@ -154,7 +154,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
             Files.deleteIfExists(defaultPath);
         }
         final MerkleDbDataSourceBuilder builder =
-                new MerkleDbDataSourceBuilder("merkledb-state", CONFIGURATION, fileSystemManager, INITIAL_SIZE);
+                new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
         final VirtualDataSource dataSource1 = builder.build("test", null, false, false);
         try {
             dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);

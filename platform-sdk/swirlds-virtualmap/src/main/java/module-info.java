@@ -42,4 +42,7 @@ open module com.swirlds.virtualmap {
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.swirlds.virtualmap.config.VirtualMapConfigExtension;
 }
