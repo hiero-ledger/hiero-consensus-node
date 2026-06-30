@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.signed;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
@@ -15,6 +14,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
@@ -234,8 +235,9 @@ class SignedStateTests {
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final SignedState signedState =
-                new SignedState(CONFIGURATION, mock(SignatureVerifier.class), state, "test", false, false, false);
+                new SignedState(configuration, mock(SignatureVerifier.class), state, "test", false, false, false);
 
         assertFalse(state.isDestroyed(), "state should not yet be destroyed");
 
