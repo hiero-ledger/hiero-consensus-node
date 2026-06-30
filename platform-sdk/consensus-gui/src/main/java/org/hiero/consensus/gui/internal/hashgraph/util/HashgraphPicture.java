@@ -289,6 +289,10 @@ public class HashgraphPicture extends JPanel {
             s += " " + event.getNGen();
         }
 
+        if (options.writeSeqNum()) {
+            s += " " + event.getSequenceNumber();
+        }
+
         if (options.writeBirthRound()) {
             s += " " + event.getBirthRound();
         }
