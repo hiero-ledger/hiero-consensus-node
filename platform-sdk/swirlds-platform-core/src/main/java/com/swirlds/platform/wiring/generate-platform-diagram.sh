@@ -56,7 +56,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,staleEventCallback,PreConsensusEvents,PreConsensusEventsSplitter,EventWindowManager,🌀,🕐' \
     -g 'ISS Detection:ISS Detector,💥,💀' \
-    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮' \
+    -g 'Transaction Handling:Transaction Handler,TransactionPrehandler,LatestImmutableStateNexus,getSystemTransactions,🔮' \
     -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,AppNotifier,executionHealthInput,❔,🏥,❤️,💨,🚦' \
     -g 'Gossip Module:gossip' \
     -g 'Event Stream:ConsensusEventStream' \
