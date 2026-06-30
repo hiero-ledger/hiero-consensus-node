@@ -273,11 +273,12 @@ jobs:
       inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
-          checkout-path: ".github/workflows/templates"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-gomplate: "true"
 
