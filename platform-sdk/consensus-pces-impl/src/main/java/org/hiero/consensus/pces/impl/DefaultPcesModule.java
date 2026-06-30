@@ -75,10 +75,10 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull final Runnable signalEndOfPcesReplay,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
+            @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (pcesWriterWiring != null) {

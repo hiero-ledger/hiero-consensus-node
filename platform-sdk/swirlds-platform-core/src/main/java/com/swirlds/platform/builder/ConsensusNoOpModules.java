@@ -137,7 +137,6 @@ public class ConsensusNoOpModules {
         final Runnable flushPces = () -> {};
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
         final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
-        final Runnable stateHasherFlusher = () -> {};
         final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
@@ -154,10 +153,10 @@ public class ConsensusNoOpModules {
                 fileSystemManager,
                 startingRound,
                 flushPces,
-                signalEndOfPcesReplay,
                 latestImmutableStateSupplier,
                 statusActionConsumer,
                 platformStatusFlusher,
+                signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;
     }

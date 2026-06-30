@@ -420,10 +420,10 @@ public final class PlatformBuilder {
                 platformContext.getFileSystemManager(),
                 initialState.get().getRound(),
                 platformCoordinator::flushPrimaryPipeline,
-                platformCoordinator::signalEndOfPcesReplay,
                 latestStateSupplier,
                 platformCoordinator::submitStatusAction,
                 platformCoordinator::flushPlatformStatus,
+                platformCoordinator::signalEndOfPcesReplay,
                 pipelineTracker);
     }
 
