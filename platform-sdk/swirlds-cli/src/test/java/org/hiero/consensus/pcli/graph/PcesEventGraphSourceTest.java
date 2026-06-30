@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import static com.swirlds.platform.test.fixtures.PlatformTestUtils.generateRoster;
+import static org.hiero.consensus.roster.test.fixtures.RosterFactory.generateRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

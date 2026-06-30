@@ -28,6 +28,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.graph.utils.TestEventUtils;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -60,7 +61,7 @@ public class PcesGraphSlicerTest {
         final PlatformContext context =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
-        final Roster roster = PlatformTestUtils.generateRoster(keysAndCertsMap);
+        final Roster roster = RosterFactory.generateRoster(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, 5000);
     }
 
