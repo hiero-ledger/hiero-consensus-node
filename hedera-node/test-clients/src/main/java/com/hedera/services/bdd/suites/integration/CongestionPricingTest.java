@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -12,7 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
@@ -53,7 +53,7 @@ public class CongestionPricingTest {
     private static final String CIVILIAN_ACCOUNT = "civilian";
 
     @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            value = {MUST_SKIP_INGEST, NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"contracts.maxGasPerSec", "fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> canUpdateGasThrottleMultipliersDynamically() {
         final var contract = "Multipurpose";
@@ -86,13 +86,14 @@ public class CongestionPricingTest {
                 blockingOrder(IntStream.range(0, 10)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
-                            uncheckedSubmit(contractCall(contract)
-                                            .signedBy(CIVILIAN_ACCOUNT)
-                                            .fee(ONE_HUNDRED_HBARS)
-                                            .gas(gasToOffer)
-                                            .sending(ONE_HBAR)
-                                            .txnId("uncheckedTxn" + i))
-                                    .payingWith(GENESIS),
+                            contractCall(contract)
+                                    .signedBy(CIVILIAN_ACCOUNT)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .gas(gasToOffer)
+                                    .sending(ONE_HBAR)
+                                    .txnId("uncheckedTxn" + i)
+                                    .setNode("4") // for skipping ingest
+                                    .hasAnyStatusAtAll(),
                             sleepFor(125)
                         })
                         .flatMap(Arrays::stream)
@@ -116,7 +117,7 @@ public class CongestionPricingTest {
     }
 
     @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            value = {MUST_SKIP_INGEST, NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> canUpdateTransferThrottleMultipliersDynamically() {
         AtomicLong normalPrice = new AtomicLong();
@@ -138,10 +139,11 @@ public class CongestionPricingTest {
                 blockingOrder(IntStream.range(0, burstTxns)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
-                            uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
-                                            .payingWith(CIVILIAN_ACCOUNT)
-                                            .txnId("uncheckedTxn" + i))
-                                    .payingWith(GENESIS)
+                            cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
+                                    .payingWith(CIVILIAN_ACCOUNT)
+                                    .txnId("uncheckedTxn" + i)
+                                    .setNode("4") // for skipping ingest
+                                    .hasAnyStatusAtAll()
                                     .noLogging(),
                             sleepFor(125)
                         })

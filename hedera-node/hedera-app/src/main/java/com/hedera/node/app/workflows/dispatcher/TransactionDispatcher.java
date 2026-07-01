@@ -233,8 +233,6 @@ public class TransactionDispatcher {
             case REGISTERED_NODE_UPDATE -> handlers.registeredNodeUpdateHandler();
             case REGISTERED_NODE_DELETE -> handlers.registeredNodeDeleteHandler();
 
-            case UNCHECKED_SUBMIT -> handlers.networkUncheckedSubmitHandler();
-
             case SCHEDULE_CREATE -> handlers.scheduleCreateHandler();
             case SCHEDULE_SIGN -> handlers.scheduleSignHandler();
             case SCHEDULE_DELETE -> handlers.scheduleDeleteHandler();

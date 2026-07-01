@@ -57,7 +57,6 @@ import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileDelete;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
-import com.hedera.services.bdd.spec.transactions.network.HapiUncheckedSubmit;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeDelete;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeUpdate;
@@ -516,11 +515,6 @@ public class TxnVerbs {
 
     public static HapiSysUndelete systemContractUndelete(String target) {
         return new HapiSysUndelete().contract(target);
-    }
-
-    /* NETWORK */
-    public static <T extends HapiTxnOp<T>> HapiUncheckedSubmit<T> uncheckedSubmit(HapiTxnOp<T> subOp) {
-        return new HapiUncheckedSubmit<>(subOp);
     }
 
     /* SMART CONTRACT */

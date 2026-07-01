@@ -11,10 +11,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StatsConfig;
-import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
@@ -59,9 +56,6 @@ public class SubmissionManager {
 
     private static final String PLATFORM_TXN_REJECTIONS_DESC = "number of platform transactions not created per second";
     private static final String SPEEDOMETER_FORMAT = "%,13.2f";
-    private static final Bytes MAIN_NET_LEDGER_ID = Bytes.fromHex("00");
-    private static final Bytes TEST_NET_LEDGER_ID = Bytes.fromHex("01");
-    private static final Bytes PREVIEW_NET_LEDGER_ID = Bytes.fromHex("02");
 
     // FUTURE Consider adding a metric to keep track of the number of duplicate transactions submitted by users.
 
@@ -102,8 +96,7 @@ public class SubmissionManager {
     }
 
     /**
-     * Submit a transaction to the {@link Platform}. If the transaction is an unchecked submit, we ignored the given tx
-     * bytes and send in the other bytes.
+     * Submit a transaction to the {@link Platform}.
      *
      * @param txBody the {@link TransactionBody} that should be submitted to the platform
      * @param serializedSignedTx the bytes of the data that should be submitted
@@ -116,30 +109,6 @@ public class SubmissionManager {
             throws PreCheckException {
         requireNonNull(txBody);
         requireNonNull(serializedSignedTx);
-
-        Bytes payload = serializedSignedTx;
-
-        // Unchecked submits are a mechanism to inject transaction to the system, that bypass all
-        // pre-checks. This is used in tests to check the reaction to illegal input.
-        // FUTURE This should be deprecated and removed. We do not want this in our production system.
-        if (txBody.hasUncheckedSubmit()) {
-            // We do NOT allow this call in production! Default-deny: it must be explicitly enabled, and is
-            // refused on a PROD profile or a public-network ledger id. Read dynamically so Hapi tests can override.
-            final var configuration = configProvider.getConfiguration();
-            final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-            final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
-            final boolean allowed = hederaConfig.uncheckedSubmitEnabled()
-                    && hederaConfig.activeProfile() != Profile.PROD
-                    && !MAIN_NET_LEDGER_ID.equals(ledgerConfig.id())
-                    && !TEST_NET_LEDGER_ID.equals(ledgerConfig.id())
-                    && !PREVIEW_NET_LEDGER_ID.equals(ledgerConfig.id());
-            if (!allowed) {
-                throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
-            }
-
-            // We allow it outside of prod, but it really shouldn't be used.
-            payload = txBody.uncheckedSubmitOrThrow().transactionBytes();
-        }
 
         // This method is not called at a super high rate, so synchronizing here is perfectly fine. We need to check
         // for containment and then do a bunch of logic that might throw an exception before doing the `add` and we
@@ -160,10 +129,10 @@ public class SubmissionManager {
 
             final boolean success;
             if (priority) {
-                transactionPool.submitPriorityTransaction(payload);
+                transactionPool.submitPriorityTransaction(serializedSignedTx);
                 success = true;
             } else {
-                success = transactionPool.submitApplicationTransaction(payload);
+                success = transactionPool.submitApplicationTransaction(serializedSignedTx);
             }
             if (success) {
                 submittedTxns.add(txId);
