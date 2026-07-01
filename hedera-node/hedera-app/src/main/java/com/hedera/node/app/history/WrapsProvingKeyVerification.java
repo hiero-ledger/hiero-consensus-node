@@ -46,10 +46,11 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>To avoid re-downloading and re-extracting the multi-gigabyte archive on every startup when the
  * extracted artifacts are already present (e.g. mounted from the published data-only image), a
- * sidecar hash file ({@value #WRAPS_HASH_FILE_NAME}) is consulted in the artifacts directory before
- * any download. If the sidecar's hash matches {@code tss.wrapsProvingKeyHash} and the required
- * artifacts are present, the download and extraction are skipped entirely. After a successful
- * extraction the sidecar is (re)written so subsequent startups can short-circuit.
+ * hash file ({@value #WRAPS_HASH_FILE_NAME}) is consulted in the artifacts directory before any
+ * download. If its hash matches {@code tss.wrapsProvingKeyHash} and the required artifacts are
+ * present, the download and extraction are skipped entirely. After a successful extraction the hash
+ * file is (re)written so subsequent startups can short-circuit. (This hash file is unrelated to
+ * record-stream sidecar files.)
  */
 public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
@@ -57,7 +58,7 @@ public class WrapsProvingKeyVerification {
     static final String WRAPS_ARTIFACTS_ENV_VAR = "TSS_LIB_WRAPS_ARTIFACTS_PATH";
 
     /**
-     * Name of the sidecar file written into the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} directory that
+     * Name of the hash file written into the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} directory that
      * holds the SHA-384 hash (bare lowercase hex) of the proving key archive the artifacts were
      * extracted from. Its presence and value let a node skip re-downloading when the artifacts are
      * already in place. Must match the file produced by the published proving-key image build.
@@ -120,7 +121,7 @@ public class WrapsProvingKeyVerification {
         final var envArtifactsPath = System.getenv(WRAPS_ARTIFACTS_ENV_VAR);
         validateArtifactsPathConsistency(provingKeyPath, envArtifactsPath);
 
-        // If the extracted artifacts are already in place with a sidecar hash matching config, there is
+        // If the extracted artifacts are already in place with a hash file matching config, there is
         // nothing to download or extract (e.g. the artifacts directory is mounted from the published image).
         if (artifactsAlreadyPresent(envArtifactsPath, bootstrapHash)) {
             log.info(
@@ -138,7 +139,7 @@ public class WrapsProvingKeyVerification {
     /**
      * Determines whether the extracted WRAPS artifacts are already present in the artifacts directory
      * and up to date, so that the archive download and extraction can be skipped. This is the case when
-     * the sidecar hash file ({@value #WRAPS_HASH_FILE_NAME}) exists, its contents match the expected
+     * the hash file ({@value #WRAPS_HASH_FILE_NAME}) exists, its contents match the expected
      * archive hash from config, and all {@link #REQUIRED_ARTIFACT_FILES} are present.
      *
      * @param envArtifactsPath the value of the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} env var, or null
@@ -350,7 +351,7 @@ public class WrapsProvingKeyVerification {
     }
 
     /**
-     * Writes the sidecar hash file ({@value #WRAPS_HASH_FILE_NAME}) into the artifacts directory so that
+     * Writes the hash file ({@value #WRAPS_HASH_FILE_NAME}) into the artifacts directory so that
      * subsequent startups can detect the artifacts are already present and skip the download/extraction.
      * A failure to write (e.g. a read-only mount) is logged but is non-fatal: the extracted artifacts
      * remain usable.

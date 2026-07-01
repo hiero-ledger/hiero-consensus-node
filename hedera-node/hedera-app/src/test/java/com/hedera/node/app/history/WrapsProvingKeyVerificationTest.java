@@ -365,10 +365,10 @@ class WrapsProvingKeyVerificationTest {
         verify(scheduledFuture, Mockito.never()).cancel(Mockito.anyBoolean());
     }
 
-    // ===== sidecar hash file logic =====
+    // ===== hash file logic =====
 
     @Test
-    void artifactsAlreadyPresentTrueWhenSidecarMatchesAndArtifactsPresent() throws IOException {
+    void artifactsAlreadyPresentTrueWhenHashFileMatchesAndArtifactsPresent() throws IOException {
         writeRequiredArtifacts(tempDir);
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
 
@@ -386,7 +386,7 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void artifactsAlreadyPresentFalseWhenSidecarMismatches() throws IOException {
+    void artifactsAlreadyPresentFalseWhenHashFileMismatches() throws IOException {
         writeRequiredArtifacts(tempDir);
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), "bb".repeat(48));
 
@@ -395,14 +395,14 @@ class WrapsProvingKeyVerificationTest {
 
     @Test
     void artifactsAlreadyPresentFalseWhenArtifactMissing() throws IOException {
-        // Sidecar matches config but a required artifact file is absent
+        // Hash file matches config but a required artifact file is absent
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
 
         assertFalse(artifactsAlreadyPresent(tempDir.toString(), HASH_A.toHex()));
     }
 
     @Test
-    void artifactsAlreadyPresentFalseWhenNoSidecar() throws IOException {
+    void artifactsAlreadyPresentFalseWhenNoHashFile() throws IOException {
         writeRequiredArtifacts(tempDir);
 
         assertFalse(artifactsAlreadyPresent(tempDir.toString(), HASH_A.toHex()));
@@ -416,12 +416,13 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void skipsDownloadWhenSidecarMatchesAndArtifactsPresent(final EnvironmentVariables environment) throws IOException {
+    void skipsDownloadWhenHashFileMatchesAndArtifactsPresent(final EnvironmentVariables environment)
+            throws IOException {
         writeRequiredArtifacts(tempDir);
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
         environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
 
-        // No archive on disk; only the extracted artifacts + sidecar are present (mounted-image scenario)
+        // No archive on disk; only the extracted artifacts + hash file are present (mounted-image scenario)
         given(tssConfig.wrapsProvingKeyDownloadEnabled()).willReturn(true);
         given(tssConfig.wrapsProvingKeyHash()).willReturn(HASH_A.toHex());
         given(tssConfig.wrapsProvingKeyPath())
@@ -433,7 +434,7 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void downloadsWhenSidecarMismatches(final EnvironmentVariables environment) throws Exception {
+    void downloadsWhenHashFileMismatches(final EnvironmentVariables environment) throws Exception {
         writeRequiredArtifacts(tempDir);
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), "bb".repeat(48));
         environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
@@ -448,8 +449,8 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void downloadsWhenSidecarMatchesButArtifactMissing(final EnvironmentVariables environment) throws Exception {
-        // Sidecar matches config but a required artifact is missing -> not "already present"
+    void downloadsWhenHashFileMatchesButArtifactMissing(final EnvironmentVariables environment) throws Exception {
+        // Hash file matches config but a required artifact is missing -> not "already present"
         Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
         environment.set(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_ENV_VAR, tempDir.toString());
 
@@ -463,7 +464,7 @@ class WrapsProvingKeyVerificationTest {
     }
 
     @Test
-    void writesSidecarAfterSuccessfulExtraction(final EnvironmentVariables environment) throws Exception {
+    void writesHashFileAfterSuccessfulExtraction(final EnvironmentVariables environment) throws Exception {
         // A real archive containing the four required artifacts, present on disk and matching config
         final byte[] archiveBytes = createTarGz(
                 entry("decider_pp.bin", "pp".getBytes(StandardCharsets.UTF_8)),
@@ -483,14 +484,14 @@ class WrapsProvingKeyVerificationTest {
 
         subject.ensureProvingKey(configuration, downloader);
 
-        // No download (archive already present and verified); artifacts extracted; sidecar written
+        // No download (archive already present and verified); artifacts extracted; hash file written
         verifyNoInteractions(downloader);
         for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
             assertTrue(Files.isRegularFile(extractionDir.resolve(artifact)), "missing extracted artifact " + artifact);
         }
-        final var sidecar = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME);
-        assertTrue(Files.isRegularFile(sidecar), "sidecar hash file was not written");
-        assertEquals(archiveHash, Files.readString(sidecar).trim());
+        final var hashFile = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME);
+        assertTrue(Files.isRegularFile(hashFile), "hash file was not written");
+        assertEquals(archiveHash, Files.readString(hashFile).trim());
     }
 
     // ===== helpers =====

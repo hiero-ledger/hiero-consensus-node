@@ -20,7 +20,7 @@ runner images or downloading it per job. It is consumed by the `hapiTestWraps` a
 | `nova_pp.bin`    | 8454224      | `18d89cfff6e5abebfa8d1740974ce0bd2b60449c67ef7d7de0d3ab377c4b265ab9a99c01fcd03d33da77c6dc47a8c467` |
 | `nova_vp.bin`    | 65768        | `c45e3146f4b3b093c3301ec42171d18f7015c01615d29ca1ab9354d790b5c7ca888f82f26a458366d3b1ff623c8d6c1f` |
 
-The image also carries a `wraps.sha384` sidecar containing the bare hex SHA-384 of the source
+The image also carries a `wraps.sha384` hash file containing the bare hex SHA-384 of the source
 tarball (the value under **Provenance** below). The consensus node reads it from the mounted
 artifacts directory to detect that the artifacts are already in place and skip re-downloading the
 archive on every startup (see `WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME`).
@@ -48,9 +48,10 @@ podman push <registry>/wraps-proving-key:v1.0.0
 ```
 
 Works identically with `docker build`/`docker push` or `buildah`. Tag per artifact version;
-consumers should pin by digest. At runtime the consensus node compares the `wraps.sha384` sidecar
-against `tss.wrapsProvingKeyHash`: a match means the mounted artifacts are trusted and the separate
-tar.gz download is skipped; otherwise it falls back to downloading and verifying the archive.
+consumers should pin by digest. Assuming all required artifacts are present in the path, the
+consensus node compares the `wraps.sha384` hash file against `tss.wrapsProvingKeyHash`: a match
+means the mounted artifacts are trusted and the separate tar.gz download is skipped; otherwise it
+falls back to downloading and verifying the archive.
 
 ## Consuming on Kubernetes runners
 

@@ -79,7 +79,7 @@ jobs:
           done
           (cd "${STAGING_DIR}" && sha384sum decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin | tee "${RUNNER_TEMP}/expected-artifact-hashes.txt")
 
-          # Sidecar consumed by the consensus node to detect the artifacts are already in place and
+          # Hash file consumed by the consensus node to detect the artifacts are already in place and
           # skip re-downloading the archive (see WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME).
           printf '%s\n' "${actual_sha384}" > "${STAGING_DIR}/wraps.sha384"
 
