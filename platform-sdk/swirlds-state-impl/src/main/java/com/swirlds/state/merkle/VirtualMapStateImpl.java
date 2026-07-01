@@ -533,7 +533,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     extractValueCodec(md),
                     virtualMap);
             for (var listener : listeners) {
-                if (listener.stateTypes().contains(MAP)) { registerKVListener(state, listener); }
+                if (listener.stateTypes().contains(MAP)) {
+                    registerKVListener(state, listener);
+                }
             }
             return state;
         }
@@ -547,7 +549,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     extractValueCodec(md),
                     virtualMap);
             for (var listener : listeners) {
-                if (listener.stateTypes().contains(SINGLETON)) { registerSingletonListener(state, listener); }
+                if (listener.stateTypes().contains(SINGLETON)) {
+                    registerSingletonListener(state, listener);
+                }
             }
             return state;
         }
@@ -561,7 +565,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     extractValueCodec(md),
                     virtualMap);
             for (var listener : listeners) {
-                if (listener.stateTypes().contains(QUEUE)) { registerQueueListener(state, listener); }
+                if (listener.stateTypes().contains(QUEUE)) {
+                    registerQueueListener(state, listener);
+                }
             }
             return state;
         }
@@ -569,12 +575,21 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @Override
         public void commit() {
             // Ensure all commits always happen in ascending order by state ID
-            Integer[] kvIds  = kvInstances       .keySet().toArray(new Integer[0]); Arrays.sort(kvIds );
-            Integer[] sinIds = singletonInstances.keySet().toArray(new Integer[0]); Arrays.sort(sinIds);
-            Integer[] qIds   = queueInstances    .keySet().toArray(new Integer[0]); Arrays.sort(qIds  );
-            for (Integer id : kvIds)  { ((WritableKVStateBase)        kvInstances       .get(id)).commit(); }
-            for (Integer id : sinIds) { ((WritableSingletonStateBase) singletonInstances.get(id)).commit(); }
-            for (Integer id : qIds)   { ((WritableQueueStateBase)     queueInstances    .get(id)).commit(); }
+            Integer[] kvIds = kvInstances.keySet().toArray(new Integer[0]);
+            Arrays.sort(kvIds);
+            Integer[] sinIds = singletonInstances.keySet().toArray(new Integer[0]);
+            Arrays.sort(sinIds);
+            Integer[] qIds = queueInstances.keySet().toArray(new Integer[0]);
+            Arrays.sort(qIds);
+            for (Integer id : kvIds) {
+                ((WritableKVStateBase) kvInstances.get(id)).commit();
+            }
+            for (Integer id : sinIds) {
+                ((WritableSingletonStateBase) singletonInstances.get(id)).commit();
+            }
+            for (Integer id : qIds) {
+                ((WritableQueueStateBase) queueInstances.get(id)).commit();
+            }
             readableStatesMap.remove(serviceName);
         }
 

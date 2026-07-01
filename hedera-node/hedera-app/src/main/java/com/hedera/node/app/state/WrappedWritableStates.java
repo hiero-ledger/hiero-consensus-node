@@ -103,12 +103,21 @@ public class WrappedWritableStates implements WritableStates {
      */
     public void commit() {
         // Ensure all commits always happen in ascending order by state ID
-        Integer[] kvIds  = writableKVStateMap       .keySet().toArray(new Integer[0]); Arrays.sort(kvIds );
-        Integer[] sinIds = writableSingletonStateMap.keySet().toArray(new Integer[0]); Arrays.sort(sinIds);
-        Integer[] qIds   = writableQueueStateMap    .keySet().toArray(new Integer[0]); Arrays.sort(qIds  );
-        for (Integer id : kvIds)  { writableKVStateMap       .get(id).commit(); }
-        for (Integer id : sinIds) { writableSingletonStateMap.get(id).commit(); }
-        for (Integer id : qIds)   { writableQueueStateMap    .get(id).commit(); }
+        Integer[] kvIds = writableKVStateMap.keySet().toArray(new Integer[0]);
+        Arrays.sort(kvIds);
+        Integer[] sinIds = writableSingletonStateMap.keySet().toArray(new Integer[0]);
+        Arrays.sort(sinIds);
+        Integer[] qIds = writableQueueStateMap.keySet().toArray(new Integer[0]);
+        Arrays.sort(qIds);
+        for (Integer id : kvIds) {
+            writableKVStateMap.get(id).commit();
+        }
+        for (Integer id : sinIds) {
+            writableSingletonStateMap.get(id).commit();
+        }
+        for (Integer id : qIds) {
+            writableQueueStateMap.get(id).commit();
+        }
 
         if (delegate instanceof CommittableWritableStates terminalStates) {
             terminalStates.commit();
