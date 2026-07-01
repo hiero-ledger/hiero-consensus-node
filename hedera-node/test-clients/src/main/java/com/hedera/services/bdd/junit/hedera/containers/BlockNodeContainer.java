@@ -14,6 +14,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -194,6 +195,13 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 Files.writeString(stateDir.resolve(RSA_BOOTSTRAP_FILE_NAME), rsaBootstrapJson);
             } catch (final IOException e) {
                 throw new RuntimeException("Failed to write RSA bootstrap file to " + stateDir, e);
+            }
+            // Make the bind-mounted state dir writable by the non-root block node container user so it
+            // can persist runtime state (e.g. tss-parameters.bin) and reload it across restarts.
+            try {
+                Files.setPosixFilePermissions(stateDir, PosixFilePermissions.fromString("rwxrwxrwx"));
+            } catch (final UnsupportedOperationException | IOException ignored) {
+                // Non-POSIX host; the Docker-based block node tests only run on POSIX filesystems.
             }
             return stateDir;
         }
