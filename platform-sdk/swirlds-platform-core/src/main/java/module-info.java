@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import com.swirlds.platform.config.PlatformConfigurationExtension;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
@@ -90,10 +92,11 @@ module com.swirlds.platform.core {
 
     uses EventCreatorModule;
     uses EventIntakeModule;
+    uses GossipModule;
     uses HashgraphModule;
     uses PcesModule;
-    uses GossipModule;
     uses ReconnectModule;
-    provides com.swirlds.config.api.ConfigurationExtension with
-            com.swirlds.platform.config.PlatformConfigurationExtension;
+    // spotless:off
+    provides ConfigurationExtension with
+            PlatformConfigurationExtension;
 }
