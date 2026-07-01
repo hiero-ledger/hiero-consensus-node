@@ -462,7 +462,7 @@ jobs:
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout 04576-D-block-node-hosts #41e9377b2a7f3ea7579c80acc726be4f0ff968ae #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
+          git checkout 41e9377b2a7f3ea7579c80acc726be4f0ff968ae #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
           #echo > resources/templates/application.properties
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
