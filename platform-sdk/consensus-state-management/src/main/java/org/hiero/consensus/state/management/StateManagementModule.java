@@ -244,7 +244,7 @@ public class StateManagementModule {
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             postconsensusSystemTranscationsInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePreconsensusSignatures);
+        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures);
     }
 
     /**
