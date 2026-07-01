@@ -141,11 +141,9 @@ public class ConsensusNoOpModules {
         final RecycleBin recycleBin = new SimpleRecycleBin();
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
-        final Runnable flushIntake = () -> {};
-        final Runnable flushTransactionHandling = () -> {};
+        final Runnable flushPrimaryPipeline = () -> {};
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
         final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
-        final Runnable stateHasherFlusher = () -> {};
         final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
@@ -161,12 +159,10 @@ public class ConsensusNoOpModules {
                 recycleBin,
                 fileSystemManager,
                 startingRound,
-                flushIntake,
-                flushTransactionHandling,
+                flushPrimaryPipeline,
                 latestImmutableStateSupplier,
                 statusActionConsumer,
                 platformStatusFlusher,
-                stateHasherFlusher,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;

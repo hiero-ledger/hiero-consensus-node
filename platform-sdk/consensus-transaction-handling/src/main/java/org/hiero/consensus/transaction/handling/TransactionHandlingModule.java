@@ -213,30 +213,24 @@ public class TransactionHandlingModule {
     }
 
     /**
-     * Flush the preHandler.
+     * Flush the preHandler and handler.
      */
-    public void flushTransactionPreHandler() {
+    public void flush() {
         prehanderWiring.flush();
-    }
-
-    /**
-     * Flush the handler.
-     */
-    public void flushTransactionHandler() {
         handlerWiring.flush();
     }
 
     /**
      * Start squelching the transaction handler.
      */
-    public void startSquelchingTransactionHandler() {
+    public void startSquelching() {
         handlerWiring.startSquelching();
     }
 
     /**
      * Stop squelching the transaction handler.
      */
-    public void stopSquelchingTransactionHandler() {
+    public void stopSquelching() {
         handlerWiring.stopSquelching();
     }
 }
