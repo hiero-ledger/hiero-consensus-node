@@ -80,8 +80,8 @@ public class Tipset {
     }
 
     /**
-     * Get the tip generation for a given node. If the node is not in the roster or no event from that node is know,
-     * return {@link EventConstants#GENERATION_UNDEFINED}.
+     * Get the tip sequence number for a given node. If the node is not in the roster or no event from that node is known,
+     * return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
      *
      * @param nodeId the node in question
      * @return the tip generation for the node

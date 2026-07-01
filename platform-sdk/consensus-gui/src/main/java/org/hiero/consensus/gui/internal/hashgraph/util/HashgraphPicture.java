@@ -93,13 +93,13 @@ public class HashgraphPicture extends JPanel {
 
             List<EventImpl> events;
             if (options.displayLatestEvents()) {
-                final long startGen = Math.max(
+                final long startSeqNum = Math.max(
                         hashgraphSource.getMaxSequenceNumber() - options.getNumEventsDisplay() + 1,
-                        EventConstants.FIRST_GENERATION);
-                options.setStartGeneration(startGen);
-                events = hashgraphSource.getEvents(startGen, options.getNumEventsDisplay());
+                        EventConstants.FIRST_SEQUENCE_NUMBER);
+                options.setStartSequenceNumber(startSeqNum);
+                events = hashgraphSource.getEvents(startSeqNum, options.getNumEventsDisplay());
             } else {
-                events = hashgraphSource.getEvents(options.getStartGeneration(), options.getNumEventsDisplay());
+                events = hashgraphSource.getEvents(options.getStartSequenceNumber(), options.getNumEventsDisplay());
             }
             // in case the state has events from creators that don't exist, don't show them
             if (events == null) { // in case a screen refresh happens before any events

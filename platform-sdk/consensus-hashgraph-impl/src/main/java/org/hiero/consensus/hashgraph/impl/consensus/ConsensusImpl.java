@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -474,7 +474,7 @@ public class ConsensusImpl implements Consensus {
         rounds.setConsensusRelevantSeqNum(initJudges.getJudges().stream()
                 .map(EventImpl::getSequenceNumber)
                 .min(Long::compareTo)
-                .orElse(UNASSIGNED_SEQUENCE_NUMBER));
+                .orElse(SEQUENCE_NUMBER_UNDEFINED));
         initJudges = null;
 
         return true;

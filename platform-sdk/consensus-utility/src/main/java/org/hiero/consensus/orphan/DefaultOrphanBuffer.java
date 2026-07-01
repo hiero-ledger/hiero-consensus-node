@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -64,7 +65,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final SequenceMap<EventDescriptorWrapper, List<OrphanedEvent>> missingParentMap;
 
     /**
-     * First sequence number assigned to an event. Has to be greater than {@link PlatformEvent#UNASSIGNED_SEQUENCE_NUMBER}
+     * First sequence number assigned to an event. Has to be greater than {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}
      */
     private final long FIRST_ASSIGNED_SEQUENCE_NUMBER = 1;
 

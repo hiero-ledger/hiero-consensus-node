@@ -192,7 +192,12 @@ public class GeneratorEventGraphSourceBuilder {
         }
 
         return new GeneratorEventGraphSource(
-                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer,
+                getConfiguration(),
+                getTime(),
+                getSeed(),
+                getMaxOtherParents(),
+                actualRoster,
+                signer,
                 populateSequenceNumber);
     }
 

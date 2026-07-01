@@ -134,7 +134,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("numNodes controls roster size")
     void numNodesControlsRosterSize() {
-        for (final int size : new int[]{2, 3, 6, 10}) {
+        for (final int size : new int[] {2, 3, 6, 10}) {
             final GeneratorEventGraphSource generator =
                     GeneratorEventGraphSourceBuilder.builder().numNodes(size).build();
 
@@ -351,18 +351,18 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.nextEvents(200);
 
         for (final PlatformEvent event : events) {
-            assertTrue(event.hasSequenceNumber(),
-                    "every event should have sequence number set when populateSequence number is enabled");
             assertTrue(
-                    event.getSequenceNumber() >= 1,
-                    "sequence number should be at least 1");
+                    event.hasSequenceNumber(),
+                    "every event should have sequence number set when populateSequence number is enabled");
+            assertTrue(event.getSequenceNumber() >= 1, "sequence number should be at least 1");
         }
 
         // Verify that ngen actually advances beyond FIRST_GENERATION
-        final long maxNGen =
-                events.stream().mapToLong(PlatformEvent::getSequenceNumber).max().orElse(0);
-        assertTrue(
-                maxNGen > 1, "sequence number should advance beyond 1");
+        final long maxNGen = events.stream()
+                .mapToLong(PlatformEvent::getSequenceNumber)
+                .max()
+                .orElse(0);
+        assertTrue(maxNGen > 1, "sequence number should advance beyond 1");
 
         // Verify that sequence number actually advances beyond UNASSIGNED_SEQUENCE_NUMBER
         final long maxSeqNum = events.stream()
@@ -384,7 +384,8 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.nextEvents(100);
 
         for (final PlatformEvent event : events) {
-            assertFalse(event.hasSequenceNumber(),
+            assertFalse(
+                    event.hasSequenceNumber(),
                     "events should not have sequence number set when populateSequenceNumber is disabled");
         }
     }

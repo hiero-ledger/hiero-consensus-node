@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal;
 
-import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.event.EventConstants.FIRST_SEQUENCE_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -34,7 +34,7 @@ public class GuiEventStorage {
     // A note on concurrency: although all input to this class is sequential and thread safe, access to this class
     // happens asynchronously. This requires all methods to be synchronized.
 
-    private long maxSequenceNumber = FIRST_GENERATION;
+    private long maxSequenceNumber = FIRST_SEQUENCE_NUMBER;
 
     private final Consensus consensus;
     private final ConsensusLinker linker;

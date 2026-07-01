@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -78,11 +79,11 @@ class OrphanBufferEventGraphSourceTest {
         orphanBufferSource.forEachRemaining(allEvents::add);
         assertNotNull(allEvents);
 
-        // All orphanBuffer events should have ngen computed (>= 0)
+        // All orphanBuffer events should have sequence number computed (>= 0)
         for (final PlatformEvent event : allEvents) {
             assertTrue(
-                    event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
-                    "orphanBuffer events should have ngen computed");
+                    event.getSequenceNumber() >= EventConstants.FIRST_SEQUENCE_NUMBER,
+                    "orphanBuffer events should have sequence number computed");
         }
     }
 

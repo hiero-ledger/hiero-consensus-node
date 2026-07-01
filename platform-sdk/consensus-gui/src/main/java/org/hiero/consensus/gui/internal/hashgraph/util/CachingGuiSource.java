@@ -19,7 +19,7 @@ public class CachingGuiSource implements HashgraphGuiSource {
     private List<EventImpl> events = null;
     private Roster roster = null;
     private final GuiEventStorage eventStorage;
-    private long maxSequenceNumber = EventConstants.GENERATION_UNDEFINED;
+    private long maxSequenceNumber = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
     private long startSequenceNum = 1;
     private int numEvents = HashgraphGuiConstants.DEFAULT_NUM_EVENTS_TO_DISPLAY;
 

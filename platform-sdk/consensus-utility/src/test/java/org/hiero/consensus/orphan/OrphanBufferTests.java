@@ -27,6 +27,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -206,7 +207,7 @@ class OrphanBufferTests {
         for (final PlatformEvent intakeEvent : intakeEvents) {
 
             final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
-            assertValidNgen(unorphanedEvents);
+            assertValidSequenceNumber(unorphanedEvents);
 
             // simulate advancing consensus rounds periodically
             latestConsensusRound += maybeAdvanceRound.apply(random);
@@ -230,25 +231,14 @@ class OrphanBufferTests {
         assertThat(orphanBuffer.getCurrentOrphanCount()).isEqualTo(0);
     }
 
-    private void assertValidNgen(final List<PlatformEvent> unorphanedEvents) {
-        for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
-            assertThat(unorphanedEvent.getNGen())
-                    .withFailMessage(
-                            "Invalid nGen value {} assigned to event {}",
-                            unorphanedEvent.getNGen(),
-                            unorphanedEvent.getHash())
-                    .isGreaterThanOrEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
-        }
-    }
-
     private void assertValidSequenceNumber(final List<PlatformEvent> unorphanedEvents) {
         for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
-            assertThat(unorphanedEvent.getNGen())
+            assertThat(unorphanedEvent.getSequenceNumber())
                     .withFailMessage(
                             "Invalid sequence number value {} assigned to event {}",
-                            unorphanedEvent.getNGen(),
+                            unorphanedEvent.getSequenceNumber(),
                             unorphanedEvent.getHash())
-                    .isGreaterThan(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
+                    .isGreaterThan(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
         }
     }
 
@@ -262,7 +252,7 @@ class OrphanBufferTests {
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
         for (final PlatformEvent intakeEvent : intakeEvents) {
             final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
-            assertValidNgen(unorphanedEvents);
+            assertValidSequenceNumber(unorphanedEvents);
             emittedEvents.addAll(unorphanedEvents);
         }
 
@@ -273,7 +263,7 @@ class OrphanBufferTests {
         // Verify that when nGen is assigned such that children always have higher values than parents by
         // shuffling the list, then sorting by ngen and checking that parents are always before children.
         Collections.shuffle(emittedEvents, random);
-        emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getNGen));
+        emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getSequenceNumber));
 
         final Set<Hash> parentHashes = new HashSet<>();
         for (final PlatformEvent event : emittedEvents) {
@@ -286,7 +276,7 @@ class OrphanBufferTests {
                     // should always be encountered before the child.
                     assertThat(parentHashes)
                             .withFailMessage(
-                                    "Parent event {} was not before the child, indicating that child {} does not have a higher nGen value.",
+                                    "Parent event {} was not before the child, indicating that child {} does not have a higher sequence number.",
                                     Mnemonics.generateMnemonic(parentDescriptor.hash()),
                                     Mnemonics.generateMnemonic(event.getHash()))
                             .contains(parentDescriptor.hash());
@@ -390,9 +380,9 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.size())
                 .withFailMessage("One event was added, and one event should be returned.")
                 .isEqualTo(1);
-        assertThat(unorphanedEvents.getFirst().getNGen())
+        assertThat(unorphanedEvents.getFirst().getSequenceNumber())
                 .withFailMessage("nGen for genesis events should be the first generation possible.")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER);
     }
 
     @DisplayName("Verify the assignment of nGen for events with ancient parents")
@@ -432,10 +422,10 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.size())
                 .withFailMessage("One event should be returned by the orphan buffer.")
                 .isEqualTo(1);
-        assertThat(unorphanedEvents.getFirst().getNGen())
+        assertThat(unorphanedEvents.getFirst().getSequenceNumber())
                 .withFailMessage(
                         "nGen for events with unknown ancient parents should be the first generation possible.")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER);
     }
 
     @DisplayName("Verify the assignment of nGen for events one ancient and one non-ancient parent")
@@ -481,25 +471,25 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node0AncientEvent.getNGen())
-                .withFailMessage("Ancient events should not be assigned an nGen value")
-                .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
+        assertThat(node0AncientEvent.getSequenceNumber())
+                .withFailMessage("Ancient events should not be assigned an sequence number")
+                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1AncientEvent));
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node1AncientEvent.getNGen())
-                .withFailMessage("Ancient events should not be assigned an nGen value")
-                .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
+        assertThat(node1AncientEvent.getSequenceNumber())
+                .withFailMessage("Ancient events should not be assigned an sequence number")
+                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1NonAncientEvent));
         assertThat(unorphanedEvents.size())
                 .withFailMessage("Events with only ancient parents should be returned by the orphan buffer")
                 .isEqualTo(1);
-        assertThat(node1NonAncientEvent.getNGen())
-                .withFailMessage("Events with only ancient parents should have the first possible nGen value")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
+        assertThat(node1NonAncientEvent.getSequenceNumber())
+                .withFailMessage("Events with only ancient parents should have the first possible sequence number")
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER);
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent));
@@ -507,12 +497,12 @@ class OrphanBufferTests {
                 .withFailMessage(
                         "Events whose parents are all either ancient or already passed through should be returned by the orphan buffer")
                 .isEqualTo(1);
-        assertThat(node0NonAncientEvent.getNGen())
-                .withFailMessage("Events should have an nGen value 1 higher than all non ancient parents.")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION + 1);
+        assertThat(node0NonAncientEvent.getSequenceNumber())
+                .withFailMessage("Events should have an sequence number 1 higher than all non ancient parents.")
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER + 1);
     }
 
-    @DisplayName("Verify the assignment of nGen for events non-ancient parents with different nGen values")
+    @DisplayName("Verify the assignment of nGen for events non-ancient parents with different sequence numbers")
     @Test
     void testNGenValueWithNonAncientParents() {
         // Pick some values to use. These are arbitrary.
@@ -558,25 +548,25 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node0AncientEvent.getNGen())
-                .withFailMessage("Ancient events should not be assigned an nGen value")
-                .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
+        assertThat(node0AncientEvent.getSequenceNumber())
+                .withFailMessage("Ancient events should not be assigned an sequence number")
+                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1AncientEvent));
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node1AncientEvent.getNGen())
-                .withFailMessage("Ancient events should not be assigned an nGen value")
-                .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
+        assertThat(node1AncientEvent.getSequenceNumber())
+                .withFailMessage("Ancient events should not be assigned an sequence number")
+                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1NonAncientEvent));
         assertThat(unorphanedEvents.size())
                 .withFailMessage("Events with only ancient parents should be returned by the orphan buffer")
                 .isEqualTo(1);
-        assertThat(node1NonAncientEvent.getNGen())
-                .withFailMessage("Events with only ancient parents should have the first possible nGen value")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
+        assertThat(node1NonAncientEvent.getSequenceNumber())
+                .withFailMessage("Events with only ancient parents should have the first possible sequence number")
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER);
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent));
@@ -584,9 +574,9 @@ class OrphanBufferTests {
                 .withFailMessage(
                         "Events whose parents are all either ancient or already passed through should be returned by the orphan buffer")
                 .isEqualTo(1);
-        assertThat(node0NonAncientEvent.getNGen())
-                .withFailMessage("Events should have an nGen value 1 higher than all non ancient parents.")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION + 1);
+        assertThat(node0NonAncientEvent.getSequenceNumber())
+                .withFailMessage("Events should have an sequence number 1 higher than all non ancient parents.")
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER + 1);
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent2));
@@ -594,8 +584,8 @@ class OrphanBufferTests {
                 .withFailMessage(
                         "Events whose parents are all either ancient or already passed through should be returned by the orphan buffer")
                 .isEqualTo(1);
-        assertThat(node0NonAncientEvent2.getNGen())
-                .withFailMessage("Events should have an nGen value 1 higher than all non ancient parents.")
-                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION + 2);
+        assertThat(node0NonAncientEvent2.getSequenceNumber())
+                .withFailMessage("Events should have an sequence number 1 higher than all non ancient parents.")
+                .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER + 2);
     }
 }

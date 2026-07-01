@@ -43,7 +43,8 @@ public class StandardGuiSource implements HashgraphGuiSource {
     @NonNull
     public List<EventImpl> getEvents(final long startSequenceNum, final int numEvents) {
         return eventStorage.getNonAncientEvents().stream()
-                .filter(e -> e.getSequenceNumber() >= startSequenceNum && e.getSequenceNumber() < startSequenceNum + numEvents)
+                .filter(e -> e.getSequenceNumber() >= startSequenceNum
+                        && e.getSequenceNumber() < startSequenceNum + numEvents)
                 .toList();
     }
 

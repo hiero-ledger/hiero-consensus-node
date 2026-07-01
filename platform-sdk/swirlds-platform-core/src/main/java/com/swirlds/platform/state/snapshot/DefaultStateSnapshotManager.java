@@ -310,7 +310,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         }
 
         if (index < 0) {
-            return EventConstants.GENERATION_UNDEFINED;
+            return EventConstants.SEQUENCE_NUMBER_UNDEFINED;
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
         return oldestStateMetadata.minimumBirthRoundNonAncient();

@@ -159,7 +159,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
 
         latestEventPerNode[eventCreator] = copy.getDescriptor().eventDescriptor();
         if (populateSequenceNumber) {
-            // the event sent to consensus will have its sequence number populated, we should copy this value if the caller
+            // the event sent to consensus will have its sequence number populated, we should copy this value if the
+            // caller
             // wants sequence numbers to be populated on the returned events
             copy.setSequenceNumber(platformEvent.getSequenceNumber());
         }

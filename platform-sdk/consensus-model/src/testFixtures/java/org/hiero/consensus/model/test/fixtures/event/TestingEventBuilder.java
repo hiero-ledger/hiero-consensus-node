@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -142,9 +143,9 @@ public class TestingEventBuilder {
     /** The origin of this events */
     private EventOrigin origin = EventOrigin.GOSSIP;
 
-    private long sequenceNumberOverride = PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+    private long sequenceNumberOverride = SEQUENCE_NUMBER_UNDEFINED;
 
-    private static final AtomicLong sequenceNumber = new AtomicLong(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER + 1);
+    private static final AtomicLong sequenceNumber = new AtomicLong(SEQUENCE_NUMBER_UNDEFINED + 1);
 
     /**
      * Constructor
@@ -170,7 +171,7 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Set the sequence number to use. If not set, default to {@link PlatformEvent#UNASSIGNED_SEQUENCE_NUMBER}
+     * Set the sequence number to use. If not set, default to {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}
      *
      * @param sequenceNumber the sequenceNumber
      * @return this instance
@@ -542,7 +543,7 @@ public class TestingEventBuilder {
 
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
-        if (sequenceNumberOverride > PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER) {
+        if (sequenceNumberOverride > SEQUENCE_NUMBER_UNDEFINED) {
             platformEvent.setSequenceNumber(sequenceNumberOverride);
         } else {
             platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
