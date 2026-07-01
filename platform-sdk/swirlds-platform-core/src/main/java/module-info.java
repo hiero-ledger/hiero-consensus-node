@@ -23,6 +23,11 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.health.entropy;
     exports com.swirlds.platform.health.filesystem;
     exports com.swirlds.platform.health;
+    exports com.swirlds.platform.internal to
+            org.hiero.consensus.pcli,
+            com.swirlds.platform.core.test.fixtures,
+            com.fasterxml.jackson.core,
+            com.fasterxml.jackson.databind;
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
     exports com.swirlds.platform.reconnect;
@@ -40,6 +45,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.util;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.wiring;
+    exports com.swirlds.platform;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -88,14 +94,6 @@ module com.swirlds.platform.core {
     uses PcesModule;
     uses GossipModule;
     uses ReconnectModule;
-    /* Public Package Exports. This list should remain alphabetized. */
-    exports com.swirlds.platform;
-    /* Targeted Exports to External Libraries */
-    exports com.swirlds.platform.internal to
-            org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures,
-            com.fasterxml.jackson.core,
-            com.fasterxml.jackson.databind;
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;
 }
