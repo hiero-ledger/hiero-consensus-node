@@ -3,6 +3,7 @@ package org.hiero.consensus.metrics.statistics;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.logging.legacy.LogMarker;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.RunningAverageMetric;
@@ -144,9 +145,9 @@ public class StatsRunningAverage implements StatsBuffered {
             } else {
                 mean = values.update(value) / times.update(1);
             }
-            final long now = time.nanoTime();
-            allHistory.recordValue(mean, now);
-            recentHistory.recordValue(mean, now);
+            final double seconds = time.nanoTime() / (double) TimeUnit.SECONDS.toNanos(1);
+            allHistory.recordValue(mean, seconds);
+            recentHistory.recordValue(mean, seconds);
         } catch (Exception e) {
             logger.error(LogMarker.EXCEPTION.getMarker(), "Exception while updating statistics!", e);
         }

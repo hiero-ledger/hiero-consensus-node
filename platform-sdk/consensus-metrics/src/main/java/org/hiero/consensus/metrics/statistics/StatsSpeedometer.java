@@ -3,6 +3,7 @@ package org.hiero.consensus.metrics.statistics;
 
 import com.swirlds.base.time.Time;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
 
@@ -218,8 +219,9 @@ public class StatsSpeedometer implements StatsBuffered {
         }
         lastTime = currentTime;
         if (allHistory != null && recordData) {
-            allHistory.recordValue(cyclesPerSecond, currentTime);
-            recentHistory.recordValue(cyclesPerSecond, currentTime);
+            final double seconds = currentTime / (double) TimeUnit.SECONDS.toNanos(1);
+            allHistory.recordValue(cyclesPerSecond, seconds);
+            recentHistory.recordValue(cyclesPerSecond, seconds);
         }
         return cyclesPerSecond;
     }
