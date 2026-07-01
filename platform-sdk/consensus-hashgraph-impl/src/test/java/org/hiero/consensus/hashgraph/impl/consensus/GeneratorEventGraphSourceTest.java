@@ -380,7 +380,7 @@ class GeneratorEventGraphSourceTest {
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("Events do not have ngen set when populateNgen is disabled")
+    @DisplayName("Events do not have ngen or sequence number set when populateNgen is disabled")
     void populateNgenDisabled() {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
@@ -389,12 +389,9 @@ class GeneratorEventGraphSourceTest {
 
         for (final PlatformEvent event : events) {
             assertFalse(event.hasNGen(), "events should not have ngen set when populateNgen is disabled");
-            assertTrue(
+            assertFalse(
                     event.hasSequenceNumber(),
-                    "every event should have sequence number assigned even if nGen is disabled");
-            assertTrue(
-                    event.getSequenceNumber() >= UNASSIGNED_SEQUENCE_NUMBER,
-                    "sequence number should be at least UNASSIGNED_SEQUENCE_NUMBER");
+                    "events should not have sequence number assigned even if populateNgen is disabled");
         }
     }
 
