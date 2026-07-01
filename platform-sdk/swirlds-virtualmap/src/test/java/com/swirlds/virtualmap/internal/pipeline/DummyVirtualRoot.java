@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.swirlds.metrics.api.Metrics;
@@ -153,7 +153,7 @@ class DummyVirtualRoot extends AbstractVirtualRoot {
         if (shouldBeFlushed) {
             return true;
         }
-        final long flushThreshold = VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
+        final long flushThreshold = DEFAULT_VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
         return (flushThreshold > 0) && (estimatedSize() >= flushThreshold);
     }
 
@@ -165,7 +165,7 @@ class DummyVirtualRoot extends AbstractVirtualRoot {
         if (flushed) {
             throw new IllegalStateException("copy is already flushed");
         }
-        if (!shouldBeFlushed && (estimatedSize < VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold())) {
+        if (!shouldBeFlushed && (estimatedSize < DEFAULT_VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold())) {
             throw new IllegalStateException("copy should not be flushed");
         }
         if (!hashed) {
@@ -213,7 +213,7 @@ class DummyVirtualRoot extends AbstractVirtualRoot {
     }
 
     private static boolean shouldBeFlushed(DummyVirtualRoot copy) {
-        final long copyFlushThreshold = VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
+        final long copyFlushThreshold = DEFAULT_VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
         return (copy.shouldBeFlushed()) || ((copyFlushThreshold > 0) && (copy.estimatedSize() >= copyFlushThreshold));
     }
 

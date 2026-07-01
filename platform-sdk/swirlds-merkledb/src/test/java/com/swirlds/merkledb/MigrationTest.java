@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,7 +49,7 @@ class MigrationTest {
         final int size = 5_000_000;
 
         // Build a virtual map.
-        VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
+        VirtualMap map = new VirtualMap(constructBuilder(), DEFAULT_CONFIGURATION);
         for (int i = 0; i < size; i++) {
             if (((i + 1) % (size / 100) == 0)) {
                 // Make a copy of the map in order to allow things to be flushed to disk
@@ -114,7 +114,7 @@ class MigrationTest {
         final int size = 5_000_000;
 
         // Build a virtual map.
-        VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
+        VirtualMap map = new VirtualMap(constructBuilder(), DEFAULT_CONFIGURATION);
 
         final Random random = new Random(42);
         final byte[] value = new byte[ExampleFixedValue.RANDOM_BYTES];
@@ -149,6 +149,6 @@ class MigrationTest {
      * Create a new virtual map data source builder.
      */
     private static MerkleDbDataSourceBuilder constructBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 1234);
+        return new MerkleDbDataSourceBuilder(DEFAULT_CONFIGURATION, fileSystemManager, 1234);
     }
 }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.benchmark.reconnect;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
@@ -14,7 +14,6 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
-import org.junit.jupiter.api.Assertions;
 
 /**
  * The code is partially borrowed from VirtualMapReconnectTestBase.java in swirlds-virtualmap/src/test/.
@@ -31,10 +30,11 @@ public abstract class VirtualMapReconnectBenchBase {
     protected VirtualDataSourceBuilder teacherBuilder;
     protected VirtualDataSourceBuilder learnerBuilder;
 
-    protected final ReconnectConfig reconnectConfig = new TestConfigBuilder()
+    protected final ReconnectConfig reconnectConfig = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
             .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "5s")
-            .getOrCreateConfig()
+            .build()
             .getConfigData(ReconnectConfig.class);
 
     protected VirtualDataSourceBuilder createBuilder() {
@@ -44,8 +44,8 @@ public abstract class VirtualMapReconnectBenchBase {
     protected void setupEach() {
         teacherBuilder = createBuilder();
         learnerBuilder = createBuilder();
-        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, DEFAULT_CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, DEFAULT_CONFIGURATION);
     }
 
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
@@ -58,7 +58,9 @@ public abstract class VirtualMapReconnectBenchBase {
         try {
             final var node = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
             node.release();
-            Assertions.assertTrue(learnerMap.isHashed(), "Learner root node must be hashed");
+            if (!learnerMap.isHashed()) {
+                throw new IllegalStateException("Learner root node is not hashed after reconnect");
+            }
         } finally {
             teacherMap.release();
             learnerMap.release();
