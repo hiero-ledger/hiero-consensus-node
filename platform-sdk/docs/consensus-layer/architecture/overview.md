@@ -1,7 +1,7 @@
 ---
 type: architecture-overview
 title: Architecture overview
-last_reviewed: 2026-06-12
+last_reviewed: 2026-06-30
 ---
 
 # Architecture overview
@@ -75,6 +75,19 @@ about what lives inside each module belongs in the per-topic files.
   [`topics/signed-state-management.md`](topics/signed-state-management.md)
   and
   [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
+- [`consensus-state-management`](../../../consensus-state-management) — hash,
+  sign, collect signatures for, persist, and expose signed states; extracted
+  from `swirlds-platform-core`. See
+  [`topics/signed-state-management.md`](topics/signed-state-management.md).
+- [`consensus-transaction-handling`](../../../consensus-transaction-handling)
+  — apply consensus rounds to the mutable state and prehandle application
+  transactions; extracted from `swirlds-platform-core`. See
+  [`interfaces/consensus-execution-boundary.md`](interfaces/consensus-execution-boundary.md).
+- [`consensus-iss-detection`](../../../consensus-iss-detection) — detect
+  Inconsistent State Signatures (ISS) by comparing this node's state hash
+  against the consensus of peer signatures, and respond per configuration;
+  extracted from `swirlds-platform-core`. See
+  [`topics/iss-detection.md`](topics/iss-detection.md).
 - [`swirlds-platform-core`](../../../swirlds-platform-core) — the wiring
   root: where Consensus modules are composed into a running platform and
   where the Consensus / Execution boundary is drawn today

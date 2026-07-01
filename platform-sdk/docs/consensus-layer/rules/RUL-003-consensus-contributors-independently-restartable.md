@@ -8,10 +8,10 @@ components:
   - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java
+  - consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java
+  - consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ReconnectCompleteStatusLogic.java
+  - consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java
   - consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java
 related:
   invariants: []
