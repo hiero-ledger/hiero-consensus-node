@@ -32,7 +32,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final int GRPC_PORT = 40840;
     private static final String MAVEN_CENTRAL_BASE_URL = "https://repo1.maven.org/maven2";
     private static final String HIER0_BLOCK_NODE_GROUP_PATH = "org/hiero/block-node";
-    private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/node";
+    private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/application-state";
     private static final String RSA_BOOTSTRAP_FILE_NAME = "rsa-bootstrap-roster.json";
     private static final Object PLUGINS_LOCK = new Object();
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
