@@ -479,9 +479,12 @@ require_cmd() {
 # the protobuf wire format of a block-stream file and slices out the serialized
 # LedgerIdPublicationTransactionBody — exactly the form the Block Node expects at
 # verification.tssParametersFilePath. No protobuf classes / JVM / compile needed: a
-# length-delimited field's value bytes ARE the serialized sub-message, so we navigate by
-# field number  Block.items(1) -> BlockItem.signed_transaction(4) ->
-# SignedTransaction.bodyBytes(1) -> TransactionBody.ledger_id_publication(77).
+# length-delimited field's value bytes ARE the serialized sub-message. The publication is
+# nested differently depending on the stream mode when it was published — records mode
+# (pre-cutover, the usual case here) wraps it in a RecordFileItem, blocks mode carries it as
+# a BlockItem.signed_transaction — so the script walks every sub-message recursively and
+# returns the first field-77 payload that validates as a LedgerIdPublicationTransactionBody
+# rather than hard-coding a single path.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -495,6 +498,8 @@ def read_varint(buf, pos):
     shift = 0
     result = 0
     while True:
+        if pos >= len(buf):
+            raise IndexError("varint past end of buffer")
         b = buf[pos]
         pos += 1
         result |= (b & 0x7F) << shift
@@ -503,51 +508,81 @@ def read_varint(buf, pos):
         shift += 7
 
 
-def iter_fields(msg):
+def parse_fields(msg):
+    # Return [(field_num, wire_type, value), ...] or None if `msg` is not cleanly-framed
+    # protobuf (every byte consumed, no field 0, no length overrun). Used both to walk the
+    # block and to validate candidate sub-messages before descending into them.
     pos = 0
     n = len(msg)
-    while pos < n:
-        key, pos = read_varint(msg, pos)
-        fnum = key >> 3
-        wtype = key & 0x07
-        if wtype == 0:
-            val, pos = read_varint(msg, pos)
-            yield fnum, wtype, val
-        elif wtype == 1:
-            yield fnum, wtype, msg[pos : pos + 8]
-            pos += 8
-        elif wtype == 2:
-            length, pos = read_varint(msg, pos)
-            yield fnum, wtype, msg[pos : pos + length]
-            pos += length
-        elif wtype == 5:
-            yield fnum, wtype, msg[pos : pos + 4]
-            pos += 4
-        else:
-            return
+    out = []
+    try:
+        while pos < n:
+            key, pos = read_varint(msg, pos)
+            fnum = key >> 3
+            wtype = key & 0x07
+            if fnum == 0:
+                return None
+            if wtype == 0:
+                val, pos = read_varint(msg, pos)
+                out.append((fnum, 0, val))
+            elif wtype == 2:
+                length, pos = read_varint(msg, pos)
+                if length < 0 or pos + length > n:
+                    return None
+                out.append((fnum, 2, msg[pos : pos + length]))
+                pos += length
+            elif wtype == 1:
+                pos += 8
+                out.append((fnum, 1, None))
+            elif wtype == 5:
+                pos += 4
+                out.append((fnum, 5, None))
+            else:
+                return None
+    except IndexError:
+        return None
+    return out if pos == n else None
 
 
-def find_field(msg, field_num):
-    for fnum, wtype, val in iter_fields(msg):
-        if fnum == field_num and wtype == 2:
+def is_ledger_id_publication(msg):
+    # A serialized LedgerIdPublicationTransactionBody: cleanly-framed protobuf whose only fields
+    # are ledger_id(1, bytes), history_proof_verification_key(2, bytes) and
+    # node_contributions(3, repeated msg), carrying a plausibly-sized ledger_id. This guards
+    # against a stray field 77 that happens to appear inside unrelated bytes.
+    fields = parse_fields(msg)
+    if not fields:
+        return False
+    has_ledger_id = False
+    for fnum, wtype, val in fields:
+        if fnum not in (1, 2, 3):
+            return False
+        if fnum == 1 and wtype == 2 and 16 <= len(val) <= 64:
+            has_ledger_id = True
+    return has_ledger_id
+
+
+def find_ledger_id_publication(msg, depth=0):
+    # The LedgerIdPublication is nested differently depending on the stream mode when it was
+    # published. Records mode (pre-cutover, the usual case for this seed) wraps it in a record file:
+    #   Block.items(1) -> BlockItem.record_file(10) -> RecordFileItem.record_file_contents(2)
+    #   -> RecordStreamFile.record_stream_items(3) -> RecordStreamItem.transaction(1)
+    #   -> Transaction.signedTransactionBytes(5) -> SignedTransaction.bodyBytes(1)
+    #   -> TransactionBody.ledger_id_publication(77)
+    # Blocks mode uses BlockItem.signed_transaction(4) -> SignedTransaction.bodyBytes(1) -> 77.
+    # Rather than hard-code either path, walk every length-delimited sub-message and return the
+    # first field 77 whose bytes validate as a LedgerIdPublicationTransactionBody.
+    fields = parse_fields(msg)
+    if not fields:
+        return None
+    for fnum, wtype, val in fields:
+        if wtype != 2:
+            continue
+        if fnum == 77 and is_ledger_id_publication(val):
             return val
-    return None
-
-
-def extract_from_block(data):
-    # Block.items = field 1 (repeated). Each item -> BlockItem.
-    for fnum, wtype, val in iter_fields(data):
-        if fnum != 1 or wtype != 2:
-            continue
-        stx = find_field(val, 4)  # BlockItem.signed_transaction
-        if stx is None:
-            continue
-        body = find_field(stx, 1)  # SignedTransaction.bodyBytes
-        if body is None:
-            continue
-        pub = find_field(body, 77)  # TransactionBody.ledger_id_publication
-        if pub is not None:
-            return pub
+        if depth < 12 and len(val) > 0 and parse_fields(val) is not None:
+            found = find_ledger_id_publication(val, depth + 1)
+            if found is not None:
+                return found
     return None
 
 
@@ -561,7 +596,7 @@ def main():
             with open(path, "rb") as f:
                 raw = f.read()
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
-            pub = extract_from_block(data)
+            pub = find_ledger_id_publication(data)
             if pub is not None:
                 with open(out, "wb") as o:
                     o.write(pub)
@@ -672,11 +707,12 @@ seed_block_node_tss_parameters() {
 
   # Poll for the LedgerIdPublication BEFORE the 0.77 cutover. The ledger id is published
   # mid-chain only after the TSS history proof finalizes (during/just after the 0.76 step), so it
-  # is typically NOT in a closed, BN-streamed block the instant Step 11 begins (observed: the
-  # history proof finalizes ~seconds before this runs). Re-pull the BN's live blocks and
-  # re-extract until the publication appears; the BN needs it to verify the real-TSS blocks the
-  # 0.77 cutover produces. The network keeps closing blocks on its block-period timer, so the
-  # publication lands + streams to the BN within a few rounds.
+  # is typically NOT in a closed, BN-streamed block the instant this runs (observed: the history
+  # proof finalizes ~seconds before this). Re-pull the BN's live blocks and re-extract until the
+  # publication appears; the BN needs it to verify the real-TSS blocks the 0.77 cutover produces.
+  # The network keeps closing blocks on its block-period timer, so the publication lands + streams
+  # to the BN within a few rounds. Pre-cutover it is wrapped in a record file (RecordFileItem), so
+  # the extractor walks the block recursively rather than assuming a native signed_transaction.
   local deadline=$(( SECONDS + ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300} ))
   local attempt=0
   echo "Waiting for the LedgerIdPublication to appear in the Block Node stream (up to ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s) before the 0.77 cutover"
@@ -3864,22 +3900,23 @@ if should_run_step 10; then
   sleep 5
   # Still streaming WRBs but TSS is enabled, force mock signatures
   run_076_upgrade
+  # Bootstrap the Block Node with the network's TSS ledger id BEFORE the 0.77 cutover so it can
+  # verify the real-TSS-signed blocks the cutover starts producing. The ledger id is published
+  # mid-chain during THIS 0.76 step; the BN (deployed mid-chain) never picks it up on its own. We
+  # do it here — after the 0.76 upgrade and before the 0.77 step begins — so the ledger-id check is
+  # part of Step 10, not the 0.77 cutover. See seed_block_node_tss_parameters for why this may
+  # become unnecessary.
+  seed_block_node_tss_parameters
+  # The seed rolled the BN; let it re-catch-up to the live 0.76 stream before Step 11 restarts the
+  # CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the BN stalls
+  # (mirror then can't get the post-cutover blocks).
+  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding to the 0.77 cutover anyway" >&2
   print_step_complete "Step 10/12"
 fi
 
 if should_run_step 11; then
   print_banner "Step 11/12: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
   sleep 5
-  # Pre-cutover: bootstrap the Block Node with the network's TSS ledger id so it can
-  # verify the real-TSS-signed blocks the 0.77 cutover starts producing. The ledger id
-  # was published mid-chain during the 0.76 step; the BN (deployed mid-chain) never
-  # picked it up on its own. See seed_block_node_tss_parameters for why this may become
-  # unnecessary. Run AFTER Step 10 (publication exists) and BEFORE run_077_upgrade.
-  seed_block_node_tss_parameters
-  # The seed rolled the BN; let it re-catch-up to the live stream on 0.76 before run_077_upgrade
-  # restarts the CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the
-  # BN stalls (mirror then can't get the post-cutover blocks).
-  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding with the 0.77 cutover anyway" >&2
   run_077_upgrade
   print_step_complete "Step 11/12"
 fi
