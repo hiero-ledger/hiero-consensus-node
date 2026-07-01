@@ -34,7 +34,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
 
     /**
      * Flushes the primary consensus-layer pipeline component-by-component, in upstream-to-downstream order: intake →
-     * pces → gossip → hashgraph → transaction handling (pre-handler then handler) → event creation → state hasher.
+     * pces → gossip → hashgraph → transaction handling (pre-handler then handler) → event creation → state management.
      *
      * <p>This only flushes the pipeline; it does not decide whether in-flight work is delivered or discarded. That
      * depends on the state of the components when it is called — live components deliver (the PCES-replay caller),
@@ -58,7 +58,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.hashgraphModule().flush();
         components.transactionHandlingModule().flush();
         components.eventCreatorModule().flush();
-        components.stateHasherWiring().flush();
+        components.stateManagementModule().flush();
     }
 
     /**
