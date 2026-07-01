@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.status.logic;
 
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertException;
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertNoTransition;
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertTransition;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertException;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertNoTransition;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertTransition;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
@@ -41,69 +41,51 @@ class BehindStatusLogicTests {
     @Test
     @DisplayName("Go to RECONNECT_COMPLETE")
     void toReconnectComplete() {
-        triggerActionAndAssertTransition(
-                logic::processReconnectCompleteAction,
-                new ReconnectCompleteAction(0),
-                PlatformStatus.RECONNECT_COMPLETE);
+        assertTransition(logic, new ReconnectCompleteAction(0), PlatformStatus.RECONNECT_COMPLETE);
     }
 
     @Test
     @DisplayName("Go to CATASTROPHIC_FAILURE")
     void toCatastrophicFailure() {
-        triggerActionAndAssertTransition(
-                logic::processCatastrophicFailureAction,
-                new CatastrophicFailureAction(),
-                PlatformStatus.CATASTROPHIC_FAILURE);
+        assertTransition(logic, new CatastrophicFailureAction(), PlatformStatus.CATASTROPHIC_FAILURE);
     }
 
     @Test
     @DisplayName("Throw exception when receiving duplicate freeze round notification")
     void duplicateFreezeRound() {
-        triggerActionAndAssertNoTransition(
-                logic::processFreezePeriodEnteredAction, new FreezePeriodEnteredAction(0), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processFreezePeriodEnteredAction, new FreezePeriodEnteredAction(0), logic.getStatus());
+        assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
+        assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
     }
 
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        triggerActionAndAssertTransition(
-                logic::processStateWrittenToDiskAction,
-                new StateWrittenToDiskAction(0, true),
-                PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new StateWrittenToDiskAction(0, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
+        assertNoTransition(
+                logic,
                 new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
                 logic.getStatus());
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
+        assertNoTransition(
+                logic,
                 new TimeElapsedAction(
                         time.now(),
                         new TimeElapsedAction.QuiescingStatus(true, time.now().minus(5, ChronoUnit.SECONDS))),
                 logic.getStatus());
-        triggerActionAndAssertNoTransition(
-                logic::processSelfEventReachedConsensusAction,
-                new SelfEventReachedConsensusAction(time.now()),
-                logic.getStatus());
-        triggerActionAndAssertNoTransition(
-                logic::processFreezePeriodEnteredAction, new FreezePeriodEnteredAction(0), logic.getStatus());
-        triggerActionAndAssertNoTransition(
-                logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
+        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
     }
 
     @Test
     @DisplayName("Unexpected actions should cause exceptions")
     void unexpectedActions() {
-        triggerActionAndAssertException(
-                logic::processStartedReplayingEventsAction, new StartedReplayingEventsAction(), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        triggerActionAndAssertException(logic::processFallenBehindAction, new FallenBehindAction(), logic.getStatus());
+        assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
+        assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
+        assertException(logic, new FallenBehindAction(), logic.getStatus());
     }
 }

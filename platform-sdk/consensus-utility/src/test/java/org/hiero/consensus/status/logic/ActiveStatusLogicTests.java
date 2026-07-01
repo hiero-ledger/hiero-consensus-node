@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.status.logic;
 
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertException;
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertNoTransition;
-import static org.hiero.consensus.status.logic.StatusLogicTestUtils.triggerActionAndAssertTransition;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertException;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertNoTransition;
+import static org.hiero.consensus.status.logic.StatusLogicTestUtils.assertTransition;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
@@ -48,8 +48,7 @@ class ActiveStatusLogicTests {
     @Test
     @DisplayName("Go to FREEZING")
     void toFreezing() {
-        triggerActionAndAssertTransition(
-                logic::processFreezePeriodEnteredAction, new FreezePeriodEnteredAction(0), PlatformStatus.FREEZING);
+        assertTransition(logic, new FreezePeriodEnteredAction(0), PlatformStatus.FREEZING);
     }
 
     @Test
@@ -57,88 +56,60 @@ class ActiveStatusLogicTests {
     void toChecking() {
         final QuiescingStatus neutralQuiescingStatus =
                 new QuiescingStatus(false, time.now().minus(Duration.of(1, ChronoUnit.HOURS)));
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
-                logic.getStatus());
+        assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         time.tick(Duration.ofSeconds(2));
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
-                logic.getStatus());
+        assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         // restart the timer that will trigger the status change to checking
-        triggerActionAndAssertNoTransition(
-                logic::processSelfEventReachedConsensusAction,
-                new SelfEventReachedConsensusAction(time.now()),
-                logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
 
         // if the self event reaching consensus successfully restarted the timer, then the status should still be active
         time.tick(Duration.ofSeconds(4));
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
-                logic.getStatus());
+        assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         time.tick(Duration.ofSeconds(2));
-        triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), neutralQuiescingStatus),
-                PlatformStatus.CHECKING);
+        assertTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), PlatformStatus.CHECKING);
     }
 
     @Test
     @DisplayName("Go to BEHIND")
     void toBehind() {
-        triggerActionAndAssertTransition(
-                logic::processFallenBehindAction, new FallenBehindAction(), PlatformStatus.BEHIND);
+        assertTransition(logic, new FallenBehindAction(), PlatformStatus.BEHIND);
     }
 
     @Test
     @DisplayName("Go to CATASTROPHIC_FAILURE")
     void toCatastrophicFailure() {
-        triggerActionAndAssertTransition(
-                logic::processCatastrophicFailureAction,
-                new CatastrophicFailureAction(),
-                PlatformStatus.CATASTROPHIC_FAILURE);
+        assertTransition(logic, new CatastrophicFailureAction(), PlatformStatus.CATASTROPHIC_FAILURE);
     }
 
     @Test
     @DisplayName("Go to FREEZE_COMPLETE")
     void toFreezeComplete() {
-        triggerActionAndAssertTransition(
-                logic::processStateWrittenToDiskAction,
-                new StateWrittenToDiskAction(0, true),
-                PlatformStatus.FREEZE_COMPLETE);
+        assertTransition(logic, new StateWrittenToDiskAction(0, true), PlatformStatus.FREEZE_COMPLETE);
     }
 
     @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        triggerActionAndAssertNoTransition(
-                logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, false), logic.getStatus());
+        assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
     }
 
     @Test
     @DisplayName("Unexpected actions should cause exceptions")
     void unexpectedActions() {
-        triggerActionAndAssertException(
-                logic::processReconnectCompleteAction, new ReconnectCompleteAction(0), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        triggerActionAndAssertException(
-                logic::processStartedReplayingEventsAction, new StartedReplayingEventsAction(), logic.getStatus());
+        assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());
+        assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
+        assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
     }
 
     @Test
     @DisplayName("Remain ACTIVE when quiescing")
     void remainActiveWhenQuiescing() {
         // Even with time elapsed, should remain ACTIVE when quiescing
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), new QuiescingStatus(true, time.now())),
-                logic.getStatus());
+        assertNoTransition(
+                logic, new TimeElapsedAction(time.now(), new QuiescingStatus(true, time.now())), logic.getStatus());
     }
 
     @Test
@@ -147,8 +118,8 @@ class ActiveStatusLogicTests {
         final Instant quiescenceActiveTime = time.now();
         time.tick(Duration.ofSeconds(2));
         // Should remain ACTIVE when not enough time has passed since quiescence command (2s < 5s delay)
-        triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction,
+        assertNoTransition(
+                logic,
                 new TimeElapsedAction(time.now(), new QuiescingStatus(false, quiescenceActiveTime)),
                 logic.getStatus());
     }
@@ -159,25 +130,16 @@ class ActiveStatusLogicTests {
         final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
         time.tick(Duration.ofSeconds(6));
         // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
-        triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), oldQuiescenceStatus),
-                PlatformStatus.CHECKING);
+        assertTransition(logic, new TimeElapsedAction(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
     }
 
     @Test
     @DisplayName("Go to CHECKING when sufficient time since quiescence command and consensus")
     void toCheckingWhenSufficientTimeSinceBothQuiescenceCommandAndConsensus() {
         final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
-        triggerActionAndAssertNoTransition(
-                logic::processSelfEventReachedConsensusAction,
-                new SelfEventReachedConsensusAction(time.now()),
-                PlatformStatus.ACTIVE);
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), PlatformStatus.ACTIVE);
         time.tick(Duration.ofSeconds(6));
         // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
-        triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), oldQuiescenceStatus),
-                PlatformStatus.CHECKING);
+        assertTransition(logic, new TimeElapsedAction(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
     }
 }
