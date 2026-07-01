@@ -90,7 +90,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires com.swirlds.merkledb;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;

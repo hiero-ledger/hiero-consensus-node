@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForPrecheck
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransferList;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 import static java.lang.Thread.sleep;
@@ -129,7 +130,9 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
     }
 
     protected long costOnlyNodePayment(HapiSpec spec) throws Throwable {
-        return 0L;
+        // A generous default node payment that only bootstraps the COST_ANSWER query, which returns
+        // the real cost; the actual query is then paid with that returned amount.
+        return ONE_HUNDRED_HBARS;
     }
 
     public Query getQuery() {
