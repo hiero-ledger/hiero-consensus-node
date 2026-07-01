@@ -37,6 +37,6 @@ timingSensitiveModuleInfo {
 
 jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.hiero.consensus.metrics")
     requires("jmh.core")
 }
