@@ -256,73 +256,73 @@ public class HashgraphPicture extends JPanel {
         g.fillOval(xPos, yPos, d, d);
         g.setFont(g.getFont().deriveFont(Font.BOLD));
 
-        String s = "";
+        StringBuilder s = new StringBuilder();
 
         if (options.writeRoundCreated()) {
-            s += " " + event.getRoundCreated();
+            s.append(" ").append(event.getRoundCreated());
         }
         if (options.writeVote() && event.isWitness()) {
             for (int i = 0; i < event.getVotesSize(); i++) {
                 // showing T or F from true/false for readability on the picture
                 final String vote = event.getVote(i) ? "T" : "F";
-                s += vote;
+                s.append(vote);
             }
         }
         if (options.writeEventHash()) {
             // showing first two characters from the hash of the event
-            s += " h:" + event.getBaseHash().toString().substring(0, 2);
+            s.append(" h:").append(event.getBaseHash().toString(), 0, 2);
         }
         if (options.writeRoundReceived() && event.getRoundReceived() > 0) {
-            s += " " + event.getRoundReceived();
+            s.append(" ").append(event.getRoundReceived());
         }
         // if not consensus, then there's no order yet
         if (options.writeConsensusOrder() && event.isConsensus()) {
-            s += " " + event.getBaseEvent().getConsensusOrder();
+            s.append(" ").append(event.getBaseEvent().getConsensusOrder());
         }
         if (options.writeConsensusTimeStamp()) {
             final Instant t = event.getConsensusTimestamp();
             if (t != null) {
-                s += " " + HashgraphGuiConstants.FORMATTER.format(t);
+                s.append(" ").append(HashgraphGuiConstants.FORMATTER.format(t));
             }
         }
         if (options.writeNGen()) {
-            s += " " + event.getNGen();
+            s.append(" ").append(event.getNGen());
         }
 
         if (options.writeSeqNum()) {
-            s += " " + event.getSequenceNumber();
+            s.append(" ").append(event.getSequenceNumber());
         }
 
         if (options.writeBirthRound()) {
-            s += " " + event.getBirthRound();
+            s.append(" ").append(event.getBirthRound());
         }
 
         final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
         if (options.writeBranches()
                 && hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(gossipEvent)) {
-            s += " " + "\\/ "
-                    + hashgraphSource
+            s.append(" " + "\\/ ")
+                    .append(hashgraphSource
                             .getEventStorage()
                             .getBranchedEventsMetadata()
                             .get(gossipEvent)
-                            .branchIndex();
+                            .branchIndex());
         }
 
         if (options.writeDeGen()) {
-            s += " " + event.getDeGen();
+            s.append(" ").append(event.getDeGen());
         }
         if (!s.isEmpty()) {
-            final Rectangle2D rect = fm.getStringBounds(s, g);
+            final Rectangle2D rect = fm.getStringBounds(s.toString(), g);
 
             final int x = (int) (pictureMetadata.xpos(event) - rect.getWidth() / 2. - fa / 4.);
             final int y = (int) (pictureMetadata.ypos(event) + rect.getHeight() / 2. - fd / 2);
             g.setColor(HashgraphGuiConstants.LABEL_OUTLINE);
-            g.drawString(s, x - 1, y - 1);
-            g.drawString(s, x + 1, y - 1);
-            g.drawString(s, x - 1, y + 1);
-            g.drawString(s, x + 1, y + 1);
+            g.drawString(s.toString(), x - 1, y - 1);
+            g.drawString(s.toString(), x + 1, y - 1);
+            g.drawString(s.toString(), x - 1, y + 1);
+            g.drawString(s.toString(), x + 1, y + 1);
             g.setColor(color);
-            g.drawString(s, x, y);
+            g.drawString(s.toString(), x, y);
         }
     }
 

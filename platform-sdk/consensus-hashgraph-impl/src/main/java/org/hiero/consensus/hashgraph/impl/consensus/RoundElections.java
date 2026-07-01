@@ -37,7 +37,7 @@ public class RoundElections {
      * witnesses in a single round)
      */
     private final List<CandidateWitness> elections = new ArrayList<>();
-    /** The minimum non-deterministic generation of all the judges. Only set once the judges are found. */
+    /** The minimum sequence number of all the judges. Only set once the judges are found. */
     private long minSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
     /** the minimum birth round of all the judges, this is only set once the judges are found */
     private long minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
