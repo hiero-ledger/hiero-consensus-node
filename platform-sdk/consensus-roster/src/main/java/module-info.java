@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.roster {
-    exports org.hiero.consensus.roster;
     exports org.hiero.consensus.roster.schemas;
+    exports org.hiero.consensus.roster;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

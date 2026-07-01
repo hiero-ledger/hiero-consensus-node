@@ -3,12 +3,12 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.state.management.config.StateManagementConfigurationExtension;
 
 module org.hiero.consensus.state.management {
-    exports org.hiero.consensus.state.management;
     exports org.hiero.consensus.state.management.config;
     exports org.hiero.consensus.state.management.persistence to
             com.swirlds.platform.core,
             org.hiero.consensus.reconnect.impl,
             org.hiero.consensus.pcli;
+    exports org.hiero.consensus.state.management;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

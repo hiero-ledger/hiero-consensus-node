@@ -3,8 +3,8 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfigurationExtension;
 
 module org.hiero.consensus.transaction.handling {
-    exports org.hiero.consensus.transaction.handling;
     exports org.hiero.consensus.transaction.handling.config;
+    exports org.hiero.consensus.transaction.handling;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;

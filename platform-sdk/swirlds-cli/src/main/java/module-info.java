@@ -1,14 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.pcli {
-    opens org.hiero.consensus.pcli to
-            info.picocli;
-    opens org.hiero.consensus.pcli.utility to
-            info.picocli;
-    opens org.hiero.consensus.pcli.graph to
-            info.picocli;
-    opens org.hiero.consensus.pcli.recovery to
-            info.picocli;
-
     exports org.hiero.consensus.pcli.utility;
     exports org.hiero.consensus.pcli;
 
@@ -49,4 +40,13 @@ module org.hiero.consensus.pcli {
     requires io.github.classgraph;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
+
+    opens org.hiero.consensus.pcli to
+            info.picocli;
+    opens org.hiero.consensus.pcli.utility to
+            info.picocli;
+    opens org.hiero.consensus.pcli.graph to
+            info.picocli;
+    opens org.hiero.consensus.pcli.recovery to
+            info.picocli;
 }
