@@ -79,6 +79,10 @@ jobs:
           done
           (cd "${STAGING_DIR}" && sha384sum decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin | tee "${RUNNER_TEMP}/expected-artifact-hashes.txt")
 
+          # Hash file consumed by the consensus node to detect the artifacts are already in place and
+          # skip re-downloading the archive (see WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME).
+          printf '%s\n' "${actual_sha384}" > "${STAGING_DIR}/wraps.sha384"
+
       - name: Setup QEmu Support
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
@@ -112,6 +116,7 @@ jobs:
       - name: Verify Published Image
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          TARBALL_SHA384: ${{ steps.download.outputs.tarball-sha384 }}
         run: |
           docker pull "${IMAGE_NAME}@${IMAGE_DIGEST}"
           cid="$(docker create "${IMAGE_NAME}@${IMAGE_DIGEST}" true)"
@@ -119,6 +124,11 @@ jobs:
           docker cp "${cid}:/." "${RUNNER_TEMP}/verify/"
           docker rm "${cid}" >/dev/null
           (cd "${RUNNER_TEMP}/verify" && sha384sum -c "${RUNNER_TEMP}/expected-artifact-hashes.txt")
+          got="$(tr -d '[:space:]' < "${RUNNER_TEMP}/verify/wraps.sha384")"
+          if [[ "${got}" != "${TARBALL_SHA384}" ]]; then
+            echo "::error::wraps.sha384 in image (${got}) does not match tarball SHA-384 (${TARBALL_SHA384})"
+            exit 1
+          fi
 
       - name: Job Summary
         env:

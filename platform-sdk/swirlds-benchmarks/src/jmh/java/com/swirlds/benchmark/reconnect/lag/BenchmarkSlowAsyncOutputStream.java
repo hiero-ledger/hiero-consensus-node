@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.jspecify.annotations.NonNull;
 
 /**
@@ -33,7 +33,7 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
      * @param delayNetworkMicroseconds base network delay in microseconds
      * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
-     * @param reconnectConfig the reconnect configuration
+     * @param syncConfig the sync configuration
      */
     public BenchmarkSlowAsyncOutputStream(
             @NonNull final DataOutputStream out,
@@ -42,12 +42,12 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final VirtualMapSyncConfig syncConfig) {
         super(
                 out,
-                reconnectConfig.asyncStreamBufferSize(),
-                reconnectConfig.asyncOutputStreamFlush(),
-                reconnectConfig.asyncStreamTimeout());
+                syncConfig.asyncStreamBufferSize(),
+                syncConfig.asyncOutputStreamFlush(),
+                syncConfig.asyncStreamTimeout());
 
         // Note that we use randomSeed and -randomSeed for the two fuzzers
         // to ensure that they don't end up returning the exact same

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
@@ -23,7 +24,6 @@ import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Utility methods for testing virtual map reconnects.
@@ -50,12 +50,12 @@ public final class ReconnectTestUtils {
      *
      * @param learnerMap leaner map to synchronize with teacher map
      * @param teacherMap teacher map as desired virtual map
-     * @param reconnectConfig reconnect config
+     * @param configuration configuration
      * @return resulting map after synchronization
      * @throws Exception if any exception happens during synchronization
      */
     public static VirtualMap testSynchronization(
-            final VirtualMap learnerMap, final VirtualMap teacherMap, final ReconnectConfig reconnectConfig)
+            final VirtualMap learnerMap, final VirtualMap teacherMap, final Configuration configuration)
             throws Exception {
         System.out.println("------------");
         System.out.println("learner map: " + learnerMap.getMetadata());
@@ -66,7 +66,7 @@ public final class ReconnectTestUtils {
 
         try (PairedStreams streams = new PairedStreams()) {
             final LearningSynchronizer learner =
-                    new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics) {
+                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics) {
 
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
@@ -77,7 +77,7 @@ public final class ReconnectTestUtils {
                     };
 
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(teacherMap, getStaticThreadManager(), reconnectConfig) {
+                    new TeachingSynchronizer(teacherMap, getStaticThreadManager(), configuration) {
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(
                                 @NonNull ThreadManager threadManager, @NonNull Runnable breakConnection) {
