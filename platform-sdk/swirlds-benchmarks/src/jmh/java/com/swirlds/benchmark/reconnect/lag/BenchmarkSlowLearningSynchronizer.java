@@ -3,12 +3,13 @@ package com.swirlds.benchmark.reconnect.lag;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataOutputStream;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link LearningSynchronizer} with simulated delay.
@@ -24,7 +25,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
     /**
      * Create a new learning synchronizer with simulated latency.
      *
-     * @param reconnectConfig the reconnect configuration
+     * @param configuration the configuration
      * @param metrics metrics
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
@@ -33,7 +34,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
      * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
      */
     public BenchmarkSlowLearningSynchronizer(
-            @NonNull final ReconnectConfig reconnectConfig,
+            @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             final long randomSeed,
             final long delayStorageMicroseconds,
@@ -41,7 +42,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent) {
 
-        super(getStaticThreadManager(), reconnectConfig, metrics);
+        super(getStaticThreadManager(), configuration, metrics);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;
@@ -55,7 +56,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
      */
     @Override
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final DataOutputStream out, @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
         return new BenchmarkSlowAsyncOutputStream(
                 out,
                 randomSeed,
@@ -63,6 +64,6 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
                 delayStorageFuzzRangePercent,
                 delayNetworkMicroseconds,
                 delayNetworkFuzzRangePercent,
-                reconnectConfig);
+                syncConfig);
     }
 }
