@@ -86,8 +86,10 @@ public class DispatchValidator {
         // node's own account (gossiped node-submitted votes that the node pays for itself). Any other
         // payer means a node is charging a foreign account it never authorized; treat it as a node
         // due-diligence failure so the creator node is charged instead of the named payer. Genesis is
-        // already waived above.
-        if (dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
+        // already waived above. This applies only to a live consensus node (where the system-entities
+        // flag is present); the in-process standalone transaction executor has no gossip source and
+        // legitimately dispatches NODE-category transactions with a caller-chosen payer, so it is exempt.
+        if (systemEntitiesCreatedFlag != null && dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
             return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_ACCOUNT_ID);
         }
         final var creatorError = creatorErrorIfKnown(dispatch);

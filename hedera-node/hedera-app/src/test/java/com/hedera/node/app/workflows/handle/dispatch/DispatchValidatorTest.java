@@ -57,6 +57,7 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -196,6 +197,29 @@ class DispatchValidatorTest {
                         FEES,
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
+        assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerAllowedWhenNoSystemEntitiesFlag() throws PreCheckException {
+        // The in-process standalone transaction executor supplies a null system-entities flag and
+        // legitimately dispatches NODE-category transactions (empty signature map) with a caller-chosen,
+        // non-node payer. The payer guard must not reject these; it applies only on a live consensus node
+        // (where the flag is present), so with a null flag the dispatch proceeds to a normal success.
+        givenCreatorInfo();
+        givenNodeDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        // Config is only consulted by the payer guard, which is skipped when the flag is null; stub it
+        // leniently so that if the guard were (incorrectly) reached it would reject with a clean
+        // INVALID_PAYER_ACCOUNT_ID rather than a mock NPE — making this a faithful negative control.
+        lenient().when(dispatch.config()).thenReturn(HederaTestConfigBuilder.createConfig());
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
         assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
     }
 
@@ -465,6 +489,10 @@ class DispatchValidatorTest {
 
     private void givenScheduledDispatch() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+    }
+
+    private void givenNodeDispatch() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.NODE);
     }
 
     private void givenCreatorInfo() {
