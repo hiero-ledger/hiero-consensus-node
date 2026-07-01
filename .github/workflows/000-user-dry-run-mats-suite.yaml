@@ -300,6 +300,7 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
+          errors: true
 
       - name: Notify environment failure summary (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'environment' }}
