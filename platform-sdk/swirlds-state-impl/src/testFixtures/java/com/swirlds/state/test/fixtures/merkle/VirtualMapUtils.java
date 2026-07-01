@@ -3,7 +3,6 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
@@ -18,7 +17,7 @@ public final class VirtualMapUtils {
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
-            .withSource(new SimpleConfigSource().withValue(MerkleDbConfig_.INITIAL_CAPACITY, "" + 65_536L))
+            .withValue(MerkleDbConfig_.INITIAL_CAPACITY, "" + 65_536L)
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(PathsConfig.class)
             .withConfigDataType(ReconnectConfig.class)

@@ -541,13 +541,8 @@ jobs:
     outputs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
