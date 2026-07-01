@@ -32,7 +32,7 @@ import java.time.Duration;
  */
 @ConfigData("blockStream.buffer")
 public record BlockBufferConfig(
-        @ConfigProperty(defaultValue = "150") @Min(0) @NetworkProperty int maxBlocks,
+        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int maxBlocks,
         @ConfigProperty(defaultValue = "1s") @Min(1) @NetworkProperty Duration workerInterval,
         @ConfigProperty(defaultValue = "50.0") @Min(0) @NetworkProperty double actionStageThreshold,
         @ConfigProperty(defaultValue = "20s") @Min(0) @NetworkProperty Duration actionGracePeriod,
