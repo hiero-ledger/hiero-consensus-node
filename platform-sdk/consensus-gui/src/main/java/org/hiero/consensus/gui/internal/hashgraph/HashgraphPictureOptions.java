@@ -71,9 +71,9 @@ public interface HashgraphPictureOptions {
     boolean simpleColors();
 
     /**
-     * @return the number of generations to display
+     * @return the number of events to display
      */
-    int getNumGenerationsDisplay();
+    int getNumEventsDisplay();
 
     /**
      * @return the first generation that should be displayed

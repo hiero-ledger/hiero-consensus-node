@@ -376,7 +376,7 @@ class GeneratorEventGraphSourceTest {
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("Events do not have ngen set when populateNgen is disabled")
+    @DisplayName("Events do not have ngen or sequence number set when populateNgen is disabled")
     void populateNgenDisabled() {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();

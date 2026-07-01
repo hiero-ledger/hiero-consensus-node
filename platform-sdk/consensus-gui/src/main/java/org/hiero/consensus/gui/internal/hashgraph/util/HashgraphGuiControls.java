@@ -2,7 +2,7 @@
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
 import static org.hiero.consensus.gui.internal.GuiUtils.wrap;
-import static org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
+import static org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants.DEFAULT_NUM_EVENTS_TO_DISPLAY;
 
 import java.awt.Checkbox;
 import java.awt.Color;
@@ -58,7 +58,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
 
     private final Component[] comps;
     /** only draw this many generations, at most */
-    private final JSpinner numGenerations;
+    private final JSpinner numEvents;
 
     private final JSpinner startGeneration;
 
@@ -81,12 +81,12 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         displayLatestEvents.setState(true);
 
         // boxing so that the JSpinner will use an int internally
-        numGenerations = new JSpinner(new SpinnerNumberModel(
-                Integer.valueOf(DEFAULT_GENERATIONS_TO_DISPLAY),
+        numEvents = new JSpinner(new SpinnerNumberModel(
+                Integer.valueOf(DEFAULT_NUM_EVENTS_TO_DISPLAY),
                 Integer.valueOf(5),
                 Integer.valueOf(1000),
                 Integer.valueOf(1)));
-        ((JSpinner.DefaultEditor) numGenerations.getEditor()).getTextField().setColumns(10);
+        ((JSpinner.DefaultEditor) numEvents.getEditor()).getTextField().setColumns(10);
         // boxing so that the JSpinner will use a long internally
         startGeneration = new JSpinner(new SpinnerNumberModel(
                 Long.valueOf(EventConstants.FIRST_GENERATION),
@@ -161,7 +161,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         constr.gridwidth = 1; // each component is one cell
         checkboxesPanel.add(new Label("Display "), constr);
         constr.gridx++;
-        checkboxesPanel.add(numGenerations, constr);
+        checkboxesPanel.add(numEvents, constr);
         constr.gridx++;
         constr.gridwidth = GridBagConstraints.RELATIVE;
         checkboxesPanel.add(new Label(" generations"), constr);
@@ -261,11 +261,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     }
 
     @Override
-    public int getNumGenerationsDisplay() {
-        if (numGenerations.getValue() instanceof Integer generations) {
-            return generations;
+    public int getNumEventsDisplay() {
+        if (numEvents.getValue() instanceof Integer numEventsInt) {
+            return numEventsInt;
         }
-        return DEFAULT_GENERATIONS_TO_DISPLAY;
+        return DEFAULT_NUM_EVENTS_TO_DISPLAY;
     }
 
     @Override
