@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
@@ -17,18 +10,25 @@ import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.get
 import static com.hedera.node.app.service.token.impl.util.TokenKey.METADATA_KEY;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
+import com.hedera.hapi.node.token.NftAllowance;
+import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -43,17 +43,24 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Provides the state transition for token update.
  */
 @Singleton
 public class TokenUpdateHandler extends BaseTokenHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(TokenUpdateHandler.class);
     private static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0L).build();
     private final TokenUpdateValidator tokenUpdateValidator;
@@ -148,6 +155,13 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 // If the token is fungible, transfer fungible balance to new treasury
                 // If it is non-fungible token transfer the ownership of the NFTs from old treasury to new treasury
                 transferTokensToNewTreasury(existingTreasury, newTreasury, token, tokenRelStore, accountStore);
+                dispatchSyntheticAllowanceCleanupForOldTreasury(
+                        context,
+                        existingTreasury,
+                        tokenId,
+                        token,
+                        accountStore,
+                        config.getConfigData(HederaConfig.class).allowancesMaxTransactionLimit());
             }
         }
         final var tokenBuilder = customizeToken(token, resolvedExpiry, op, txn.hasTransactionID());
@@ -584,6 +598,110 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         accountStore.put(copyOldTreasury.build());
         accountStore.put(copyNewTreasury.build());
         tokenRelStore.put(newRelCopy.build());
+    }
+
+    private void dispatchSyntheticAllowanceCleanupForOldTreasury(
+            @NonNull final HandleContext context,
+            @NonNull final AccountID oldTreasury,
+            @NonNull final TokenID tokenId,
+            @NonNull final Token token,
+            @NonNull final WritableAccountStore accountStore,
+            final int allowancesMaxTransactionLimit) {
+        final var account = accountStore.getAccountById(oldTreasury);
+        if (account == null) return;
+        if (token.tokenType().equals(FUNGIBLE_COMMON)) {
+            final var staleAllowances = account.tokenAllowances().stream()
+                    .filter(a -> Objects.equals(a.tokenId(), tokenId))
+                    .map(a -> TokenAllowance.newBuilder()
+                            .tokenId(tokenId)
+                            .owner(oldTreasury)
+                            .spender(a.spenderId())
+                            .amount(0L)
+                            .build())
+                    .toList();
+            if (!staleAllowances.isEmpty()) {
+                final var chunkSize = Math.max(1, allowancesMaxTransactionLimit);
+                for (int i = 0; i < staleAllowances.size(); i += chunkSize) {
+                    final var chunk = staleAllowances.subList(i, Math.min(i + chunkSize, staleAllowances.size()));
+                    final var body = CryptoApproveAllowanceTransactionBody.newBuilder()
+                            .tokenAllowances(chunk)
+                            .build();
+                    dispatchSyntheticAllowanceChild(
+                            context,
+                            oldTreasury,
+                            TransactionBody.newBuilder()
+                                    .cryptoApproveAllowance(body)
+                                    .build());
+                }
+            }
+        } else {
+            final var staleApproveForAllAllowances =
+                    staleApproveForAllNftAllowancesForTreasury(oldTreasury, tokenId, account);
+            if (!staleApproveForAllAllowances.isEmpty()) {
+                final var chunkSize = Math.max(1, allowancesMaxTransactionLimit);
+                for (int i = 0; i < staleApproveForAllAllowances.size(); i += chunkSize) {
+                    final var chunk = staleApproveForAllAllowances.subList(
+                            i, Math.min(i + chunkSize, staleApproveForAllAllowances.size()));
+                    final var body = CryptoApproveAllowanceTransactionBody.newBuilder()
+                            .nftAllowances(chunk)
+                            .build();
+                    dispatchSyntheticAllowanceChild(
+                            context,
+                            oldTreasury,
+                            TransactionBody.newBuilder()
+                                    .cryptoApproveAllowance(body)
+                                    .build());
+                }
+            }
+        }
+    }
+
+    private List<NftAllowance> staleApproveForAllNftAllowancesForTreasury(
+            @NonNull final AccountID oldTreasury, @NonNull final TokenID tokenId, @NonNull final Account account) {
+        return account.approveForAllNftAllowances().stream()
+                .filter(a -> Objects.equals(a.tokenId(), tokenId))
+                .map(a -> NftAllowance.newBuilder()
+                        .tokenId(tokenId)
+                        .owner(oldTreasury)
+                        .spender(a.spenderId())
+                        .approvedForAll(false)
+                        .build())
+                .toList();
+    }
+
+    private void dispatchSyntheticAllowanceChild(
+            @NonNull final HandleContext context,
+            @NonNull final AccountID payer,
+            @NonNull final TransactionBody syntheticTxn) {
+        final var streamBuilder =
+                context.dispatch(stepDispatch(payer, syntheticTxn, StreamBuilder.class, NOOP_SIGNED_TX_CUSTOMIZER));
+        final var status = streamBuilder.status();
+        if (status != SUCCESS) {
+            final var childType = syntheticTxn.hasCryptoApproveAllowance()
+                    ? "CryptoApproveAllowance"
+                    : syntheticTxn.hasCryptoDeleteAllowance() ? "CryptoDeleteAllowance" : "Unknown";
+            final var itemCount = syntheticTxn.hasCryptoApproveAllowance()
+                    ? syntheticTxn
+                                    .cryptoApproveAllowanceOrThrow()
+                                    .tokenAllowances()
+                                    .size()
+                            + syntheticTxn
+                                    .cryptoApproveAllowanceOrThrow()
+                                    .nftAllowances()
+                                    .size()
+                    : syntheticTxn.hasCryptoDeleteAllowance()
+                            ? syntheticTxn.cryptoDeleteAllowanceOrThrow().nftAllowances().stream()
+                                    .mapToInt(a -> a.serialNumbers().size())
+                                    .sum()
+                            : 0;
+            log.warn(
+                    "Synthetic {} child dispatch failed for payer {} with status {} (itemsInChild={})",
+                    childType,
+                    payer,
+                    status,
+                    itemCount);
+        }
+        validateTrue(status == SUCCESS, status);
     }
 
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {

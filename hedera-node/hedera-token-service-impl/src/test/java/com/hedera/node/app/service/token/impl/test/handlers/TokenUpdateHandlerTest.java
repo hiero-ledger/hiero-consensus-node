@@ -20,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
@@ -43,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -54,7 +56,10 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenKeyValidation;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
+import com.hedera.hapi.node.state.token.AccountFungibleTokenAllowance;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -71,19 +76,23 @@ import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -103,6 +112,9 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Mock(strictness = LENIENT)
     private HandleContext.SavepointStack stack;
+
+    @Mock(strictness = LENIENT)
+    private StreamBuilder childDispatchBuilder;
 
     private TransactionBody txn;
 
@@ -126,6 +138,8 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         subject = new TokenUpdateHandler(validator);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
+        given(handleContext.dispatch(any())).willReturn(childDispatchBuilder);
+        given(childDispatchBuilder.status()).willReturn(SUCCESS);
         givenStoresAndConfig(handleContext);
         setUpTxnContext();
     }
@@ -1246,6 +1260,86 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         final var token = writableTokenState.get(fungibleTokenId);
         assertThat(token.treasuryAccountId()).isEqualTo(zeroAccountId);
         assertThat(token.name()).isEqualTo("TestTokenUpdateDoesUpdateZeroTreasury");
+    }
+
+    @Test
+    void dispatchesSyntheticFungibleAllowanceCleanupOnTreasuryChange() {
+        final var staleAllowance = AccountFungibleTokenAllowance.newBuilder()
+                .tokenId(fungibleTokenId)
+                .spenderId(spenderId)
+                .amount(500L)
+                .build();
+        final var unrelatedAllowance = AccountFungibleTokenAllowance.newBuilder()
+                .tokenId(fungibleTokenIDB)
+                .spenderId(spenderId)
+                .amount(123L)
+                .build();
+        final var treasuryWithAllowance = writableAccountStore
+                .get(treasuryId)
+                .copyBuilder()
+                .tokenAllowances(List.of(staleAllowance, unrelatedAllowance))
+                .build();
+        writableAccountStore.put(treasuryWithAllowance);
+
+        txn = new TokenUpdateBuilder().build();
+        given(handleContext.body()).willReturn(txn);
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        final ArgumentCaptor<DispatchOptions> captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(1)).dispatch(captor.capture());
+        final var syntheticBody = captor.getValue().body();
+        assertThat(syntheticBody.hasCryptoApproveAllowance()).isTrue();
+        final CryptoApproveAllowanceTransactionBody op = syntheticBody.cryptoApproveAllowanceOrThrow();
+        Assertions.assertThat(op.tokenAllowances()).hasSize(1);
+        assertThat(op.tokenAllowances().get(0).tokenId()).isEqualTo(fungibleTokenId);
+        assertThat(op.tokenAllowances().get(0).owner()).isEqualTo(treasuryId);
+        assertThat(op.tokenAllowances().get(0).spender()).isEqualTo(spenderId);
+        assertThat(op.tokenAllowances().get(0).amount()).isEqualTo(0L);
+    }
+
+    @Test
+    void dispatchesSyntheticNftApproveForAllCleanupOnTreasuryChange() {
+        final var staleApproveForAll = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(spenderId)
+                .build();
+        final var unrelatedApproveForAll = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(fungibleTokenIDB)
+                .spenderId(spenderId)
+                .build();
+        final var treasuryWithNftAllowances = writableAccountStore
+                .get(treasuryId)
+                .copyBuilder()
+                .approveForAllNftAllowances(List.of(staleApproveForAll, unrelatedApproveForAll))
+                .build();
+        writableAccountStore.put(treasuryWithNftAllowances);
+
+        // NFT treasury change requires the new treasury to have zero balance; zero it out
+        final var ownerNftRel = writableTokenRelStore.get(ownerId, nonFungibleTokenId);
+        writableTokenRelStore.put(ownerNftRel.copyBuilder().balance(0).build());
+
+        txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();
+        given(handleContext.body()).willReturn(txn);
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        final ArgumentCaptor<DispatchOptions> captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(1)).dispatch(captor.capture());
+        final var syntheticBody = captor.getValue().body();
+        assertThat(syntheticBody.hasCryptoApproveAllowance()).isTrue();
+        final CryptoApproveAllowanceTransactionBody op = syntheticBody.cryptoApproveAllowanceOrThrow();
+        Assertions.assertThat(op.nftAllowances()).hasSize(1);
+        assertThat(op.nftAllowances().get(0).tokenId()).isEqualTo(nonFungibleTokenId);
+        assertThat(op.nftAllowances().get(0).owner()).isEqualTo(treasuryId);
+        assertThat(op.nftAllowances().get(0).spender()).isEqualTo(spenderId);
+        assertThat(op.nftAllowances().get(0).approvedForAllOrElse(true)).isFalse();
     }
 
     /* --------------------------------- Helpers --------------------------------- */
