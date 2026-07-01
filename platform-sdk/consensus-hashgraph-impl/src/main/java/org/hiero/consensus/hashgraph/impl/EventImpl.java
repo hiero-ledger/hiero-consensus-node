@@ -458,15 +458,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Get the non-deterministic generation of this event
-     *
-     * @return the non-deterministic generation of this event
-     */
-    public long getNGen() {
-        return getPlatformEvent().getNGen();
-    }
-
-    /**
      * The sequence number of this event, order in which it was released from the orphan buffer
      * @return the sequence number of this event.
      */

@@ -32,8 +32,8 @@ public class StandardGuiSource implements HashgraphGuiSource {
      * {@inheritDoc}
      */
     @Override
-    public long getMaxGeneration() {
-        return eventStorage.getMaxGeneration();
+    public long getMaxSequenceNumber() {
+        return eventStorage.getMaxSequenceNumber();
     }
 
     /**
@@ -41,9 +41,10 @@ public class StandardGuiSource implements HashgraphGuiSource {
      */
     @Override
     @NonNull
-    public List<EventImpl> getEvents(final long startGeneration, final int numGenerations) {
+    public List<EventImpl> getEvents(final long startSequenceNum, final int numEvents) {
         return eventStorage.getNonAncientEvents().stream()
-                .filter(e -> e.getNGen() >= startGeneration && e.getNGen() < startGeneration + numGenerations)
+                .filter(e -> e.getSequenceNumber() >= startSequenceNum
+                        && e.getSequenceNumber() < startSequenceNum + numEvents)
                 .toList();
     }
 

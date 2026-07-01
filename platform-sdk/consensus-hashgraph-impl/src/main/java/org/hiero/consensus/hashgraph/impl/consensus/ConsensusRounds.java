@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -46,7 +46,7 @@ public class ConsensusRounds {
      * Events with a lower sequence number than this (before this event topologically) do not affect any consensus
      * calculations and do not have their metadata recalculated.
      */
-    private long consensusRelevantSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
+    private long consensusRelevantSeqNum = SEQUENCE_NUMBER_UNDEFINED;
 
     /** Constructs an empty object */
     public ConsensusRounds(@NonNull final ConsensusConfig config, @NonNull final Roster roster) {
@@ -63,7 +63,7 @@ public class ConsensusRounds {
         maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
         roundElections.reset();
         updateAncientThreshold();
-        consensusRelevantSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
+        consensusRelevantSeqNum = SEQUENCE_NUMBER_UNDEFINED;
     }
 
     /**
@@ -264,7 +264,7 @@ public class ConsensusRounds {
     /**
      * Returns the threshold of all the judges that are not in ancient rounds. This is either a generation value or a
      * birth round value, depending on the ancient mode configured. If no judges are ancient, returns
-     * {@link EventConstants#FIRST_GENERATION} or {@link ConsensusConstants#ROUND_FIRST} depending on the ancient mode.
+     * {@link EventConstants#FIRST_SEQUENCE_NUMBER} or {@link ConsensusConstants#ROUND_FIRST} depending on the ancient mode.
      *
      * @return the threshold
      */

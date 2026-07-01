@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal;
 
-import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.event.EventConstants.FIRST_SEQUENCE_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -34,7 +34,7 @@ public class GuiEventStorage {
     // A note on concurrency: although all input to this class is sequential and thread safe, access to this class
     // happens asynchronously. This requires all methods to be synchronized.
 
-    private long maxGeneration = FIRST_GENERATION;
+    private long maxSequenceNumber = FIRST_SEQUENCE_NUMBER;
 
     private final Consensus consensus;
     private final ConsensusLinker linker;
@@ -68,10 +68,10 @@ public class GuiEventStorage {
         this.consensus = consensus;
         this.linker = linker;
         this.configuration = configuration;
-        maxGeneration = linker.getNonAncientEvents().stream()
-                .mapToLong(EventImpl::getNGen)
+        maxSequenceNumber = linker.getNonAncientEvents().stream()
+                .mapToLong(EventImpl::getSequenceNumber)
                 .max()
-                .orElse(FIRST_GENERATION);
+                .orElse(1);
     }
 
     /**
@@ -88,7 +88,7 @@ public class GuiEventStorage {
      * @param event the event to handle
      */
     public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
-        maxGeneration = Math.max(maxGeneration, event.getNGen());
+        maxSequenceNumber = Math.max(maxSequenceNumber, event.getSequenceNumber());
 
         // Detect branches before linking
         final NodeId creator = event.getCreatorId();
@@ -99,7 +99,6 @@ public class GuiEventStorage {
         if (eventImpl == null) {
             return;
         }
-        eventImpl.getBaseEvent().setNGen(event.getNGen());
         eventImpl.getBaseEvent().setSequenceNumber(event.getSequenceNumber());
 
         final List<ConsensusRound> rounds = consensus.addEvent(eventImpl);
@@ -136,8 +135,8 @@ public class GuiEventStorage {
      *
      * @return the maximum generation of any event in the hashgraph
      */
-    public synchronized long getMaxGeneration() {
-        return maxGeneration;
+    public synchronized long getMaxSequenceNumber() {
+        return maxSequenceNumber;
     }
 
     /**

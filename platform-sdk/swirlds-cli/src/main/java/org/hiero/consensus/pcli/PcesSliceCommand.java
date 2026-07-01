@@ -96,7 +96,7 @@ public class PcesSliceCommand extends AbstractCommand {
 
     // Per-node filter values (populated in call() from the raw lists)
     private final Map<Long, Long> nodeMinBirthRound = new HashMap<>();
-    private final Map<Long, Long> nodeMinNgen = new HashMap<>();
+    private final Map<Long, Long> nodeMinSeqNum = new HashMap<>();
 
     // Raw per-node filter strings from CLI
     @CommandLine.Option(
@@ -198,7 +198,7 @@ public class PcesSliceCommand extends AbstractCommand {
         }
         for (final String filter : nodeMinNgenRaw) {
             final var parsed = parseNodeFilter(filter, "--node-min-ngen");
-            nodeMinNgen.put(parsed.nodeId, parsed.value);
+            nodeMinSeqNum.put(parsed.nodeId, parsed.value);
         }
 
         // Handle output directory: warn and prompt if it exists and is not empty
@@ -218,9 +218,9 @@ public class PcesSliceCommand extends AbstractCommand {
             System.out.println("Per-node min birth round filters:");
             nodeMinBirthRound.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
         }
-        if (!nodeMinNgen.isEmpty()) {
+        if (!nodeMinSeqNum.isEmpty()) {
             System.out.println("Per-node min ngen filters:");
-            nodeMinNgen.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
+            nodeMinSeqNum.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
         }
 
         // Parse consensus snapshot if provided
@@ -271,7 +271,7 @@ public class PcesSliceCommand extends AbstractCommand {
     }
 
     /**
-     * Filters events based on the configured per-node birth round and ngen criteria.
+     * Filters events based on the configured per-node birth round and sequence number criteria.
      * An event must pass both filters (if configured) to be included.
      *
      * @param event the event to filter
@@ -279,7 +279,7 @@ public class PcesSliceCommand extends AbstractCommand {
      */
     private boolean filterEvent(final @NonNull PlatformEvent event) {
         final long birthRound = event.getBirthRound();
-        final long ngen = event.getNGen();
+        final long sequenceNumber = event.getSequenceNumber();
         final long creatorNodeId = event.getCreatorId().id();
 
         // Check per-node birth round filter
@@ -288,9 +288,9 @@ public class PcesSliceCommand extends AbstractCommand {
             return false;
         }
 
-        // Check per-node ngen filter
-        final Long nodeMinNG = nodeMinNgen.get(creatorNodeId);
-        return nodeMinNG == null || ngen >= nodeMinNG;
+        // Check per-node sequence number filter
+        final Long nodeMinSeqNum = this.nodeMinSeqNum.get(creatorNodeId);
+        return nodeMinSeqNum == null || sequenceNumber >= nodeMinSeqNum;
     }
 
     /**
