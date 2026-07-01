@@ -67,7 +67,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ getenv "SLACK_USER_ID" | data.ToJSON }}
+              "text": {{ getenv "SLACK_USER_ID" | default "N/A" | data.ToJSON }}
             },
             {
               "type": "mrkdwn",
