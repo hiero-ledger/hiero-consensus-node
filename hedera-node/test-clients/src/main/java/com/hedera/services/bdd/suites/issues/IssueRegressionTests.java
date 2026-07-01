@@ -204,8 +204,7 @@ public class IssueRegressionTests {
                         .setNode(5)
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
-                getTxnRecord("txnId1").logged()
-                        .hasPriority(recordWith().status(SUCCESS)));
+                getTxnRecord("txnId1").logged().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
