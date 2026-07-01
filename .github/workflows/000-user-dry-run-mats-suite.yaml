@@ -265,7 +265,10 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: gomplate -f .github/workflows/templates/slack-mats-test-failure-detailed.json.tpl -o slack_payload.json
+        run: |
+          echo "doing template"
+          cat .github/workflows/templates/slack-mats-test-failure-detailed.json.tpl
+          gomplate -f .github/workflows/templates/slack-mats-test-failure-detailed.json.tpl -o slack_payload.json
 
       - name: Build Environment Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'environment' }}
