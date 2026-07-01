@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
@@ -32,14 +33,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This class encapsulates all state and logic of the reconnect process on the learner side for a {@link VirtualMap}.
  *
  * <p>Lifecycle:
  * <ul>
- *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, ReconnectConfig)}</li>
+ *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, VirtualMapSyncConfig)}</li>
  *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long)}.</li>
  *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
  *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and return new {@link VirtualMap}.</li>
@@ -120,11 +120,11 @@ public final class VirtualMapLearner {
      * which will be updated with new leaves and hashes as they are received from the teacher.
      *
      * @param originalMap the learner's current virtual map; must not be {@code null}
-     * @param reconnectConfig reconnect configuration for this operation; must not be {@code null}
+     * @param syncConfig sync configuration for this operation; must not be {@code null}
      */
-    public VirtualMapLearner(@NonNull final VirtualMap originalMap, @NonNull final ReconnectConfig reconnectConfig) {
+    public VirtualMapLearner(@NonNull final VirtualMap originalMap, @NonNull final VirtualMapSyncConfig syncConfig) {
         requireNonNull(originalMap, "originalMap must not be null");
-        requireNonNull(reconnectConfig, "reconnectConfig must not be null");
+        requireNonNull(syncConfig, "reconnectConfig must not be null");
 
         // Ensure the original map is hashed. Once hashed, all internal nodes are also hashed,
         // which is required for the reconnect process — the teacher uses these hashes to decide

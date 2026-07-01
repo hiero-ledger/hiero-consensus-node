@@ -13,6 +13,6 @@ public class VirtualMapConfigExtension implements ConfigurationExtension {
     @NonNull
     @Override
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(VirtualMapConfig.class);
+        return Set.of(VirtualMapConfig.class, VirtualMapSyncConfig.class);
     }
 }
