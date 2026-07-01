@@ -27,7 +27,7 @@ public class GeneratorEventGraphSourceBuilder {
     private RosterWithKeys rosterWithKeys;
     private Integer numNodes;
     private boolean realSignatures = false;
-    private boolean populateNgen = false;
+    private boolean populateSequenceNumber = false;
 
     /**
      * Creates a new builder instance.
@@ -137,13 +137,13 @@ public class GeneratorEventGraphSourceBuilder {
     }
 
     /**
-     * Sets whether to populate ngen values on generated events.
+     * Sets whether to populate sequence numbers on generated events.
      *
-     * @param populateNgen {@code true} to populate ngen values, {@code false} otherwise
+     * @param populateSequenceNumber {@code true} to populate sequence numbers, {@code false} otherwise
      * @return this builder
      */
-    public GeneratorEventGraphSourceBuilder populateNgen(final boolean populateNgen) {
-        this.populateNgen = populateNgen;
+    public GeneratorEventGraphSourceBuilder populateSequenceNumber(final boolean populateSequenceNumber) {
+        this.populateSequenceNumber = populateSequenceNumber;
         return this;
     }
 
@@ -192,7 +192,8 @@ public class GeneratorEventGraphSourceBuilder {
         }
 
         return new GeneratorEventGraphSource(
-                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer, populateNgen);
+                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer,
+                populateSequenceNumber);
     }
 
     private Configuration getConfiguration() {

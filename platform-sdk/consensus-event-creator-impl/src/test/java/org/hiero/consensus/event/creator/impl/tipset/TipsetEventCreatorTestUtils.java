@@ -229,9 +229,9 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
-     * Calculate and assign the nGen value to the event and distribute to all nodes in the network.
+     * Calculate and assign the sequence number to the event and distribute to all nodes in the network.
      */
-    public static void assignNGenAndDistributeEvent(
+    public static void assignSeqNumAndDistributeEvent(
             @NonNull final Map<NodeId, SimulatedNode> nodeMap,
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> events,
             @NonNull final PlatformEvent event) {
@@ -242,7 +242,7 @@ public class TipsetEventCreatorTestUtils {
 
     /**
      * Register the event in the map of all events, and pass the event through the node's orphan buffer to ensure it
-     * gets assigned an nGen value.
+     * gets assigned a sequence number.
      */
     @NonNull
     public static PlatformEvent registerEvent(
@@ -250,8 +250,9 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent event) {
         node.orphanBuffer().handleEvent(event);
-        assertThat(event.hasNGen())
-                .withFailMessage("Event should have passed through the orphan buffer and been assigned an nGen value")
+        assertThat(event.hasSequenceNumber())
+                .withFailMessage(
+                        "Event should have passed through the orphan buffer and been assigned a sequence number")
                 .isTrue();
         allEvents.put(event.getDescriptor(), event);
         return event;
@@ -301,14 +302,14 @@ public class TipsetEventCreatorTestUtils {
 
     @NonNull
     public static PlatformEvent createTestEventWithParent(
-            @NonNull final Random random, @Nullable final NodeId creator, final long nGen, final long birthRound) {
+            @NonNull final Random random, @Nullable final NodeId creator, final long seqNum, final long birthRound) {
 
         final PlatformEvent selfParent =
                 new TestingEventBuilder(random).setCreatorId(creator).build();
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setNGen(nGen)
+                .setSequenceNumber(seqNum)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .build();
@@ -327,7 +328,7 @@ public class TipsetEventCreatorTestUtils {
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setNGen(nGen)
+                .setSequenceNumber(nGen)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)

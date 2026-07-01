@@ -2,7 +2,6 @@
 package org.hiero.consensus.orphan;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -225,7 +224,6 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
-            assignNGen(nonOrphan, eventsWithParents);
             nonOrphan.setSequenceNumber(eventSequenceNumber.getAndIncrement());
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might

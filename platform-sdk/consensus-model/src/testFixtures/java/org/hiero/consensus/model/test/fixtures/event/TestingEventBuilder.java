@@ -26,7 +26,6 @@ import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -137,12 +136,6 @@ public class TestingEventBuilder {
      */
     private Long consensusOrder;
 
-    /**
-     * The non-deterministic generation of the event. This value is calculated by the orphan buffer in production.
-     * Defaults to {@link EventConstants#GENERATION_UNDEFINED}
-     */
-    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
-
     /** The hash to use for the event */
     private Hash hash = null;
 
@@ -177,13 +170,13 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Set the non-deterministic generation to use. If not set, default to {@link EventConstants#GENERATION_UNDEFINED}
+     * Set the sequence number to use. If not set, default to {@link PlatformEvent#UNASSIGNED_SEQUENCE_NUMBER}
      *
-     * @param nGen the ngen
+     * @param sequenceNumber the sequenceNumber
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setNGen(final long nGen) {
-        this.nGen = nGen;
+    public @NonNull TestingEventBuilder setSequenceNumber(final long sequenceNumber) {
+        this.sequenceNumberOverride = sequenceNumber;
         return this;
     }
 
@@ -549,7 +542,6 @@ public class TestingEventBuilder {
 
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
-        platformEvent.setNGen(nGen);
         if (sequenceNumberOverride > PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER) {
             platformEvent.setSequenceNumber(sequenceNumberOverride);
         } else {

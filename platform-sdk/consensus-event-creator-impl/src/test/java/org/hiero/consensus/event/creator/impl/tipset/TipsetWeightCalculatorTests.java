@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,7 +58,7 @@ class TipsetWeightCalculatorTests {
             @NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setNGen(nGen)
+                .setSequenceNumber(nGen)
                 .setBirthRound(ROUND_FIRST)
                 .build();
     }
@@ -102,7 +101,7 @@ class TipsetWeightCalculatorTests {
             final long birthRound) {
         return new TestingEventBuilder(random)
                 .setCreatorId(selfParent.getCreatorId())
-                .setNGen(nGen)
+                .setSequenceNumber(nGen)
                 .setSelfParent(selfParent)
                 .setOtherParents(otherParents)
                 .setBirthRound(birthRound)
@@ -190,7 +189,7 @@ class TipsetWeightCalculatorTests {
             }
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(creator)
-                    .setNGen(nGen)
+                    .setSequenceNumber(nGen)
                     .setSelfParent(selfParent)
                     .setOtherParents(otherParents)
                     .build();
