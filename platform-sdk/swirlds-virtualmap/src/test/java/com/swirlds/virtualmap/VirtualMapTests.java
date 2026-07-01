@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -24,14 +25,11 @@ import static org.mockito.Mockito.when;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -746,8 +744,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle")})
     @DisplayName("Tests nodeCacheSizeB metric")
     void testNodeCacheSizeMetric() throws InterruptedException {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
         final Metrics metrics = new DefaultPlatformMetrics(
@@ -809,8 +806,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle")})
     @DisplayName("Tests vMapFlushes metric")
     void testFlushCount() throws InterruptedException {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
         final Metrics metrics = new DefaultPlatformMetrics(
@@ -890,7 +886,8 @@ class VirtualMapTests extends VirtualTestBase {
         // serialize the existing maps
         map0.createSnapshot(testDirectory);
 
-        final VirtualMap map2 = VirtualMap.loadFromDirectory(testDirectory, CONFIGURATION, InMemoryBuilder::new);
+        final VirtualMap map2 =
+                VirtualMap.loadFromDirectory(testDirectory, DEFAULT_CONFIGURATION, InMemoryBuilder::new);
         assertVmsAreEqual(map0, map2);
 
         // release the maps and clean up the temporary directory
@@ -1037,7 +1034,7 @@ class VirtualMapTests extends VirtualTestBase {
     void emptyDirtyLeavesResultInHashFromPreviousCopy() throws InterruptedException {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
 
-        final VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        final VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
         vm.enableFlush();
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
@@ -1184,7 +1181,7 @@ class VirtualMapTests extends VirtualTestBase {
     void snapshotAndRestore() throws IOException {
         final VirtualDataSourceBuilder dsBuilder = new InMemoryBuilder();
         final List<VirtualMap> copies = new LinkedList<>();
-        final VirtualMap copy0 = new VirtualMap(dsBuilder, CONFIGURATION);
+        final VirtualMap copy0 = new VirtualMap(dsBuilder, DEFAULT_CONFIGURATION);
         copies.add(copy0);
         for (int i = 1; i <= 10; i++) {
             final VirtualMap prevCopy = copies.get(i - 1);
@@ -1203,7 +1200,8 @@ class VirtualMapTests extends VirtualTestBase {
         Files.createDirectories(snapshotPath);
         copy5.createSnapshot(snapshotPath);
         try {
-            final VirtualMap restored = VirtualMap.loadFromDirectory(snapshotPath, CONFIGURATION, InMemoryBuilder::new);
+            final VirtualMap restored =
+                    VirtualMap.loadFromDirectory(snapshotPath, DEFAULT_CONFIGURATION, InMemoryBuilder::new);
             // All keys 1 to 5 should be in the snapshot
             for (int i = 1; i < 6; i++) {
                 final Bytes key = TestKey.longToKey(i);
@@ -1225,7 +1223,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Detach Test")
     void detachTest() throws IOException {
-        final VirtualMap original = new VirtualMap(new InMemoryBuilder(), CONFIGURATION);
+        final VirtualMap original = new VirtualMap(new InMemoryBuilder(), DEFAULT_CONFIGURATION);
         Bytes testKey = Bytes.wrap("testKey");
         original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
         final VirtualMap copy = original.copy();
@@ -1253,10 +1251,8 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Default flush threshold not zero")
     void defaultFlushThresholdTest() {
-        final VirtualMapConfig config =
-                new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
         VirtualMap root = createMap();
-        assertEquals(config.copyFlushCandidateThreshold(), root.getFlushCandidateThreshold());
+        assertEquals(DEFAULT_VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold(), root.getFlushCandidateThreshold());
         root.release();
     }
 

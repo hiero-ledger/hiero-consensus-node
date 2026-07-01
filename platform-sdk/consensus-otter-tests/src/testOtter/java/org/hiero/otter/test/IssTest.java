@@ -12,11 +12,10 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 
-import com.swirlds.platform.state.iss.DefaultIssDetector;
-import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -70,7 +69,7 @@ public class IssTest {
         issNodeStatusResult.clear();
 
         final SingleNodeLogResult issLogResult = issNode.newLogResult();
-        assertThat(issLogResult.suppressingLoggerName(DefaultIssDetector.class)).hasNoErrorLevelMessages();
+        assertThat(issLogResult.suppressingIssErrors()).hasNoErrorLevelMessages();
         issLogResult.clear();
 
         assertThat(network.newPlatformStatusResults().suppressingNode(issNode))
@@ -127,9 +126,7 @@ public class IssTest {
         timeManager.waitForCondition(
                 () -> !issNode.isAlive(), Duration.ofSeconds(120), "Node did not shut down after ISS");
 
-        assertThat(issNodeLogResult
-                        .suppressingLoggerName(DefaultIssDetector.class)
-                        .suppressingLoggerName(SystemExitUtils.class))
+        assertThat(issNodeLogResult.suppressingIssErrors().suppressingLoggerName(SystemExitUtils.class))
                 .hasNoErrorLevelMessages();
         issNodeLogResult.clear();
 
@@ -171,8 +168,7 @@ public class IssTest {
         network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
 
         // Setup continuous assertions
-        assertContinuouslyThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class))
-                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newLogResults().suppressingIssErrors()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()

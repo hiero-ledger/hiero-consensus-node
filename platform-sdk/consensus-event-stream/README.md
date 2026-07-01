@@ -5,7 +5,7 @@ durability and external consumers.
 
 ## Architecture
 
-A structural-transitional module — treated like an impl module (rule 3): nothing should depend
+A structural-transitional module — treated like an impl module: nothing should depend
 on it except the platform wiring and test code. It serializes consensus events; it could have been split into api/impl, but was not, because it will be deleted once
 the consensus event stream is superseded by the block stream. It will not move to the execution
 layer.

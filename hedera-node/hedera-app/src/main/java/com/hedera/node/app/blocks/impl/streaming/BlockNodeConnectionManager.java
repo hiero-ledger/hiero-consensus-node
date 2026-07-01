@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -143,6 +144,8 @@ public class BlockNodeConnectionManager {
     private static final long MASK_HIGHER_PRIORITY_CONNECTION = 1 << 3;
     private static final long MASK_AUTO_RESET = 1 << 4;
 
+    private final BlockStreamingObs streamingObs;
+
     /**
      * A record that holds a candidate node configuration along with the block number it wants to stream.
      *
@@ -177,7 +180,8 @@ public class BlockNodeConnectionManager {
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
-            @NonNull final BlockNodeConfigService blockNodeConfigService) {
+            @NonNull final BlockNodeConfigService blockNodeConfigService,
+            @NonNull final BlockStreamingObs streamingObs) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
@@ -188,6 +192,7 @@ public class BlockNodeConnectionManager {
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.clientFactory = new BlockNodeClientFactory();
         this.blockNodeConfigService = requireNonNull(blockNodeConfigService, "Block node config service is required");
+        this.streamingObs = requireNonNull(streamingObs);
 
         blockingIoExecutorRef.set(blockingIoExecutorSupplier.get());
     }
@@ -473,6 +478,18 @@ public class BlockNodeConnectionManager {
                 continue;
             }
 
+            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
+
+            if (status.latestBlockAvailable() < -1 || willAdditionOverflow(status.latestBlockAvailable(), 1)) {
+                node.applyCoolDown(new BlockNodeOutOfRange(Long.MAX_VALUE));
+                logger.info(
+                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (latestBlockAvailable: {}))",
+                        streamingEndpoint.host(),
+                        streamingEndpoint.port(),
+                        status.latestBlockAvailable());
+                continue;
+            }
+
             /*
             There is a scenario in which this consensus node may not have any blocks loaded. For example, this node may
             be initializing for the first time or the node may have restarted but there aren't any buffered blocks that
@@ -483,7 +500,6 @@ public class BlockNodeConnectionManager {
             node, then existing reconnect operations will engage to sort things out.
              */
 
-            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
             final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
             if (latestAvailableBlock != -1) {
                 if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
@@ -532,6 +548,16 @@ public class BlockNodeConnectionManager {
                 .filter(c -> c.wantedBlock() == lowestAheadWantedBlock)
                 .toList();
         return new GroupSelectionOutcome(List.of(), lowestAheadCandidates, lowestAheadWantedBlock);
+    }
+
+    /**
+     * @param x the first value
+     * @param y the second value
+     * @return true if the addition of the specified values will overflow a long, else false
+     */
+    private static boolean willAdditionOverflow(final long x, final long y) {
+        final long r = x + y;
+        return ((x ^ r) & (y ^ r)) < 0;
     }
 
     /**
@@ -1026,7 +1052,8 @@ public class BlockNodeConnectionManager {
                 blockingIoExecutorSupplier.get(),
                 wantedBlock,
                 clientFactory,
-                selfNodeId);
+                selfNodeId,
+                streamingObs);
 
         try {
             connection.initialize();

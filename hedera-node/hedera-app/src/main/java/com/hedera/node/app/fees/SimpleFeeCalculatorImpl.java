@@ -244,18 +244,25 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Default implementation for query fee calculation.
+     * Calculates the node payment for a query using the simple fee schedule.
      *
      * @param query The query to calculate fees for
      * @param simpleFeeContext the query context
-     * @return Never returns normally
-     * @throws UnsupportedOperationException always
+     * @return the query fee result, or a free result if the query kind has no registered calculator
      */
     @NonNull
     @Override
     public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        if (queryFeeCalculator == null) {
+            // No simple fee calculator for this kind (e.g. restricted or unsupported queries); treat as free,
+            // mirroring the default QueryHandler.computeFees() behavior for such queries.
+            log.warn(
+                    "No simple query fee calculator for {}, treating query as free",
+                    query.query().kind());
+            return result;
+        }
         queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
         return result;
     }

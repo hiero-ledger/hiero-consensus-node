@@ -22,7 +22,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
@@ -32,7 +31,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -57,6 +55,8 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.StateWithHashComplexity;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,7 +89,7 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() {
-        testDirectory = tmpDir.resolve("SignedStateFileReadWriteTest");
+        testDirectory = tmpDir.resolve("StateFileManagerTests");
         fileSystemManager = new FileSystemManager(testDirectory);
         context = TestPlatformContextBuilder.create()
                 .withFileSystemManager(fileSystemManager)
@@ -198,7 +198,6 @@ class StateFileManagerTests {
     @ValueSource(booleans = {true, false})
     @DisplayName("Sequence Of States Test")
     void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException, ParseException {
-
         final Random random = getRandomPrintSeed();
 
         // Save state every 100 (simulated) seconds
@@ -320,12 +319,11 @@ class StateFileManagerTests {
                         CompareTo.isGreaterThan(nextBoundary, timestamp),
                         "next boundary should be after current timestamp");
             }
-
-            stateLifecycleManager.getMutableState().release();
         }
+
+        stateLifecycleManager.getMutableState().release();
     }
 
-    @SuppressWarnings("resource")
     @Test
     @DisplayName("State Deletion Test")
     void stateDeletionTest() throws IOException, ParseException {
@@ -413,10 +411,6 @@ class StateFileManagerTests {
     }
 
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
-        destroyStateLifecycleManager(stateLifecycleManager);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
-
         stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getLatestImmutableState().release();
     }

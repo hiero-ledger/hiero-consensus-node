@@ -17,7 +17,6 @@ import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.token.CryptoGetAccountRecordsResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
@@ -34,7 +33,6 @@ import javax.inject.Singleton;
 @Singleton
 public class CryptoGetAccountRecordsHandler extends PaidQueryHandler {
     private final RecordCache recordCache;
-    private final CryptoFeeBuilder usageEstimator = new CryptoFeeBuilder();
 
     /**
      * Default constructor for injection.

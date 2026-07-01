@@ -92,15 +92,6 @@ tasks.register<JavaExec>("runTestClient") {
     mainClass = providers.gradleProperty("testClient")
 }
 
-tasks.jacocoTestReport {
-    classDirectories.setFrom(files(project(":app").layout.buildDirectory.dir("classes/java/main")))
-    sourceDirectories.setFrom(files(project(":app").projectDir.resolve("src/main/java")))
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
-}
-
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.testRuntimeClasspath.get().plus(files(tasks.jar))
@@ -149,7 +140,7 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
-        "hapiTestBlockNodeCommunication" to "BLOCK_NODE|GENESIS_SUBPROCESS",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestBlockNodeSimCommunication" to "BLOCK_NODE_SIM",
         "hapiTestMisc" to miscTags,
         "hapiTestMiscSerial" to miscTagsSerial,
@@ -351,7 +342,10 @@ tasks.register<Test>("testSubprocess") {
     systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
-    val testOverrides = combinedTestOverrides(gradle.startParameter.taskNames)
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
@@ -425,47 +419,8 @@ tasks.register<Test>("testSubprocess") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
-
-// Reads the *_OVERRIDE env vars (set by the XTS BLOCKS HAPI job) and returns the
-// comma-appendable "blockStream.<prop>=<VALUE>" entries for any that are set.
-// Appended last so they win over any prCheckPropOverrides entry. These pin the
-// BLOCKS-suite coverage against impending changes to the production defaults.
-// (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
-fun blocksSuiteOverrideEntries(): List<String> =
-    listOfNotNull(
-        System.getenv("STREAM_MODE_OVERRIDE")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { "blockStream.streamMode=$it" },
-        System.getenv("WRITER_MODE_OVERRIDE")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { "blockStream.writerMode=$it" },
-        System.getenv("WRAPPED_RECORD_BLOCKS_OVERRIDE")
-            ?.takeIf { it.isNotBlank() }
-            ?.let { "blockStream.streamWrappedRecordBlocks=$it" },
-    )
-
-// Combines the per-suite prCheckPropOverrides for the active task(s) with the XTS BLOCKS overrides
-// into a
-// single comma-separated "key=value" list, de-duplicating by key so entries appended later (the
-// blocksSuiteOverrideEntries) win.
-fun combinedTestOverrides(taskNames: List<String>): String =
-    (taskNames.mapNotNull { prCheckPropOverrides[it] }.flatMap { it.split(",") } +
-            blocksSuiteOverrideEntries())
-        .filter { it.contains("=") }
-        .associate { it.substringBefore("=") to it.substringAfter("=") }
-        .map { (key, value) -> "$key=$value" }
-        .joinToString(separator = ",")
 
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
@@ -517,7 +472,10 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
-    val testOverrides = combinedTestOverrides(gradle.startParameter.taskNames)
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
@@ -595,14 +553,6 @@ tasks.register<Test>("testSubprocessConcurrent") {
     )
 
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
     maxParallelForks = 1
 }
 
@@ -813,9 +763,9 @@ tasks.register<Test>("testRepeatable") {
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
-    project.properties
-        .filter { (k, _) -> k.startsWith("sysProp.") }
-        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v.toString()) }
+    providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
+        systemProperty(k.removePrefix("sysProp."), v)
+    }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

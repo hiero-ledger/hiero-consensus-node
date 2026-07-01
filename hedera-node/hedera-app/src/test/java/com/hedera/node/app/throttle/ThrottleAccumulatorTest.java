@@ -223,7 +223,6 @@ public class ThrottleAccumulatorTest {
     @BeforeEach
     void setUpFeatureFlagDefaults() {
         lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
-        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
         lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
         lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
     }

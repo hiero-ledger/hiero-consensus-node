@@ -10,13 +10,11 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,7 +41,6 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -59,11 +56,11 @@ public class MerkleDbTestUtils {
      */
     private static final long DIRECT_MEMORY_BASE_USAGE = 4 * UnitConstants.MEBIBYTES_TO_BYTES;
 
-    public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(PathsConfig.class)
-            .build();
+    public static final Configuration DEFAULT_CONFIGURATION =
+            ConfigurationBuilder.create().autoDiscoverExtensions().build();
+
+    public static final MerkleDbConfig DEFAULT_MERKLE_DB_CONFIG =
+            DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     /**
      * Run a callable test in the background and then make sure no direct memory is leaked and not
@@ -214,8 +211,7 @@ public class MerkleDbTestUtils {
     }
 
     public static Metrics createMetrics() {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = new MetricKeyRegistry();
         return new DefaultPlatformMetrics(
                 null,
@@ -258,7 +254,12 @@ public class MerkleDbTestUtils {
             final boolean compactionEnabled,
             boolean preferDiskBasedIndexes) {
         return createDataSource(
-                CONFIGURATION, fileSystemManager, DEFAULT_TABLE_NAME, size, compactionEnabled, preferDiskBasedIndexes);
+                DEFAULT_CONFIGURATION,
+                fileSystemManager,
+                DEFAULT_TABLE_NAME,
+                size,
+                compactionEnabled,
+                preferDiskBasedIndexes);
     }
 
     public static MerkleDbDataSource createDataSource(
@@ -279,7 +280,8 @@ public class MerkleDbTestUtils {
             final String name,
             final boolean compactionEnabled)
             throws IOException {
-        return new MerkleDbDataSource(dbPath, CONFIGURATION, fileSystemManager, name, compactionEnabled, false);
+        return new MerkleDbDataSource(
+                dbPath, DEFAULT_MERKLE_DB_CONFIG, fileSystemManager, name, compactionEnabled, false);
     }
 
     /**

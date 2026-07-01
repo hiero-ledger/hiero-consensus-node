@@ -34,6 +34,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockItemsStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.OneOf;
@@ -117,6 +118,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockNodeStats.HighLatencyResult latencyResult;
     private BlockNodeClientFactory clientFactory;
     private AtomicInteger globalActiveStreamingConnectionCount;
+    private BlockStreamingObs streamingObs;
 
     private ExecutorService realExecutor;
 
@@ -135,6 +137,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         requestCall = mock(GrpcCall.class);
         pipelineExecutor = mock(ExecutorService.class);
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
+        streamingObs = mock(BlockStreamingObs.class);
 
         // Set up default behavior for pipelineExecutor using a real executor
         // This ensures proper Future semantics while still being fast for tests
@@ -180,7 +183,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 pipelineExecutor,
                 null,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
@@ -240,7 +244,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 pipelineExecutor,
                 100L,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         // Verify the streamingBlockNumber was set
         final AtomicLong streamingBlockNumber = streamingBlockNumber();

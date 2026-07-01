@@ -10,7 +10,6 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.config;
     exports com.swirlds.virtualmap.sync;
     exports com.swirlds.virtualmap.sync.streams;
-    exports com.swirlds.virtualmap.sync.stats;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
@@ -43,4 +42,7 @@ open module com.swirlds.virtualmap {
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.swirlds.virtualmap.config.VirtualMapConfigExtension;
 }
