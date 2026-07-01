@@ -211,12 +211,11 @@ val prCheckPropOverrides =
         "hapiTestCryptoSerial" to
             "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        // WRAPS is disabled: the harness doesn't provision the WRAPS proving key, so once the
-        // network switches to the WrapsHistoryProver after genesis the block node rejects every
-        // proof (BAD_BLOCK_PROOF). With wrapsEnabled=false the proofs stay on the aggregate-schnorr
-        // path the block node can verify from the roster it learns at genesis.
+        // hapiTestRestart forces roster handoffs (DabEnabledUpgradeTest), and a real block node
+        // cannot verify block proofs across a handoff — so keep it off the block node with
+        // writerMode=FILE (and historyEnabled=false to match its original hints-only TSS surface).
         "hapiTestRestart" to
-            "tss.wrapsEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "blockStream.writerMode=FILE,tss.historyEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
         "hapiTestWrapsDownload" to
             "tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
