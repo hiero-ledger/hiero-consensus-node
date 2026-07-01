@@ -33,7 +33,7 @@ module org.hiero.base.crypto {
             org.hiero.base.crypto.test.fixtures,
             org.hiero.otter.test,
             com.fasterxml.jackson.databind;
-
+    // spotless:off
     provides ConfigurationExtension with
             CryptoConfigurationExtension;
 }
