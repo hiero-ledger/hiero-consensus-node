@@ -13,6 +13,10 @@ conventions, frontmatter, and the canonicalization rule — lives in
   siblings drift; `FORMAT.md` is the schema.
 - Match the prevailing voice: terse, declarative statements. Detail goes in the
   sections the format designates for it, not in the headline claim.
+- Prefer short sentences and lists over flowing prose. A multi-step mechanism is
+  a numbered list, not a run-on paragraph; split any sentence that needs three
+  clauses to land. A long explanatory paragraph is a smell — it buries the fact
+  and hides unanchored claims in the gaps between sentences.
 
 ## Non-duplication is the prime directive
 
@@ -67,10 +71,16 @@ Behavioral claims tie to the specific code that makes them true. Match that bar
 
 - **Coverage, not just honesty.** A behavioral claim names the class, and where
   it matters the method, that realizes it — the way RUL-002 ties its ordering
-  claim to `PlatformCoordinator.flushIntakePipeline()`. A load-bearing claim a
+  claim to `PlatformCoordinator.flushPrimaryPipeline()`. A load-bearing claim a
   reader cannot trace to code is either raised to a cited authority (a paper or
   protocol, the way invariants use `source`) or cut. "Don't fabricate an anchor"
   is the floor; **"every load-bearing claim carries one" is the bar.**
+- **No narrative exemption; anchor the surprising claim hardest.** A behavioral
+  sentence keeps its anchor mid-paragraph and in "explanatory" prose — anchor
+  each claim, not just the one that first names the component. And the
+  counter-intuitive assertion is the one a reader cannot take on faith, so it
+  gets the line-level cite, not a hand-wave: under-anchoring there is the worst
+  place to skimp.
 - **By document type — apply the right kind of anchor, don't over- or
   under-anchor:**
   - *Rules* — `components:` frontmatter is required and lists full paths; the

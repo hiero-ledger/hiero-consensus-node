@@ -419,12 +419,10 @@ public final class PlatformBuilder {
                 platformContext.getRecycleBin(),
                 platformContext.getFileSystemManager(),
                 initialState.get().getRound(),
-                platformCoordinator::flushIntakePipeline,
-                platformCoordinator::flushTransactionHandler,
+                platformCoordinator::flushPrimaryPipeline,
                 latestStateSupplier,
                 platformCoordinator::submitStatusAction,
                 platformCoordinator::flushPlatformStatus,
-                platformCoordinator::flushStateHasher,
                 platformCoordinator::signalEndOfPcesReplay,
                 pipelineTracker);
     }

@@ -3,8 +3,12 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ConcurrentMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +16,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeStatsTest {
+
+    private static final VarHandle blockProofSendTimestampsHandle;
+
+    static {
+        try {
+            final Class<BlockNodeStats> cls = BlockNodeStats.class;
+            final Lookup lookup = MethodHandles.privateLookupIn(cls, MethodHandles.lookup());
+
+            blockProofSendTimestampsHandle = lookup.findVarHandle(cls, "blockProofSendTimestamps", ConcurrentMap.class);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private BlockNodeStats blockNodeStats;
 
@@ -177,5 +194,36 @@ class BlockNodeStatsTest {
         // Third message in new window (after timeframe expires, queue empty due to pruning) - should NOT be ignored
         assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(35), ignorePeriod, timeFrame))
                 .isFalse();
+    }
+
+    @Test
+    void testRecordBlockProofSent_pruneOldEntries() {
+        final int numBlocksToPrime = BlockNodeStats.MAX_BLOCK_PROOF_TRACKING_ENTRIES - 1;
+        final ConcurrentMap<Long, Instant> blockProofSendTimestamps = blockProofSendTimestamps();
+        long blockNumber = 0;
+
+        for (; blockNumber < numBlocksToPrime; ++blockNumber) {
+            blockProofSendTimestamps.put(blockNumber, Instant.now());
+        }
+
+        assertThat(blockProofSendTimestamps).hasSize(numBlocksToPrime);
+
+        // we should now be at MAX_SIZE - 1, so adding another entry should prune anything
+        blockNodeStats.recordBlockProofSent(++blockNumber, Instant.now());
+        assertThat(blockProofSendTimestamps)
+                .hasSize(BlockNodeStats.MAX_BLOCK_PROOF_TRACKING_ENTRIES)
+                .containsKey(0L); // make sure the oldest key exists
+
+        // now if we add another entry, the oldest should be removed and the new one should exist
+        blockNodeStats.recordBlockProofSent(++blockNumber, Instant.now());
+        assertThat(blockProofSendTimestamps)
+                .hasSize(BlockNodeStats.MAX_BLOCK_PROOF_TRACKING_ENTRIES)
+                .containsKey(blockNumber) // make sure the new entry exists
+                .doesNotContainKey(0L); // make sure the oldest entry is now removed
+    }
+
+    @SuppressWarnings("unchecked")
+    private ConcurrentMap<Long, Instant> blockProofSendTimestamps() {
+        return (ConcurrentMap<Long, Instant>) blockProofSendTimestampsHandle.get(blockNodeStats);
     }
 }

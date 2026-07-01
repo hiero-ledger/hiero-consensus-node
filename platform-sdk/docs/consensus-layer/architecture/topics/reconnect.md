@@ -191,6 +191,11 @@ The orchestration lives in
 see that method for the exact set of overrides and injections it
 performs.
 
+As at restart, the re-initialised hashgraph emits no rounds until it has
+re-identified the judges of the learned state's snapshot, so it never
+re-emits a round already baked into that state — see
+[`restart-and-pces.md`](restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
+
 Status transitions follow loading in two stages.
 `ReconnectController` submits a `ReconnectCompleteAction` once a
 valid state has been learned, and the platform status machine moves

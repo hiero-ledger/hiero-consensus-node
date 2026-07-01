@@ -2,7 +2,6 @@
 package com.hedera.node.app.hapi.utils;
 
 import com.hedera.node.app.hapi.utils.builder.RequestBuilder;
-import com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.sysfiles.ParsingUtils;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.HapiThrottleUtils;
@@ -27,8 +26,7 @@ class UtilsConstructorTest {
             ThrottlesJsonToProtoSerde.class,
             ErrorCodeUtils.class,
             ExpectedCustomThrottles.class,
-            RequestBuilder.class,
-            ConsensusServiceFeeBuilder.class));
+            RequestBuilder.class));
 
     @Test
     void throwsInConstructor() {
