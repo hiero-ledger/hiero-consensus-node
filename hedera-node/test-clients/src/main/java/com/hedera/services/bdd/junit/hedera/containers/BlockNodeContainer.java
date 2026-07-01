@@ -192,18 +192,49 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             }
             try {
                 Files.createDirectories(stateDir);
+                // Fixed dir reused by every block node container. A prior container (non-root user)
+                // may have left files we can't overwrite; we own the dir, so clear it to start
+                // clean — avoids AccessDenied on the roster re-write and drops any stale
+                // tss-parameters.bin that would leak a previous test's ledger id.
+                deleteDirectoryContents(stateDir);
                 Files.writeString(stateDir.resolve(RSA_BOOTSTRAP_FILE_NAME), rsaBootstrapJson);
             } catch (final IOException e) {
                 throw new RuntimeException("Failed to write RSA bootstrap file to " + stateDir, e);
             }
-            // Make the bind-mounted state dir writable by the non-root block node container user so it
-            // can persist runtime state (e.g. tss-parameters.bin) and reload it across restarts.
+            // Let the block node's non-root user persist runtime state (e.g. tss-parameters.bin) so
+            // it survives an in-test container restart; no-op on non-POSIX hosts.
             try {
                 Files.setPosixFilePermissions(stateDir, PosixFilePermissions.fromString("rwxrwxrwx"));
             } catch (final UnsupportedOperationException | IOException ignored) {
-                // Non-POSIX host; the Docker-based block node tests only run on POSIX filesystems.
+                // Docker-based block node tests only run on POSIX filesystems
             }
             return stateDir;
+        }
+    }
+
+    /**
+     * Best-effort recursive removal of a directory's contents (the directory itself is kept). The
+     * block node runs as a non-root user and may leave files this process cannot overwrite; since
+     * we own the directory we can still unlink them. Per-entry failures are ignored so a leftover
+     * entry never aborts container setup.
+     */
+    private static void deleteDirectoryContents(final Path dir) {
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var stream = Files.newDirectoryStream(dir)) {
+            for (final Path entry : stream) {
+                try {
+                    if (Files.isDirectory(entry)) {
+                        deleteDirectoryContents(entry);
+                    }
+                    Files.deleteIfExists(entry);
+                } catch (final IOException ignored) {
+                    // best-effort per entry
+                }
+            }
+        } catch (final IOException ignored) {
+            // best-effort: could not list the directory
         }
     }
 
