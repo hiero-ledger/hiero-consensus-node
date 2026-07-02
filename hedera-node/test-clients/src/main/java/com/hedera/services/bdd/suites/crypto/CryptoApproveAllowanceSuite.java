@@ -543,6 +543,167 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> approveForAllSpenderCannotRevokeAnotherApproveForAllSpender() {
+        final String delegatingSpender = "delegatingSpender";
+        final String victimSpender = "victimSpender";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(delegatingSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(victimSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(RECEIVER, NON_FUNGIBLE_TOKEN),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
+                        .via(NFT_TOKEN_MINT_TXN),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                // The owner grants approve-for-all to two independent operators.
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, delegatingSpender, true, List.of())
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, victimSpender, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .nftApprovedForAllAllowancesCount(2)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, delegatingSpender)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, victimSpender)),
+                // One operator issues a delegated allowance naming the other operator as spender, signed only by the
+                // delegating spender (the owner does NOT sign). A delegating spender may only sub-delegate serials, so
+                // a delegated allowance carrying no serials can only have been an attempt to tamper with the owner's
+                // approve-for-all grants - it is rejected outright.
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, victimSpender, delegatingSpender, false, List.of())
+                        .signedBy(DEFAULT_PAYER, delegatingSpender)
+                        .hasKnownStatus(EMPTY_ALLOWANCES),
+                // Both approve-for-all grants remain intact.
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .nftApprovedForAllAllowancesCount(2)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, delegatingSpender)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, victimSpender)),
+                // The victim still holds approve-for-all and can transfer the owner's NFT.
+                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER))
+                        .payingWith(victimSpender)
+                        .signedBy(victimSpender));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> subDelegatedSerialDoesNotGrantApproveForAll() {
+        final String delegatingSpender = "delegatingSpender";
+        final String newSpender = "newSpender";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(delegatingSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(newSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(RECEIVER, NON_FUNGIBLE_TOKEN),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a")))
+                        .via(NFT_TOKEN_MINT_TXN),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, OWNER)),
+                // Owner grants approve-for-all to the delegating spender only.
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, delegatingSpender, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER),
+                // The delegating spender sub-delegates serial 1 to a new spender, signed only by the delegating
+                // spender.
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, newSpender, delegatingSpender, false, List.of(1L))
+                        .signedBy(DEFAULT_PAYER, delegatingSpender),
+                // Sub-delegation grants only a per-serial spender: newSpender must NOT gain approve-for-all, and the
+                // delegating spender's own grant must be untouched (still exactly one approve-for-all entry).
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(newSpender),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .nftApprovedForAllAllowancesCount(1)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, delegatingSpender)
+                                .nftApprovedAllowancesNotContaining(NON_FUNGIBLE_TOKEN, newSpender)),
+                // The sub-delegated spender can transfer exactly that serial.
+                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER))
+                        .payingWith(newSpender)
+                        .signedBy(newSpender));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> approveForAllSpenderCannotRevokePeerViaNonEmptySerialAllowance() {
+        final String delegatingSpender = "delegatingSpender";
+        final String victimSpender = "victimSpender";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(delegatingSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(victimSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(100 * ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .maxSupply(10L)
+                        .initialSupply(0)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                tokenAssociate(RECEIVER, NON_FUNGIBLE_TOKEN),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"), ByteString.copyFromUtf8("b")))
+                        .via(NFT_TOKEN_MINT_TXN),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L).between(TOKEN_TREASURY, OWNER)),
+                // Owner grants approve-for-all to two independent operators.
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, delegatingSpender, true, List.of())
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, victimSpender, true, List.of())
+                        .signedBy(DEFAULT_PAYER, OWNER),
+                // The residual attack: rather than empty serials (blocked by EMPTY_ALLOWANCES), the delegating
+                // spender includes a real serial to slip past validation, hoping the peer's approve-for-all is
+                // stripped as a side effect. Signed only by the delegating spender - the owner does NOT sign.
+                // The fix leaves the approve-for-all list untouched and only sub-delegates the serial.
+                cryptoApproveAllowance()
+                        .payingWith(DEFAULT_PAYER)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, victimSpender, delegatingSpender, false, List.of(1L))
+                        .signedBy(DEFAULT_PAYER, delegatingSpender),
+                // Both approve-for-all grants survive, and serial 1 is now sub-delegated to the victim.
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .nftApprovedForAllAllowancesCount(2)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, delegatingSpender)
+                                .nftApprovedAllowancesContaining(NON_FUNGIBLE_TOKEN, victimSpender)),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(victimSpender),
+                // Proof the victim's approve-for-all survived: it can transfer serial 2, for which it holds NO
+                // per-serial allowance - only the surviving blanket approve-for-all makes this possible.
+                cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, RECEIVER))
+                        .payingWith(victimSpender)
+                        .signedBy(victimSpender));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> canGrantFungibleAllowancesWithTreasuryOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
