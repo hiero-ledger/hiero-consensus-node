@@ -53,7 +53,9 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
             throw new IllegalArgumentException("Must wait for at least one block");
         }
         this.blocksToWaitFor = count;
-        this.timeout = Duration.ofSeconds(10L * count);
+        // Base matches the default timeout above and absorbs block node serving lag; without it a
+        // single-block wait would get less budget (10s) than a plain wait (30s).
+        this.timeout = Duration.ofSeconds(30L + 10L * count);
         return this;
     }
 

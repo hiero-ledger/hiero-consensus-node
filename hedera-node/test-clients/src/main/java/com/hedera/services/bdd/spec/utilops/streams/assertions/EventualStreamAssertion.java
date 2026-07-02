@@ -5,6 +5,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -26,6 +27,8 @@ import java.util.function.Function;
  * </ul>
  */
 public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
+    private static final Duration BLOCK_NODE_READ_TIMEOUT_FLOOR = Duration.ofSeconds(45);
+
     private final Function<HapiSpec, ? extends StreamAssertion> assertionFactory;
     private final boolean hasPassedIfNothingFailed;
     private final boolean needsBackgroundTraffic;
@@ -153,16 +156,34 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
 
     private EventualBlockStreamAssertion createBlockDelegate(
             @NonNull final Function<HapiSpec, BlockStreamAssertion> factory) {
-        if (replayExistingFiles && timeout != null) {
-            return EventualBlockStreamAssertion.eventuallyAssertingExplicitPassWithReplay(factory, timeout);
+        final var effectiveTimeout = effectiveBlockTimeout();
+        if (replayExistingFiles && effectiveTimeout != null) {
+            return EventualBlockStreamAssertion.eventuallyAssertingExplicitPassWithReplay(factory, effectiveTimeout);
         }
         if (hasPassedIfNothingFailed) {
             return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(factory);
         }
-        if (timeout != null) {
-            return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(factory, timeout);
+        if (effectiveTimeout != null) {
+            return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(factory, effectiveTimeout);
         }
         return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(factory);
+    }
+
+    /**
+     * Returns the timeout to use for block-stream delegates. When blocks are served through a
+     * block node (no local block files to read), the subscription path can lag several seconds
+     * behind block production under CI load; explicit-pass budgets tuned for local file reads
+     * then time out spuriously. Floor them at {@link #BLOCK_NODE_READ_TIMEOUT_FLOOR}. No-failures
+     * assertions are left untouched since they pass, not fail, on timeout.
+     */
+    @Nullable
+    private Duration effectiveBlockTimeout() {
+        if (hasPassedIfNothingFailed || BlockNodeReader.activeNetwork() == null) {
+            return timeout;
+        }
+        return (timeout == null || timeout.compareTo(BLOCK_NODE_READ_TIMEOUT_FLOOR) < 0)
+                ? BLOCK_NODE_READ_TIMEOUT_FLOOR
+                : timeout;
     }
 
     private static StreamMode resolveStreamMode(@NonNull final HapiSpec spec) {
