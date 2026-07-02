@@ -24,11 +24,11 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
@@ -199,7 +199,8 @@ public class UpdateNodeAccountTestEmbedded {
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, newNodeAccount, "adminKey")
                             .via("updateTxn"),
-                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
+                    validateChargedUsdWithin(
+                            "updateTxn", NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
                     viewNode(
                             "testNode",
                             node -> assertEquals(
@@ -456,7 +457,8 @@ public class UpdateNodeAccountTestEmbedded {
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithAdminKey, "adminKey")
                             .via("updateTxn"),
-                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
+                    validateChargedUsdWithin(
+                            "updateTxn", NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
                     viewNode(
                             "testNode",
                             node -> assertEquals(
@@ -488,7 +490,8 @@ public class UpdateNodeAccountTestEmbedded {
                             .payingWith(PAYER)
                             .signedBy(PAYER, initialNodeAccount, contractWithoutAdminKey, "adminKey")
                             .via("updateTxn"),
-                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
+                    validateChargedUsdWithin(
+                            "updateTxn", NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
                     viewNode(
                             "testNode",
                             node -> assertEquals(
@@ -894,7 +897,8 @@ public class UpdateNodeAccountTestEmbedded {
                             .signedBy(PAYER, initialNodeAccount, contractWithAdminKey, "adminKey")
                             .via("updateTxn")
                             .hasKnownStatus(NODE_ACCOUNT_HAS_ZERO_BALANCE),
-                    validateFees("updateTxn", 0.0012, NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER),
+                    validateChargedUsdWithin(
+                            "updateTxn", NODE_UPDATE_BASE_FEE_USD + 3 * SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
                     viewNode(
                             "testNode",
                             node -> assertNotEquals(
@@ -958,6 +962,121 @@ public class UpdateNodeAccountTestEmbedded {
                                     newAccountId.get(),
                                     node.accountIdOrThrow().accountNum(),
                                     "Node accountId should not be updated")));
+        }
+    }
+
+    @Nested
+    class NodeCreateSignatureTests {
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeCreateWithoutAccountOwnerSignatureShouldFail()
+                throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount"),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .signedBy(GENESIS, "adminKey")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .hasKnownStatus(INVALID_SIGNATURE));
+        }
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeCreateWithAccountOwnerSignatureShouldSucceed()
+                throws CertificateEncodingException {
+            final AtomicLong nodeAccountNum = new AtomicLong();
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount").exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .signedByPayerAnd("adminKey", "nodeAccount")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                    viewNode(
+                            "testNode",
+                            node -> assertEquals(
+                                    nodeAccountNum.get(),
+                                    node.accountIdOrThrow().accountNum(),
+                                    "Node should be created with correct accountId")));
+        }
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeCreateSignedOnlyByAccountOwnerShouldFail() throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("nodeAccount"),
+                    nodeCreate("testNode", "nodeAccount")
+                            .adminKey("adminKey")
+                            .signedBy(GENESIS, "nodeAccount")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                            .hasKnownStatus(INVALID_SIGNATURE));
+        }
+    }
+
+    @Nested
+    class NodeUpdateMultiFieldAccountIdTests {
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeUpdateAccountIdAndDescriptionWithCorrectSignaturesShouldSucceed()
+                throws CertificateEncodingException {
+            final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("initialNodeAccount"),
+                    cryptoCreate("newNodeAccount").exposingCreatedIdTo(newAccountId::set),
+                    sourcing(() -> {
+                        try {
+                            return nodeCreate("testNode", "initialNodeAccount")
+                                    .adminKey("adminKey")
+                                    .gossipCaCertificate(
+                                            gossipCertificates.getFirst().getEncoded());
+                        } catch (CertificateEncodingException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }),
+                    nodeUpdate("testNode")
+                            .accountId("newNodeAccount")
+                            .description("updatedDescription")
+                            .payingWith(DEFAULT_PAYER)
+                            .signedByPayerAnd("adminKey", "newNodeAccount"),
+                    viewNode(
+                            "testNode",
+                            node -> assertEquals(
+                                    toPbj(newAccountId.get()),
+                                    node.accountId(),
+                                    "Node accountId should be updated in multi-field update")));
+        }
+
+        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+        final Stream<DynamicTest> nodeUpdateAccountIdAndDescriptionWithoutNewAccountShouldFail()
+                throws CertificateEncodingException {
+            final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("initialNodeAccount"),
+                    cryptoCreate("newNodeAccount").exposingCreatedIdTo(newAccountId::set),
+                    sourcing(() -> {
+                        try {
+                            return nodeCreate("testNode", "initialNodeAccount")
+                                    .adminKey("adminKey")
+                                    .gossipCaCertificate(
+                                            gossipCertificates.getFirst().getEncoded());
+                        } catch (CertificateEncodingException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }),
+                    nodeUpdate("testNode")
+                            .accountId("newNodeAccount")
+                            .description("updatedDescription")
+                            .payingWith(DEFAULT_PAYER)
+                            .signedByPayerAnd("adminKey")
+                            .hasKnownStatus(INVALID_SIGNATURE),
+                    viewNode(
+                            "testNode",
+                            node -> assertNotEquals(
+                                    toPbj(newAccountId.get()),
+                                    node.accountId(),
+                                    "Node accountId should not be updated without new account signature")));
         }
     }
 }

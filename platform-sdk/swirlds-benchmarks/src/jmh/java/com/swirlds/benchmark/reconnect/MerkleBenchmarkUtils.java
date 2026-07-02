@@ -1,29 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
+import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
-import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
-import java.io.IOException;
+import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.TeachingSynchronizer;
+import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.gossip.config.GossipConfig;
-import org.hiero.consensus.gossip.config.SocketConfig;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A utility class to support benchmarks for reconnect.
@@ -38,12 +29,10 @@ public class MerkleBenchmarkUtils {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            final NodeId selfId,
             final Configuration configuration)
             throws Exception {
-        System.out.println("------------");
-        System.out.println("starting: " + startingTree);
-        System.out.println("desired: " + desiredTree);
+        printVirtualMap("Starting Tree", startingTree);
+        printVirtualMap("Desired Tree", desiredTree);
 
         if (startingTree != null) {
             // calculate hash
@@ -61,14 +50,12 @@ public class MerkleBenchmarkUtils {
                 delayStorageFuzzRangePercent,
                 delayNetworkMicroseconds,
                 delayNetworkFuzzRangePercent,
-                selfId,
                 configuration);
     }
 
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    @SuppressWarnings("unchecked")
     private static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
@@ -77,131 +64,70 @@ public class MerkleBenchmarkUtils {
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            final NodeId selfId,
             final Configuration configuration)
             throws Exception {
-        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
-        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (PairedStreams streams = new PairedStreams(selfId, socketConfig, gossipConfig)) {
+        try (final PairedStreams streams = new PairedStreams()) {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
-            final VirtualMap newRoot = startingTree.newReconnectRoot();
-            final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
-
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
-                learner = new LearningSynchronizer(
-                        getStaticThreadManager(),
-                        streams.getLearnerInput(),
-                        streams.getLearnerOutput(),
-                        newRoot,
-                        learnerView,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                e.printStackTrace();
-                            }
-                        },
-                        reconnectConfig);
-                teacher = new TeachingSynchronizer(
-                        Time.getCurrent(),
-                        getStaticThreadManager(),
-                        streams.getTeacherInput(),
-                        streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(reconnectConfig),
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                e.printStackTrace();
-                            }
-                        },
-                        reconnectConfig);
+                learner = new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
+                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), configuration);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
-                        streams.getLearnerInput(),
-                        streams.getLearnerOutput(),
-                        newRoot,
-                        learnerView,
+                        configuration,
+                        metrics,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,
                         delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                e.printStackTrace();
-                            }
-                        },
-                        reconnectConfig);
+                        delayNetworkFuzzRangePercent);
                 teacher = new BenchmarkSlowTeachingSynchronizer(
-                        streams.getTeacherInput(),
-                        streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(reconnectConfig),
+                        desiredTree,
+                        configuration,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,
                         delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                e.printStackTrace();
-                            }
-                        },
-                        reconnectConfig);
+                        delayNetworkFuzzRangePercent);
             }
 
-            final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = t -> {
-                firstReconnectException.compareAndSet(null, t);
-                return false;
-            };
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
-            workGroup.execute("learning-synchronizer-main", () -> learningSynchronizerThread(learner));
+            final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
 
-            try {
-                workGroup.waitForTermination();
+            try (final StandardWorkGroup workGroup =
+                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", streams::disconnect)) {
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
+                        "learning-synchronizer-main",
+                        () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
+                workGroup.join();
             } catch (InterruptedException e) {
-                workGroup.shutdown();
                 Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
             }
 
-            if (workGroup.hasExceptions()) {
-                throw new MerkleSynchronizationException(
-                        "Exception(s) in synchronization test", firstReconnectException.get());
-            }
-
-            return newRoot;
+            return syncMapContainer.get();
         }
     }
 
-    private static void teachingSynchronizerThread(final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(final PairedStreams streams, final TeachingSynchronizer teacher) {
         try {
-            teacher.synchronize();
+            teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
     }
 
-    private static void learningSynchronizerThread(final LearningSynchronizer learner) {
+    private static void learningSynchronizerThread(
+            final PairedStreams streams,
+            final VirtualMap startingTree,
+            final LearningSynchronizer learner,
+            final AtomicReference<VirtualMap> syncMapContainer) {
         try {
-            learner.synchronize();
+            syncMapContainer.set(learner.synchronize(
+                    startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         }

@@ -21,15 +21,27 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.history.schemas.V0730HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.Network;
+import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
 import java.util.concurrent.ForkJoinPool;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -68,6 +80,27 @@ class HistoryServiceImplTest {
 
     @Mock
     private WritableHistoryStore store;
+
+    @Mock
+    private WritableStates writableStates;
+
+    @Mock
+    private WritableSingletonState<ProtoBytes> ledgerIdState;
+
+    @Mock
+    private WritableSingletonState<HistoryProofConstruction> activeConstructionState;
+
+    @Mock
+    private WritableSingletonState<HistoryProofConstruction> nextConstructionState;
+
+    @Mock
+    private WritableSingletonState<ProtoBytes> wrapsProvingKeyHashState;
+
+    @Mock
+    private WritableKVState<NodeId, ProofKeySet> proofKeys;
+
+    @Mock
+    private Configuration configuration;
 
     private HistoryServiceImpl subject;
 
@@ -124,9 +157,16 @@ class HistoryServiceImplTest {
     void noopReconciliationIfBootstrapHasProof() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        // isCompleted() requires an uncompressed WRAPS proof when tss.wrapsEnabled=true (new default),
+        // so supply a wraps-extensible proof to keep the test asserting what it's meant to:
+        // that reconcile is a no-op once a proof is complete.
+        final var wrapsExtensibleProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
         given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
                 .willReturn(HistoryProofConstruction.newBuilder()
-                        .targetProof(HistoryProof.DEFAULT)
+                        .targetProof(wrapsExtensibleProof)
                         .build());
 
         subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
@@ -175,6 +215,88 @@ class HistoryServiceImplTest {
         given(component.library()).willReturn(library);
         given(library.wrapsVerificationKey()).willReturn(mockKey);
         assertEquals(Bytes.wrap(mockKey), subject.historyProofVerificationKey());
+    }
+
+    @Test
+    void doesGenesisSetupFromStartupNetworkTssMetadata() {
+        final var ledgerId = Bytes.wrap("LEDGER");
+        final var wrapsProvingKeyHash = Bytes.wrap("HASH");
+        final var targetProof = HistoryProof.newBuilder()
+                .targetHistory(History.newBuilder().metadata(CURRENT_VK))
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .targetProof(targetProof)
+                .build();
+        final var network = Network.newBuilder()
+                .ledgerId(ledgerId)
+                .tssMetadata(TssMetadata.newBuilder()
+                        .activeProofConstruction(activeConstruction)
+                        .wrapsProvingKeyHash(wrapsProvingKeyHash))
+                .build();
+        subject = new HistoryServiceImpl(component, () -> network);
+        given(writableStates.<ProtoBytes>getSingleton(V071HistorySchema.LEDGER_ID_STATE_ID))
+                .willReturn(ledgerIdState);
+        given(writableStates.<HistoryProofConstruction>getSingleton(
+                        V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(writableStates.<HistoryProofConstruction>getSingleton(V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(writableStates.<ProtoBytes>getSingleton(V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID))
+                .willReturn(wrapsProvingKeyHashState);
+        given(writableStates.<NodeId, ProofKeySet>get(V071HistorySchema.PROOF_KEY_SETS_STATE_ID))
+                .willReturn(proofKeys);
+
+        assertTrue(subject.doGenesisSetup(writableStates, configuration));
+
+        verify(ledgerIdState).put(new ProtoBytes(ledgerId));
+        verify(activeConstructionState).put(activeConstruction);
+        verify(nextConstructionState).put(HistoryProofConstruction.DEFAULT);
+        verify(wrapsProvingKeyHashState).put(new ProtoBytes(wrapsProvingKeyHash));
+        assertTrue(subject.isReady());
+        assertEquals(ChainOfTrustProof.DEFAULT, subject.getCurrentChainOfTrustProof(CURRENT_VK));
+    }
+
+    @Test
+    void doesGenesisSetupWithBlankWrapsProvingKeyHash() {
+        subject = new HistoryServiceImpl(component, () -> null);
+        given(writableStates.<ProtoBytes>getSingleton(V071HistorySchema.LEDGER_ID_STATE_ID))
+                .willReturn(ledgerIdState);
+        given(writableStates.<HistoryProofConstruction>getSingleton(
+                        V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(writableStates.<HistoryProofConstruction>getSingleton(V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(writableStates.<ProtoBytes>getSingleton(V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID))
+                .willReturn(wrapsProvingKeyHashState);
+        final var blankHashConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(TssConfig.class)
+                .withValue("tss.wrapsProvingKeyHash", "")
+                .getOrCreateConfig();
+
+        assertTrue(subject.doGenesisSetup(writableStates, blankHashConfig));
+
+        verify(wrapsProvingKeyHashState).put(ProtoBytes.DEFAULT);
+    }
+
+    @Test
+    void doesGenesisSetupWithNonBlankWrapsProvingKeyHash() {
+        subject = new HistoryServiceImpl(component, () -> null);
+        given(writableStates.<ProtoBytes>getSingleton(V071HistorySchema.LEDGER_ID_STATE_ID))
+                .willReturn(ledgerIdState);
+        given(writableStates.<HistoryProofConstruction>getSingleton(
+                        V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(writableStates.<HistoryProofConstruction>getSingleton(V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(writableStates.<ProtoBytes>getSingleton(V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID))
+                .willReturn(wrapsProvingKeyHashState);
+
+        assertTrue(subject.doGenesisSetup(writableStates, DEFAULT_CONFIG));
+
+        final var expectedHash = DEFAULT_CONFIG.getConfigData(TssConfig.class).wrapsProvingKeyHash();
+        verify(wrapsProvingKeyHashState).put(new ProtoBytes(Bytes.fromHex(expectedHash)));
     }
 
     private void withLiveSubject() {

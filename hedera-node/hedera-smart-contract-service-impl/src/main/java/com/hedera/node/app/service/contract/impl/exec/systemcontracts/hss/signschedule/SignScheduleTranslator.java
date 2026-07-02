@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType;
 import com.hedera.node.app.spi.signatures.SignatureVerifier.SimpleKeyStatus;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -108,10 +109,10 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
     /**
      * Calculates the gas requirement for a {@code signSchedule()} call.
      *
-     * @param body the transaction body
+     * @param body                        the transaction body
      * @param systemContractGasCalculator the gas calculator
-     * @param enhancement the enhancement
-     * @param payerId the payer ID
+     * @param enhancement                 the enhancement
+     * @param payerId                     the payer ID
      * @return the gas requirement
      */
     public static long gasRequirement(
@@ -184,7 +185,7 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
     }
 
     /**
-     * Extracts the key set for a {@code signSchedule(address, bytes)} call.  Otherwise, delegates to the call attempt.
+     * Extracts the key set for a {@code signSchedule(address, bytes)} call. Otherwise, delegates to the call attempt.
      *
      * @param attempt the call attempt
      * @return the key set
@@ -200,6 +201,20 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
         return attempt.keySetFor();
     }
 
+    /**
+     * Validates the max size in bytes of the signatures map in {@code signSchedule(address, bytes)}
+     * based on the max regular transaction size.
+     *
+     * @param attempt                the HSS call attempt
+     * @param signaturesMapBytesSize {@code signSchedule(address, bytes)} signatures map size in bytes of the
+     */
+    private static void validateSignatureMapMaxLength(
+            @NonNull final HssCallAttempt attempt, final int signaturesMapBytesSize) {
+        final var maxRegularTxnSize =
+                attempt.configuration().getConfigData(HederaConfig.class).transactionMaxBytes();
+        validateTrue(signaturesMapBytesSize <= maxRegularTxnSize, INVALID_TRANSACTION_BODY);
+    }
+
     @VisibleForTesting
     @NonNull
     public static Set<Key> getKeyForSignSchedule(@NonNull HssCallAttempt attempt) {
@@ -211,11 +226,12 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
         final var message = messageFromScheduleId(scheduleId);
 
         final var signatureBlob = (byte[]) call.get(SIGNATURE_MAP_INDEX);
+        validateSignatureMapMaxLength(attempt, signatureBlob.length);
         try {
             final var chainId =
                     attempt.configuration().getConfigData(ContractsConfig.class).chainId();
             final var sigMap = preprocessEcdsaSignatures(
-                    requireNonNull(SignatureMap.PROTOBUF.parse(wrap(signatureBlob))), chainId);
+                    requireNonNull(SignatureMap.PROTOBUF.parseStrict(wrap(signatureBlob))), chainId);
             for (var sigPair : sigMap.sigPair()) {
                 // For ED25519 and ECDSA keys, verify the key and add it to the key set if verified
                 if (sigPair.hasEd25519()) {
@@ -241,15 +257,16 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
 
     /**
      * Verifies the signature for a given key.
+     *
      * @param attempt the call attempt
-     * @param key the key to verify
+     * @param key     the key to verify
      * @param message the message to verify - concatenation of realm, shard, and schedule numbers
-     * @param sigMap the signature map used for verification
+     * @param sigMap  the signature map used for verification
      * @return true if the signature is verified, false otherwise
      */
     private static boolean isVerifiedSignature(
             @NonNull HssCallAttempt attempt, Key key, Bytes message, SignatureMap sigMap) {
         return attempt.signatureVerifier()
-                .verifySignature(key, message, MessageType.RAW, sigMap, ky -> SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
+                .verifySignature(key, message, MessageType.RAW, sigMap, _ -> SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
     }
 }

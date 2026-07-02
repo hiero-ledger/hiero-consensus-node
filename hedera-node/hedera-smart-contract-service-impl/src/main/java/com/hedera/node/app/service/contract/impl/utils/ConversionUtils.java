@@ -12,7 +12,6 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasN
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -37,7 +36,6 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOp
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
-import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
@@ -693,36 +691,20 @@ public class ConversionUtils {
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
      * @param hederaOperations the Hedera operations
-     * @param streamBuilder the stream builder
      */
     public static void throwIfUnsuccessfulCall(
-            @NonNull final CallOutcome outcome,
-            @NonNull final HederaOperations hederaOperations,
-            @NonNull final ContractCallStreamBuilder streamBuilder) {
-        requireNonNull(outcome);
-        requireNonNull(hederaOperations);
-        requireNonNull(streamBuilder);
-        if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), (feeChargingContext, ignored) -> {
-                hederaOperations.replayGasChargingIn(feeChargingContext);
-                outcome.addCalledContractIfNotAborted(streamBuilder);
-            });
-        }
-    }
-
-    /**
-     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     * @param outcome the outcome
-     * @param hederaOperations the Hedera operations
-     */
-    public static void throwIfUnsuccessfulCreate(
             @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
         requireNonNull(outcome);
         requireNonNull(hederaOperations);
+        throwIfUnsuccessfulCall(
+                outcome, new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents()));
+    }
+
+    public static void throwIfUnsuccessfulCall(
+            @NonNull final CallOutcome outcome, @NonNull final EthereumTransactionRollbackHandler rollbackHandler) {
+        requireNonNull(outcome);
         if (outcome.status() != SUCCESS) {
-            throw new HandleException(
-                    outcome.status(),
-                    (feeChargingContext, ignored) -> hederaOperations.replayGasChargingIn(feeChargingContext));
+            throw new HandleException(outcome.status(), rollbackHandler);
         }
     }
 
@@ -845,7 +827,11 @@ public class ConversionUtils {
      * @return its explicit 20-byte array
      */
     public static byte[] explicitFromHeadlong(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return unhex(address.toString().substring(2));
+        byte[] raw = address.value().toByteArray(); // normally, 21 byte array
+        byte[] bytes20 = new byte[20];
+        System.arraycopy(
+                raw, Math.max(0, raw.length - 20), bytes20, Math.max(0, 20 - raw.length), Math.min(20, raw.length));
+        return bytes20;
     }
 
     /**

@@ -32,15 +32,6 @@ public interface FeeContext {
     @NonNull
     TransactionBody body();
 
-    /**
-     * Returns the {@link FeeCalculatorFactory} which can be used to create {@link FeeCalculator} for a specific
-     * {@link com.hedera.hapi.node.base.SubType}
-     *
-     * @return the {@code FeeCalculatorFactory}
-     */
-    @NonNull
-    FeeCalculatorFactory feeCalculatorFactory();
-
     SimpleFeeCalculator getSimpleFeeCalculator();
 
     /**

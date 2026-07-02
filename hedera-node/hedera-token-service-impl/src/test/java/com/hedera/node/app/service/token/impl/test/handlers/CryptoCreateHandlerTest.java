@@ -14,8 +14,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THRESHOLD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
-import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -59,10 +59,7 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTe
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -157,23 +154,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    @DisplayName("test CalculateFees When Free")
-    void testCalculateFeesWhenFree(@Mock FeeCalculatorFactory feeCalculatorFactory) {
-        var transactionBody = new CryptoCreateBuilder()
-                .withStakedAccountId(3)
-                .withMemo("blank")
-                .withKey(A_COMPLEX_KEY)
-                .build();
-        final var feeCalculator = new FakeFeeCalculator();
-        given(feeContext.body()).willReturn(transactionBody);
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
-        given(feeContext.configuration()).willReturn(configuration);
-        final var result = subject.calculateFees(feeContext);
-        assertThat(result).isEqualTo(Fees.FREE);
-    }
-
-    @Test
     @DisplayName("preHandle works when there is a receiverSigRequired")
     void preHandleCryptoCreateVanilla() throws PreCheckException {
         final var context = new FakePreHandleContext(readableStore, txn);
@@ -192,6 +172,17 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(INVALID_INITIAL_BALANCE).isEqualTo(msg.responseCode());
+    }
+
+    @Test
+    @DisplayName("pureChecks fail when delegation address is not empty")
+    void whenDelegationAddressIsNonEmpty() {
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
     }
 
     @Test
@@ -812,6 +803,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
         private String memo = null;
 
+        private Bytes delegationAddress;
+
         private CryptoCreateBuilder() {}
 
         public TransactionBody build() {
@@ -847,6 +840,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
             }
             if (maxAutoAssociations != -1) {
                 createTxnBody.maxAutomaticTokenAssociations(maxAutoAssociations);
+            }
+            if (delegationAddress != null) {
+                createTxnBody.delegationAddress(delegationAddress);
             }
 
             return TransactionBody.newBuilder()
@@ -923,6 +919,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
         public CryptoCreateBuilder withMaxAutoAssociations(final int maxAutoAssociations) {
             this.maxAutoAssociations = maxAutoAssociations;
+            return this;
+        }
+
+        public CryptoCreateBuilder withDelegationAddress(final Bytes delegationAddress) {
+            this.delegationAddress = delegationAddress;
             return this;
         }
     }

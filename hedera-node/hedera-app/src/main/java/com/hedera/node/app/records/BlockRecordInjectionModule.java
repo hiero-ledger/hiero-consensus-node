@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
@@ -14,17 +16,21 @@ import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThread
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.app.records.impl.producers.formats.v7.BlockRecordFormatV7;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.State;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 /** A Dagger module for facilities in the {@link com.hedera.node.app.records} package. */
@@ -73,7 +79,10 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
-            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
+            @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
+            @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier,
+            @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
         final var merkleState = state.getState();
         if (merkleState == null) {
             throw new IllegalStateException("Merkle state is null");
@@ -86,8 +95,28 @@ public abstract class BlockRecordInjectionModule {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
                 initTrigger,
+                blockLifecycle,
                 wrappedRecordBlockHashMigration.result());
+    }
+
+    @Provides
+    @Singleton
+    public static BlockRecordManager.Lifecycle provideBlockRecordManagerLifecycle(
+            @NonNull final NodeFeeManager nodeFeeManager) {
+        return new BlockRecordManager.Lifecycle() {
+            @Override
+            public void onOpenBlock(@NonNull final State state) {
+                nodeFeeManager.onOpenBlock(state);
+            }
+
+            @Override
+            public void onCloseBlock(@NonNull final State state) {
+                nodeFeeManager.onCloseBlock(state);
+            }
+        };
     }
 
     @Provides

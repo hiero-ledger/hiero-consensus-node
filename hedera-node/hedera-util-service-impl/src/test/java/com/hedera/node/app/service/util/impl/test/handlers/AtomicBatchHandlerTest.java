@@ -10,18 +10,18 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -35,30 +35,32 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
-import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -342,12 +344,10 @@ class AtomicBatchHandlerTest {
                 .build();
         final var bytes = transactionsToBytes(transaction);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
-        final var tokenServiceMock = mock(TokenServiceApi.class);
         final var storeFactoryMock = mock(StoreFactory.class);
 
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.storeFactory()).willReturn(storeFactoryMock);
-        given(storeFactoryMock.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceMock);
         given(handleContext.body()).willReturn(txnBody);
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
@@ -355,6 +355,42 @@ class AtomicBatchHandlerTest {
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(INNER_TRANSACTION_FAILED, msg.getStatus());
+    }
+
+    @Test
+    void ethereumTransactionRollbackCallbackIsUsed() throws PreCheckException {
+        final var transaction = innerTxnFrom("123");
+        final var innerTxnBody = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
+                .ethereumTransaction(EthereumTransactionBody.newBuilder().build())
+                .build();
+        final var bytes = transactionsToBytes(transaction);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var storeFactoryMock = mock(StoreFactory.class);
+
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(handleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+
+        // Mock dispatch provides the rollback callback
+        final var rollbackCallbackCalledFlag = new AtomicBoolean(false);
+        given(handleContext.dispatch(any())).willAnswer(answer -> {
+            final var options = (DispatchOptions<StreamBuilder>) answer.getArgument(0);
+            options.dispatchMetadata()
+                    .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
+                    .ifPresent(consumer -> ((Consumer<HandleException.OnRollback>) consumer)
+                            .accept((_, _) -> rollbackCallbackCalledFlag.set(true)));
+            return recordBuilder;
+        });
+        given(recordBuilder.status()).willReturn(UNKNOWN);
+
+        final var handleException = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INNER_TRANSACTION_FAILED, handleException.getStatus());
+
+        // Make sure that when the side effects are replayed they include EthereumTransaction's callback
+        handleException.maybeReplay(mock(FeeCharging.Context.class), handleContext);
+        assertTrue(rollbackCallbackCalledFlag.get());
     }
 
     @Test
@@ -409,37 +445,71 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
-    void calculateFeesReturnsExpectedFees() {
-        var feeContext = mock(FeeContext.class);
-        var calculator = mock(FeeCalculator.class);
-        var expectedFees = mock(Fees.class);
+    void recordedFeeChargingCustomizedContextCapturesAndSnapshotsAllObservedCharges() {
+        var delegate = mock(FeeCharging.class);
+        var ctx = mock(FeeCharging.Context.class);
+        var firstFees = new Fees(1, 2, 3);
+        var secondFees = new Fees(4, 5, 6);
+        var thirdFees = new Fees(7, 8, 9);
 
-        when(feeContext.feeCalculatorFactory()).thenReturn(type -> calculator);
-        when(calculator.resetUsage()).thenReturn(calculator);
-        // Use doReturn/when pattern to avoid strict stubbing issues
-        doReturn(calculator).when(calculator).addVerificationsPerTransaction(anyLong());
-        when(calculator.calculate()).thenReturn(expectedFees);
-        when(feeContext.numTxnSignatures()).thenReturn(1);
+        var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
+        var firstCustomized = rfc.customized(ctx);
+        var secondCustomized = rfc.customized(ctx);
 
-        var result = subject.calculateFees(feeContext);
+        when(ctx.charge(payerId1, firstFees, null)).thenReturn(firstFees);
+        when(ctx.charge(payerId2, secondFees, payerId3, null)).thenReturn(secondFees);
+        when(ctx.charge(payerId3, thirdFees, null)).thenReturn(thirdFees);
 
-        assertSame(expectedFees, result);
+        assertNotSame(ctx, firstCustomized);
+        assertNotSame(ctx, secondCustomized);
+        assertSame(firstFees, firstCustomized.charge(payerId1, firstFees, null));
+        assertSame(secondFees, secondCustomized.charge(payerId2, secondFees, payerId3, null));
+
+        assertSame(thirdFees, firstCustomized.charge(payerId3, thirdFees, null));
+
+        assertEquals(
+                List.of(
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, firstFees, null),
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, secondFees, payerId3),
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId3, thirdFees, null)),
+                rfc.charges());
     }
 
     @Test
     void recordedFeeChargingReplayAndRefund() {
         var delegate = mock(FeeCharging.class);
         var ctx = mock(FeeCharging.Context.class);
-        given(ctx.payerId()).willReturn(payerId1);
-        var fees = mock(Fees.class);
+        var replayCtx = mock(FeeCharging.Context.class);
+        var validation = mock(FeeCharging.Validation.class);
+        var outerFees = new Fees(1, 1, 1);
+        var firstReplayFees = new Fees(2, 2, 2);
+        var secondReplayFees = new Fees(3, 3, 3);
+
+        when(ctx.charge(payerId1, firstReplayFees, null)).thenReturn(firstReplayFees);
+        when(ctx.charge(payerId2, secondReplayFees, payerId3, null)).thenReturn(secondReplayFees);
+        when(delegate.charge(eq(payerId1), any(FeeCharging.Context.class), eq(validation), eq(outerFees)))
+                .thenAnswer(invocation -> {
+                    final FeeCharging.Context recordingContext = invocation.getArgument(1);
+                    recordingContext.charge(payerId1, firstReplayFees, null);
+                    recordingContext.charge(payerId2, secondReplayFees, payerId3, null);
+                    return outerFees;
+                });
 
         var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
-        rfc.startRecording();
-        rfc.charge(ctx, mock(FeeCharging.Validation.class), fees);
-        rfc.finishRecordingTo(mock(ReplayableFeeStreamBuilder.class));
-        rfc.forEachRecorded((sb, charges) -> assertNotNull(charges));
-        rfc.refund(ctx, fees);
-        verify(delegate).refund(payerId1, ctx, fees);
+        assertSame(outerFees, rfc.charge(payerId1, ctx, validation, outerFees));
+
+        assertEquals(
+                List.of(
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, firstReplayFees, null),
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, secondReplayFees, payerId3)),
+                rfc.charges());
+
+        rfc.charges().forEach(charge -> charge.replay(replayCtx, (id, amount) -> {}));
+        verify(replayCtx).charge(eq(payerId1), eq(firstReplayFees), any());
+        verify(replayCtx).charge(eq(payerId2), eq(secondReplayFees), eq(payerId3), any());
+
+        rfc.refund(payerId1, ctx, outerFees);
+        verify(delegate).refund(payerId1, ctx, outerFees);
     }
 
     private TransactionBody newAtomicBatch(AccountID payerId, Timestamp consensusTimestamp, List<Bytes> transactions) {

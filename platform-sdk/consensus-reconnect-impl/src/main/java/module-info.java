@@ -22,11 +22,9 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;
-    requires com.swirlds.common;
     requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
-    requires org.hiero.base.utility;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.hashgraph;
@@ -34,6 +32,7 @@ module org.hiero.consensus.reconnect.impl {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.transaction.handling;
     requires com.github.spotbugs.annotations;
     requires java.management;
     requires java.scripting;

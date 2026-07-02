@@ -11,6 +11,8 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
+import com.hedera.node.app.records.schemas.V0750BlockRecordSchema;
+import com.hedera.node.app.records.schemas.V0760BlockRecordSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -47,6 +49,9 @@ public final class BlockRecordService implements Service {
             .firstConsTimeOfCurrentBlock(EPOCH)
             .lastUsedConsTime(EPOCH)
             .lastIntervalProcessTime(EPOCH)
+            // Voting completion should default to a no-op (i.e. complete = true) except under explicit circumstances
+            .votingComplete(true)
+            .votingCompletionDeadlineBlockNumber(0)
             .build();
     /**
      * The running hashes at genesis.
@@ -64,6 +69,8 @@ public final class BlockRecordService implements Service {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490BlockRecordSchema());
         registry.register(new V0560BlockRecordSchema());
+        registry.register(new V0750BlockRecordSchema());
+        registry.register(new V0760BlockRecordSchema());
     }
 
     @Override

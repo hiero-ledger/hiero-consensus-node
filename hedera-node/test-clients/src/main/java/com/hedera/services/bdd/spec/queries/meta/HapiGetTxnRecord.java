@@ -27,7 +27,6 @@ import com.esaulpaugh.headlong.abi.ABIJSON;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ErroringAsserts;
@@ -154,6 +153,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     private Consumer<Object[]> eventDataObserver;
     private String eventName;
     private String contractResultAbi = null;
+    private boolean hasBlockNumber = false;
 
     public static ByteString sha384HashOf(final Transaction transaction) {
         if (transaction.getSignedTransactionBytes().isEmpty()) {
@@ -219,6 +219,11 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     public HapiGetTxnRecord exposingCreationsTo(final Consumer<List<String>> creationObserver) {
         this.createdIdsObserver = creationObserver;
         return andAllChildRecords();
+    }
+
+    public HapiGetTxnRecord hasNonNullBlockNumber() {
+        hasBlockNumber = true;
+        return this;
     }
 
     public HapiGetTxnRecord exposingCreationDetailsTo(final Consumer<List<AccountCreationDetails>> observer) {
@@ -760,6 +765,11 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
             final var scheduledTransactionId = actualRecord.getReceipt().getScheduledTransactionID();
             assertNotNull(scheduledTransactionId);
         }
+        if (hasBlockNumber) {
+            assertTrue(
+                    actualRecord.getReceipt().hasBlockNumber(),
+                    "Expected block number in the receipt, but it was not found");
+        }
     }
 
     private void assertNoStakingAccountFees(final TransferList transferList) {
@@ -1082,14 +1092,6 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
                 .setIncludeChildRecords(requestChildRecords)
                 .build();
         return Query.newBuilder().setTransactionGetRecord(getRecordQuery).build();
-    }
-
-    @Override
-    protected long costOnlyNodePayment(final HapiSpec spec) {
-        return spec.fees()
-                .forOp(
-                        HederaFunctionality.TransactionGetRecord,
-                        CryptoFeeBuilder.getCostTransactionRecordQueryFeeMatrices());
     }
 
     @Override

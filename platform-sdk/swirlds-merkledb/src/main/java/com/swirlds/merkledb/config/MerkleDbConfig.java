@@ -5,16 +5,17 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.validation.ConfigViolation;
-import com.swirlds.config.api.validation.annotation.ConstraintMethod;
+import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
-import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 
 /**
  * Instance-wide config for {@code MerkleDbDataSource}.
  *
+ * @param defaultDbFolderName
+ *      If not null/blank, indicates a folder name in the file system manager's temp folder,
+ *      where MerkleDb is created from scratch, restored to from a snapshot, or loaded from
+ *      during version upgrade
  * @param initialCapacity initial capacity of the database
  * @param maxNumOfKeys
  * 	    The maximum number of unique keys to be stored in a database. This is a hard limit.
@@ -25,6 +26,10 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * 	    which we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram
  * 	    and the upper larger less changing layers are on disk. IMPORTANT: This can only be set before a new database is
  * 	    created, changing on an existing database will break it.
+ * @param hashChunkHeight
+ *      Hash chunk height. The height is used to store hashes on disk in chunks rather than individually.
+ *      This config is also used by virtual hasher to create hashing tasks, so they are mostly aligned
+ *      with hash chunks on disk.
  * @param hashStoreRamBufferSize
  *      Number of hashes to store in a single buffer in HashListByteBuffer.
  * @param hashStoreRamOffHeapBuffers
@@ -33,9 +38,18 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
- * @param minNumberOfFilesInCompaction
- * 	    The minimum number of files before we do a compaction. If there are less than this number then it is
- * 	    acceptable to not do a compaction.
+ * @param gcRateThreshold
+ *      Minimum dead-to-alive ratio for compaction decisions. In phase 1, files whose individual
+ *      {@code dead / alive > gcRateThreshold} are selected for compaction. In phase 2, remaining
+ *      files are considered for absorption as long as adding each one keeps the aggregate ratio
+ *      above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead
+ *      item must be reclaimed.
+ * @param maxCompactedFileSizeInMB
+ *      Maximum projected output size (MB) per compaction task. Candidates are partitioned into
+ *      groups bounded by this size. Also used as the size cap when absorbing files in phase 2.
+ *      A zero value disables this limit.
+ * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
+ *      That is, the result of compaction at level N will be a file at level N.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled
@@ -69,22 +83,32 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * @param maxThreadsPerFileChannel
  *    Maximum number of threads per file channel.
  * @param useDiskIndices if true, use disk-based indices to reduce off-heap memory usage
+ * @param consolidationMaxInputFileSizeMB
+ *      Maximum file size (MB) for consolidation candidates. Files larger than this are never
+ *      consolidated — they are the output of previous consolidation runs. This prevents
+ *      endless re-consolidation. A value of 0 disables consolidation entirely.
+ * @param consolidationMinFileCount
+ *      Minimum number of small files at a level before consolidation triggers. Prevents
+ *      pointless runs when only a few small files exist.
  */
 // spotless:off
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
+        @ConfigProperty(defaultValue = "merkledb-state") String defaultDbFolderName,
         @Positive @ConfigProperty(defaultValue = "1000000000") long initialCapacity,
         @Positive @ConfigProperty(defaultValue = "8000000000") long maxNumOfKeys,
         @Deprecated @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
         @Deprecated @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
         @Min(0) @ConfigProperty(defaultValue = "262144") int hashChunkCacheThreshold,
+        @Min(1) @Max(64) @ConfigProperty(defaultValue = "6") int hashChunkHeight,
         @Deprecated @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
-        @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,
-        @ConstraintMethod("minNumberOfFilesInCompactionValidation") @ConfigProperty(defaultValue = "8")
-                int minNumberOfFilesInCompaction,
-        @Min(3) @ConfigProperty(defaultValue = "5") int maxCompactionLevel,
+        @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
+        @ConfigProperty(defaultValue = "0.5") double gcRateThreshold,
+        /*Default is 10GB*/
+        @Min(0) @ConfigProperty(defaultValue = "10000") long maxCompactedFileSizeInMB,
+        @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
         @ConfigProperty(defaultValue = "false") boolean reconnectKeyLeakMitigationEnabled,
@@ -96,25 +120,13 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
-        @ConfigProperty(defaultValue = "false") boolean useDiskIndices){
+        @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
+        @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
+        @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount){
 
     // spotless:on
 
     static double UNIT_FRACTION_PERCENT = 100.0;
-
-    public ConfigViolation minNumberOfFilesInCompactionValidation(final Configuration configuration) {
-        final long minNumberOfFilesInCompaction =
-                configuration.getConfigData(MerkleDbConfig.class).minNumberOfFilesInCompaction();
-        if (minNumberOfFilesInCompaction < 2) {
-            return new DefaultConfigViolation(
-                    "minNumberOfFilesInCompaction",
-                    "%d".formatted(minNumberOfFilesInCompaction),
-                    true,
-                    "Cannot configure minNumberOfFilesInCompaction to " + minNumberOfFilesInCompaction
-                            + ", it must be >= 2");
-        }
-        return null;
-    }
 
     public int getNumHalfDiskHashMapFlushThreads() {
         final int numProcessors = Runtime.getRuntime().availableProcessors();

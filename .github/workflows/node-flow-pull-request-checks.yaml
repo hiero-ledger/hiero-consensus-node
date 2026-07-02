@@ -1,99 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Node: PR Checks"
+name: "Deprecated: Node: PR Checks"
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
-concurrency:
-  group: pr-checks-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
-  mats-pr-checks:
-    name: MATS
-    uses: ./.github/workflows/zxc-mats-tests.yaml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      enable-spotless-check: "true"
-      enable-dependency-check: "true"
-      enable-unit-tests: "true"
-      enable-integration-tests: "true"
-      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
-      enable-hapi-tests: "true"
-      enable-hapi-tests-crypto: "true"
-      enable-hapi-tests-token: "true"
-      enable-hapi-tests-time-consuming: "true"
-      enable-hapi-tests-state-throttling: "true"
-      enable-hapi-tests-simplefees: "true"
-      enable-otter-tests: "true"
-      enable-snyk-scan: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
-      java-version: "25"
-      java-distribution: "temurin"
-      custom-job-label: "Standard"
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-      codecov-token: ${{ secrets.CODECOV_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-
-  report-summary:
-    name: Report PR Check Summary
+  print-deprecated:
+    name: Print Deprecated Warning
     runs-on: hl-cn-default-lin-sm
-    needs:
-      - mats-pr-checks
-    if: ${{ !cancelled() && always() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
-        with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: "0"
-          ref: ${{ inputs.ref || '' }}
-
-      - name: Report Summary
-        id: report-summary
-        env:
-          PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+      - name: Print Deprecation Warning
         run: |
-          echo "::debug::Generating PR Check Summary"
-
-          # Append summary to GitHub Step Summary
-          {
-            echo "## PR Check Summary"
-            echo ""
-            echo "------------------------------------"
-            echo "### Results"
-            echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
-            echo "------------------------------------"
-            if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
-                echo "### MATS Test Failures"
-                echo ""
-                echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
-                echo "- **Failed Tests:**"
-                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
-                echo "------------------------------------"
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
+import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getChargedUsedForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -25,14 +26,19 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_DELETE_TOPIC_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_GET_TOPIC_INFO_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_INCLUDED_HOOK_UPDATES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT;
@@ -69,6 +75,13 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_CONTRACT_CALL_BASE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_GET_INFO_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_GET_INFO_NODE_PAYMENT_TINYCENTS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_AIRDROPS_INCLUDED_COUNT;
@@ -112,9 +125,12 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -125,29 +141,6 @@ import org.hiero.hapi.support.fees.Extra;
 public class FeesChargingUtils {
 
     // ------ Fees calculation utils ------//
-
-    /** tinycents -> USD */
-    public static double tinycentsToUsd(long tinycents) {
-        return tinycents / 100_000_000.0 / 100.0;
-    }
-
-    /**
-     * SimpleFees formula for node fees only:
-     * node = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
-     */
-    private static double expectedNodeFeeUsd(long sigs, int txnSize) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        return NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-    }
-
-    /**
-     * SimpleFees formula for network fees only:
-     * network = node * NETWORK_MULTIPLIER
-     */
-    private static double expectedNetworkFeeUsd(long sigs, int txnSize) {
-        return expectedNodeFeeUsd(sigs, txnSize) * NETWORK_MULTIPLIER;
-    }
 
     /**
      * SimpleFees formula for node + network fees:
@@ -245,19 +238,27 @@ public class FeesChargingUtils {
         return nodeBytesOverage * PROCESSING_BYTES_FEE_USD;
     }
 
-    /**
-     * Adds node+network byte overage to a precomputed SimpleFees expected total.
-     *
-     * <p>Bytes above {@code NODE_INCLUDED_BYTES} are charged in the node fee and then multiplied
-     * into the network fee; so we add {@code bytesFee * (NETWORK_MULTIPLIER + 1)}.
-     */
-    private static double addNodeAndNetworkBytes(final double baseExpectedUsd, final int txnSize) {
-        return baseExpectedUsd + nodeFeeFromBytesUsd(txnSize) * (NETWORK_MULTIPLIER + 1);
-    }
-
     private static double extra(long actual, long included, double feePerUnit) {
         final long extras = Math.max(0L, actual - included);
         return extras * feePerUnit;
+    }
+
+    /**
+     * Creates a threshold(1-of-n) key shape with the given number of SIMPLE primitives.
+     */
+    public static KeyShape thresholdKeyWithPrimitives(final int count) {
+        final KeyShape[] simples = new KeyShape[count];
+        Arrays.fill(simples, SIMPLE);
+        return threshOf(1, simples);
+    }
+
+    /**
+     * Creates a SigControl with the given number of ON signatures.
+     */
+    public static SigControl allOnSigControl(final int count) {
+        final SigControl[] ons = new SigControl[count];
+        Arrays.fill(ons, ON);
+        return SigControl.threshSigs(1, ons);
     }
 
     public static HapiSpecOperation validateChargedFeeToUsd(
@@ -394,6 +395,27 @@ public class FeesChargingUtils {
         return expectedFee;
     }
 
+    // -------- Network-only fees calculation utils ---------//
+
+    /**
+     * Network-only fee for failures in pre-handle.
+     */
+    private static double expectedNetworkOnlyFeeUsd(long sigs, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedNetworkOnlyFeeUsd(final Map<Extra, Long> extras) {
+        return expectedNetworkOnlyFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     // -------- CryptoCreate simple fees utils ---------//
 
     /**
@@ -406,21 +428,13 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CRYPTO_CREATE_INCLUDED_KEYS);
         final long hookExtrasService = Math.max(0L, hooks - CRYPTO_CREATE_INCLUDED_HOOKS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + hookExtrasService * HOOK_UPDATES_FEE_USD;
         final double serviceFee = CRYPTO_CREATE_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -430,7 +444,7 @@ public class FeesChargingUtils {
         return expectedCryptoCreateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
-                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.HOOK_UPDATES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
@@ -455,26 +469,6 @@ public class FeesChargingUtils {
         return expectedCryptoCreateFullFeeUsd(sigs, keys, hooks, 0);
     }
 
-    /**
-     *  Simple fees calculation for CryptoCreate with node fee only
-     */
-    public static double expectedCryptoCreateNetworkFeeOnlyUsd(long sigs) {
-        return expectedCryptoCreateNetworkFeeOnlyUsd(sigs, 0);
-    }
-
-    /**
-     *  Simple fees calculation for CryptoCreate with node fee only
-     */
-    public static double expectedCryptoCreateNetworkFeeOnlyUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- CryptoDelete simple fees utils ---------//
 
     /**
@@ -485,15 +479,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedCryptoDeleteFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        return nodeFee + networkFee + CRYPTO_DELETE_BASE_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + CRYPTO_DELETE_BASE_FEE_USD;
     }
 
     /**
@@ -517,14 +503,6 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedCryptoUpdateFullFeeUsd(long sigs, long keys, long hooks, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CRYPTO_UPDATE_INCLUDED_KEYS);
         final double serviceExtrasKeysFee = keyExtrasService * KEYS_FEE_USD;
@@ -534,7 +512,7 @@ public class FeesChargingUtils {
 
         final double serviceFee = CRYPTO_UPDATE_BASE_FEE_USD + serviceExtrasKeysFee + serviceExtrasHooksFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -559,20 +537,12 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTopicCreateFullFeeUsd(long sigs, long keys, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CONS_CREATE_TOPIC_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
         final double serviceFee = CONS_CREATE_TOPIC_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -590,26 +560,6 @@ public class FeesChargingUtils {
      */
     public static double expectedTopicCreateFullFeeUsd(long sigs, long keys) {
         return expectedTopicCreateFullFeeUsd(sigs, keys, 0);
-    }
-
-    /**
-     * Overload when there are no keys extras and no txn size extras.
-     */
-    public static double expectedTopicCreateNetworkFeeOnlyUsd(long sigs) {
-        return expectedTopicCreateNetworkFeeOnlyUsd(sigs, 0);
-    }
-
-    /**
-     * Simple fees calculation for ConsensusCreateTopic with node fee only
-     */
-    public static double expectedTopicCreateNetworkFeeOnlyUsd(long sigs, final int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     // -------- CryptoTransfer simple fees utils ---------//
@@ -933,37 +883,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Overloads for network fee only.
-     */
-    public static double expectedCryptoTransferNetworkFeeOnlyUsd(long sigs) {
-
-        // ----- node fees -----
-        final double nodeExtrasFee = extra(sigs, NODE_INCLUDED_SIGNATURES, SIGNATURE_FEE_USD);
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    public static double expectedCryptoTransferNetworkFeeOnlyUsd(long sigs, final int txnSize) {
-        // ----- node fees -----
-        final double nodeExtrasFee = extra(sigs, NODE_INCLUDED_SIGNATURES, SIGNATURE_FEE_USD);
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    /**
-     * Overload when extras are provided in a map.
-     */
-    public static double expectedCryptoTransferNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
-        return expectedCryptoTransferNetworkFeeOnlyUsd(
-                extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
     // -------- ConsensusCreateTopic with custom fee simple fees utils ---------//
 
     /**
@@ -974,26 +893,14 @@ public class FeesChargingUtils {
      *         + KEYS_FEE  * max(0, keys - includedKeysService)
      * total   = node + network + service
      */
-    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
+    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys, int txnSize) {
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CONS_CREATE_TOPIC_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
         final double serviceFee =
                 CONS_CREATE_TOPIC_BASE_FEE_USD + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
-    }
-
-    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys, int txnSize) {
-        return addNodeAndNetworkBytes(expectedTopicCreateWithCustomFeeFullFeeUsd(sigs, keys), txnSize);
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1021,20 +928,12 @@ public class FeesChargingUtils {
     }
 
     public static double expectedTopicUpdateFullFeeUsd(long sigs, long keys, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CONS_UPDATE_TOPIC_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
         final double serviceFee = CONS_UPDATE_TOPIC_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1054,19 +953,6 @@ public class FeesChargingUtils {
         return expectedTopicUpdateFullFeeUsd(sigs, 0L);
     }
 
-    /**
-     * Simple fees calculation for ConsensusUpdateTopic with node fee only
-     */
-    public static double expectedTopicUpdateNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- ConsensusDeleteTopic simple fees utils ---------//
 
     /**
@@ -1076,23 +962,11 @@ public class FeesChargingUtils {
      * service = CONS_DELETE_TOPIC_BASE (no extras)
      * total   = node + network + service
      */
-    public static double expectedTopicDeleteFullFeeUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
+    public static double expectedTopicDeleteFullFeeUsd(long sigs, int txnSize) {
         // ----- service fees -----
         final double serviceFee = CONS_DELETE_TOPIC_BASE_FEE_USD;
 
-        return nodeFee + networkFee + serviceFee;
-    }
-
-    public static double expectedTopicDeleteFullFeeUsd(long sigs, int txnSize) {
-        return addNodeAndNetworkBytes(expectedTopicDeleteFullFeeUsd(sigs), txnSize);
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1102,19 +976,6 @@ public class FeesChargingUtils {
         return expectedTopicDeleteFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
-    /**
-     * Simple fees calculation for ConsensusDeleteTopic with node fee only
-     */
-    public static double expectedTopicDeleteNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     // -------- ConsensusSubmitMessage simple fees utils ---------//
@@ -1130,25 +991,18 @@ public class FeesChargingUtils {
      */
     public static double expectedTopicSubmitMessageFullFeeUsd(
             long sigs, long messageBytes, boolean includesCustomFee, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
-        final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
-        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
-        double serviceBaseFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
+        double serviceFee = 0;
         if (includesCustomFee) {
-            serviceBaseFee += CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+        } else {
+            final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+            final double serviceBytesExtrasFee = byteExtrasService * CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceBytesExtrasFee;
         }
-        final double serviceFee = serviceBaseFee + serviceBytesExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     public static double expectedTopicSubmitMessageFullFeeUsd(long sigs, long messageBytes, int txnSize) {
@@ -1178,21 +1032,45 @@ public class FeesChargingUtils {
     public static double expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                extras.getOrDefault(Extra.STATE_BYTES, 0L),
+                extras.getOrDefault(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Simple fees calculation for ConsensusSubmitMessage with node fee only
-     */
-    public static double expectedTopicSubmitMessageNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+    // -------- ConsensusGetTopicInfo simple fees utils ---------//
 
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
+    /**
+     * Simple fees formula for ConsensusGetTopicInfo:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONS_GET_TOPIC_INFO_BASE
+     * total   = node + network + service
+     */
+    public static double expectedGetTopicInfoFullFeeUsd(long sigs, int txnSize) {
+        // ----- service fees -----
+        final double serviceFee = CONS_GET_TOPIC_INFO_BASE_FEE_USD;
+
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedGetTopicInfoFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedGetTopicInfoFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    public static double expectedTopicSubmitMessageServiceOnly(long messageBytes, boolean includesCustomFee) {
+        double serviceFee = 0;
+        if (includesCustomFee) {
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+        } else {
+            final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+            final double serviceBytesExtrasFee = byteExtrasService * CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceBytesExtrasFee;
+        }
+        return serviceFee;
     }
 
     // -------- TokenCreate simple fees utils ---------//
@@ -1204,18 +1082,12 @@ public class FeesChargingUtils {
      * service = TOKEN_CREATE_BASE + KEYS_FEE * max(0, keys - includedKeys)
      * total   = node + network + service
      */
-    private static double expectedTokenCreateFungibleFullFeeUsd(long sigs, long keys, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+    private static double expectedTokenCreateFullFeeUsd(long sigs, long keys, int txnSize) {
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - TOKEN_CREATE_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
         final double serviceFee = TOKEN_CREATE_BASE_FEE_USD + serviceExtrasFee;
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1223,18 +1095,24 @@ public class FeesChargingUtils {
      * Same as fungible - the base fee is the same for both token types.
      */
     public static double expectedTokenCreateNftFullFeeUsd(long sigs, long keys) {
-        return expectedTokenCreateFungibleFullFeeUsd(sigs, keys, 0);
-    }
-
-    public static double expectedTokenCreateFungibleFullFeeUsd(long sigs, long keys) {
-        return expectedTokenCreateFungibleFullFeeUsd(sigs, keys, 0);
+        return expectedTokenCreateFullFeeUsd(sigs, keys, 0);
     }
 
     /**
-     * Overload when extras are provided in a map.
+     * Overload for FT when extras are provided in a map.
      */
     public static double expectedTokenCreateFullFeeUsd(final Map<Extra, Long> extras) {
-        return expectedTokenCreateFungibleFullFeeUsd(
+        return expectedTokenCreateFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
+     * Overload for NFT when extras are provided in a map.
+     */
+    public static double expectedTokenCreateNftFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenCreateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
@@ -1247,21 +1125,13 @@ public class FeesChargingUtils {
      * service = TOKEN_CREATE_BASE + KEYS_FEE * extras + TOKEN_CREATE_WITH_CUSTOM_FEE
      * total   = node + network + service
      */
-    private static double expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(long sigs, long keys, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
+    private static double expectedTokenCreateWithCustomFeesFullFeeUsd(long sigs, long keys, int txnSize) {
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - TOKEN_CREATE_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
         final double serviceFee = TOKEN_CREATE_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1269,34 +1139,27 @@ public class FeesChargingUtils {
      * Same as fungible with custom fees.
      */
     public static double expectedTokenCreateNftWithCustomFeesFullFeeUsd(long sigs, long keys) {
-        return expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(sigs, keys, 0);
-    }
-
-    public static double expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(long sigs, long keys) {
-        return expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(sigs, keys, 0);
+        return expectedTokenCreateWithCustomFeesFullFeeUsd(sigs, keys, 0);
     }
 
     /**
-     * Overload when extras are provided in a map.
+     * Overload FT when extras are provided in a map.
      */
-    public static double expectedTokenCreateWithCustomFullFeeUsd(final Map<Extra, Long> extras) {
-        return expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(
+    public static double expectedTokenCreateFungibleWithCustomFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenCreateWithCustomFeesFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     /**
-     * Network-only fee for TokenCreate failures in pre-handle.
+     * Overload NFT when extras are provided in a map.
      */
-    public static double expectedTokenCreateNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
+    public static double expectedTokenCreateNftWithCustomFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenCreateWithCustomFeesFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenUpdate simple fees utils ---------//
@@ -1309,20 +1172,12 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - TOKEN_UPDATE_INCLUDED_KEYS);
         final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
         final double serviceFee = TOKEN_UPDATE_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1357,20 +1212,12 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedTokenNftUpdateFullFeeUsd(long sigs, long nftSerials, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long nftExtrasService = Math.max(0L, nftSerials - TOKEN_UPDATE_INCLUDED_NFT_COUNT);
         final double serviceExtrasFee = nftExtrasService * TOKEN_UPDATE_NFT_FEE;
         final double serviceFee = TOKEN_UPDATE_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1383,20 +1230,8 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenUpdate failures in pre-handle.
-     */
-    public static double expectedTokenUpdateNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenDelete simple fees utils ---------//
+
     /**
      * SimpleFees formula for TokenDelete:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
@@ -1405,18 +1240,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenDeleteFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_DELETE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_DELETE_BASE_FEE_USD;
     }
 
     /**
@@ -1435,19 +1259,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenDelete failures in pre-handle.
-     */
-    public static double expectedTokenDeleteNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenMint simple fees utils ---------//
 
     /**
@@ -1458,18 +1269,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenMintFungibleFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_MINT_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_MINT_BASE_FEE_USD;
     }
 
     /**
@@ -1496,20 +1296,12 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedTokenMintNftFullFeeUsd(long sigs, long nftSerials, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long serialExtrasService = Math.max(0L, nftSerials - TOKEN_MINT_INCLUDED_NFT);
         final double serviceExtrasFee = serialExtrasService * TOKEN_MINT_NFT_FEE_USD;
         final double serviceFee = TOKEN_MINT_BASE_FEE_USD + TOKEN_MINT_NFT_BASE_FEE_USD + serviceExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1518,21 +1310,8 @@ public class FeesChargingUtils {
     public static double expectedTokenMintNftFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenMintNftFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                extras.getOrDefault(Extra.TOKEN_TYPES, 0L),
+                extras.getOrDefault(Extra.TOKEN_MINT_NFT, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
-    /**
-     * Network-only fee for TokenMint failures in pre-handle.
-     */
-    public static double expectedTokenMintNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     // -------- TokenBurn simple fees utils ---------//
@@ -1544,56 +1323,21 @@ public class FeesChargingUtils {
      * service = TOKEN_BURN_BASE
      * total   = node + network + service
      */
-    private static double expectedTokenBurnFungibleFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_BURN_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+    private static double expectedTokenBurnFullFeeUsd(long sigs, int txnSize) {
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_BURN_BASE_FEE_USD;
     }
 
-    public static double expectedTokenBurnFungibleFullFeeUsd(long sigs) {
-        return expectedTokenBurnFungibleFullFeeUsd(sigs, 0);
+    public static double expectedTokenBurnFullFeeUsd(long sigs) {
+        return expectedTokenBurnFullFeeUsd(sigs, 0);
     }
 
     /**
      * Overload when extras are provided in a map.
      */
-    public static double expectedTokenBurnFungibleFullFeeUsd(final Map<Extra, Long> extras) {
-        return expectedTokenBurnFungibleFullFeeUsd(
+    public static double expectedTokenBurnFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenBurnFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
-    /**
-     * SimpleFees formula for TokenBurn (NFT):
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
-     * network = node * NETWORK_MULTIPLIER
-     * service = TOKEN_BURN_BASE (no extras for NFT serials in burn)
-     * total   = node + network + service
-     */
-    public static double expectedTokenBurnNftFullFeeUsd(long sigs, long nftSerials) {
-        return expectedTokenBurnFungibleFullFeeUsd(sigs);
-    }
-
-    /**
-     * Network-only fee for TokenBurn failures in pre-handle.
-     */
-    public static double expectedTokenBurnNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     // -------- TokenAssociate simple fees utils ---------//
@@ -1606,16 +1350,10 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenAssociateFullFeeUsd(long sigs, long tokens, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
         // ----- service fees -----
         final long extraTokens = Math.max(0L, tokens - TOKEN_ASSOCIATE_INCLUDED_TOKENS);
         final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD + extraTokens * TOKEN_ASSOCIATE_EXTRA_FEE_USD;
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1642,19 +1380,6 @@ public class FeesChargingUtils {
         return expectedTokenAssociateFullFeeUsd(sigs, 1L);
     }
 
-    /**
-     * Network-only fee for TokenAssociate failures in pre-handle.
-     */
-    public static double expectedTokenAssociateNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenDissociate simple fees utils ---------//
 
     /**
@@ -1664,33 +1389,15 @@ public class FeesChargingUtils {
      * service = TOKEN_DISSOCIATE_BASE
      * total   = node + network + service
      */
-    private static double expectedTokenDissociateFullFeeUsd(long sigs, long tokens, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_DISSOCIATE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
-    }
-
-    /**
-     * Overload for single token dissociation.
-     */
-    public static double expectedTokenDissociateFullFeeUsd(long sigs) {
-        return expectedTokenDissociateFullFeeUsd(sigs, 1L);
+    private static double expectedTokenDissociateFullFeeUsd(long sigs, int txnSize) {
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_DISSOCIATE_BASE_FEE_USD;
     }
 
     /**
      * Overload for TokenDissociate with no bytes.
      */
-    public static double expectedTokenDissociateFullFeeUsd(long sigs, long tokens) {
-        return expectedTokenDissociateFullFeeUsd(sigs, tokens, 0);
+    public static double expectedTokenDissociateFullFeeUsd(long sigs) {
+        return expectedTokenDissociateFullFeeUsd(sigs, 0);
     }
 
     /**
@@ -1700,16 +1407,6 @@ public class FeesChargingUtils {
         return expectedTokenDissociateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
-    /**
-     * Network-only fee for TokenDissociate failures in pre-handle.
-     */
-    public static double expectedTokenDissociateNetworkFeeOnlyUsd(long sigs) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     // -------- TokenGrantKyc simple fees utils ---------//
@@ -1722,18 +1419,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenGrantKycFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_GRANT_KYC_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_GRANT_KYC_BASE_FEE_USD;
     }
 
     /**
@@ -1752,41 +1438,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenGrantKyc failures in pre-handle.
-     */
-    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    /**
-     * Network-only fee for TokenGrantKyc failures in pre-handle.
-     */
-    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    /**
-     * Overload when extras are provided in a map.
-     */
-    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
-        return expectedTokenGrantKycNetworkFeeOnlyUsd(
-                extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
     // -------- TokenRevokeKyc simple fees utils ---------//
 
     /**
@@ -1797,18 +1448,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenRevokeKycFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_REVOKE_KYC_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_REVOKE_KYC_BASE_FEE_USD;
     }
 
     /**
@@ -1827,19 +1467,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenRevokeKyc failures in pre-handle.
-     */
-    public static double expectedTokenRevokeKycNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenFreeze simple fees utils ---------//
 
     /**
@@ -1850,18 +1477,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenFreezeFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_FREEZE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_FREEZE_BASE_FEE_USD;
     }
 
     /**
@@ -1880,16 +1496,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenFreeze failures in pre-handle.
-     */
-    public static double expectedTokenFreezeNetworkFeeOnlyUsd(long sigs) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenUnfreeze simple fees utils ---------//
 
     /**
@@ -1900,18 +1506,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenUnfreezeFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_UNFREEZE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_UNFREEZE_BASE_FEE_USD;
     }
 
     /**
@@ -1930,17 +1525,7 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenUnfreeze failures in pre-handle.
-     */
-    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    // -------- TokenUnpause simple fees utils ---------//
+    // -------- TokenPause simple fees utils ---------//
 
     /**
      * SimpleFees formula for TokenPause:
@@ -1950,18 +1535,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenPauseFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_PAUSE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_PAUSE_BASE_FEE_USD;
     }
 
     /**
@@ -1980,16 +1554,6 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenPause failures in pre-handle.
-     */
-    public static double expectedTokenPauseNetworkFeeOnlyUsd(long sigs) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenUnpause simple fees utils ---------//
 
     /**
@@ -2000,18 +1564,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenUnpauseFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_UNPAUSE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_UNPAUSE_BASE_FEE_USD;
     }
 
     /**
@@ -2030,48 +1583,26 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
-    /**
-     * Network-only fee for TokenUnpause failures in pre-handle.
-     */
-    public static double expectedTokenUnpauseNetworkFeeOnlyUsd(long sigs) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
     // -------- TokenWipe simple fees utils ---------//
 
     /**
-     * SimpleFees formula for TokenWipe (fungible):
+     * SimpleFees formula for TokenWipe:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
      * service = TOKEN_WIPE_BASE
      * total   = node + network + service
      */
-    public static double expectedTokenWipeFungibleFullFeeUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = TOKEN_WIPE_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+    public static double expectedTokenWipeFullFeeUsd(long sigs, int txnSize) {
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_WIPE_BASE_FEE_USD;
     }
 
     /**
-     * Network-only fee for TokenWipe failures in pre-handle.
+     * Overload when extras are provided in a map.
      */
-    public static double expectedTokenWipeNetworkFeeOnlyUsd(long sigs) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-        return nodeFee * NETWORK_MULTIPLIER;
+    public static double expectedTokenWipeFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenWipeFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- AtomicBatch simple fees utils ---------//
@@ -2084,18 +1615,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedAtomicBatchFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final double serviceFee = ATOMIC_BATCH_BASE_FEE_USD;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + ATOMIC_BATCH_BASE_FEE_USD;
     }
 
     /**
@@ -2116,20 +1636,12 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedCryptoApproveAllowanceFullFeeUsd(long sigs, long allowances, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long allowanceExtras = Math.max(0L, allowances - CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT);
         final double serviceFee =
                 CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD + allowanceExtras * CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -2152,20 +1664,12 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedCryptoDeleteAllowanceFullFeeUsd(long sigs, long allowances, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long allowanceExtras = Math.max(0L, allowances - CRYPTO_DELETE_ALLOWANCE_INCLUDED_COUNT);
         final double serviceFee =
                 CRYPTO_DELETE_ALLOWANCE_BASE_FEE_USD + allowanceExtras * CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -2187,14 +1691,6 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedFileCreateFullFeeUsd(long sigs, long keys, long messageBytes, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long byteExtrasService = Math.max(0L, messageBytes - FILE_CREATE_INCLUDED_BYTES);
         final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
@@ -2204,7 +1700,7 @@ public class FeesChargingUtils {
 
         final double serviceFee = FILE_CREATE_BASE_FEE_USD + serviceBytesExtrasFee + serviceKeysExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -2227,14 +1723,6 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedFileUpdateFullFeeUsd(long sigs, long keys, long messageBytes, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long byteExtrasService = Math.max(0L, messageBytes - FILE_UPDATE_INCLUDED_BYTES);
         final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
@@ -2244,7 +1732,7 @@ public class FeesChargingUtils {
 
         final double serviceFee = FILE_UPDATE_BASE_FEE + serviceBytesExtrasFee + serviceKeysExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -2268,15 +1756,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedFileDeleteFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        return nodeFee + networkFee + FILE_DELETE_BASE_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + FILE_DELETE_BASE_FEE_USD;
     }
 
     /**
@@ -2298,21 +1778,13 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedFileAppendFullFeeUsd(long sigs, long messageBytes, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long byteExtrasService = Math.max(0L, messageBytes - FILE_APPEND_INCLUDED_BYTES);
         final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
         final double serviceFee = FILE_APPEND_BASE_FEE_USD + serviceBytesExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -2335,15 +1807,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedPrngFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        return nodeFee + networkFee + UTIL_PRNG_BASE_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + UTIL_PRNG_BASE_FEE_USD;
     }
 
     /**
@@ -2381,15 +1845,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenClaimAirdropFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        return nodeFee + networkFee + AIRDROP_CLAIM_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + AIRDROP_CLAIM_FEE_USD;
     }
 
     /**
@@ -2410,15 +1866,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenCancelAirdropFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        return nodeFee + networkFee + AIRDROP_CANCEL_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + AIRDROP_CANCEL_FEE_USD;
     }
 
     /**
@@ -2439,15 +1887,7 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenRejectFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        return nodeFee + networkFee + TOKEN_REJECT_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_REJECT_FEE_USD;
     }
 
     /**
@@ -2469,15 +1909,80 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     private static double expectedTokenFeeScheduleUpdateFullFeeUsd(long sigs, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD;
+    }
 
-        // ----- network fees -----
+    // -------- ScheduleCreate simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleCreate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_CREATE_BASE + KEYS_FEE * max(0, keys - includedKeysService)
+     *         + SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE * contractCallCount
+     * total   = node + network + service
+     */
+    public static double expectedScheduleCreateFullFeeUsd(long sigs, long keys, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtrasNode * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
 
-        return nodeFee + networkFee + TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD;
+        final long keyExtras = Math.max(0L, keys - SCHEDULE_CREATE_INCLUDED_KEYS);
+        final double serviceFee = SCHEDULE_CREATE_BASE_FEE_USD + keyExtras * KEYS_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleCreateFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleCreateFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
+     * Network-only fee for ScheduleCreate failures in pre-handle.
+     */
+    public static double expectedScheduleCreateNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleCreateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleCreateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
+     * ScheduleCreate for a scheduled ContractCall — adds SCHEDULE_CREATE_CONTRACT_CALL_BASE extra.
+     */
+    public static double expectedScheduleCreateContractCallFullFeeUsd(long sigs, long keys, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtrasNode * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        final long keyExtras = Math.max(0L, keys - SCHEDULE_CREATE_INCLUDED_KEYS);
+        final double serviceFee =
+                SCHEDULE_CREATE_BASE_FEE_USD + keyExtras * KEYS_FEE_USD + SCHEDULE_CREATE_CONTRACT_CALL_BASE_USD;
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleCreateContractCallFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleCreateContractCallFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     /**
@@ -2487,6 +1992,107 @@ public class FeesChargingUtils {
         return expectedTokenFeeScheduleUpdateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ScheduleSign simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleSign:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_SIGN_BASE
+     * total   = node + network + service
+     */
+    public static double expectedScheduleSignFullFeeUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        return nodeFee + networkFee + SCHEDULE_SIGN_BASE_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleSignFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleSignFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    public static double expectedScheduleSignNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleSignNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleSignNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ScheduleDelete simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleDelete:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_DELETE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedScheduleDeleteFullFeeUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        return nodeFee + networkFee + SCHEDULE_DELETE_BASE_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleDeleteFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleDeleteFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    public static double expectedScheduleDeleteNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleDeleteNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleDeleteNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ScheduleGetInfo simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleGetInfo query:
+     * node    = NODE_BASE  (no sig or byte extras for queries)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_GET_INFO_BASE_FEE_USD  (baseFee: 84 tinycents, extras: [])
+     * total   = node + network + service
+     */
+    public static double expectedScheduleGetInfoQueryFeeUsd() {
+        final double nodeFee = NODE_BASE_FEE_USD;
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        return nodeFee + networkFee + SCHEDULE_GET_INFO_BASE_FEE_USD;
+    }
+
+    public static long expectedScheduleGetInfoNodePaymentTinycents() {
+        return SCHEDULE_GET_INFO_NODE_PAYMENT_TINYCENTS;
     }
 
     // -------- ContractCreate simple fees utils ---------//
@@ -2499,14 +2105,6 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedContractCreateSimpleFeesUsd(long sigs, long hooks, long keys, int txnSize) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
         // ----- service fees -----
         final long hookExtrasService = Math.max(0L, hooks - CONTRACT_CREATE_INCLUDED_HOOK_UPDATES);
         final double serviceHooksExtrasFee = hookExtrasService * HOOK_UPDATES_FEE_USD;
@@ -2516,7 +2114,7 @@ public class FeesChargingUtils {
 
         final double serviceFee = CONTRACT_CREATE_BASE_FEE_USD + serviceHooksExtrasFee + serviceKeysExtrasFee;
 
-        return nodeFee + networkFee + serviceFee;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -2550,48 +2148,107 @@ public class FeesChargingUtils {
                 / 100;
     }
 
-    // -------- Dual-mode validation utils ---------//
-
-    /*
-     * Dual-mode fee validation that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
+    /**
+     * Gets the charged gas for a ContractCreate transaction, using its exchange rate to convert to USD.
      */
-    public static SpecOperation validateFees(final String txn, final double legacyFee, final double simpleFee) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithin(txn, simpleFee, 0.1);
-            } else {
-                return validateChargedUsdWithin(txn, legacyFee, 1);
-            }
-        });
+    public static double getChargedGasForContractCreate(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var op = getTxnRecord(txn).logged();
+        allRunFor(spec, op);
+        final var rcd = op.getResponseRecord();
+        final var gasUsed = rcd.getContractCreateResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
     }
+
+    // -------- ContractCall simple fees utils ---------//
+
+    /**
+     * Gets the charged gas for a ContractCall transaction, using its exchange rate to convert to USD.
+     */
+    public static double getChargedGasForContractCall(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var op = getTxnRecord(txn).logged();
+        allRunFor(spec, op);
+        final var rcd = op.getResponseRecord();
+        final var gasUsed = rcd.getContractCallResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    // -------- ContractUpdate simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ContractUpdate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONTRACT_UPDATE_BASE_FEE
+     * total   = node + network + service
+     */
+    private static double expectedContractUpdateSimpleFeesUsd(long sigs, long keys, int txnSize) {
+        final long keysExtrasService = Math.max(0L, keys - CONTRACT_UPDATE_INCLUDED_KEYS);
+        final double serviceKeysExtrasFee = keysExtrasService * KEYS_FEE_USD;
+
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + CONTRACT_UPDATE_BASE_FEE_USD + serviceKeysExtrasFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedContractUpdateSimpleFeesUsd(final Map<Extra, Long> extras) {
+        return expectedContractUpdateSimpleFeesUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ContractDelete simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ContractDelete:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONTRACT_DELETE_BASE_FEE
+     * total   = node + network + service
+     */
+    private static double expectedContractDeleteSimpleFeesUsd(long sigs, int txnSize) {
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + CONTRACT_DELETE_BASE_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     * Supports SIGNATURES and PROCESSING_BYTES extras.
+     */
+    public static double expectedContractDeleteSimpleFeesUsd(final Map<Extra, Long> extras) {
+        return expectedContractDeleteSimpleFeesUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L), Math.toIntExact(extras.getOrDefault(PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- Dual-mode validation utils ---------//
 
     public static SpecOperation validateInnerTxnFees(String txn, String parent, double legacyFee, double simpleFee) {
         return validateInnerTxnFees(txn, parent, legacyFee, simpleFee, 0.1);
     }
 
     /**
-     * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
+     * Validates the simple fee charged for an inner atomic batch transaction.
      * @param allowedDiff the allowed percent difference.
      */
     public static SpecOperation validateInnerTxnFees(
             String txn, String parent, double legacyFee, double simpleFee, double allowedDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateInnerTxnChargedUsd(txn, parent, simpleFee, allowedDiff);
-            } else {
-                return validateInnerTxnChargedUsd(txn, parent, legacyFee, allowedDiff);
-            }
-        });
+        return validateInnerTxnChargedUsd(txn, parent, simpleFee, allowedDiff);
     }
 
     /**
-     * Dual-mode fee validation for inner atomic batch transactions that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code expectedSimpleFeesUsd} using the provided function;
-     * otherwise validates against {@code legacyExpectedUsd}.
+     * Validates the simple fee charged for an inner atomic batch transaction using the provided txn-size function.
      */
     public static SpecOperation validateInnerTxnFeesWithTxnSize(
             final String innerTxnId,
@@ -2600,31 +2257,8 @@ public class FeesChargingUtils {
             final double legacyAllowedPercentDiff,
             final IntToDoubleFunction expectedSimpleFeesUsd,
             final double simpleFeesAllowedPercentDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateInnerChargedUsdWithinWithTxnSize(
-                        innerTxnId, parentTxnId, expectedSimpleFeesUsd, simpleFeesAllowedPercentDiff);
-            } else {
-                return validateInnerTxnChargedUsd(innerTxnId, parentTxnId, legacyExpectedUsd, legacyAllowedPercentDiff);
-            }
-        });
-    }
-
-    /**
-     * Dual-mode fee validation with child records that branches on {@code fees.simpleFeesEnabled} at runtime.
-     * When simple fees are enabled, validates against {@code simpleFee};
-     * otherwise validates against {@code legacyFee}.
-     * Uses {@code validateChargedUsdWithChild} which includes child dispatch fees.
-     */
-    public static SpecOperation validateFeesWithChild(
-            final String txn, final double legacyFee, final double simpleFee, final double tolerance) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithChild(txn, simpleFee, tolerance);
-            } else {
-                return validateChargedUsdWithChild(txn, legacyFee, tolerance);
-            }
-        });
+        return validateInnerChargedUsdWithinWithTxnSize(
+                innerTxnId, parentTxnId, expectedSimpleFeesUsd, simpleFeesAllowedPercentDiff);
     }
 
     public static CustomSpecAssert validateBatchChargedCorrectly(String batchTxn) {
@@ -2639,17 +2273,10 @@ public class FeesChargingUtils {
     }
 
     public static SpecOperation validateBatchFee(final String batchTxnName, final double legacyExpectedUsd) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithinWithTxnSize(
-                        batchTxnName,
-                        txnSize ->
-                                expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                        0.1);
-            } else {
-                return validateChargedUsd(batchTxnName, legacyExpectedUsd);
-            }
-        });
+        return validateChargedUsdWithinWithTxnSize(
+                batchTxnName,
+                txnSize -> expectedAtomicBatchFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                0.1);
     }
 
     // --------- Utils for dual-mode validation ---------//
@@ -2672,22 +2299,13 @@ public class FeesChargingUtils {
             final Map<LegacyFeeParam, Double> legacyParams,
             final double simpleFeesAllowedPercentDiff,
             final ExpectedUsdFromExtras expectedUsdSimpleFees) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsdWithinWithTxnSize(
-                        txnId,
-                        txnSize -> {
-                            final var extrasWithProcessingBytes = new HashMap<>(simpleFeesExtras);
-                            extrasWithProcessingBytes.put(Extra.PROCESSING_BYTES, (long) txnSize);
-                            return expectedUsdSimpleFees.compute(extrasWithProcessingBytes);
-                        },
-                        simpleFeesAllowedPercentDiff);
-            } else {
-                final double expectedUsd = legacyParams.getOrDefault(LegacyFeeParam.LEGACY_EXPECTED_USD, 0.0);
-                final double allowedPercentDiff =
-                        legacyParams.getOrDefault(LegacyFeeParam.LEGACY_ALLOWED_PERCENT_DIFF, 1.0);
-                return validateChargedUsdWithin(txnId, expectedUsd, allowedPercentDiff);
-            }
-        });
+        return validateChargedUsdWithinWithTxnSize(
+                txnId,
+                txnSize -> {
+                    final var extrasWithProcessingBytes = new HashMap<>(simpleFeesExtras);
+                    extrasWithProcessingBytes.put(Extra.PROCESSING_BYTES, (long) txnSize);
+                    return expectedUsdSimpleFees.compute(extrasWithProcessingBytes);
+                },
+                simpleFeesAllowedPercentDiff);
     }
 }

@@ -19,15 +19,16 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
+import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
@@ -38,6 +39,7 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Default implementation of the {@link PcesModule}.
@@ -54,6 +56,9 @@ public class DefaultPcesModule implements PcesModule {
     private PcesReplayerWiring pcesReplayerWiring;
 
     @Nullable
+    private CommonPcesWriter commonPcesWriter;
+
+    @Nullable
     private PcesCoordinator pcesCoordinator;
 
     /**
@@ -67,12 +72,12 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
+            @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
+            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable stateHasherFlusher,
+            @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
@@ -101,15 +106,16 @@ public class DefaultPcesModule implements PcesModule {
 
         // Create and bind components
         try {
-            final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, selfId);
+            final Path databaseDirectory = PcesUtilities.getDatabaseDirectory(configuration, fileSystemManager, selfId);
             final boolean permitGaps =
                     configuration.getConfigData(PcesConfig.class).permitGaps();
             initialPcesFiles = PcesFileReader.readFilesFromDisk(
                     configuration, recycleBin, databaseDirectory, startingRound, permitGaps);
             final PcesFileManager fileManager = new PcesFileManager(
                     configuration, metrics, time, initialPcesFiles, databaseDirectory, startingRound);
+            commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
             final InlinePcesWriter pcesWriter =
-                    new DefaultInlinePcesWriter(configuration, metrics, time, fileManager, selfId);
+                    new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
             pcesWriterWiring.bind(pcesWriter);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -121,8 +127,7 @@ public class DefaultPcesModule implements PcesModule {
                 configuration,
                 time,
                 pcesReplayerWiring.eventOutput(),
-                flushIntake,
-                flushTransactionHandling,
+                flushPrimaryPipeline,
                 latestImmutableStateSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
@@ -132,7 +137,7 @@ public class DefaultPcesModule implements PcesModule {
                 initialPcesFiles,
                 pcesReplayerWiring,
                 statusActionConsumer,
-                stateHasherFlusher,
+                platformStatusFlusher,
                 signalEndOfPcesReplay);
     }
 
@@ -207,6 +212,9 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     public void flush() {
         requireNonNull(pcesWriterWiring, "Not initialized").flush();
+        // After the wiring flush, all writeEvent() calls have completed.
+        // Sync the current file to ensure data is durable on disk.
+        requireNonNull(commonPcesWriter, "Not initialized").syncCurrentFile();
     }
 
     /**
@@ -216,10 +224,12 @@ public class DefaultPcesModule implements PcesModule {
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {
+        requireNonNull(fileSystemManager, "Not initialized");
         BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure(
-                configuration, selfId, destinationDirectory, lowerBound, round);
+                configuration, selfId, destinationDirectory, fileSystemManager, lowerBound, round);
     }
 }

@@ -40,17 +40,15 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }
 
-    private boolean isStreamingEnabled() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamToBlockNodes();
+    private boolean shouldForwardNormalBlockStreamToGrpc() {
+        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+        return blockStreamConfig.streamToBlockNodes() && !blockStreamConfig.streamWrappedRecordBlocks();
     }
 
     @Override
     public void openBlock(final long blockNumber) {
         this.fileBlockItemWriter.openBlock(blockNumber);
-        if (isStreamingEnabled()) {
+        if (shouldForwardNormalBlockStreamToGrpc()) {
             this.grpcBlockItemWriter.openBlock(blockNumber);
         }
     }
@@ -60,15 +58,15 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
         requireNonNull(item, "item cannot be null");
         requireNonNull(bytes, "bytes cannot be null");
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.writePbjItem(item);
+        if (shouldForwardNormalBlockStreamToGrpc()) {
+            this.grpcBlockItemWriter.writePbjItemAndBytes(item, bytes);
         }
     }
 
     @Override
     public void closeCompleteBlock() {
         this.fileBlockItemWriter.closeCompleteBlock();
-        if (isStreamingEnabled()) {
+        if (shouldForwardNormalBlockStreamToGrpc()) {
             this.grpcBlockItemWriter.closeCompleteBlock();
         }
     }
@@ -77,6 +75,13 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
         this.fileBlockItemWriter.flushPendingBlock(pendingProof);
+    }
+
+    @Override
+    public void flushIncompleteBlock() {
+        // The file writer persists the open block as a ".open.gz" triage artifact. The gRPC buffer block is left as-is
+        // for the buffer service to discard on shutdown (closing it would make it eligible for buffer persistence).
+        this.fileBlockItemWriter.flushIncompleteBlock();
     }
 
     @Override

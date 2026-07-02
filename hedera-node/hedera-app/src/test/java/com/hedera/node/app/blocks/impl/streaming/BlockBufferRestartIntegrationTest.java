@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -104,6 +105,9 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
     @Mock
     private BlockNodeConnectionManager connectionManager;
 
+    @Mock
+    private BlockStreamingObs streamingObs;
+
     private BlockBufferService blockBufferService;
 
     @BeforeEach
@@ -160,7 +164,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             // Add some items to each block to make it realistic
             final List<BlockItem> items = generateBlockItems(5, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> addItem(blockBufferService, finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
             createdBlocks.put(blockNum, blockBufferService.getBlockState(blockNum));
@@ -178,8 +182,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         shutdownService();
 
         // Step 3: Simulate restart - create new service instance
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         blockBufferService.start(); // This should load buffer from disk
 
         // Verify buffer was restored from disk
@@ -257,7 +260,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             final List<BlockItem> items = generateBlockItems(3, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> addItem(blockBufferService, finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
 
@@ -280,8 +283,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         shutdownService();
 
         // Step 3: Simulate restart with full buffer containing old blocks
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
 
         // Mock the connection manager to simulate that streaming must happen before platform startup
         final CountDownLatch acknowledgmentLatch = new CountDownLatch(1);
@@ -375,7 +377,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             final List<BlockItem> items = generateBlockItems(4, blockNum, Set.of());
             final long finalBlockNum = blockNum;
-            items.forEach(item -> blockBufferService.addItem(finalBlockNum, item));
+            items.forEach(item -> addItem(blockBufferService, finalBlockNum, item));
 
             blockBufferService.closeBlock(blockNum);
         }
@@ -388,8 +390,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         persistBufferHandle.invoke(blockBufferService);
         shutdownService();
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         blockBufferService.start();
 
         // Step 4: Simulate Block Node responding with STREAM_ITEMS_BEHIND
@@ -480,8 +481,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
     }
 
     private BlockBufferService initBufferService(final ConfigProvider configProvider) {
-        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics);
-        svc.setBlockNodeConnectionManager(connectionManager);
+        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
 
         // "fake" starting the service
         final AtomicBoolean isStarted = isStarted(svc);

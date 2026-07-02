@@ -2,6 +2,7 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -10,7 +11,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -23,12 +23,15 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.SigningSchema;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
-import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -37,16 +40,21 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.SimpleRecycleBin;
+import org.hiero.consensus.iss.detection.FatalErrorConsumer;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 public class ConsensusNoOpModules {
     /**
@@ -124,16 +132,17 @@ public class ConsensusNoOpModules {
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RecycleBin recycleBin = new SimpleRecycleBin();
+        final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
-        final Runnable flushIntake = () -> {};
-        final Runnable flushTransactionHandling = () -> {};
+        final Runnable flushPrimaryPipeline = () -> {};
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
-        final Consumer<PlatformStatusAction> statusActionConsumer = status -> {};
-        final Runnable stateHasherFlusher = () -> {};
+        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
+        final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
-        final PcesModule pcesModule = createModule(PcesModule.class, configuration);
+        final PcesModule pcesModule =
+                createModule(PcesModule.class, "org.hiero.consensus.pces.noop.impl.test.fixtures");
         pcesModule.initialize(
                 model,
                 configuration,
@@ -141,12 +150,12 @@ public class ConsensusNoOpModules {
                 time,
                 selfId,
                 recycleBin,
+                fileSystemManager,
                 startingRound,
-                flushIntake,
-                flushTransactionHandling,
+                flushPrimaryPipeline,
                 latestImmutableStateSupplier,
                 statusActionConsumer,
-                stateHasherFlusher,
+                platformStatusFlusher,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;
@@ -169,7 +178,7 @@ public class ConsensusNoOpModules {
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(
-                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
+                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker, 0L);
         return hashgraphModule;
     }
 
@@ -178,11 +187,14 @@ public class ConsensusNoOpModules {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code GossipModule}
      */
     @NonNull
     public static GossipModule createNoOpGossipModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -204,7 +216,7 @@ public class ConsensusNoOpModules {
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration);
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
         gossipModule.initialize(
                 model,
@@ -221,5 +233,77 @@ public class ConsensusNoOpModules {
                 fallenBehindMonitor,
                 stateLifecycleManager);
         return gossipModule;
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link IssDetectionModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @param fileSystemManager the file system manager
+     * @return an initialized no-op instance of {@code IssDetectionModule}
+     */
+    @NonNull
+    public static IssDetectionModule createNoOpIssDetectionModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final long initialStateRound = 0L;
+        final long latestFreezeRound = 0L;
+        final FatalErrorConsumer fatalErrorConsumer = (_, _, _) -> {};
+
+        return new IssDetectionModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                roster,
+                selfId,
+                fileSystemManager,
+                initialStateRound,
+                latestFreezeRound,
+                fatalErrorConsumer);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link TransactionHandlingModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code TransactionHandlingModule}
+     */
+    @NonNull
+    public static TransactionHandlingModule createNoOpTransactionHandlingModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
+        final SemanticVersion appVersion = SemanticVersion.DEFAULT;
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final long transactionOffsetNanos = 0L;
+
+        return new TransactionHandlingModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                latestImmutableStateProviderReference,
+                NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                appVersion,
+                selfId,
+                transactionOffsetNanos);
     }
 }

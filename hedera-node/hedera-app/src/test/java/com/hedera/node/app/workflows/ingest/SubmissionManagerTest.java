@@ -200,6 +200,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x03")
                             .getOrCreateConfig(),
                     1);
@@ -238,12 +239,37 @@ final class SubmissionManagerTest extends AppTestBase {
         }
 
         @Test
+        @DisplayName("An unchecked transaction is refused by default when the flag is not enabled")
+        void testUncheckedSubmitDisabledByDefaultFails() {
+            // Given a non-PROD profile and a custom (non public-network) ledger id, but the
+            // uncheckedSubmit flag left at its secure default of false
+            config = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("hedera.profiles.active", "TEST")
+                            .withValue("ledger.id", "0x03")
+                            .getOrCreateConfig(),
+                    1);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+
+            // When we submit an unchecked transaction, then it FAILS because the feature is not enabled
+            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes, false))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
+
+            // Then the platform NEVER sees the unchecked bytes
+            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
+            verify(platformTxnRejections, never()).cycle();
+            verify(deduplicationCache, never()).add(any());
+        }
+
+        @Test
         @DisplayName("An unchecked transaction in PROD mode WILL FAIL")
         void testUncheckedSubmitInProdFails() {
             // Given we are in PROD mode
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "PROD")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x03")
                             .getOrCreateConfig(),
                     1);
@@ -270,6 +296,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x00")
                             .getOrCreateConfig(),
                     1);
@@ -296,6 +323,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x01")
                             .getOrCreateConfig(),
                     1);
@@ -322,6 +350,7 @@ final class SubmissionManagerTest extends AppTestBase {
             config = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
                             .withValue("hedera.profiles.active", "TEST")
+                            .withValue("hedera.uncheckedSubmit.enabled", "true")
                             .withValue("ledger.id", "0x02")
                             .getOrCreateConfig(),
                     1);

@@ -3,15 +3,13 @@ package com.swirlds.benchmark.reconnect.lag;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
+import com.swirlds.virtualmap.sync.TeachingSynchronizer;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import java.io.DataOutputStream;
 
 /**
  * A {@link TeachingSynchronizer} with simulated delay.
@@ -26,19 +24,24 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
 
     /**
      * Create a new teaching synchronizer with simulated latency.
+     *
+     * @param teacherMap the teacher's map
+     * @param configuration the configuration
+     * @param randomSeed seed for the delay fuzzers
+     * @param delayStorageMicroseconds base storage delay in microseconds
+     * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
+     * @param delayNetworkMicroseconds base network delay in microseconds
+     * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
      */
     public BenchmarkSlowTeachingSynchronizer(
-            final SerializableDataInputStream in,
-            final SerializableDataOutputStream out,
-            final TeacherTreeView view,
+            @NonNull final VirtualMap teacherMap,
+            @NonNull final Configuration configuration,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
-            final double delayNetworkFuzzRangePercent,
-            final Runnable breakConnection,
-            final ReconnectConfig reconnectConfig) {
-        super(Time.getCurrent(), getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
+            final double delayNetworkFuzzRangePercent) {
+        super(teacherMap, getStaticThreadManager(), configuration);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;
@@ -52,17 +55,14 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      */
     @Override
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final StandardWorkGroup workGroup,
-            @NonNull final SerializableDataOutputStream out,
-            @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
         return new BenchmarkSlowAsyncOutputStream(
                 out,
-                workGroup,
                 randomSeed,
                 delayStorageMicroseconds,
                 delayStorageFuzzRangePercent,
                 delayNetworkMicroseconds,
                 delayNetworkFuzzRangePercent,
-                reconnectConfig);
+                syncConfig);
     }
 }

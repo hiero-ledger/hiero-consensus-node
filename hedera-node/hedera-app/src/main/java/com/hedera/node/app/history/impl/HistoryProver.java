@@ -95,6 +95,7 @@ public interface HistoryProver {
      * @param targetProofKeys current snapshot of nodeId -> Schnorr proof key for the target roster
      * @param tssConfig the TSS configuration
      * @param ledgerId the ledger id, if known
+     * @param canSubmit whether this node may submit best-effort TSS transactions to the platform
      * @return the current outcome of proof construction
      */
     @NonNull
@@ -104,7 +105,8 @@ public interface HistoryProver {
             @NonNull Bytes targetMetadata,
             @NonNull Map<Long, Bytes> targetProofKeys,
             @NonNull TssConfig tssConfig,
-            @Nullable Bytes ledgerId);
+            @Nullable Bytes ledgerId,
+            boolean canSubmit);
 
     /**
      * Cancel any in-flight asynchronous work started by this prover.
@@ -139,8 +141,13 @@ public interface HistoryProver {
      * @param nodeId the node ID
      * @param vote the vote
      * @param proofFinalized whether this vote finalized the proof
+     * @param proofVoteCategory the category of the vote
      */
-    void observeProofVote(long nodeId, @NonNull HistoryProofVote vote, boolean proofFinalized);
+    void observeProofVote(
+            long nodeId,
+            @NonNull HistoryProofVote vote,
+            boolean proofFinalized,
+            @NonNull ProofVoteCategory proofVoteCategory);
 
     /**
      * Returns a list of proof keys from the given map.

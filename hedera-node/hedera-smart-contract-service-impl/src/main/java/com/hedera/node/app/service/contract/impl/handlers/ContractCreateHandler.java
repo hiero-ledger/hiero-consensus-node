@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -15,8 +15,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
@@ -28,7 +26,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -70,7 +67,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
         outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
 
-        throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
+        throwIfUnsuccessfulCall(outcome, component.hederaOperations());
 
         createHooksIfAny(context, requireNonNull(outcome.recipientIdIfCreated()));
     }
@@ -115,14 +112,6 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
                 context.requireKeyOrThrow(autoRenewAccountID, INVALID_AUTORENEW_ACCOUNT);
             }
         }
-    }
-
-    @Override
-    protected /*abstract*/ @NonNull FeeData getFeeMatrices(
-            @NonNull final SmartContractFeeBuilder usageEstimator,
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
-            @NonNull final SigValueObj sigValObj) {
-        return usageEstimator.getContractCreateTxFeeMatrices(txBody, sigValObj);
     }
 
     /**

@@ -10,6 +10,7 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_C
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -39,6 +40,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -55,6 +57,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
     private final WritableSingletonState<ProtoBytes> ledgerId;
+    private final WritableSingletonState<ProtoBytes> wrapsProvingKeyHash;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
     private final WritableKVState<NodeId, ProofKeySet> proofKeySets;
@@ -64,6 +67,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
+        this.wrapsProvingKeyHash = states.getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
@@ -131,6 +135,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public void clearProofVotes(final long constructionId, @NonNull final SortedSet<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        nodeIds.forEach(nodeId -> votes.remove(new ConstructionNodeId(constructionId, nodeId)));
+    }
+
+    @Override
     public void addWrapsMessage(final long constructionId, @NonNull final WrapsMessagePublication publication) {
         requireNonNull(publication);
         final var key = new ConstructionNodeId(constructionId, publication.nodeId());
@@ -186,32 +196,59 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public void setWrapsProvingKeyHash(@NonNull final Bytes hash) {
+        requireNonNull(hash);
+        wrapsProvingKeyHash.put(new ProtoBytes(hash));
+    }
+
+    @Override
     public boolean handoff(
             @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
-        if (toRosterHash == null
-                || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
-            // The next construction is becoming the active one; so purge obsolete votes now
-            final var obsoleteConstruction = requireNonNull(activeConstruction.get());
-            purgePublications(obsoleteConstruction.constructionId(), fromRoster);
-            if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
-                final var survivingNodeIds = toRoster.rosterEntries().stream()
-                        .map(RosterEntry::nodeId)
-                        .collect(Collectors.toSet());
-                fromRoster.rosterEntries().forEach(entry -> {
-                    final long nodeId = entry.nodeId();
-                    if (!survivingNodeIds.contains(nodeId)) {
-                        proofKeySets.remove(new NodeId(nodeId));
-                    }
-                });
+        return handoff(fromRoster, toRoster, toRosterHash, false);
+    }
+
+    @Override
+    public boolean handoff(
+            @NonNull final Roster fromRoster,
+            @Nullable final Roster toRoster,
+            @Nullable final Bytes toRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(fromRoster);
+        final var upcomingConstruction = requireNonNull(nextConstruction.get());
+        final boolean handoffMatches =
+                toRosterHash == null || upcomingConstruction.targetRosterHash().equals(toRosterHash);
+        if (!handoffMatches) {
+            if (!forceHandoff) {
+                return false;
             }
-            final var upcomingConstruction = requireNonNull(nextConstruction.get());
-            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
-            // And finally, make the next construction the active one
-            activeConstruction.put(upcomingConstruction);
-            nextConstruction.put(HistoryProofConstruction.DEFAULT);
-            return true;
+            if (!upcomingConstruction.hasTargetProof()) {
+                log.warn(
+                        "Ignoring forced handoff to incomplete history construction #{}",
+                        upcomingConstruction.constructionId());
+                return false;
+            }
+            log.warn(
+                    "Forcing handoff to history construction #{} with different target roster",
+                    upcomingConstruction.constructionId());
         }
-        return false;
+        // The next construction is becoming the active one; so purge obsolete votes now
+        final var obsoleteConstruction = requireNonNull(activeConstruction.get());
+        purgePublications(obsoleteConstruction.constructionId(), fromRoster);
+        if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
+            final var survivingNodeIds =
+                    toRoster.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
+            fromRoster.rosterEntries().forEach(entry -> {
+                final long nodeId = entry.nodeId();
+                if (!survivingNodeIds.contains(nodeId)) {
+                    proofKeySets.remove(new NodeId(nodeId));
+                }
+            });
+        }
+        log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
+        // And finally, make the next construction the active one
+        activeConstruction.put(upcomingConstruction);
+        nextConstruction.put(HistoryProofConstruction.DEFAULT);
+        return true;
     }
 
     /**

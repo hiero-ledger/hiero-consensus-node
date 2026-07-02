@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNullElse;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -42,9 +42,9 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      * reserved buffer size are read from the provided configuration.
      *
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration MerkleDb configuration
      */
-    public LongListOffHeap(final long capacity, final Configuration configuration) {
+    public LongListOffHeap(final long capacity, final MerkleDbConfig configuration) {
         super(capacity, configuration);
     }
 
@@ -70,13 +70,14 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      *
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration MerkleDb configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final MerkleDbConfig configuration)
             throws IOException {
-        super(file, capacity, configuration);
+        super(capacity, configuration);
+        loadFromFile(file);
     }
 
     /**
@@ -86,22 +87,18 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
      * is thrown.
      *
-     * @param path The file to load the long list from
+     * @param file The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListOffHeap(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            @NonNull final Configuration configuration)
+            @NonNull final Path file, final int longsPerChunk, final long capacity, final long reservedBufferSize)
             throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+        super(longsPerChunk, capacity, reservedBufferSize);
+        loadFromFile(file);
     }
 
     /** {@inheritDoc} */
@@ -136,7 +133,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
 
     /** {@inheritDoc} */
     @Override
-    protected boolean putIfEqual(ByteBuffer chunk, int subIndex, long oldValue, long newValue) {
+    protected boolean putIfEqual(@NonNull ByteBuffer chunk, int subIndex, long oldValue, long newValue) {
         /* Below would be equivalent to a compareAndSet(subIndex, oldValue, newValue)
         call on a heap byte buffer, if such a method existed. Since we have instead a
         direct buffer, we need to, first, get its native memory address from the
@@ -214,7 +211,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
 
     protected ByteBuffer createChunk() {
         final ByteBuffer directBuffer = ByteBuffer.allocateDirect(memoryChunkSize);
-        directBuffer.order(ByteOrder.nativeOrder());
+        directBuffer.order(ByteOrder.LITTLE_ENDIAN);
         return directBuffer;
     }
 

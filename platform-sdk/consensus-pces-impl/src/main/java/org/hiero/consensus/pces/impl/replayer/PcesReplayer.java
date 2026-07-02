@@ -21,7 +21,7 @@ import java.time.Instant;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -38,8 +38,7 @@ public class PcesReplayer {
 
     private final StandardOutputWire<PlatformEvent> eventOutputWire;
 
-    private final Runnable flushIntake;
-    private final Runnable flushTransactionHandling;
+    private final Runnable flushPrimaryPipeline;
 
     private final Supplier<ReservedSignedState> latestImmutableState;
     private final Supplier<Boolean> isSystemHealthy;
@@ -52,8 +51,7 @@ public class PcesReplayer {
      * @param configuration the platform configuration
      * @param time the time source
      * @param eventOutputWire the wire to put events on, to be replayed
-     * @param flushIntake a runnable that flushes the intake pipeline
-     * @param flushTransactionHandling a runnable that flushes the transaction handling pipeline
+     * @param flushPrimaryPipeline a runnable that flushes PCES events through the system to all the locations they need to be before resuming normal operations
      * @param latestImmutableState a supplier of the latest immutable state
      * @param isSystemHealthy a supplier that returns true if the system is healthy and false if the system is
      * overwhelmed
@@ -62,15 +60,13 @@ public class PcesReplayer {
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final StandardOutputWire<PlatformEvent> eventOutputWire,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
+            @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Supplier<ReservedSignedState> latestImmutableState,
             @NonNull final Supplier<Boolean> isSystemHealthy) {
 
         this.time = requireNonNull(time);
         this.eventOutputWire = requireNonNull(eventOutputWire);
-        this.flushIntake = requireNonNull(flushIntake);
-        this.flushTransactionHandling = requireNonNull(flushTransactionHandling);
+        this.flushPrimaryPipeline = requireNonNull(flushPrimaryPipeline);
         this.latestImmutableState = requireNonNull(latestImmutableState);
         this.isSystemHealthy = requireNonNull(isSystemHealthy);
 
@@ -138,7 +134,7 @@ public class PcesReplayer {
     }
 
     /**
-     * Replays preconsensus events from disk.
+     * Replays preconsensus events from disk and flushes the data through the system.
      *
      * @param eventIterator an iterator over the events in the preconsensus stream
      * @return a trigger object indicating when the replay is complete
@@ -188,8 +184,7 @@ public class PcesReplayer {
             throw new UncheckedIOException("error encountered while reading from the PCES", e);
         }
 
-        flushIntake.run();
-        flushTransactionHandling.run();
+        flushPrimaryPipeline.run();
 
         final Duration elapsedTime = Duration.between(start, time.now());
 

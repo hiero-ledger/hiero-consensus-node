@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
@@ -24,7 +25,6 @@ import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import java.util.Set;
@@ -208,8 +208,8 @@ class CryptoTransferFeeCalculatorTest {
         }
 
         @Test
-        @DisplayName("Token transfers when simpleFeeContext.feeContext() is null charges TOKEN_TYPES extra")
-        void tokenTransferWhenFeeContextIsNull() {
+        @DisplayName("Token transfers without feeContext estimate TOKEN_TYPES from transfer lists")
+        void tokenTransferWithoutFeeContextEstimatesTokenTypesFromTransferLists() {
             final var cryptoTransferFeeCalculator = new CryptoTransferFeeCalculator();
             final var txnBody = TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
@@ -219,8 +219,7 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var mockSimpleFeeContext = org.mockito.Mockito.mock(SimpleFeeContext.class);
-            when(mockSimpleFeeContext.feeContext()).thenReturn(null);
+            final var mockSimpleFeeContext = new SimpleFeeContextImpl(null, null);
 
             final var feeResult = new FeeResult();
             final var feeSchedule = createTestFeeSchedule();
@@ -245,12 +244,12 @@ class CryptoTransferFeeCalculatorTest {
             // Should not throw INVALID_TOKEN_ID - validation happens at handle time
             final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // Treated as no valid tokens, so no service fee (like HBAR-only)
-            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+            // even though no valid tokens, should still charge the fee as if it was valid
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
-        @DisplayName("Mix of valid and non-existent tokens only counts valid ones")
+        @DisplayName("Mix of valid and non-existent tokens charge for both kinds")
         void mixOfValidAndNonExistentTokens() {
             setupMocksWithTokenStore();
             mockFungibleToken(2001L, false); // Valid token
@@ -268,8 +267,8 @@ class CryptoTransferFeeCalculatorTest {
             // Should not throw - invalid token is skipped
             final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // Only the valid token should be counted
-            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
+            // should be charged for both valid and invalid tokens
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE);
         }
     }
 
@@ -334,18 +333,57 @@ class CryptoTransferFeeCalculatorTest {
             // TOKEN_TRANSFER_BASE + 1 hook
             assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
         }
+
+        @Test
+        @DisplayName("Hook execution without feeContext uses intrinsic estimate gas limit")
+        void hookExecutionWithoutFeeContextUsesIntrinsicEstimateGasLimit() {
+            final var tokenTransfers = TokenTransferList.newBuilder()
+                    .token(TokenID.newBuilder().tokenNum(2001L).build())
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder()
+                                            .accountNum(1001L)
+                                            .build())
+                                    .amount(-50L)
+                                    .preTxAllowanceHook(HookCall.newBuilder()
+                                            .evmHookCall(EvmHookCall.newBuilder()
+                                                    .gasLimit(20_000_000L)
+                                                    .build())
+                                            .build())
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder()
+                                            .accountNum(1002L)
+                                            .build())
+                                    .amount(50L)
+                                    .build())
+                    .build();
+            final var txnBody = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(tokenTransfers)
+                            .build())
+                    .build();
+            final var feeResult = new FeeResult();
+
+            new CryptoTransferFeeCalculator()
+                    .accumulateServiceFee(
+                            txnBody, new SimpleFeeContextImpl(null, null), feeResult, createTestFeeSchedule());
+
+            assertThat(feeResult.getServiceTotalTinycents())
+                    .isEqualTo(TOKEN_TYPES_EXTRA_FEE + HOOK_EXECUTION_FEE + 45_000_000L);
+        }
     }
 
     // ===== Helper Methods =====
 
     private void setupMocks() {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     private void setupMocksWithTokenStore() {
         setupMocks();
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     private void mockFungibleToken(long tokenNum, boolean hasCustomFees) {
@@ -455,6 +493,7 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.ACCOUNTS, 0L),
+                        makeExtraDef(Extra.GAS, 3),
                         makeExtraDef(Extra.TOKEN_TYPES, TOKEN_TYPES_EXTRA_FEE),
                         makeExtraDef(Extra.TOKEN_TRANSFER_BASE, TOKEN_TRANSFER_FEE),
                         makeExtraDef(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, TOKEN_TRANSFER_CUSTOM_FEE),
@@ -464,6 +503,7 @@ class CryptoTransferFeeCalculatorTest {
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 0L, // HBAR-only transfers have no service fee
+                                makeExtraIncluded(Extra.GAS, 0),
                                 makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
                                 makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.HOOK_EXECUTION, 0),

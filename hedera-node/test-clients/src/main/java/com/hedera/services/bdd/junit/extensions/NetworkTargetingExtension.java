@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.extensions;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.buildRsaBootstrapJson;
 import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -18,6 +19,7 @@ import static org.junit.platform.commons.support.AnnotationSupport.isAnnotated;
 
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
@@ -30,6 +32,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -148,6 +151,11 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     }
                 }
 
+                final boolean hasRealBlockNode =
+                        Arrays.stream(annotation.blockNodeConfigs()).anyMatch(c -> c.mode() == BlockNodeMode.REAL);
+                if (hasRealBlockNode) {
+                    targetBlockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(targetNetwork.getNodeKeys()));
+                }
                 targetBlockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 targetNetwork.start();
@@ -155,6 +163,21 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
 
                 // Set both the thread-local and the static shared network reference
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
+                HapiSpec.TARGET_NETWORK.set(targetNetwork);
+            } else if (isAnnotated(method, GenesisSubProcessTest.class)) {
+                logger.info("GenesisSubProcessTest annotation found on method: " + method.getName());
+                final var annotation = method.getAnnotation(GenesisSubProcessTest.class);
+                final SubProcessNetwork targetNetwork =
+                        (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
+                for (final GenesisSubProcessTest.SubProcessNodeConfig nodeConfig : annotation.subProcessNodeConfigs()) {
+                    if (nodeConfig.applicationPropertiesOverrides().length > 0) {
+                        targetNetwork
+                                .getApplicationPropertyOverrides()
+                                .put(nodeConfig.nodeId(), Arrays.asList(nodeConfig.applicationPropertiesOverrides()));
+                    }
+                }
+                targetNetwork.start();
+                SHARED_NETWORK.set(targetNetwork);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else {
                 ensureEmbeddedNetwork(extensionContext);
@@ -179,35 +202,52 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     @Override
     public void afterEach(@NonNull final ExtensionContext extensionContext) {
         hapiTestMethodOf(extensionContext).ifPresent(method -> {
-            if (isAnnotated(method, HapiBlockNode.class)) {
+            if (isAnnotated(method, HapiBlockNode.class) || isAnnotated(method, GenesisSubProcessTest.class)) {
                 // If a per-method network exists, run validation and terminate it
                 try {
-                    // Create a temporary HapiSpec to run the validation against the per-method network
-                    // Validate logs after a short delay to ensure all log entries are flushed
-                    final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
-                    final var streamValidationOp = validateStreams();
-                    final var validationSpec = new HapiSpec(
-                            "LogAndStreamValidationSpec", new SpecOperation[] {logValidationOp, streamValidationOp});
-                    validationSpec.setTargetNetwork(
-                            requireNonNull(SHARED_NETWORK.get(), "Shared network cannot be null"));
-                    validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
-                    // Execute the validation spec
-                    try {
-                        validationSpec.execute();
-                    } catch (final Throwable e) {
-                        throw new RuntimeException(e);
+                    // Skip validation if the network was never started
+                    final var sharedNetwork = SHARED_NETWORK.get();
+                    if (sharedNetwork != null) {
+                        // Create a temporary HapiSpec to run the validation against the per-method network
+                        // Validate logs after a short delay to ensure all log entries are flushed
+                        final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
+                        final var streamValidationOp = validateStreams();
+                        final var validationSpec = new HapiSpec(
+                                "LogAndStreamValidationSpec",
+                                new SpecOperation[] {logValidationOp, streamValidationOp});
+                        validationSpec.setTargetNetwork(sharedNetwork);
+                        validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
+                        // Execute the validation spec
+                        try {
+                            validationSpec.execute();
+                        } catch (final Throwable e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 } catch (final Exception e) {
                     System.err.println("Error during post-test log and stream validation: " + e.getMessage());
                 } finally {
                     // Ensure network termination even if validation fails
                     final var network = SHARED_NETWORK.get();
-                    final var scopeRoot = network.nodes()
-                            .getFirst()
-                            .getExternalPath(ExternalPath.WORKING_DIR)
-                            .getParent();
-                    network.terminate();
-                    SHARED_BLOCK_NODE_NETWORK.get().terminate(scopeRoot);
+                    final var blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
+                    try {
+                        if (network != null) {
+                            final var scopeRoot = network.nodes()
+                                    .getFirst()
+                                    .getExternalPath(ExternalPath.WORKING_DIR)
+                                    .getParent();
+                            network.terminate();
+                            if (blockNodeNetwork != null) {
+                                blockNodeNetwork.terminate(scopeRoot);
+                            }
+                        } else if (blockNodeNetwork != null) {
+                            logger.warn("Terminating block node network without log dump;"
+                                    + " consensus network was never started");
+                            blockNodeNetwork.terminateQuietly();
+                        }
+                    } catch (final Exception e) {
+                        logger.warn("Error during network termination in afterEach", e);
+                    }
                     // Clear the static shared network reference as the per-method network is gone
                     SHARED_NETWORK.set(null);
                     SHARED_BLOCK_NODE_NETWORK.set(null);

@@ -7,8 +7,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
-import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -27,6 +27,7 @@ import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletion
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -52,6 +54,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
@@ -68,6 +71,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.ChildFeeContext;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
@@ -77,7 +81,6 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -119,6 +122,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -387,25 +392,6 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     }
 
     @Test
-    void getsFeeCalculator(@Mock FeeCalculator feeCalculator) {
-        given(verifier.numSignaturesVerified()).willReturn(2);
-        given(feeManager.createFeeCalculator(
-                        any(),
-                        eq(Key.DEFAULT),
-                        eq(CRYPTO_TRANSFER_TXN_INFO.functionality()),
-                        eq(2),
-                        eq(0),
-                        eq(CONSENSUS_NOW),
-                        eq(TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES),
-                        eq(false),
-                        eq(readableStoreFactory)))
-                .willReturn(feeCalculator);
-        final var factory = subject.feeCalculatorFactory();
-        assertThat(factory.feeCalculator(TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES))
-                .isSameAs(feeCalculator);
-    }
-
-    @Test
     void getsAttributeValidator() {
         assertThat(subject.attributeValidator()).isInstanceOf(AttributeValidatorImpl.class);
     }
@@ -559,11 +545,34 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var fees = new Fees(1L, 2L, 3L);
             given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
             final var captor = ArgumentCaptor.forClass(FeeContext.class);
-            final var result = subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO);
+            final var result = subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO, null);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
             assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
+        }
+
+        @Test
+        void overrideSignatureMapIsUsedInsteadOfContextMap() {
+            // txnInfo uses SignatureMap.DEFAULT (0 bytes). An override with sig pairs produces
+            // a non-zero signatureMapSize, which is reflected in ChildFeeContext.numTxnBytes().
+            final var sigPair = SignaturePair.newBuilder()
+                    .pubKeyPrefix(Bytes.wrap(new byte[6]))
+                    .ed25519(Bytes.wrap(new byte[64]))
+                    .build();
+            final var overrideSigMap =
+                    SignatureMap.newBuilder().sigPair(sigPair).build();
+            final var fees = new Fees(1L, 2L, 3L);
+            given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
+            final var captor = ArgumentCaptor.forClass(FeeContext.class);
+
+            subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO, overrideSigMap);
+
+            verify(dispatcher).dispatchComputeFees(captor.capture());
+            final var feeContext = (ChildFeeContext) captor.getValue();
+            final var expectedSigMapSize = SignatureMap.PROTOBUF.measureRecord(overrideSigMap);
+            final var expectedTxnBytes = TransactionBody.PROTOBUF.measureRecord(txBody) + expectedSigMapSize;
+            assertThat(feeContext.numTxnBytes()).isEqualTo(expectedTxnBytes);
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -573,7 +582,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
             final var captor = ArgumentCaptor.forClass(FeeContext.class);
             final var result =
-                    subject.dispatchComputeFees(txnBodyWithoutId, account1002, ComputeDispatchFeesAsTopLevel.NO);
+                    subject.dispatchComputeFees(txnBodyWithoutId, account1002, ComputeDispatchFeesAsTopLevel.NO, null);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
             assertInstanceOf(ChildFeeContext.class, feeContext);
@@ -937,6 +946,27 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void category_isChild_forFeeChargingContext() {
         assertThat(subject.category()).isEqualTo(CHILD);
+    }
+
+    @Test
+    void ledgerId_returnsExternalizedLedgerIdWhenPresent(
+            @Mock(strictness = Mock.Strictness.LENIENT) ReadableStates historyStates,
+            @Mock ReadableSingletonState<ProtoBytes> ledgerIdSingleton) {
+        final var externalizedId = Bytes.fromHex("deadbeef");
+        given(baseState.getReadableStates(HistoryService.NAME)).willReturn(historyStates);
+        doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
+        given(ledgerIdSingleton.get()).willReturn(new ProtoBytes(externalizedId));
+        assertEquals(externalizedId, subject.ledgerId());
+    }
+
+    @Test
+    void ledgerId_fallsBackToConfigWhenNotExternalized(
+            @Mock(strictness = Mock.Strictness.LENIENT) ReadableStates historyStates,
+            @Mock ReadableSingletonState<ProtoBytes> ledgerIdSingleton) {
+        given(baseState.getReadableStates(HistoryService.NAME)).willReturn(historyStates);
+        doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
+        given(ledgerIdSingleton.get()).willReturn(ProtoBytes.DEFAULT);
+        assertEquals(Bytes.fromHex("00"), subject.ledgerId());
     }
 
     private void mockNeeded() {

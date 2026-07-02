@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "Deprecated: 802: [CALL] Extract JDK Version"
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  print-deprecated:
+    name: Print Deprecated Warning
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Print Deprecation Warning
+        run: |
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

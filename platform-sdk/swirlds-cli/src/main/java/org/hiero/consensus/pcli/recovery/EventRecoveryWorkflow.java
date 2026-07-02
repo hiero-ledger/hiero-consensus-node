@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
@@ -11,6 +10,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
+import static org.hiero.consensus.transaction.handling.TransactionHandlingModule.NO_OP_CONSUMER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -19,10 +19,7 @@ import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
-import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
@@ -48,9 +45,11 @@ import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusUtils;
@@ -64,6 +63,8 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMutableFile;
+import org.hiero.consensus.pcli.recovery.internal.EventStreamRoundIterator;
+import org.hiero.consensus.pcli.recovery.internal.StreamedRound;
 import org.hiero.consensus.round.RoundCalculationUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -99,7 +100,8 @@ public final class EventRecoveryWorkflow {
             @NonNull final Long finalRound,
             @NonNull final Path resultingStateDirectory,
             @NonNull final NodeId selfId,
-            final boolean loadSigningKeys)
+            final boolean loadSigningKeys,
+            final long transactionOffsetNanos)
             throws IOException, ParseException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
@@ -121,7 +123,10 @@ public final class EventRecoveryWorkflow {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        platformContext.getConfiguration(),
+                        platformContext.getFileSystemManager());
 
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
@@ -139,7 +144,8 @@ public final class EventRecoveryWorkflow {
                     initialState.get().getRoster(),
                     eventStreamDirectory,
                     initialState.get().getRound() + 1,
-                    allowPartialRounds);
+                    allowPartialRounds,
+                    transactionOffsetNanos);
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 
@@ -161,11 +167,7 @@ public final class EventRecoveryWorkflow {
             stateLifecycleManager.initWithState(recoveredState.state().get().getState());
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    resultingStateDirectory,
-                    recoveredState.state().get(),
-                    stateLifecycleManager);
+                    platformContext, selfId, resultingStateDirectory, recoveredState.state(), stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
@@ -237,10 +239,11 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         final Configuration configuration = platformContext.getConfiguration();
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), configuration);
+                        platformContext.getMetrics(), platformContext.getTime(), configuration, fileSystemManager);
         stateLifecycleManager.initWithState(initialSignedState.get().getState());
 
         final ReservedSignedState workingSignedState =
@@ -300,7 +303,7 @@ public final class EventRecoveryWorkflow {
         final SignedState signedState = initialSignedState.get();
         final SignedState mutableSignedState = new SignedState(
                 configuration,
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 stateLifecycleManager.getMutableState(),
                 "EventRecoveryWorkflow.ensureMutableState()",
                 signedState.isFreezeState(),
@@ -353,7 +356,7 @@ public final class EventRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 newState,
                 "EventRecoveryWorkflow.handleNextRound()",
                 isFreezeState,

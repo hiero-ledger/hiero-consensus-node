@@ -26,8 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config;
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
-    exports com.swirlds.platform.event.report;
-    exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -37,12 +35,9 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
-    exports com.swirlds.platform.scratchpad;
     exports com.swirlds.platform.system;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system.state.notifications;
-    exports com.swirlds.platform.system.status;
-    exports com.swirlds.platform.system.status.actions;
     exports com.swirlds.platform.util;
 
     /* Targeted Exports to External Libraries */
@@ -56,22 +51,16 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.event.branching to
-            org.hiero.consensus.reconnect.impl;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.event;
     exports com.swirlds.platform.state.nexus to
-            org.hiero.consensus.reconnect.impl;
+            org.hiero.consensus.reconnect.impl,
+            org.hiero.consensus.transaction.handling; // temporary until state management extracted
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
-    exports com.swirlds.platform.state.iss to
-            org.hiero.otter.test;
-    exports com.swirlds.platform.recovery.internal to
-            org.hiero.consensus.pcli;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -88,17 +77,19 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
+    requires transitive org.hiero.consensus.event.stream;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
+    requires transitive org.hiero.consensus.iss.detection;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
+    requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires com.swirlds.merkledb;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;

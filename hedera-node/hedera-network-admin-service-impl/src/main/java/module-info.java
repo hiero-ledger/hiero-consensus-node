@@ -3,7 +3,6 @@ import com.hedera.node.app.service.networkadmin.NetworkService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 
 module com.hedera.node.app.service.network.admin.impl {
-    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
@@ -18,9 +17,9 @@ module com.hedera.node.app.service.network.admin.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
-    requires com.swirlds.common;
     requires org.hiero.base.utility;
     requires com.google.common;
     requires org.apache.commons.io;

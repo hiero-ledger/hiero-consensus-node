@@ -6,6 +6,8 @@ module org.hiero.consensus.pcli {
             info.picocli;
     opens org.hiero.consensus.pcli.graph to
             info.picocli;
+    opens org.hiero.consensus.pcli.recovery to
+            info.picocli;
 
     exports org.hiero.consensus.pcli.utility;
     exports org.hiero.consensus.pcli;
@@ -28,9 +30,11 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
+    requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.pces.impl;
@@ -38,6 +42,7 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.transaction.handling;
     requires org.hiero.consensus.utility;
     requires info.picocli;
     requires io.github.classgraph;

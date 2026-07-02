@@ -13,7 +13,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
@@ -28,11 +31,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop.pendingAirdrop;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop.pendingNFTAirdrop;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingNFT;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -45,15 +51,20 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_PAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -65,9 +76,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,6 +95,8 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class TokenServiceSimpleFeesSuite {
     private static final double TOKEN_ASSOCIATE_FEE = 0.05;
+    private static final double BASE_CLAIM_AIRDROP_FEE = 0.001;
+    private static final double BASE_CANCEL_AIRDROP_FEE = 0.001;
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NFT_TOKEN = "nonFungibleToken";
     private static final String METADATA_KEY = "metadata-key";
@@ -109,11 +125,10 @@ public class TokenServiceSimpleFeesSuite {
         return serviceBaseUsd + nodeFeeUsd * (NETWORK_MULTIPLIER + 1);
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate create fungible token simple fees")
     final Stream<DynamicTest> validateCreateFungibleToken() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -130,11 +145,10 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "create-token-txn", 1.0, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate create non-fungible token simple fees")
     final Stream<DynamicTest> validateCreateNonFungibleToken() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
@@ -154,11 +168,10 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "create-nft-txn", 1.0, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate create fungible token with custom fees simple fees")
     final Stream<DynamicTest> validateCreateFungibleTokenWithCustomFees() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
@@ -181,7 +194,30 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "create-token-custom-fees-txn", 2.0, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
+    @DisplayName("validate create fungible common token with custom fees simple fees")
+    final Stream<DynamicTest> validateCreateFungibleCommonTokenWithCustomFees() {
+        return hapiTest(
+                cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(HBAR_COLLECTOR).balance(0L),
+                tokenCreate("fungibleTokenWithCustomFees")
+                        .blankMemo()
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .treasury(ADMIN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .autoRenewAccount(ADMIN)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .withCustom(fixedHbarFee(1L, HBAR_COLLECTOR))
+                        .logged()
+                        .hasKnownStatus(SUCCESS)
+                        .via("create-ft-custom-fees-txn"),
+                // TOKEN_CREATE_BASE_FEE_USD (0.9999) + TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD (1.0) = ~2.0
+                validateChargedSimpleFees("Simple Fees", "create-ft-custom-fees-txn", 2.0, 1));
+    }
+
+    @HapiTest
     @DisplayName("validate update fungible token simple fees")
     final Stream<DynamicTest> validateUpdateFungibleToken() {
         final var newSupplyKey = "newSupplyKey";
@@ -189,7 +225,6 @@ public class TokenServiceSimpleFeesSuite {
         final var extraSignatures = 2L;
 
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(newSupplyKey),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
@@ -215,12 +250,11 @@ public class TokenServiceSimpleFeesSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate mint common token simple fees")
     final Stream<DynamicTest> validateMintCommonToken() {
         // TOKEN_MINT_BASE_FEE_USD (0.0009) ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -241,12 +275,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "fungible-mint-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate mint multiple common tokens simple fees")
     final Stream<DynamicTest> validateMintMultipleCommonToken() {
         // TOKEN_MINT_BASE_FEE_USD (0.0009) ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -267,12 +300,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "fungible-mint-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate mint a unique token simple fees")
     final Stream<DynamicTest> validateMintUniqueToken() {
         // TOKEN_MINT_BASE_FEE_USD (0.0009) = 0.0209
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(METADATA_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
@@ -294,12 +326,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "nft-mint-txn", 0.02, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate mint multiple unique tokens simple fees")
     final Stream<DynamicTest> validateMintMultipleUniqueToken() {
         // TOKEN_MINT_BASE_FEE_USD (0.019) + TOKEN_MINT_NFT_FEE_USD (0.02) * 2 = 0.06
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(METADATA_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
@@ -326,13 +357,12 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "nft-multiple-mint-txn", 0.06, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("compare pause a common token")
     final Stream<DynamicTest> comparePauseToken() {
         // Extra signatures: payer + pause key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(PAUSE_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -357,17 +387,15 @@ public class TokenServiceSimpleFeesSuite {
                     final var expectedFee =
                             simpleTokenOpFeeUsd(TOKEN_PAUSE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "pause-token-txn", expectedFee, 1));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("compare unpause a common token")
     final Stream<DynamicTest> compareUnpauseToken() {
         // Extra signatures: payer + pause key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                 newKeyNamed(PAUSE_KEY),
@@ -393,17 +421,15 @@ public class TokenServiceSimpleFeesSuite {
                     final var expectedFee =
                             simpleTokenOpFeeUsd(TOKEN_UNPAUSE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "unpause-token-txn", expectedFee, 1));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("compare freeze a common token")
     final Stream<DynamicTest> compareFreezeToken() {
         // Extra signatures: payer + freeze key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(FREEZE_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -430,17 +456,15 @@ public class TokenServiceSimpleFeesSuite {
                     final var expectedFee =
                             simpleTokenOpFeeUsd(TOKEN_FREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "freeze-token-txn", expectedFee, 1));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("compare unfreeze a common token")
     final Stream<DynamicTest> compareUnfreezeToken() {
         // Extra signatures: payer + freeze key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                 cryptoCreate(OTHER),
@@ -468,16 +492,14 @@ public class TokenServiceSimpleFeesSuite {
                     final var expectedFee =
                             simpleTokenOpFeeUsd(TOKEN_UNFREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "unfreeze-token-txn", expectedFee, 1));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate burn a common token simple fees")
     final Stream<DynamicTest> validateBurnToken() {
         // TOKEN_BURN_BASE_FEE_USD (0.0009) ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -499,13 +521,12 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "burn-token-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("compare delete a common token")
     final Stream<DynamicTest> compareDeleteToken() {
         // Extra signatures: payer + admin key (node includes 1 signature)
         final var extraSignatures = 1L;
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -532,16 +553,14 @@ public class TokenServiceSimpleFeesSuite {
                     final var expectedFee =
                             simpleTokenOpFeeUsd(TOKEN_DELETE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "delete-token-txn", expectedFee, 1));
-                }),
-                overriding("fees.simpleFeesEnabled", "false"));
+                }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate associate a token simple fees")
     final Stream<DynamicTest> validateAssociateToken() {
         // TOKEN_ASSOCIATE_BASE_FEE_USD (0.0499) ≈ 0.05
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -561,12 +580,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "token-associate-txn", 0.05, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate dissociate a token simple fees")
     final Stream<DynamicTest> validateDissociateToken() {
         // TOKEN_DISSOCIATE_BASE_FEE_USD = 0.0499 ≈ 0.05
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -584,12 +602,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "dissociate-txn", 0.05, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate grant kyc simple fees")
     final Stream<DynamicTest> validateGrantKyc() {
         // TOKEN_GRANT_KYC_BASE_FEE_USD = 0.0009 ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(KYC_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
@@ -613,12 +630,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "grant-kyc-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate revoke kyc simple fees")
     final Stream<DynamicTest> validateRevokeKyc() {
         // TOKEN_REVOKE_KYC_BASE_FEE_USD = 0.0009 ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(KYC_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
@@ -643,12 +659,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "revoke-kyc-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate reject simple fees")
     final Stream<DynamicTest> validateReject() {
         // TOKEN_REJECT_BASE_FEE_USD (0.0009) ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(KYC_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS).key(KYC_KEY),
@@ -677,12 +692,46 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "token-reject-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
+    @DisplayName("validate reject nft simple fees")
+    final Stream<DynamicTest> validateRejectNft() {
+        // TOKEN_REJECT_BASE_FEE_USD (0.0009) ≈ 0.001, same base fee as the fungible reject
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER).balance(ONE_MILLION_HBARS),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(ADMIN)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .adminKey(ADMIN)
+                        .supplyKey(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                        .payingWith(PAYER)
+                        .signedBy(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(OTHER, NFT_TOKEN),
+                cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(ADMIN, OTHER))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(ADMIN),
+                tokenReject(rejectingNFT(NFT_TOKEN, 1L))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(OTHER)
+                        .payingWith(OTHER)
+                        .via("token-reject-nft-txn"),
+                validateChargedSimpleFees("Simple Fees", "token-reject-nft-txn", 0.001, 1));
+    }
+
+    @HapiTest
     @DisplayName("validate token account wipe simple fees")
     final Stream<DynamicTest> validateTokenAccountWipe() {
         // TOKEN_WIPE_BASE_FEE_USD (0.0009) ≈ 0.001
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(WIPE_KEY),
                 cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
@@ -715,7 +764,7 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "token-wipe-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate token fee schedule update simple fees")
     final Stream<DynamicTest> validateTokenFeeScheduleUpdate() {
         final var htsAmount = 2_345L;
@@ -723,7 +772,6 @@ public class TokenServiceSimpleFeesSuite {
         final var htsCollector = "denomFee";
 
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(FEE_SCHEDULE_KEY),
                 cryptoCreate(htsCollector),
                 tokenCreate(feeDenom).treasury(htsCollector),
@@ -745,12 +793,11 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "fee-schedule-update-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate token update nfts simple fees")
     final Stream<DynamicTest> validateTokenUpdateNFTs() {
         final String NFT_TEST_METADATA = " test metadata";
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(WIPE_KEY),
                 newKeyNamed(FEE_SCHEDULE_KEY),
@@ -781,11 +828,10 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedSimpleFees("Simple Fees", "token-update-nfts-txn", 0.001, 1));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate TokenGetInfoQuery simple fees")
     final Stream<DynamicTest> validateTokenGetInfo() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(FREEZE_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
@@ -802,11 +848,10 @@ public class TokenServiceSimpleFeesSuite {
                 validateNodePaymentAmountForQuery("get-token-info-query", 84L));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("validate TokenGetNftInfoQuery simple fees")
     final Stream<DynamicTest> validateTokenGetNftInfo() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                 tokenCreate(NFT_TOKEN)
@@ -830,14 +875,13 @@ public class TokenServiceSimpleFeesSuite {
                 validateNodePaymentAmountForQuery("get-token-nft-info-query", 84L));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("token get info - invalid token fails - no fee charged")
     final Stream<DynamicTest> tokenGetInfoInvalidTokenFails() {
         final AtomicLong initialBalance = new AtomicLong();
         final AtomicLong afterBalance = new AtomicLong();
 
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                 getTokenInfo("0.0.99999999").payingWith(PAYER).hasCostAnswerPrecheck(INVALID_TOKEN_ID),
@@ -847,14 +891,13 @@ public class TokenServiceSimpleFeesSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("token get nft info - invalid token fails - no fee charged")
     final Stream<DynamicTest> tokenGetNftInfoInvalidTokenFails() {
         final AtomicLong initialBalance = new AtomicLong();
         final AtomicLong afterBalance = new AtomicLong();
 
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                 getTokenNftInfo("0.0.99999999", 1L).payingWith(PAYER).hasCostAnswerPrecheck(INVALID_NFT_ID),
@@ -862,6 +905,325 @@ public class TokenServiceSimpleFeesSuite {
                 withOpContext((spec, log) -> {
                     assertEquals(initialBalance.get(), afterBalance.get());
                 }));
+    }
+
+    @HapiTest
+    @DisplayName("validate burn nft simple fees")
+    final Stream<DynamicTest> validateBurnNft() {
+        // TOKEN_BURN_BASE_FEE_USD (0.0009) ≈ 0.001, same base fee as the fungible burn
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                        .payingWith(PAYER)
+                        .signedBy(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                burnToken(NFT_TOKEN, List.of(1L))
+                        .payingWith(PAYER)
+                        .signedBy(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS)
+                        .via("burn-nft-txn"),
+                validateChargedSimpleFees("Simple Fees", "burn-nft-txn", 0.001, 1));
+    }
+
+    @HapiTest
+    @DisplayName("validate freeze nft simple fees")
+    final Stream<DynamicTest> validateFreezeNft() {
+        // Extra signatures: payer + freeze key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .freezeKey(FREEZE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(OTHER, NFT_TOKEN),
+                tokenFreeze(NFT_TOKEN, OTHER)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("freeze-nft-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "freeze-nft-txn");
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_FREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "freeze-nft-txn", expectedFee, 1));
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("validate unfreeze nft simple fees")
+    final Stream<DynamicTest> validateUnfreezeNft() {
+        // Extra signatures: payer + freeze key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .freezeKey(FREEZE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(OTHER, NFT_TOKEN),
+                tokenFreeze(NFT_TOKEN, OTHER),
+                tokenUnfreeze(NFT_TOKEN, OTHER)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("unfreeze-nft-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "unfreeze-nft-txn");
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_UNFREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "unfreeze-nft-txn", expectedFee, 1));
+                }));
+    }
+
+    @HapiTest
+    @DisplayName("validate wipe nft simple fees")
+    final Stream<DynamicTest> validateWipeNft() {
+        // TOKEN_WIPE_BASE_FEE_USD (0.0009) ≈ 0.001, same base fee as the fungible wipe
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(WIPE_KEY),
+                cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER).balance(ONE_MILLION_HBARS).key(WIPE_KEY),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(ADMIN)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .adminKey(ADMIN)
+                        .wipeKey(WIPE_KEY)
+                        .supplyKey(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(OTHER, NFT_TOKEN),
+                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                        .payingWith(PAYER)
+                        .signedBy(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(ADMIN, OTHER))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(ADMIN),
+                wipeTokenAccount(NFT_TOKEN, OTHER, List.of(1L))
+                        .payingWith(OTHER)
+                        .signedBy(OTHER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("wipe-nft-txn"),
+                validateChargedSimpleFees("Simple Fees", "wipe-nft-txn", 0.001, 1));
+    }
+
+    @HapiTest
+    @DisplayName("validate nft transfer simple fees")
+    final Stream<DynamicTest> validateNftTransfer() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER),
+                tokenCreate(NFT_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(PAYER)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                        .payingWith(PAYER)
+                        .signedBy(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                // pre-associate so the transfer is charged only the transfer fee, not an auto-association fee
+                tokenAssociate(OTHER, NFT_TOKEN),
+                cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(PAYER, OTHER))
+                        .payingWith(PAYER)
+                        .fee(ONE_HBAR)
+                        .via("nft-transfer-txn"),
+                validateChargedUsd("nft-transfer-txn", TOKEN_TRANSFER_FEE));
+    }
+
+    @HapiTest
+    @DisplayName("charge airdrop association fee for FT")
+    final Stream<DynamicTest> chargeAirdropAssociationFeeForFT() {
+        final var receiver = "airdropReceiver";
+        return hapiTest(
+                cryptoCreate("airdropOwner").balance(ONE_HUNDRED_HBARS),
+                tokenCreate("airdropFt")
+                        .treasury("airdropOwner")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L),
+                cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
+                tokenAirdrop(moving(1, "airdropFt").between("airdropOwner", receiver))
+                        .payingWith("airdropOwner")
+                        .via("airdrop"),
+                tokenAirdrop(moving(1, "airdropFt").between("airdropOwner", receiver))
+                        .payingWith("airdropOwner")
+                        .via("second-airdrop"),
+                // first airdrop pays the association fee, second one does not
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE),
+                validateChargedUsd("second-airdrop", TOKEN_TRANSFER_FEE + AIRDROPS_FEE_USD));
+    }
+
+    @HapiTest
+    @DisplayName("charge airdrop association fee for NFT")
+    final Stream<DynamicTest> chargeAirdropAssociationFeeForNFT() {
+        // NFTs always charge the token association fee
+        final var nftAirdropFee = AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE;
+        return hapiTest(
+                cryptoCreate("airdropOwner").balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(SUPPLY_KEY),
+                tokenCreate("airdropNft")
+                        .treasury("airdropOwner")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY),
+                mintToken(
+                        "airdropNft",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                cryptoCreate("airdropReceiver").maxAutomaticTokenAssociations(0),
+                tokenAirdrop(movingUnique("airdropNft", 1).between("airdropOwner", "airdropReceiver"))
+                        .payingWith("airdropOwner")
+                        .via("airdrop"),
+                tokenAirdrop(movingUnique("airdropNft", 2).between("airdropOwner", "airdropReceiver"))
+                        .payingWith("airdropOwner")
+                        .via("second-airdrop"),
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE + nftAirdropFee),
+                validateChargedUsd("second-airdrop", TOKEN_TRANSFER_FEE + nftAirdropFee));
+    }
+
+    @HapiTest
+    @DisplayName("claim fungible token airdrop base fee")
+    final Stream<DynamicTest> claimFungibleTokenAirdropBaseFee() {
+        final var owner = "airdropOwner";
+        final var receiver = "airdropReceiver";
+        return hapiTest(
+                cryptoCreate(owner).balance(ONE_HUNDRED_HBARS),
+                tokenCreate("airdropFt")
+                        .treasury(owner)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L),
+                cryptoCreate(receiver).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(0),
+                // create a pending airdrop
+                tokenAirdrop(moving(10, "airdropFt").between(owner, receiver)).payingWith(owner),
+                tokenClaimAirdrop(HapiTokenClaimAirdrop.pendingAirdrop(owner, receiver, "airdropFt"))
+                        .payingWith(receiver)
+                        .fee(ONE_HBAR)
+                        .via("claim-txn"),
+                validateChargedUsdWithin("claim-txn", BASE_CLAIM_AIRDROP_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 1));
+    }
+
+    @HapiTest
+    @DisplayName("cancel airdrop FT happy path")
+    final Stream<DynamicTest> cancelAirdropFungibleTokenHappyPath() {
+        final var sender = "airdropSender";
+        final var receiver = "airdropReceiver";
+        return hapiTest(
+                cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
+                tokenCreate("airdropFt")
+                        .treasury(sender)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L),
+                cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
+                // create a pending airdrop
+                tokenAirdrop(moving(10, "airdropFt").between(sender, receiver))
+                        .payingWith(sender)
+                        .via("airdrop"),
+                validateChargedUsd("airdrop", AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE),
+                tokenCancelAirdrop(pendingAirdrop(sender, receiver, "airdropFt"))
+                        .payingWith(sender)
+                        .via("cancel-airdrop"),
+                validateChargedUsd("cancel-airdrop", BASE_CANCEL_AIRDROP_FEE));
+    }
+
+    @HapiTest
+    @DisplayName("cancel airdrop NFT happy path")
+    final Stream<DynamicTest> cancelAirdropNftHappyPath() {
+        final var sender = "airdropSender";
+        final var receiver = "airdropReceiver";
+        return hapiTest(
+                cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(SUPPLY_KEY),
+                tokenCreate("airdropNft")
+                        .treasury(sender)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY),
+                mintToken(
+                        "airdropNft",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
+                // create a pending airdrop
+                tokenAirdrop(movingUnique("airdropNft", 1L).between(sender, receiver))
+                        .payingWith(sender)
+                        .via("airdrop"),
+                validateChargedUsd("airdrop", AIRDROPS_FEE_USD + TOKEN_ASSOCIATE_FEE),
+                tokenCancelAirdrop(pendingNFTAirdrop(sender, receiver, "airdropNft", 1L))
+                        .payingWith(sender)
+                        .via("cancel-airdrop"),
+                validateChargedUsd("cancel-airdrop", BASE_CANCEL_AIRDROP_FEE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintOneNftTokenWithoutCustomFees() {
+        return mintBulkNftTokensAndValidateFees(1);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintFiveBulkNftTokenWithoutCustomFees() {
+        return mintBulkNftTokensAndValidateFees(5);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintTenBulkNftTokensWithoutCustomFees() {
+        return mintBulkNftTokensAndValidateFees(10);
+    }
+
+    private Stream<DynamicTest> mintBulkNftTokensAndValidateFees(final int count) {
+        final var supplyKey = "supplyKey";
+        return hapiTest(
+                newKeyNamed(supplyKey),
+                cryptoCreate("owner").balance(ONE_HUNDRED_HBARS).key(supplyKey),
+                tokenCreate(NFT_TOKEN)
+                        .treasury("owner")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(supplyKey)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0),
+                mintToken(
+                                NFT_TOKEN,
+                                IntStream.range(0, count)
+                                        .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                        .toList())
+                        .fee(count * ONE_HBAR)
+                        .payingWith("owner")
+                        .signedBy(supplyKey)
+                        .blankMemo()
+                        .via("mintTxn"),
+                validateChargedUsdWithin("mintTxn", TOKEN_MINT_NFT_FEE * count, 0.1));
     }
 
     @HapiTest
@@ -929,5 +1291,56 @@ public class TokenServiceSimpleFeesSuite {
                         .blankMemo()
                         .via("updateTxn"),
                 validateChargedUsdWithin("updateTxn", TOKEN_UPDATE_NFT_FEE * updateAmounts.size(), 0.1));
+    }
+
+    @HapiTest
+    @DisplayName("BASELINE: Valid single fungible token transfer charged correct token fee")
+    final Stream<DynamicTest> validFungibleTransferUndercharged() {
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver").balance(0L),
+                tokenCreate("fungibleToken")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury("payer")
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith("payer"),
+                tokenAssociate("receiver", "fungibleToken"),
+                cryptoTransfer(moving(2000, "fungibleToken").between("payer", "receiver"))
+                        .payingWith("payer")
+                        .signedBy("payer")
+                        .fee(ONE_HBAR)
+                        .via("baselineTxn")
+                        .memo("baselineTxn")
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE),
+                validateChargedUsd("baselineTxn", TOKEN_TRANSFER_FEE),
+                cryptoTransfer((spec, b) -> {
+                            final var attackerInfo = spec.registry().getAccountID("payer");
+                            final var receiverInfo = spec.registry().getAccountID("receiver");
+                            final var bogusTokenId = TokenID.newBuilder()
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm())
+                                    .setTokenNum(9_000_001L)
+                                    .build();
+                            final var ttl = TokenTransferList.newBuilder()
+                                    .setToken(bogusTokenId)
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(attackerInfo)
+                                            .setAmount(-1L)
+                                            .build())
+                                    .addTransfers(AccountAmount.newBuilder()
+                                            .setAccountID(receiverInfo)
+                                            .setAmount(1L)
+                                            .build())
+                                    .build();
+                            b.addTokenTransfers(ttl);
+                        })
+                        .memo("attackTxn")
+                        .payingWith("payer")
+                        .fee(ONE_HBAR)
+                        .via("attackTxn")
+                        .hasKnownStatus(INVALID_TOKEN_ID),
+                // verify that the regular fee is charged even though the transfer failed due to an invalid token id
+                validateChargedUsd("attackTxn", TOKEN_TRANSFER_FEE));
     }
 }

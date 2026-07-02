@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,7 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * Validates the structure of blocks.
+ * Validates the structure of blocks, including both normal blocks and Wrapped Record Blocks (WRBs)
+ * produced by the historical record file wrapping process.
  */
 public class BlockContentsValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(BlockContentsValidator.class);
@@ -58,14 +60,103 @@ public class BlockContentsValidator implements BlockStreamValidator {
             Assertions.fail("Block contains insufficient number of block items");
         }
 
-        // A block SHALL start with a `block_header`.
         validateBlockHeader(items.getFirst());
 
+        if (BlockStreamValidator.isWrappedRecordBlock(items)) {
+            validateWrappedRecordBlock(items, blocksRemaining);
+        } else {
+            validateNormalBlock(items, blocksRemaining);
+        }
+    }
+
+    private void validateNormalBlock(@NonNull final List<BlockItem> items, final int blocksRemaining) {
         validateRounds(items.subList(1, items.size() - 1));
 
-        // A block SHALL end with a `block_proof`.
-        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE) {
+        if (blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE
+                && items.getLast().hasBlockProof()) {
             validateBlockProof(items.getLast());
+        }
+    }
+
+    private void validateWrappedRecordBlock(@NonNull final List<BlockItem> items, final int blocksRemaining) {
+        final long blockNumber = items.getFirst().blockHeaderOrThrow().number();
+        boolean foundRecordFile = false;
+        boolean foundFooter = false;
+        boolean foundProof = false;
+
+        for (int i = 1; i < items.size(); i++) {
+            final var item = items.get(i);
+            final var kind = item.item().kind();
+            switch (kind) {
+                case STATE_CHANGES -> {
+                    Assertions.fail("WRB StateChanges found  at index " + i);
+                }
+                case RECORD_FILE -> {
+                    if (foundRecordFile) {
+                        Assertions.fail("WRB contains more than one RecordFileItem at index " + i);
+                    }
+                    validateRecordFileItem(item, i);
+                    foundRecordFile = true;
+                }
+                case BLOCK_FOOTER -> {
+                    if (foundFooter) {
+                        Assertions.fail("WRB contains duplicate BlockFooter at index " + i);
+                    }
+                    if (!foundRecordFile) {
+                        Assertions.fail("WRB BlockFooter found before RecordFileItem at index " + i);
+                    }
+                    if (!item.blockFooter().startOfBlockStateRootHash().equals(HASH_OF_ZERO)) {
+                        Assertions.fail("WRB BlockFooter at index " + i
+                                + " has start_of_block_state_root_hash != HASH_OF_ZERO");
+                    }
+                    foundFooter = true;
+                }
+                case BLOCK_PROOF -> {
+                    if (!foundFooter) {
+                        Assertions.fail("WRB BlockProof found before BlockFooter at index " + i);
+                    }
+                    validateWrappedBlockProof(item, i);
+                    foundProof = true;
+                }
+                default -> Assertions.fail("WRB contains unexpected item type " + kind + " at index " + i);
+            }
+        }
+
+        if (!foundRecordFile) {
+            Assertions.fail("WRB is missing RecordFileItem");
+        }
+        if (!foundFooter) {
+            Assertions.fail("WRB is missing BlockFooter");
+        }
+        if (!foundProof && blocksRemaining > REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE) {
+            Assertions.fail("WRB is missing BlockProof");
+        }
+    }
+
+    private static void validateRecordFileItem(@NonNull final BlockItem item, final int index) {
+        final var recordFile = item.recordFileOrThrow();
+        if (!recordFile.hasCreationTime()) {
+            Assertions.fail("WRB RecordFileItem at index " + index + " is missing creation_time");
+        }
+        if (!recordFile.hasRecordFileContents()) {
+            Assertions.fail("WRB RecordFileItem at index " + index + " is missing record_file_contents");
+        }
+    }
+
+    private static void validateWrappedBlockProof(@NonNull final BlockItem item, final int index) {
+        final var proof = item.blockProofOrThrow();
+        if (!proof.hasSignedRecordFileProof()) {
+            Assertions.fail("WRB BlockProof at index " + index + " must use SignedRecordFileProof, found: "
+                    + proof.proof().kind());
+        }
+        final var signedProof = proof.signedRecordFileProofOrThrow();
+        final int version = signedProof.version();
+        if (version != 2 && version != 5 && version != 6) {
+            Assertions.fail("WRB SignedRecordFileProof at index " + index + " has invalid version " + version
+                    + " (expected 2, 5, or 6)");
+        }
+        if (signedProof.recordFileSignatures().isEmpty()) {
+            Assertions.fail("WRB SignedRecordFileProof at index " + index + " has no signatures");
         }
     }
 
@@ -88,12 +179,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         }
     }
 
-    /**
-     * Validates a single round within a block, starting at the given index.
-     * Returns the index of the next item after this round.
-     */
     private int validateSingleRound(final List<BlockItem> items, int startIndex) {
-        // Validate round header
         if (!items.get(startIndex).hasRoundHeader()) {
             logger.error("Expected round header at index {}, found: {}", startIndex, items.get(startIndex));
             Assertions.fail("Round must start with a round header");
@@ -101,7 +187,6 @@ public class BlockContentsValidator implements BlockStreamValidator {
         int currentIndex = startIndex + 1;
         boolean insideEvent = false;
         boolean hasEventOrStateChange = false;
-        // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
             final var item = items.get(currentIndex);
             final var kind = item.item().kind();

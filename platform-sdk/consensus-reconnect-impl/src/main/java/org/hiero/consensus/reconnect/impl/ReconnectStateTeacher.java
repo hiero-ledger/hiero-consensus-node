@@ -8,15 +8,15 @@ import static org.hiero.consensus.reconnect.impl.ReconnectStateLearner.endReconn
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
@@ -24,14 +24,10 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -46,7 +42,6 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView teacherView;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;
@@ -55,7 +50,7 @@ public class ReconnectStateTeacher {
     private final NodeId selfId;
     private final NodeId otherId;
     private final long lastRoundReceived;
-    private final Configuration configuration;
+    private final TeachingSynchronizer synchronizer;
 
     private final ReconnectMetrics statistics;
 
@@ -64,12 +59,8 @@ public class ReconnectStateTeacher {
      */
     private int originalSocketTimeout;
 
-    private final ThreadManager threadManager;
-    private final Time time;
-
     /**
      * @param configuration the platform context
-     * @param time the source of time
      * @param threadManager responsible for managing thread lifecycles
      * @param connection the connection to be used for the reconnect
      * @param reconnectSocketTimeout the socket timeout to use during the reconnect
@@ -81,7 +72,6 @@ public class ReconnectStateTeacher {
      */
     public ReconnectStateTeacher(
             @NonNull final Configuration configuration,
-            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final Duration reconnectSocketTimeout,
@@ -91,8 +81,9 @@ public class ReconnectStateTeacher {
             @NonNull final SignedState signedState,
             @NonNull final ReconnectMetrics statistics) {
 
-        this.time = Objects.requireNonNull(time);
-        this.threadManager = Objects.requireNonNull(threadManager);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(threadManager);
+
         this.connection = Objects.requireNonNull(connection);
         this.reconnectSocketTimeout = reconnectSocketTimeout;
 
@@ -100,16 +91,14 @@ public class ReconnectStateTeacher {
         this.otherId = Objects.requireNonNull(otherId);
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
-        this.configuration = Objects.requireNonNull(configuration);
 
         signatures = signedState.getSigSet();
         signingWeight = signedState.getSigningWeight();
         roster = signedState.getRoster();
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        // The teacher view will be closed by TeacherSynchronizer in reconnect() below
-        teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);
+
+        synchronizer = new TeachingSynchronizer(virtualMapState.getRoot(), threadManager, configuration);
 
         logReconnectStart(signedState);
     }
@@ -193,7 +182,6 @@ public class ReconnectStateTeacher {
                         selfId.id(),
                         otherId.id(),
                         lastRoundReceived));
-        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
                         {}""", () -> getInfoString(signedState.getState()));
@@ -218,19 +206,12 @@ public class ReconnectStateTeacher {
     private void reconnect() throws InterruptedException, IOException {
         statistics.incrementSenderStartTimes();
 
-        connection.getDis().getSyncByteCounter().resetCount();
-        connection.getDos().getSyncByteCounter().resetCount();
+        connection.getDis().byteCounter().getAndReset();
 
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
-                time,
-                threadManager,
-                new SerializableDataInputStream(connection.getDis()),
-                new SerializableDataOutputStream(connection.getDos()),
-                teacherView,
-                connection::disconnect,
-                reconnectConfig);
-        synchronizer.synchronize();
+        synchronizer.synchronize(
+                new DataInputStream(connection.getDis()),
+                new DataOutputStream(connection.getDos()),
+                connection::disconnect);
         connection.getDos().flush();
 
         statistics.incrementSenderEndTimes();

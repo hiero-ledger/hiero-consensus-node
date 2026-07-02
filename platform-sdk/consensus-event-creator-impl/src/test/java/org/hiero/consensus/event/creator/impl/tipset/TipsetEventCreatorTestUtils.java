@@ -314,6 +314,26 @@ public class TipsetEventCreatorTestUtils {
                 .build();
     }
 
+    @NonNull
+    public static PlatformEvent createTestEventWithParent(
+            @NonNull final Random random,
+            @Nullable final NodeId creator,
+            final long nGen,
+            final long birthRound,
+            PlatformEvent otherParent) {
+
+        final PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(creator).build();
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setNGen(nGen)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .setOtherParent(otherParent)
+                .build();
+    }
+
     /**
      * @return a boolean array containing both false and true values
      */

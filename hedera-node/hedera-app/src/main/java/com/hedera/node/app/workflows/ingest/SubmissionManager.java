@@ -123,15 +123,17 @@ public class SubmissionManager {
         // pre-checks. This is used in tests to check the reaction to illegal input.
         // FUTURE This should be deprecated and removed. We do not want this in our production system.
         if (txBody.hasUncheckedSubmit()) {
-            // We do NOT allow this call in production!
-            // check profile dynamically, this way we allow profile overriding in Hapi tests
+            // We do NOT allow this call in production! Default-deny: it must be explicitly enabled, and is
+            // refused on a PROD profile or a public-network ledger id. Read dynamically so Hapi tests can override.
             final var configuration = configProvider.getConfiguration();
             final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
-            if (hederaConfig.activeProfile() == Profile.PROD
-                    || MAIN_NET_LEDGER_ID.equals(ledgerConfig.id())
-                    || TEST_NET_LEDGER_ID.equals(ledgerConfig.id())
-                    || PREVIEW_NET_LEDGER_ID.equals(ledgerConfig.id())) {
+            final boolean allowed = hederaConfig.uncheckedSubmitEnabled()
+                    && hederaConfig.activeProfile() != Profile.PROD
+                    && !MAIN_NET_LEDGER_ID.equals(ledgerConfig.id())
+                    && !TEST_NET_LEDGER_ID.equals(ledgerConfig.id())
+                    && !PREVIEW_NET_LEDGER_ID.equals(ledgerConfig.id());
+            if (!allowed) {
                 throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
 

@@ -14,23 +14,32 @@ import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.SortedMap;
+import java.util.function.Supplier;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHistoryService implements HistoryService {
     private final HistoryService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHistoryService(@NonNull final AppContext appContext) {
+    public FakeHistoryService(
+            @NonNull final AppContext appContext, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         delegate = new HistoryServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HistoryLibraryImpl());
+                new NoOpMetrics(),
+                pendingHintsSubmissions::offer,
+                appContext,
+                new HistoryLibraryImpl(),
+                genesisNetworkSupplier);
     }
 
     @Override
@@ -54,6 +63,12 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull final Bytes metadata) {
         return delegate.getCurrentChainOfTrustProof(metadata);
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        return delegate.doGenesisSetup(writableStates, configuration);
     }
 
     @Override

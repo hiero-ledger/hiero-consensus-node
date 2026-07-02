@@ -7,28 +7,24 @@ import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForPrecheck
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransferList;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 import static java.lang.Thread.sleep;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryCheckStateException;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryPrecheckStateException;
+import com.hedera.services.bdd.spec.infrastructure.TransientPlatformErrorRetry;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.mod.QueryMutation;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.Response;
@@ -134,7 +130,9 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
     }
 
     protected long costOnlyNodePayment(HapiSpec spec) throws Throwable {
-        return 0L;
+        // A generous default node payment that only bootstraps the COST_ANSWER query, which returns
+        // the real cost; the actual query is then paid with that returned amount.
+        return ONE_HUNDRED_HBARS;
     }
 
     public Query getQuery() {
@@ -180,6 +178,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
 
         Transaction payment = Transaction.getDefaultInstance();
         int retryCount = 1;
+        long platformNotActiveRetryStart = 0;
         while (true) {
             /* Note that HapiQueryOp#fittedPayment makes a COST_ANSWER query if necessary. */
             if (needsPayment()) {
@@ -224,25 +223,18 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                 break;
             }
 
-            // Automatically retry on transient platform errors (backlog/not active/fee issues)
-            // regardless of explicit answerOnlyRetryPrechecks configuration
-            final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
-                    || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
-                    || actualPrecheck == BUSY;
-            // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
-            // when no explicit retryLimits is set (which defaults to unlimited)
-            final int maxTransientRetries = 10;
-            final boolean withinTransientLimit = retryCount < maxTransientRetries;
-            final boolean shouldRetryTransient = isTransientPlatformError && withinTransientLimit;
+            final var transientDecision = TransientPlatformErrorRetry.evaluate(
+                    actualPrecheck, retryCount, platformNotActiveRetryStart, System.currentTimeMillis());
+            platformNotActiveRetryStart = transientDecision.firstSeenMs();
+
             final boolean shouldRetryExplicit = answerOnlyRetryPrechecks.isPresent()
                     && answerOnlyRetryPrechecks.get().contains(actualPrecheck)
                     && isWithInRetryLimit(retryCount);
-            if (shouldRetryTransient || shouldRetryExplicit) {
+            if (transientDecision.shouldRetry() || shouldRetryExplicit) {
                 retryCount++;
                 log.trace("{}retry count: {}", spec.logPrefix(), retryCount);
                 try {
-                    // Use longer sleep for platform errors to allow recovery
-                    sleep(isTransientPlatformError ? 100 : 10);
+                    sleep(transientDecision.shouldRetry() ? transientDecision.sleepMs() : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
@@ -278,20 +270,6 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
         }
         txnSubmitted = payment;
         return true;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.CryptoTransfer,
-                        (_txn, _svo) -> usageEstimate(_txn, _svo, spec.fees().tokenTransferUsageMultiplier()),
-                        txn,
-                        numPayerKeys);
-    }
-
-    private FeeData usageEstimate(TransactionBody txn, SigValueObj svo, int multiplier) {
-        return HapiCryptoTransfer.usageEstimate(txn, svo, multiplier);
     }
 
     private Transaction fittedPayment(HapiSpec spec) throws Throwable {

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -12,7 +13,6 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -24,11 +24,27 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.provider.Arguments;
 
-public class VirtualHasherTestBase extends VirtualTestBase {
+class VirtualHasherTestBase extends VirtualTestBase {
 
-    protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.hashChunkHeight();
+    protected static final int CHUNK_HEIGHT = 6;
+
+    protected VirtualHasher defaultHasher;
+
+    @BeforeEach
+    void setup() {
+        defaultHasher = new VirtualHasher(DEFAULT_VIRTUAL_MAP_CONFIG);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (defaultHasher != null) {
+            defaultHasher.shutdown();
+        }
+    }
 
     /**
      * Helper method for computing a list of {@link Arguments} of length {@code num}, each of which contains

@@ -3,6 +3,7 @@ package org.hiero.sloth.fixtures.container.docker;
 
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -25,9 +26,8 @@ public final class DockerMain {
      * Constructs a {@link DockerMain} instance.
      */
     public DockerMain() {
-        grpcServer = ServerBuilder.forPort(CONTAINER_CONTROL_PORT)
-                .addService(new DockerManager())
-                .build();
+        final int port = Integer.getInteger("sloth.control.port", CONTAINER_CONTROL_PORT);
+        grpcServer = ServerBuilder.forPort(port).addService(new DockerManager()).build();
     }
 
     /**
@@ -38,7 +38,8 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
-        ControlProcessLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR));
+        final String workDir = System.getProperty(ENV_SLOTH_WORKDIR, CONTAINER_APP_WORKING_DIR);
+        ControlProcessLogConfigBuilder.configure(Path.of(workDir));
         new DockerMain().startGrpcServer();
     }
 

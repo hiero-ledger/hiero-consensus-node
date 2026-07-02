@@ -8,10 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.validation.ConfigViolationException;
+import com.swirlds.config.extensions.sources.PropertyFileConfigSource;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -42,7 +48,7 @@ class ConfigApiRecordsTests {
         // then
         assertThrows(
                 IllegalStateException.class,
-                () -> configurationBuilder.build(),
+                configurationBuilder::build,
                 "It should not be possible to create a config data object with undefined values");
     }
 
@@ -138,7 +144,7 @@ class ConfigApiRecordsTests {
         // then
         assertThrows(
                 IllegalStateException.class,
-                () -> configurationBuilder.build(),
+                configurationBuilder::build,
                 "values must be defined for all properties that are defined by registered config data types");
     }
 
@@ -171,7 +177,7 @@ class ConfigApiRecordsTests {
         // when
         final ConfigViolationException exception = assertThrows(
                 ConfigViolationException.class,
-                () -> configurationBuilder.build(),
+                configurationBuilder::build,
                 "Check for @Min annotation in NetworkConfig should end in violation");
 
         // then
@@ -193,7 +199,7 @@ class ConfigApiRecordsTests {
         // when
         final ConfigViolationException exception = assertThrows(
                 ConfigViolationException.class,
-                () -> configurationBuilder.build(),
+                configurationBuilder::build,
                 "Check for @Constraint annotation in NetworkConfig should end in violation");
 
         // then
@@ -216,7 +222,7 @@ class ConfigApiRecordsTests {
         // when
         final ConfigViolationException exception = assertThrows(
                 ConfigViolationException.class,
-                () -> configurationBuilder.build(),
+                configurationBuilder::build,
                 "Check for @Constraint annotation in NetworkConfig should end in violation");
 
         // then
@@ -258,4 +264,30 @@ class ConfigApiRecordsTests {
         assertIterableEquals(List.of(), list);
         assertIterableEquals(Set.of(), set);
     }
+
+    @Test
+    void testConfigRecordsSharingSameFileProperties() throws IOException, URISyntaxException {
+        // given
+        final Path configFile =
+                Paths.get(ConfigApiTests.class.getResource("test.properties").toURI());
+
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withConfigDataType(AppConfigFull.class)
+                .withConfigDataType(AppConfigPartial.class)
+                .withSource(new PropertyFileConfigSource(configFile))
+                .build();
+
+        AppConfigFull appConfigFull = configuration.getConfigData(AppConfigFull.class);
+        assertEquals("ConfigTest", appConfigFull.name());
+        assertEquals("1.0.0", appConfigFull.version());
+
+        AppConfigPartial appConfigPartial = configuration.getConfigData(AppConfigPartial.class);
+        assertEquals("ConfigTest", appConfigPartial.name());
+    }
+
+    @ConfigData("app")
+    public record AppConfigFull(String name, String version) {}
+
+    @ConfigData("app")
+    public record AppConfigPartial(String name) {}
 }

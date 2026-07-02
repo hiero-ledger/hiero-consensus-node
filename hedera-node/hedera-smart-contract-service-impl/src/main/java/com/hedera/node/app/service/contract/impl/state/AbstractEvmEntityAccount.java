@@ -15,9 +15,9 @@ import org.hyperledger.besu.datatypes.Wei;
 public abstract class AbstractEvmEntityAccount extends AbstractMutableEvmAccount {
     public static final long ENTITY_PROXY_ACCOUNT_NONCE = -1;
     protected final Address address;
-    protected final EvmFrameState state;
+    protected final DispatchingEvmFrameState state;
 
-    protected AbstractEvmEntityAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
+    protected AbstractEvmEntityAccount(@NonNull final Address address, @NonNull final DispatchingEvmFrameState state) {
         this.address = requireNonNull(address);
         this.state = requireNonNull(state);
     }

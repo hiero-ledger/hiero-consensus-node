@@ -110,11 +110,15 @@ public class ChaosBotImpl implements ChaosBot {
             }
         }
 
+        network.restoreConnectivity();
+
         // Wait until all nodes are active again.
         timeManager.waitForCondition(
                 network::allNodesAreActive,
                 Duration.ofMinutes(5L),
                 "Not all nodes became active again after chaos bot finished");
+
+        network.restoreConnectivity();
 
         // Check that all nodes make progress
         for (final Node node : network.nodes()) {

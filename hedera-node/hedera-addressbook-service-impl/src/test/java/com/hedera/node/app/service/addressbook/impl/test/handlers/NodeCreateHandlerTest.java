@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
@@ -44,10 +43,6 @@ import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -757,42 +752,51 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     @Test
     void preHandleWorksWhenAdminKeyValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
-        txn = new NodeCreateBuilder().withAdminKey(key).build(payerId);
+        mockAccountLookup(aPrimitiveKey, accountId, accountStore);
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).contains(key);
+        assertThat(context.requiredNonPayerKeys()).contains(aPrimitiveKey);
     }
 
     @Test
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
-        txn = new NodeCreateBuilder().withAdminKey(invalidKey).build(payerId);
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withAdminKey(invalidKey)
+                .build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).isEmpty();
     }
 
     @Test
-    @DisplayName("check that fees are 1 for delete node trx")
-    void testCalculateFeesInvocations() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
+    void preHandleRequiresAccountOwnerKey() throws PreCheckException {
+        mockAccountLookup(anotherKey, payerId, accountStore);
+        mockAccountLookup(aPrimitiveKey, accountId, accountStore);
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
+        final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
+        subject.preHandle(context);
+        assertThat(context.requiredNonPayerKeys()).contains(aPrimitiveKey);
+    }
 
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-
-        given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
+    @Test
+    void preHandleSkipsAccountKeyWhenAccountNotFound() throws PreCheckException {
+        mockAccountLookup(anotherKey, payerId, accountStore);
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
+        final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
+        subject.preHandle(context);
+        assertThat(context.requiredNonPayerKeys()).contains(key);
+        assertThat(context.requiredNonPayerKeys()).doesNotContain(aPrimitiveKey);
     }
 
     @Test

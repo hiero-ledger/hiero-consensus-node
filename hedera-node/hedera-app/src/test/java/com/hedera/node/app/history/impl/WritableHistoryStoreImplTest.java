@@ -63,6 +63,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -134,6 +135,24 @@ class WritableHistoryStoreImplTest {
         subject.setLedgerId(LEDGER_ID);
 
         assertEquals(LEDGER_ID, subject.getLedgerId());
+    }
+
+    @Test
+    void expectedWrapsProvingKeyHashIsNullUntilSet() {
+        // After doGenesisSetup() with the default config (which now has a non-blank
+        // wrapsProvingKeyHash), the store is pre-populated with the configured hash.
+        // getWrapsProvingKeyHash() returns null only when the stored value is Bytes.EMPTY.
+        final var configuredHash = TSS_CONFIG.wrapsProvingKeyHash();
+        if (configuredHash.isBlank()) {
+            assertNull(subject.getWrapsProvingKeyHash());
+        } else {
+            assertEquals(Bytes.fromHex(configuredHash), subject.getWrapsProvingKeyHash());
+        }
+
+        final var hash = Bytes.wrap("proving-key-hash");
+        subject.setWrapsProvingKeyHash(hash);
+
+        assertEquals(hash, subject.getWrapsProvingKeyHash());
     }
 
     @Test
@@ -361,6 +380,62 @@ class WritableHistoryStoreImplTest {
                 state.getWritableStates(HistoryService.NAME)
                         .get(PROOF_KEY_SETS_STATE_ID)
                         .size());
+    }
+
+    @Test
+    void forceHandoffStillRefusesIncompleteConstructionWithMismatchedRosterHash() {
+        final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+        final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(456L)
+                .targetRosterHash(C_ROSTER_HASH)
+                .build();
+        setConstructions(activeConstruction, nextConstruction);
+
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, true));
+        assertSame(activeConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
+        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
+    }
+
+    @Test
+    void forceHandoffAllowsCompleteConstructionWithMismatchedRosterHash() {
+        final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+        final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(456L)
+                .targetRosterHash(C_ROSTER_HASH)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        setConstructions(activeConstruction, nextConstruction);
+
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, true));
+        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
+        assertEquals(
+                HistoryProofConstruction.DEFAULT,
+                this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
+    }
+
+    @Test
+    void clearProofVotesRemovesPersistedVotesForGivenNodesOnly() {
+        // finishProof purges a construction's persisted votes on completion so a node rebuilding its
+        // controller during a WRAPS conversion does not reload now-superseded votes (which would
+        // make it skip the conversion vote as already counted and diverge ACTIVE_PROOF_CONSTRUCTION).
+        subject.addProofVote(0L, 123L, DEFAULT_VOTE);
+        subject.addProofVote(1L, 123L, DEFAULT_VOTE);
+        subject.addProofVote(0L, 456L, DEFAULT_VOTE);
+        assertEquals(2, subject.getVotes(123L, Set.of(0L, 1L)).size());
+
+        subject.clearProofVotes(123L, new TreeSet<>(List.of(0L, 1L)));
+
+        assertEquals(0, subject.getVotes(123L, Set.of(0L, 1L)).size());
+        // Votes for a different construction are untouched.
+        assertEquals(1, subject.getVotes(456L, Set.of(0L)).size());
     }
 
     private void givenARosterLookup() {

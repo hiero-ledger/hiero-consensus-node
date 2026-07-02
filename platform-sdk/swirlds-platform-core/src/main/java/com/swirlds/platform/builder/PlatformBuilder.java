@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
@@ -9,12 +8,13 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTIN
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -24,12 +24,11 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -44,7 +43,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,7 +51,6 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -63,15 +61,18 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.system.SystemExitUtils;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -98,6 +99,7 @@ public final class PlatformBuilder {
     private HashgraphModule hashgraphModule;
     private PcesModule pcesModule;
     private GossipModule gossipModule;
+    private long transactionOffsetNanos;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -137,9 +139,7 @@ public final class PlatformBuilder {
      */
     private PlatformContext platformContext;
 
-    private Consumer<PlatformEvent> preconsensusEventConsumer;
-    private Consumer<ConsensusSnapshot> snapshotOverrideConsumer;
-    private Consumer<PlatformEvent> staleEventConsumer;
+    private StaleEventConsumer staleEventConsumer;
     private ExecutionLayer execution;
 
     /**
@@ -248,7 +248,7 @@ public final class PlatformBuilder {
      * @return this
      */
     @NonNull
-    public PlatformBuilder withStaleEventCallback(@NonNull final Consumer<PlatformEvent> staleEventConsumer) {
+    public PlatformBuilder withStaleEventConsumer(@NonNull final StaleEventConsumer staleEventConsumer) {
         throwIfAlreadyUsed();
         this.staleEventConsumer = requireNonNull(staleEventConsumer);
         return this;
@@ -281,7 +281,7 @@ public final class PlatformBuilder {
         final String testString = "testString";
         final Bytes testBytes = Bytes.wrap(testString.getBytes());
         final Signature signature = platformSigner.sign(testBytes.toByteArray());
-        if (!ConsensusCryptoUtils.verifySignature(
+        if (!CryptoUtils.verifySignature(
                 testBytes, signature.getBytes(), keysAndCerts.sigCert().getPublicKey())) {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
@@ -375,7 +375,8 @@ public final class PlatformBuilder {
                 rosterHistory.getCurrentRoster(),
                 selfId,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                pipelineTracker);
+                pipelineTracker,
+                transactionOffsetNanos);
     }
 
     /**
@@ -416,12 +417,12 @@ public final class PlatformBuilder {
                 platformContext.getTime(),
                 selfId,
                 platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
                 initialState.get().getRound(),
-                platformCoordinator::flushIntakePipeline,
-                platformCoordinator::flushTransactionHandler,
+                platformCoordinator::flushPrimaryPipeline,
                 latestStateSupplier,
                 platformCoordinator::submitStatusAction,
-                platformCoordinator::flushStateHasher,
+                platformCoordinator::flushPlatformStatus,
                 platformCoordinator::signalEndOfPcesReplay,
                 pipelineTracker);
     }
@@ -436,6 +437,20 @@ public final class PlatformBuilder {
     public PlatformBuilder withGossipModule(@NonNull final GossipModule gossipModule) {
         throwIfAlreadyUsed();
         this.gossipModule = requireNonNull(gossipModule);
+        return this;
+    }
+
+    /**
+     * Set the nanosecond offset added to the first transaction's timestamp in each event. This value is
+     * computed by the execution layer and must be provided before building the platform.
+     *
+     * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withTransactionOffsetNanos(final long transactionOffsetNanos) {
+        throwIfAlreadyUsed();
+        this.transactionOffsetNanos = transactionOffsetNanos;
         return this;
     }
 
@@ -462,6 +477,38 @@ public final class PlatformBuilder {
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 stateLifecycleManager);
+    }
+
+    private IssDetectionModule createIssDetectionModule() {
+        return new IssDetectionModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                platformContext.getFileSystemManager(),
+                initialState.get().getRound(),
+                latestFreezeRoundOf(initialState.get().getState()),
+                SystemExitUtils::handleFatalError);
+    }
+
+    @NonNull
+    private TransactionHandlingModule createTransactionHandlingModule(
+            @NonNull final AtomicReference<Function<String, ReservedSignedState>> latestCompleteStateReference,
+            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
+        return new TransactionHandlingModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                latestCompleteStateReference,
+                consensusStateEventHandler,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                softwareVersion,
+                selfId,
+                transactionOffsetNanos);
     }
 
     /**
@@ -501,13 +548,6 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final Scratchpad<IssScratchpad> issScratchpad =
-                Scratchpad.create(platformContext.getConfiguration(), selfId, IssScratchpad.class, "platform.iss");
-        issScratchpad.logContents();
-
-        final ApplicationCallbacks callbacks =
-                new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
-
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
 
@@ -541,7 +581,10 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<Supplier<ReservedSignedState>> latestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
+                new AtomicReference<>();
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
@@ -561,6 +604,10 @@ public final class PlatformBuilder {
             this.gossipModule = createModule(GossipModule.class, configuration);
         }
 
+        final IssDetectionModule issDetectionModule = createIssDetectionModule();
+        final TransactionHandlingModule transactionHandlingModule =
+                createTransactionHandlingModule(latestImmutableStateProviderReference, statusActionSubmitterReference);
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -568,9 +615,12 @@ public final class PlatformBuilder {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule);
 
-        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents, callbacks);
+        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
+        statusActionSubmitterReference.set(platformCoordinator);
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
@@ -590,11 +640,11 @@ public final class PlatformBuilder {
         initializeHashgraphModule(pipelineTracker);
         initializeGossipModule(
                 intakeEventCounter,
-                getLatestCompleteStateReference,
+                latestCompleteStateReference,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor);
 
-        PlatformWiring.wire(platformContext, execution, platformComponents, callbacks);
+        PlatformWiring.wire(platformContext, execution, platformComponents, staleEventConsumer);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponents,
@@ -607,26 +657,23 @@ public final class PlatformBuilder {
                 softwareVersion,
                 initialState,
                 rosterHistory,
-                callbacks,
-                preconsensusEventConsumer,
-                snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                new AtomicReference<>(),
+                latestImmutableStateProviderReference,
                 consensusEventStreamName,
-                issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                new AtomicReference<>(),
+                statusActionSubmitterReference,
                 stateLifecycleManager,
-                getLatestCompleteStateReference,
+                latestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
                 fallenBehindMonitor,
                 reservedSignedStateResultPromise,
                 platformCoordinator,
-                latestImmutableStateNexus);
+                latestImmutableStateNexus,
+                transactionOffsetNanos);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

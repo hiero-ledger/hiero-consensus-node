@@ -1,0 +1,564 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "817: [CALL] JRS Regression"
+on:
+  workflow_call:
+    inputs:
+      panel-config:
+        description: "The relative local path to the JRS panel configuration file:"
+        required: true
+        type: string
+      ref:
+        description: "The branch, tag or SHA to checkout:"
+        required: false
+        type: string
+      branch-name:
+        description: "The branch name to use when generating a slack channel name automatically:"
+        required: false
+        type: string
+      base-branch-name:
+        description: "The base branch of the pull request (if applicable):"
+        required: false
+        type: string
+      regression-repo:
+        description: ""
+        required: false
+        type: string
+        default: "hashgraph/jrs-legacy"
+      regression-path:
+        description: ""
+        required: false
+        type: string
+        default: "regression/assets"
+      slack-results-channel:
+        description: ""
+        required: false
+        type: string
+        default: "regression-test"
+      slack-summary-channel:
+        description: ""
+        required: false
+        type: string
+        default: "regression-test"
+      use-branch-for-slack-channel:
+        description: ""
+        required: false
+        type: boolean
+        default: true
+      use-enhanced-runtime:
+        description: ""
+        required: false
+        type: boolean
+        default: true
+      platform-repo-path:
+        description: ""
+        required: false
+        type: string
+      hedera-tests-enabled:
+        description: "Hedera Tests Enabled"
+        required: false
+        type: boolean
+        default: false
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      gradle-version:
+        description: "Gradle Version:"
+        type: string
+        required: false
+        default: "wrapper"
+      jrs-web-hostname:
+        description: ""
+        required: false
+        type: string
+        default: "jrs.reports.eng.hashgraph.io"
+      jrs-web-port:
+        description: ""
+        required: false
+        type: number
+        default: 0
+      summary-bucket:
+        description: ""
+        required: false
+        type: string
+        default: "swirlds-circleci-jrs-history"
+      summary-path:
+        description: ""
+        required: false
+        type: string
+        default: "regression/assets/summaryHistory"
+      result-bucket:
+        description: ""
+        required: false
+        type: string
+        default: "swirlds-circleci-jrs-results"
+      result-path:
+        description: ""
+        required: false
+        type: string
+        default: "regression/assets/results"
+      custom-job-name:
+        description: "Custom Job Name:"
+        required: false
+        type: string
+        default: "Standard"
+      enable-workflow-debug:
+        description: "Workflow Debugging Enabled"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+      grafana-agent-username:
+        description: "The username used to authenticate with the Grafana Agent."
+        required: true
+      grafana-agent-password:
+        description: "The password used to authenticate with the Grafana Agent."
+        required: true
+      jrs-ssh-user-name:
+        description: ""
+        required: true
+      jrs-ssh-key-file:
+        description: ""
+        required: true
+      gcp-project-number:
+        description: ""
+        required: true
+      gcp-sa-key-contents:
+        description: ""
+        required: true
+      slack-api-token:
+        description: "The Slack API access token used to run unit and JRS tests."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.jrs-regression.outputs.failure-mode }}
+
+env:
+  MAVEN_OPTS: -Xmx16g -XX:ActiveProcessorCount=16
+  JAVA_OPTS: -Xmx28g -XX:ActiveProcessorCount=16
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  CG_EXEC: ionice -c 2 -n 2 nice -n 19
+  PING_CG_EXEC: ionice -c 2 -n 2 nice -n 19
+
+defaults:
+  run:
+    shell: bash
+    working-directory: platform-sdk
+
+permissions:
+  id-token: write
+  checks: write
+  contents: read
+
+jobs:
+  jrs-regression:
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hl-cn-jrs-regression-lin-lg
+    if: ${{ !github.event.workflow_call.repository.fork }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || inputs.branch-name || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Determine JRS Parameters
+        id: jrs-parameters
+        env:
+          GITHUB_TOKEN: ${{ secrets.access-token }}
+        run: |
+          FEAT_BRANCH_EXISTS="$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/hashgraph/jrs-legacy/branches/${{ inputs.branch-name }})"
+
+          BRANCH_NAME=""
+          [[ "${FEAT_BRANCH_EXISTS}" -eq 200 ]] && BRANCH_NAME="${{ inputs.branch-name }}"
+
+          if [[ -z "${BRANCH_NAME}" ]]; then
+            BASE_BRANCH_EXISTS="$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/hashgraph/jrs-legacy/branches/${{ inputs.base-branch-name }})"
+            [[ "${BASE_BRANCH_EXISTS}" -eq 200 ]] && BRANCH_NAME="${{ inputs.base-branch-name }}"
+          fi
+
+          echo "branch-name=${BRANCH_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout Regression Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: platform-sdk/regression
+          repository: hashgraph/jrs-legacy
+          ref: ${{ steps.jrs-parameters.outputs.branch-name }}
+          token: ${{ secrets.access-token }}
+
+      - name: Resolve JRS Configuration Path
+        id: jrs-config
+        working-directory: ${{ github.workspace }}/platform-sdk/${{ inputs.regression-path }}
+        env:
+          CONFIG_PATH: ${{ inputs.panel-config }}
+        run: |
+          set -x
+          FINAL_PATH="${CONFIG_PATH}"
+          if [[ ! -f "${FINAL_PATH}" ]]; then
+            if [[ "${FINAL_PATH}" =~ ^assets\/ ]]; then
+              SPATH="${FINAL_PATH#assets/}"
+              [[ -f "${SPATH}" ]] && FINAL_PATH="${SPATH}"
+            fi
+          fi
+
+          if [[ ! -f "${FINAL_PATH}" ]]; then
+            echo "::error title=JRS Configuration Error::Unable to locate the specified JRS config file: ${FINAL_PATH}"
+            exit 1
+          fi
+
+          echo "file=${FINAL_PATH}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Grafana Agent
+        run: |
+          sudo mkdir -p /usr/local/grafana-agent
+          curl -sSL -o /tmp/grafana-agent.zip https://github.com/grafana/agent/releases/download/v0.39.1/grafana-agent-linux-amd64.zip
+          sudo unzip -d /usr/local/grafana-agent /tmp/grafana-agent.zip
+          sudo rm -rf /tmp/grafana-agent.zip
+          sudo chmod +x /usr/local/grafana-agent/grafana-agent-linux-amd64
+
+      - name: Install Ping Exporter
+        run: |
+          sudo mkdir -p /usr/local/ping-exporter
+          curl -sSL -o /tmp/ping-exporter.tar.gz https://github.com/czerwonk/ping_exporter/releases/download/1.1.0/ping_exporter_1.1.0_linux_amd64.tar.gz
+          sudo tar -xzf /tmp/ping-exporter.tar.gz -C /usr/local/ping-exporter
+          sudo rm -rf /tmp/ping-exporter.tar.gz
+          sudo chmod +x /usr/local/ping-exporter/ping_exporter
+
+      - name: Execute Ping Exporter
+        uses: step-security/background-action@293c0fb4f7dc90ee6c7f99ef4e5afd2a68262160 # v1.0.9
+        with:
+          run: |
+            sudo setcap cap_net_raw+ep /usr/local/ping-exporter/ping_exporter
+            ${PING_CG_EXEC} /usr/local/ping-exporter/ping_exporter --config.path ${{ github.workspace }}/.github/workflows/config/ping-exporter.yaml
+          tail: true
+          log-output: true
+          wait-for: 1m
+          wait-on: |
+            http://localhost:9427/metrics
+
+      - name: Execute Grafana Agent
+        uses: step-security/background-action@293c0fb4f7dc90ee6c7f99ef4e5afd2a68262160 # v1.0.9
+        env:
+          GRAFANA_AGENT_USERNAME: ${{ secrets.grafana-agent-username }}
+          GRAFANA_AGENT_PASSWORD: ${{ secrets.grafana-agent-password }}
+        with:
+          run: |
+            ${PING_CG_EXEC} /usr/local/grafana-agent/grafana-agent-linux-amd64 -config.expand-env -config.file "${{ github.workspace }}/.github/workflows/config/grafana-agent.yaml" >> /tmp/grafana-agent.log 2>&1
+          tail: true
+          log-output: true
+          wait-for: 1m
+          wait-on: |
+            http://localhost:9427/metrics
+
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 18
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: ${{ inputs.java-distribution }}
+          java-version: ${{ inputs.java-version }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        with:
+          gradle-version: ${{ inputs.gradle-version }}
+          gradle-home-cache-strict-match: false
+
+      - name: Install Python Virtual Environment
+        run: |
+          echo "::group::Aptitude Update"
+            sudo apt update
+          echo "::endgroup::"
+
+          echo "::group::Installing Python Virtual Environment"
+            sudo apt install -y python3 python3-venv
+          echo "::endgroup::"
+
+      - name: Install SSH Keygen
+        run: |
+          if ! command -v ssh-keygen >/dev/null 2>&1; then
+            echo "::group::Aptitude Update"
+              sudo apt-get update
+            echo "::endgroup::"
+            echo "::group::Installing SSH Client"
+              sudo apt-get install -y openssh-client
+            echo "::endgroup::"
+          fi
+
+      - name: Install SSH key
+        uses: step-security/ssh-key-action@f1316fac9982b07b13cadd1b0c20b6c00db5e92a # v2.7.1
+        with:
+          name: jrs-ssh-keyfile
+          key: ${{ secrets.jrs-ssh-key-file }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Convert SSH Key for JRS
+        env:
+          SSH_KEY_FILE: "jrs-ssh-keyfile"
+        run: |
+          cp -f "${HOME}/.ssh/${SSH_KEY_FILE}" "${HOME}/.ssh/${SSH_KEY_FILE}.pem"
+          ssh-keygen -y -f "${HOME}/.ssh/${SSH_KEY_FILE}" >"${HOME}/.ssh/${SSH_KEY_FILE}.pub"
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/785813846068/locations/global/workloadIdentityPools/jrs-identity-pool/providers/gh-provider"
+          service_account: "swirlds-automation@swirlds-regression.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          install_components: "alpha"
+
+      - name: Install RClone
+        run: |
+          curl -O -L -s https://github.com/rclone/rclone/releases/download/v1.58.1/rclone-v1.58.1-linux-amd64.deb
+          sudo apt install -y ./rclone-v1.58.1-linux-amd64.deb
+          rm -rf rclone-v1.58.1-linux-amd64.deb
+
+      - name: Configure RClone Authentication
+        id: rclone-auth
+        env:
+          GCP_KEY_CONTENTS: ${{ secrets.gcp-sa-key-contents }}
+        run: |
+          GCP_KEY_FILE="$(mktemp --suffix=".json" "gcp-key-file.XXXXXXXX")"
+          echo -n "${GCP_KEY_CONTENTS}" | tee "${GCP_KEY_FILE}" >/dev/null
+          echo "key-file=${GCP_KEY_FILE}" >> "${GITHUB_OUTPUT}"
+          rclone config create gcs "google cloud storage" project_number "${{ secrets.gcp-project-number }}" service_account_file "${GCP_KEY_FILE}"
+
+      - name: Gradle Assemble
+        id: gradle-build
+        working-directory: ${{ github.workspace }}
+        run: ./gradlew assemble :test-clients:shadowJar
+
+      - name: Regression Gradle Assemble
+        id: regression-gradle-build
+        working-directory: ${{ github.workspace }}/platform-sdk/regression
+        run: ./gradlew assemble
+
+      - name: Compute Actual Branch Name
+        id: branch
+        run: |
+          REF="${{ github.head_ref || github.ref_name }}"
+          REF="${REF##origin/}"
+
+          echo "name=${REF}" >> "${GITHUB_OUTPUT}"
+
+      - name: Retrieve Existing JRS Branch History (If Available)
+        env:
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+        run: |
+          [[ -d "${{ inputs.summary-path }}" ]] || mkdir -p "${{ inputs.summary-path }}"
+          rclone sync --gcs-bucket-policy-only --checksum --fast-list --stats-one-line -v "gcs:${{ inputs.summary-bucket }}/${BRANCH_NAME}/" "${{ inputs.summary-path }}/"
+
+      - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
+        id: run-jrs-regression
+        env:
+          HEDERA_TESTS_ENABLED: ${{ inputs.hedera-tests-enabled }}
+          REGRESSION_PATH: ${{ inputs.regression-path }}
+          CONFIG_PATH: ${{ steps.jrs-config.outputs.file }}
+          USE_ENHANCED_RUNTIME: ${{ inputs.use-enhanced-runtime }}
+          PLATFORM_REPO_PATH: ${{ inputs.platform-repo-path || format('{0}/{1}', github.workspace, 'platform-sdk') }}
+          SLACK_SUMMARY: ${{ inputs.slack-summary-channel }}
+          SLACK_RESULTS: ${{ inputs.slack-results-channel }}
+          GENERATE_SLACK_CHANNEL: ${{ inputs.use-branch-for-slack-channel }}
+          JAVA_VERSION: ${{ inputs.java-version }}
+          JRS_BRANCH: ${{ inputs.branch-name || github.ref_name }}
+          JRS_SSH_USER_NAME: ${{ secrets.jrs-ssh-user-name }}
+          JRS_WEB_HOSTNAME: ${{ inputs.jrs-web-hostname }}
+          JRS_WEB_PORT: ${{ inputs.jrs-web-port }}
+          ACTIONS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_API_TOKEN: ${{ secrets.slack-api-token }}
+        working-directory: ${{ github.workspace }}/platform-sdk/${{ inputs.regression-path }}
+        run: |
+          set -x
+
+          readonly BRANCH_VERSION_REGEX="([A-Za-z]+)/?[0-9]+\.([0-9]+)\.?[0-9]*-?[A-Za-z]*\.?[0-9]*"
+
+          if [[ -z "${{ github.actor }}" ]]; then
+            JRS_USER="swirlds-automation"
+          else
+            JRS_USER="${{ github.actor }}"
+          fi
+
+          [[ -n "${JRS_BRANCH}" ]] || JRS_BRANCH="${{ github.job }}"
+
+          JRS_ARGUMENTS="-po"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -u ${JRS_USER}"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -b ${JRS_BRANCH}"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -sl ${JRS_SSH_USER_NAME}"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -sk ${HOME}/.ssh/jrs-ssh-keyfile"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -wh ${JRS_WEB_HOSTNAME}"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -wp ${JRS_WEB_PORT}"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} -fr"
+          JRS_ARGUMENTS="${JRS_ARGUMENTS} --slack-api-token=${SLACK_API_TOKEN}"
+
+          if [[ -n "${GENERATE_SLACK_CHANNEL}" && "${GENERATE_SLACK_CHANNEL}" = true ]]; then
+            SLACK_BRANCH="${JRS_BRANCH}"
+            if [[ -n "${JRS_BRANCH}" ]]; then
+              if [[ "${JRS_BRANCH}" =~ ${BRANCH_VERSION_REGEX} ]]; then
+                SLACK_BRANCH="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+              fi
+            fi
+
+            if [[ -n "${HEDERA_TESTS_ENABLED}" && "${HEDERA_TESTS_ENABLED}" = true ]]; then
+              # Override for the main branch
+              if [[ "${SLACK_BRANCH}" != "main" ]]; then
+                SLACK_SUMMARY="hedera-gcp-${SLACK_BRANCH}-summary"
+                SLACK_RESULTS="hedera-gcp-${SLACK_BRANCH}-regression"
+              else
+                SLACK_SUMMARY="hedera-regression-summary"
+                SLACK_RESULTS="hedera-regression"
+              fi
+            else
+              SLACK_SUMMARY="platform-gcp-${SLACK_BRANCH}-summary"
+              SLACK_RESULTS="platform-gcp-${SLACK_BRANCH}-regression"
+            fi
+          fi
+
+          if [[ -n "${SLACK_SUMMARY}" ]]; then
+            JRS_ARGUMENTS="${JRS_ARGUMENTS} -sc ${SLACK_SUMMARY}"
+          fi
+
+          if [[ -n "${SLACK_RESULTS}" ]]; then
+            JRS_ARGUMENTS="${JRS_ARGUMENTS} -rc ${SLACK_RESULTS}"
+          fi
+
+          if [[ -n "${JAVA_VERSION}" ]]; then
+            JRS_ARGUMENTS="${JRS_ARGUMENTS} -jv ${JAVA_VERSION}"
+          fi
+
+          if [[ -n "${PLATFORM_REPO_PATH}" ]]; then
+            JRS_ARGUMENTS="${JRS_ARGUMENTS} -pr ${PLATFORM_REPO_PATH}"
+          fi
+
+          if [[ -n "${HEDERA_TESTS_ENABLED}" && "${HEDERA_TESTS_ENABLED}" = true ]]; then
+            JRS_ARGUMENTS="${JRS_ARGUMENTS} -r ${{ github.workspace }}"
+            JRS_ARGUMENTS="${JRS_ARGUMENTS} -ci ${JRS_USER}_${ACTIONS_RUN_URL}"
+          fi
+
+          if [[ ! -f "${CONFIG_PATH}" ]]; then
+            echo
+            echo "Configuration File '${CONFIG_PATH}' does not exist......"
+            echo
+            exit 20
+          fi
+
+          if [[ -z "${JAVA_OPTS}" ]]; then
+            JAVA_OPTS="-Xmx8g"
+          fi
+
+          ${CG_EXEC} java ${JAVA_OPTS} \
+          -cp "lib/*:regression.jar" \
+          -Dlog4j.configurationFile="log4j2-fsts-enhanced.xml" \
+          -Dspring.output.ansi.enabled=ALWAYS \
+          com.swirlds.fsts.Main ${JRS_ARGUMENTS} -en "Github Actions" "${CONFIG_PATH}"
+          # echo exit code
+          echo "Test Exit Code: $?"
+      - name: Show JRS Folder Structures
+        if: ${{ inputs.enable-workflow-debug && always() }}
+        run: |
+          if ! command -v tree >/dev/null 2>&1; then
+            echo "::group::Install Tree Command"
+            sudo apt update
+            sudo apt install -y tree
+            echo "::endgroup::"
+          fi
+
+          echo "::group::Show History Folder Contents"
+          tree -apshug  "${{ inputs.summary-path }}/"
+          echo "::endgroup::"
+
+          echo "::group::Show Results Folder Contents"
+          tree -apshug  "${{ inputs.result-path }}/"
+          echo "::endgroup::"
+
+          echo "::group::Show Regression Folder Contents"
+          tree -apshug  "${{ inputs.regression-path }}/"
+          echo "::endgroup::"
+
+      - name: Store JRS Branch History
+        if: ${{ always() }}
+        env:
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+        run: |
+          [[ -d "${{ inputs.summary-path }}" ]] || mkdir -p "${{ inputs.summary-path }}"
+          # do not use sync, since another test flow may have uploaded some test results that this test flow did not have
+          rclone copy --gcs-bucket-policy-only --checksum --stats-one-line -v "${{ inputs.summary-path }}/" "gcs:${{ inputs.summary-bucket }}/${BRANCH_NAME}/"
+
+      - name: Upload JRS Results
+        env:
+          JRS_USER: ${{ github.actor || 'swirlds-automation' }}
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+        if: ${{ !cancelled() && always() }}
+        run: |
+          set -x
+          [[ ! -d "${{ inputs.result-path }}" ]] && mkdir -p "${{ inputs.result-path }}"
+          rclone copy --gcs-bucket-policy-only --checksum --stats-one-line -v "${{ inputs.result-path }}/" "gcs:${{ inputs.result-bucket }}/${JRS_USER}/${BRANCH_NAME}/"
+
+      - name: Remove RClone Authentication
+        if: ${{ always() }}
+        env:
+          GCP_KEY_FILE: ${{ steps.rclone-auth.outputs.key-file }}
+        run: |
+          [[ -f "${GCP_KEY_FILE}" ]] && rm -f "${GCP_KEY_FILE}"
+
+      - name: Release Lingering GCP Resources
+        if: ${{ always() }}
+        env:
+          REGRESSION_PATH: ${{ inputs.regression-path }}
+        working-directory: ${{ github.workspace }}/platform-sdk/${{ inputs.regression-path }}
+        run: |
+          [[ -f "ci-gcp-instance-registry" ]] || exit 0
+
+          while IFS='|' read -r project region instance_group;
+          do
+            if gcloud compute instance-groups managed delete "${instance_group}" --project "${project}" \
+                  --zone "${region}" --quiet --format text > "${HOME}/release-resources.log" 2>&1; then
+              echo "Terminated instance group: ${instance_group}"
+            else
+              echo "Failed to terminate instance group (may already be terminated): ${instance_group}"
+            fi
+          done < "ci-gcp-instance-registry"
+
+          echo "<<<<<<<<<<<<<<<<<< Diagnostic Log >>>>>>>>>>>>>>>>>>"
+          echo
+          cat "${HOME}/release-resources.log"
+          echo
+          echo "<<<<<<<<<<<<<<<<<< End Diagnostic Log >>>>>>>>>>>>>>>>>>"
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-jrs-regression.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh

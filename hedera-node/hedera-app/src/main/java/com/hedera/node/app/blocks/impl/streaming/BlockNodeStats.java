@@ -7,11 +7,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Queue;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tracks information for a block node across multiple connection instances.
@@ -19,6 +22,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * implement rate limiting and health monitoring.
  */
 public class BlockNodeStats {
+    /**
+     * Maximum number of entries to track in the block proof timing dataset.
+     */
+    static final int MAX_BLOCK_PROOF_TRACKING_ENTRIES = 100;
+
     /**
      * Queue for tracking EndOfStream response timestamps for rate limiting.
      */
@@ -32,13 +40,13 @@ public class BlockNodeStats {
     /**
      * Timestamp when the current BehindPublisher ignore period ends. Null if not currently ignoring.
      */
-    private Instant behindPublisherIgnoreUntil;
+    private final AtomicReference<Instant> behindPublisherIgnoreUntil = new AtomicReference<>();
 
     /**
      * Map for tracking the timestamps when blocks are sent to the block node.
      * The key is the block number and the value is the timestamp when the block was sent.
      */
-    private final Map<Long, Instant> blockProofSendTimestamps = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Instant> blockProofSendTimestamps = new ConcurrentHashMap<>();
 
     /**
      * Counter for tracking consecutive high-latency events.
@@ -73,7 +81,7 @@ public class BlockNodeStats {
      * @return true if the number of EndOfStream responses exceeds the maximum, otherwise false
      */
     public boolean addEndOfStreamAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -106,7 +114,7 @@ public class BlockNodeStats {
      * @return true if the number of BehindPublisher responses exceeds the maximum, otherwise false
      */
     public boolean addBehindPublisherAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -160,16 +168,17 @@ public class BlockNodeStats {
 
         // If the queue is empty, we're in a new window - reset the ignore period
         if (behindPublisherTimestamps.isEmpty()) {
-            behindPublisherIgnoreUntil = null;
+            behindPublisherIgnoreUntil.set(null);
         }
 
         // Check if we're within the ignore period
-        if (behindPublisherIgnoreUntil != null && now.isBefore(behindPublisherIgnoreUntil)) {
+        final Instant ignoreUntilTimestamp = behindPublisherIgnoreUntil.get();
+        if (ignoreUntilTimestamp != null && now.isBefore(ignoreUntilTimestamp)) {
             return true;
         }
 
         // Start a new ignore period
-        behindPublisherIgnoreUntil = now.plus(ignorePeriod);
+        behindPublisherIgnoreUntil.set(now.plus(ignorePeriod));
         return false;
     }
 
@@ -182,6 +191,17 @@ public class BlockNodeStats {
     public void recordBlockProofSent(final long blockNumber, @NonNull final Instant timestamp) {
         requireNonNull(timestamp, "timestamp must not be null");
         blockProofSendTimestamps.put(blockNumber, timestamp);
+
+        if (blockProofSendTimestamps.size() > MAX_BLOCK_PROOF_TRACKING_ENTRIES) {
+            // There are a lot of block proof timestamps held that aren't being cleared, likely because we are not
+            // receiving acknowledgements fast enough. To guard against a slow memory leak, prune the oldest entries.
+            final int numToRemove = blockProofSendTimestamps.size() - MAX_BLOCK_PROOF_TRACKING_ENTRIES;
+            final SortedSet<Long> sortedKeys = new TreeSet<>(blockProofSendTimestamps.keySet());
+            for (int i = 0; i < numToRemove; ++i) {
+                final long blockNumberToRemove = sortedKeys.removeFirst();
+                blockProofSendTimestamps.remove(blockNumberToRemove);
+            }
+        }
     }
 
     /**
@@ -214,7 +234,7 @@ public class BlockNodeStats {
 
         final long latencyMs = Duration.between(sendTime, acknowledgedTime).toMillis();
         final boolean isHighLatency = latencyMs > highLatencyThreshold.toMillis();
-        int consecutiveCount;
+        final int consecutiveCount;
         boolean shouldSwitch = false;
 
         synchronized (consecutiveHighLatencyEvents) {

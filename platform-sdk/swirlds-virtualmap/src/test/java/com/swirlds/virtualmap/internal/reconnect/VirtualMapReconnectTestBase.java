@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.datasource.DelegateVirtualDataSource;
+import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileNotFoundException;
@@ -28,11 +29,10 @@ import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
-import org.hiero.consensus.reconnect.config.ReconnectConfig_;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,12 +68,11 @@ public abstract class VirtualMapReconnectTestBase {
     protected BrokenBuilder teacherBuilder;
     protected BrokenBuilder learnerBuilder;
 
-    protected final ReconnectConfig reconnectConfig = new TestConfigBuilder()
+    protected final Configuration configuration = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
-            .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "5s")
-            .withValue(ReconnectConfig_.MAX_ACK_DELAY, "1000ms")
-            .getOrCreateConfig()
-            .getConfigData(ReconnectConfig.class);
+            .withValue(VirtualMapSyncConfig_.ASYNC_STREAM_TIMEOUT, "5s")
+            .build();
 
     protected abstract VirtualDataSourceBuilder createBuilder();
 
@@ -82,8 +81,20 @@ public abstract class VirtualMapReconnectTestBase {
         final VirtualDataSourceBuilder dataSourceBuilder = createBuilder();
         teacherBuilder = new BrokenBuilder(dataSourceBuilder);
         learnerBuilder = new BrokenBuilder(dataSourceBuilder);
-        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, DEFAULT_CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, DEFAULT_CONFIGURATION);
+    }
+
+    @AfterEach
+    void tearDown() {
+        assertEquals(
+                Reservable.DESTROYED_REFERENCE_COUNT,
+                teacherMap.getReservationCount(),
+                "Teacher map should have no reservations at the end of the test");
+        assertEquals(
+                Reservable.DESTROYED_REFERENCE_COUNT,
+                learnerMap.getReservationCount(),
+                "Learner map should have no reservations at the end of the test");
     }
 
     @BeforeAll
@@ -92,7 +103,7 @@ public abstract class VirtualMapReconnectTestBase {
         ConstructableRegistration.registerAllConstructables();
     }
 
-    protected void reconnect() throws Exception {
+    protected void reconnect() {
         reconnectMultipleTimes(1);
     }
 
@@ -105,8 +116,7 @@ public abstract class VirtualMapReconnectTestBase {
             try {
                 for (int i = 0; i < attempts; i++) {
                     try {
-                        final var node =
-                                MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
+                        final var node = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
                         node.release();
                         assertEquals(attempts - 1, i, "We should only succeed on the last try");
                         assertTrue(learnerMap.isHashed(), "Learner map must be hashed");
@@ -129,13 +139,11 @@ public abstract class VirtualMapReconnectTestBase {
 
     protected static final class BrokenBuilder implements VirtualDataSourceBuilder {
 
-        private VirtualDataSourceBuilder delegate;
+        private final VirtualDataSourceBuilder delegate;
         private int numCallsBeforeThrow = Integer.MAX_VALUE;
         private int numCalls = 0;
         private int numTimesToBreak = 0;
         private int numTimesBroken = 0;
-
-        public BrokenBuilder() {}
 
         public BrokenBuilder(VirtualDataSourceBuilder delegate) {
             this.delegate = delegate;
@@ -154,8 +162,8 @@ public abstract class VirtualMapReconnectTestBase {
         @NonNull
         @Override
         public Path snapshot(@Nullable final Path destination, @NonNull final VirtualDataSource snapshotMe) {
-            final var breakableSnapshot = (BreakableDataSource) snapshotMe;
-            return delegate.snapshot(destination, breakableSnapshot.delegate);
+            final BreakableDataSource breakableSnapshot = (BreakableDataSource) snapshotMe;
+            return delegate.snapshot(destination, breakableSnapshot.getDelegate());
         }
 
         public void setNumCallsBeforeThrow(int num) {
@@ -171,13 +179,12 @@ public abstract class VirtualMapReconnectTestBase {
         }
     }
 
-    protected static final class BreakableDataSource implements VirtualDataSource {
+    protected static final class BreakableDataSource extends DelegateVirtualDataSource {
 
-        private final VirtualDataSource delegate;
         private final BrokenBuilder builder;
 
         public BreakableDataSource(final BrokenBuilder builder, final VirtualDataSource delegate) {
-            this.delegate = Objects.requireNonNull(delegate);
+            super(delegate);
             this.builder = Objects.requireNonNull(builder);
         }
 
@@ -190,102 +197,26 @@ public abstract class VirtualMapReconnectTestBase {
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToDelete,
                 boolean isReconnectContext)
                 throws IOException {
-            final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.collect(Collectors.toList());
+            final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
             if (builder.numTimesBroken < builder.numTimesToBreak) {
                 if (builder.numCalls <= builder.numCallsBeforeThrow) {
                     builder.numCalls += leaves.size();
                     if (builder.numCalls > builder.numCallsBeforeThrow) {
                         builder.numTimesBroken++;
-                        delegate.close();
+                        close();
                         throw new IOException("Something bad on the DB!");
                     }
                 }
             }
 
-            delegate.saveRecords(
+            super.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
                     hashChunksToUpdate,
                     leaves.stream(),
                     leafRecordsToDelete,
                     isReconnectContext);
-        }
-
-        @Override
-        public void close(final boolean keepData) throws IOException {
-            delegate.close(keepData);
-        }
-
-        @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
-            return delegate.loadLeafRecord(key);
-        }
-
-        @Override
-        public VirtualLeafBytes loadLeafRecord(final long path) throws IOException {
-            return delegate.loadLeafRecord(path);
-        }
-
-        @Override
-        public long findKey(final Bytes key) throws IOException {
-            return delegate.findKey(key);
-        }
-
-        @Override
-        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
-            return delegate.loadHashChunk(chunkId);
-        }
-
-        @Override
-        public void snapshot(final Path snapshotDirectory) throws IOException {
-            delegate.snapshot(snapshotDirectory);
-        }
-
-        @Override
-        public void copyStatisticsFrom(final VirtualDataSource that) {
-            delegate.copyStatisticsFrom(that);
-        }
-
-        @Override
-        public void registerMetrics(final Metrics metrics) {
-            delegate.registerMetrics(metrics);
-        }
-
-        @Override
-        public long getFirstLeafPath() {
-            return delegate.getFirstLeafPath();
-        }
-
-        @Override
-        public long getLastLeafPath() {
-            return delegate.getLastLeafPath();
-        }
-
-        @Override
-        public int getHashChunkHeight() {
-            return delegate.getHashChunkHeight();
-        }
-
-        @Override
-        public void enableBackgroundCompaction() {
-            // no op
-        }
-
-        @Override
-        public void stopAndDisableBackgroundCompaction() {
-            // no op
-        }
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        if (teacherMap.getReservationCount() > 0) {
-            teacherMap.release();
-        }
-
-        if (learnerMap.getReservationCount() > 0) {
-            learnerMap.release();
         }
     }
 

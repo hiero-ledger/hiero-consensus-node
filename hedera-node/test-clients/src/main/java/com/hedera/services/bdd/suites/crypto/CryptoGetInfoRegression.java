@@ -10,13 +10,7 @@ import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.account
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.*;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
@@ -32,8 +26,10 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.utilops.mod.QueryMutation;
@@ -247,12 +243,9 @@ public class CryptoGetInfoRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"fees.simpleFeesEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate(CIVILIAN_PAYER),
                 getAccountInfo(GENESIS)
                         .payingWith(CIVILIAN_PAYER)
@@ -280,5 +273,39 @@ public class CryptoGetInfoRegression {
                 cryptoCreate("toBeDeleted"),
                 cryptoDelete("toBeDeleted").transfer(GENESIS),
                 getAccountInfo("toBeDeleted").hasCostAnswerPrecheck(ACCOUNT_DELETED));
+    }
+
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
+            overrides = {"tokens.countingGetBalanceThrottleEnabled"},
+            throttles = "testSystemFiles/tiny-get-balance-throttle.json")
+    public Stream<DynamicTest> cryptoGetContractBalanceQueryAssociationThrottles() {
+        final var contract = "targetContract";
+        final var account = "targetAccount";
+        final List<String> tokenNames = new ArrayList<>();
+        for (int i = 0; i < NUM_ASSOCIATIONS; i++) {
+            tokenNames.add("ct" + i);
+        }
+        final var ops = new ArrayList<SpecOperation>();
+        ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
+
+        // Create entities
+        ops.add(cryptoCreate(account));
+        ops.add(createDefaultContract(contract));
+
+        // Create and associate NUM_ASSOCIATIONS tokens to both account and contract
+        tokenNames.forEach(t -> {
+            ops.add(tokenCreate(t));
+            ops.add(tokenAssociate(account, t));
+            ops.add(tokenAssociate(contract, t));
+        });
+
+        // accountID-based balance query should be BUSY
+        ops.add(getAccountBalance(account).hasAnswerOnlyPrecheck(BUSY));
+
+        // contractID-based balance query should be BUSY
+        ops.add(getAccountBalance(contract, true).hasAnswerOnlyPrecheck(BUSY));
+
+        return hapiTest(ops.toArray(new SpecOperation[0]));
     }
 }

@@ -8,5 +8,7 @@ public interface OffHeapUser {
     /**
      * @return the number of bytes of off-heap memory consumed by the object of this class
      */
-    long getOffHeapConsumption();
+    default long getOffHeapConsumption() {
+        return 0;
+    }
 }

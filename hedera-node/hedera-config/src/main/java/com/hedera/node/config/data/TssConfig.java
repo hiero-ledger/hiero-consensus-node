@@ -22,7 +22,7 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10s") @NetworkProperty
         Duration wrapsMessageGracePeriod,
 
-        @ConfigProperty(defaultValue = "60s") @NetworkProperty
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
         Duration bootstrapProofKeyGracePeriod,
 
         @ConfigProperty(defaultValue = "300s") @NetworkProperty
@@ -37,19 +37,16 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty
         String tssKeysPath,
 
-        @ConfigProperty(defaultValue = "512") @NetworkProperty
-        short initialCrsParties,
-
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean useDeterministicHintsSignatures,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean hintsEnabled,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean historyEnabled,
         // Whether to switch to the WrapsHistoryProver after the genesis block
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
@@ -66,4 +63,28 @@ public record TssConfig(
 
         // Whether to double-check aggregate hinTS signature during block signing
         @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean validateBlockSignatures) {}
+        boolean validateBlockSignatures,
+
+        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
+        // in prod until release that fully cuts over to streamMode=BLOCKS
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean forceMockSignatures,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean wrapsProvingKeyDownloadEnabled,
+
+        @ConfigProperty(defaultValue = "data/keys/wraps.tar.gz") @NodeProperty
+        String wrapsProvingKeyPath,
+
+        @ConfigProperty(
+                defaultValue =
+                        "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3")
+        @NetworkProperty
+        String wrapsProvingKeyHash,
+
+        @ConfigProperty(defaultValue = "https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz")
+        @NetworkProperty
+        String wrapsProvingKeyDownloadUrl,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration wrapsProvingKeyRetryInterval) {}

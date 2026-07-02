@@ -19,7 +19,7 @@ public interface StateSigner {
      * @param reservedSignedState the state to sign
      * @return a {@link StateSignatureTransaction} containing the signature, or null if the state should not be signed
      */
-    @InputWireLabel("hashed states to sign")
+    @InputWireLabel("hashed states")
     @Nullable
     StateSignatureTransaction signState(@NonNull ReservedSignedState reservedSignedState);
 }

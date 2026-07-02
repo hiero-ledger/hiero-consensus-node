@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
-import com.swirlds.merkledb.test.fixtures.TestType;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -19,6 +19,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -29,7 +30,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -42,10 +46,10 @@ import org.junit.jupiter.api.Test;
  * disk. Right after a flush is started, the last map is released, which triggers virtual
  * pipeline shutdown. The test then makes sure the flush completes without exceptions.
  */
-public class CloseFlushTest {
+public class CloseFlushTest extends AbstractFileManagerAwareTest {
 
     @BeforeAll
-    public static void setup() throws IOException {
+    public static void setup() {
         Configurator.setRootLevel(Level.WARN);
     }
 
@@ -54,21 +58,26 @@ public class CloseFlushTest {
         Configurator.reconfigure();
     }
 
+    @AfterEach
+    public void afterEach() {
+        MerkleDbTestUtils.assertAllDatabasesClosed();
+    }
+
     @Test
     public void closeFlushTest() throws Exception {
         final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
-        final Path tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
+        final Path tmpFileDir = fileSystemManager.resolveNewTemp();
+        Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
-            final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
-            final VirtualDataSource dataSource = TestType.long_fixed
-                    .dataType()
-                    .createDataSource(CONFIGURATION, storeDir, "closeFlushTest", count, false, true);
+            final MerkleDbDataSource dataSource = MerkleDbTestUtils.createDataSource(
+                    DEFAULT_CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
-            final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
-            VirtualMap map = new VirtualMap(builder, CONFIGURATION);
+            final VirtualDataSourceBuilder builder =
+                    new CustomDataSourceBuilder(dataSource, exception, DEFAULT_CONFIGURATION, fileSystemManager);
+            VirtualMap map = new VirtualMap(builder, DEFAULT_CONFIGURATION);
             for (int i = 0; i < count; i++) {
                 final Bytes key = ExampleLongKey.longToKey(i);
                 final ExampleFixedValue value = new ExampleFixedValue(i);
@@ -107,19 +116,15 @@ public class CloseFlushTest {
 
     public static class CustomDataSourceBuilder extends MerkleDbDataSourceBuilder {
 
-        private VirtualDataSource delegate = null;
-        private AtomicReference<Exception> exceptionSink = null;
-
-        // Provided for deserialization
-        public CustomDataSourceBuilder() {
-            super(CONFIGURATION);
-        }
+        private final MerkleDbDataSource delegate;
+        private final AtomicReference<Exception> exceptionSink;
 
         public CustomDataSourceBuilder(
-                final VirtualDataSource delegate,
+                final MerkleDbDataSource delegate,
                 AtomicReference<Exception> sink,
-                final @NonNull Configuration configuration) {
-            super(configuration);
+                final @NonNull Configuration configuration,
+                final @NonNull FileSystemManager fileSystemManager) {
+            super(configuration, fileSystemManager, delegate.getInitialCapacity());
             this.delegate = delegate;
             this.exceptionSink = sink;
         }

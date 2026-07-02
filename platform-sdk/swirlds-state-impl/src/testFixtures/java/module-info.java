@@ -9,13 +9,12 @@ open module com.swirlds.state.impl.test.fixtures {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.utility;
     requires transitive org.junit.jupiter.params;
-    requires com.swirlds.common;
-    requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
+    requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.reconnect;
+    requires org.hiero.consensus.utility;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
 

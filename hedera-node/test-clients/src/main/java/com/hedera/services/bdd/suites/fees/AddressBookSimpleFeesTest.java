@@ -44,7 +44,7 @@ public class AddressBookSimpleFeesTest {
                         .adminKey("payer")
                         // we have to pay with privileged account
                         .payingWith(GENESIS)
-                        .signedBy("payer", GENESIS),
+                        .signedBy("payer", GENESIS, "testNodeAccount"),
                 nodeUpdate("testNode")
                         .payingWith("payer")
                         .signedBy("payer")

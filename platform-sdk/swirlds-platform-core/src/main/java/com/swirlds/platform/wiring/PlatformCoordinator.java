@@ -2,52 +2,54 @@
 package com.swirlds.platform.wiring;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.hashlogger.HashLogger;
-import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.snapshot.StateDumpRequest;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
  *
  * @param components
  */
-public record PlatformCoordinator(
-        @NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
-        implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components) implements StatusActionSubmitter {
 
     /**
      * Constructor
      */
     public PlatformCoordinator {
         Objects.requireNonNull(components);
-        Objects.requireNonNull(callbacks);
     }
 
     /**
-     * Flushes the intake pipeline. After this method is called, all components in the intake pipeline (i.e. components
-     * prior to the consensus engine) will have been flushed. Additionally, things will be flushed an order that
-     * guarantees that there will be no remaining work in the intake pipeline (as long as there are no additional events
-     * added to the intake pipeline, and as long as there are no events released by the orphan buffer).
+     * Flushes the primary consensus-layer pipeline component-by-component, in upstream-to-downstream order: intake →
+     * pces → gossip → hashgraph → transaction handling (pre-handler then handler) → event creation → state hasher.
+     *
+     * <p>This only flushes the pipeline; it does not decide whether in-flight work is delivered or discarded. That
+     * depends on the state of the components when it is called — live components deliver (the PCES-replay caller),
+     * squelched components discard (the reconnect {@code clear()} caller).
+     *
+     * <p>A single ordered pass leaves no work behind only while (1) no new events enter the intake module during the
+     * flush and (2) the orphan buffer releases nothing in response to an event-window update. Both callers satisfy
+     * these; see {@code rules/RUL-002} in the consensus-layer knowledge base for why one pass suffices and what would
+     * break it.
+     *
+     * <p>Do not change the order of the calls below without consulting the wiring diagram.
      */
-    public void flushIntakePipeline() {
+    public void flushPrimaryPipeline() {
         // Important: the order of the lines within this function matters. Do not alter the order of these
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
@@ -56,9 +58,9 @@ public record PlatformCoordinator(
         components.pcesModule().flush();
         components.gossipModule().flush();
         components.hashgraphModule().flush();
-        components.applicationTransactionPrehandlerWiring().flush();
+        components.transactionHandlingModule().flush();
         components.eventCreatorModule().flush();
-        components.branchDetectorWiring().flush();
+        components.stateHasherWiring().flush();
     }
 
     /**
@@ -102,20 +104,14 @@ public record PlatformCoordinator(
      * @param state the overriding state
      */
     public void overrideIssDetectorState(@NonNull final ReservedSignedState state) {
-        components
-                .issDetectorWiring()
-                .getInputWire(IssDetector::overridingState)
-                .put(state);
+        components.issDetectionModule().overridingStateInputWire().put(state);
     }
 
     /**
      * Signal the end of the preconsensus replay to the ISS detector.
      */
     public void signalEndOfPcesReplay() {
-        components
-                .issDetectorWiring()
-                .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
-                .put(NoInput.getInstance());
+        components.issDetectionModule().signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
     }
 
     /**
@@ -143,23 +139,6 @@ public record PlatformCoordinator(
      */
     public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
         components.hashgraphModule().consensusSnapshotInputWire().inject(consensusSnapshot);
-        if (callbacks.snapshotOverrideConsumer() != null) {
-            callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
-        }
-    }
-
-    /**
-     * Flush the transaction handler.
-     */
-    public void flushTransactionHandler() {
-        components.transactionHandlerWiring().flush();
-    }
-
-    /**
-     * Flush the state hasher.
-     */
-    public void flushStateHasher() {
-        components.stateHasherWiring().flush();
     }
 
     /**
@@ -187,20 +166,17 @@ public record PlatformCoordinator(
     }
 
     /**
+     * Flush the platform status state machine
+     */
+    public void flushPlatformStatus() {
+        components.platformMonitorWiring().flush();
+    }
+
+    /**
      * @see PcesModule#minimumBirthRoundInputWire()
      */
     public void injectPcesMinimumBirthRoundToStore(@NonNull final long minimumBirthRoundNonAncientForOldestState) {
         components.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
-    }
-
-    /**
-     * @see StateSnapshotManager#dumpStateTask
-     */
-    public void dumpStateToDisk(@NonNull final StateDumpRequest request) {
-        components
-                .stateSnapshotManagerWiring()
-                .getInputWire(StateSnapshotManager::dumpStateTask)
-                .put(request);
     }
 
     /**

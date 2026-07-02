@@ -12,12 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -26,6 +23,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,22 +43,23 @@ class HashListByteBufferTest {
     private static final int LARGE_HASHES_PER_BUFFER = 10_000;
 
     public HashListByteBuffer createHashList(final int hashesPerBuffer, final long capacity, final boolean offHeap) {
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", hashesPerBuffer))
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamOffHeapBuffers", offHeap))
-                .build();
+        final MerkleDbConfig config = createConfiguration(hashesPerBuffer, offHeap);
         return new HashListByteBuffer(capacity, config);
     }
 
     public HashList createHashList(
             final Path file, final int hashesPerBuffer, final long capacity, final boolean offHeap) throws IOException {
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", hashesPerBuffer))
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamOffHeapBuffers", offHeap))
-                .build();
+        final MerkleDbConfig config = createConfiguration(hashesPerBuffer, offHeap);
         return new HashListByteBuffer(file, capacity, config);
+    }
+
+    private MerkleDbConfig createConfiguration(final int hashesPerBuffer, final boolean offHeap) {
+        return ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withValue(MerkleDbConfig_.HASH_STORE_RAM_BUFFER_SIZE, String.valueOf(hashesPerBuffer))
+                .withValue(MerkleDbConfig_.HASH_STORE_RAM_OFF_HEAP_BUFFERS, String.valueOf(offHeap))
+                .build()
+                .getConfigData(MerkleDbConfig.class);
     }
 
     /**
@@ -76,12 +75,7 @@ class HashListByteBufferTest {
     @AfterEach
     void checkDirectMemoryForLeeks() {
         // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES) + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
     }
 
     // ------------------------------------------------------
@@ -104,7 +98,7 @@ class HashListByteBufferTest {
     void createInstanceWithNegativeCapacityThrows(final boolean offHeap) {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> createHashList(10, -1, offHeap),
+                () -> createHashList(10, -1, offHeap).close(),
                 "Negative max hashes shouldn't be allowed");
     }
 
@@ -112,7 +106,8 @@ class HashListByteBufferTest {
     @ValueSource(booleans = {true, false})
     @DisplayName("Creating an instance with a zero for capacity is fine")
     void createInstanceWithZeroCapacityIsOk(final boolean offHeap) {
-        assertDoesNotThrow(() -> createHashList(10, 0, offHeap), "Should be legal to create a permanently empty list");
+        assertDoesNotThrow(
+                () -> createHashList(10, 0, offHeap).close(), "Should be legal to create a permanently empty list");
     }
 
     // ------------------------------------------------------
@@ -122,7 +117,7 @@ class HashListByteBufferTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("Check for out of bounds conditions on get")
-    void badIndexOnGetThrows(final boolean offHeap) throws Exception {
+    void badIndexOnGetThrows(final boolean offHeap) {
         try (final HashList hashList = createHashList(10, 100, offHeap)) {
             // Negative is no good
             assertThrows(IndexOutOfBoundsException.class, () -> hashList.get(-1), "Negative indices should be illegal");
@@ -157,7 +152,7 @@ class HashListByteBufferTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("Check for out of bounds conditions on put")
-    void badIndexOnPutThrows(final boolean offHeap) throws IOException {
+    void badIndexOnPutThrows(final boolean offHeap) {
         try (final HashList hashList = createHashList(10, 1000, offHeap)) {
             final Hash hash = hash(123);
             // Negative is no good
@@ -233,7 +228,7 @@ class HashListByteBufferTest {
     @ParameterizedTest
     @MethodSource("provideLargeHashLists")
     @DisplayName("Randomly set hashes across the entire hash list space from multiple threads with no collisions")
-    void putRandomlyAcrossAll(final HashList hashList) throws IOException {
+    void putRandomlyAcrossAll(final HashList hashList) {
         // Write from multiple threads concurrently, but not to the same indexes
         IntStream.range(0, LARGE_MAX_HASHES).parallel().forEach(index -> {
             final Hash hash = hash(index);
@@ -383,8 +378,10 @@ class HashListByteBufferTest {
             assertEquals(hashCount, hashList.size(), "Unexpected size: " + hashList.size());
             hashList.writeToFile(file);
             assertTrue(Files.exists(file));
-            assertThrows(IllegalArgumentException.class, () -> createHashList(file, 10, hashCount + 1, true));
-            assertThrows(IllegalArgumentException.class, () -> createHashList(file, 10, hashCount - 1, true));
+            assertThrows(IllegalArgumentException.class, () -> createHashList(file, 10, hashCount + 1, true)
+                    .close());
+            assertThrows(IllegalArgumentException.class, () -> createHashList(file, 10, hashCount - 1, true)
+                    .close());
         }
     }
 
@@ -445,7 +442,8 @@ class HashListByteBufferTest {
     void restoreFromV1CapacityNotEnough() throws Exception {
         // v1 hash list: buffer size = 48 hashes, max hashes = 1024, num hashes = 800
         final Path file = ResourceLoader.getFile("test_data/HashList_48_1024_800_v1.hl");
-        assertThrows(IllegalArgumentException.class, () -> createHashList(file, 48, 799, true));
+        assertThrows(IllegalArgumentException.class, () -> createHashList(file, 48, 799, true)
+                .close());
     }
 
     @Test
@@ -475,8 +473,6 @@ class HashListByteBufferTest {
                     assertEquals(hash(i), hashList2.get(i), "Unexpected value for hashList2.get(" + i + ")");
                 }
             }
-            // delete file as we are done with it
-            Files.delete(file);
         }
     }
 

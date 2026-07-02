@@ -13,20 +13,15 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -184,18 +179,6 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     }
 
     @Override
-    protected long feeFor(@NonNull final HapiSpec spec, @NonNull final Transaction txn, final int numPayerKeys)
-            throws Throwable {
-        return spec.fees().forActivityBasedOp(HederaFunctionality.NodeCreate, this::usageEstimate, txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        final UsageAccumulator accumulator = new UsageAccumulator();
-        accumulator.addVpt(Math.max(0, svo.getTotalSigCount() - 1));
-        return AdapterUtils.feeDataFrom(accumulator);
-    }
-
-    @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(@NonNull final HapiSpec spec) throws Throwable {
         genKeysFor(spec);
         if (useAvailableSubProcessPorts) {
@@ -234,7 +217,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
 
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
-        return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), ignore -> adminKey);
+        final var signers = new java.util.ArrayList<Function<HapiSpec, Key>>();
+        signers.add(spec -> spec.registry().getKey(effectivePayer(spec)));
+        signers.add(ignore -> adminKey);
+        account.ifPresent(acct -> signers.add(spec -> spec.registry().getKey(acct)));
+        return signers;
     }
 
     @Override

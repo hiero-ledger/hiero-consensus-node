@@ -2,7 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 

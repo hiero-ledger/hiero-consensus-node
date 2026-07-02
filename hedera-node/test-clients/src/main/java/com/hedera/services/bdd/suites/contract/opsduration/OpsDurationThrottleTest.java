@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opsduration;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
@@ -39,20 +38,20 @@ public class OpsDurationThrottleTest {
     private static final String OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND =
             "contracts.opsDurationThrottleUnitsFreedPerSecond";
 
-    private static final long DEFAULT_OPS_DURATION_CAPACITY = 10000000;
+    private static final long DEFAULT_OPS_DURATION_CAPACITY = 10_000_000;
 
-    private SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
+    public static SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
         return overridingAllOf(Map.of(
                 THROTTLE_THROTTLE_BY_OPS_DURATION, Boolean.toString(true),
                 OPS_DURATION_THROTTLE_CAPACITY, Long.toString(DEFAULT_OPS_DURATION_CAPACITY),
                 OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND, Long.toString(0)));
     }
 
-    private SpecOperation disableOpsDurationThrottle() {
+    public static SpecOperation disableOpsDurationThrottle() {
         return overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, Boolean.toString(false));
     }
 
-    private void restoreDefaults(HapiSpec spec) {
+    public static void restoreDefaults(HapiSpec spec) {
         allRunFor(
                 spec,
                 restoreDefault(THROTTLE_THROTTLE_BY_OPS_DURATION),
@@ -111,7 +110,6 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(3)
     @DisplayName("call system contract to exceed ops duration throttle")
-    @Tag(MATS)
     public Stream<DynamicTest> doExceedDurationThrottleWithSystemContract() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -370,7 +368,6 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(11)
     @DisplayName("call nested function to exceed ops duration throttle")
-    @Tag(MATS)
     public Stream<DynamicTest> nestedExceedOpsDuration() {
         return hapiTest(
                 disableOpsDurationThrottle(),

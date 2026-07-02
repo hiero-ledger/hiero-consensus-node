@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss;
 
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -54,6 +56,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     public static final String SIGNER_READY_MSG = "TSS protocol ready to sign blocks";
 
+    private final ConfigProvider configProvider;
+
     @Nullable
     private final HintsService hintsService;
 
@@ -66,6 +70,7 @@ public class TssBlockHashSigner implements BlockHashSigner {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final ConfigProvider configProvider) {
+        this.configProvider = requireNonNull(configProvider);
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var streamMode = configProvider
                 .getConfiguration()
@@ -77,8 +82,10 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     @Override
     public boolean isReady() {
-        final boolean answer = (hintsService == null || hintsService.isReady())
-                && (historyService == null || historyService.isReady());
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final boolean answer = tssConfig.forceMockSignatures()
+                || ((hintsService == null || hintsService.isReady())
+                        && (historyService == null || historyService.isReady()));
         if (answer && !loggedReady) {
             log.info(SIGNER_READY_MSG);
             loggedReady = true;
@@ -87,20 +94,39 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public Attempt sign(@NonNull final Bytes blockHash) {
+    public void onBlockStarted(final long blockNumber) {
+        if (hintsService != null) {
+            hintsService.onBlockStarted(blockNumber);
+        }
+    }
+
+    @Override
+    public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         requireNonNull(blockHash);
+        requireNonNull(request);
+        if (request != SUCCINCT_SIGNATURE) {
+            throw new IllegalArgumentException("TSS signer only supports succinct block hash signatures");
+        }
         if (!isReady()) {
             throw new IllegalStateException("TSS protocol not ready to sign block hash " + blockHash);
         }
-        if (hintsService == null) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (tssConfig.forceMockSignatures() || hintsService == null) {
             return new Attempt(null, null, CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash)));
         } else {
-            final var signing = hintsService.sign(blockHash);
+            final var signingResult = hintsService.sign(blockHash);
+            if (!(signingResult.signing() instanceof HintsContext.Signing signing)) {
+                throw new IllegalStateException("hinTS signing required for TSS block hash " + blockHash);
+            }
             if (historyService == null) {
-                return new Attempt(signing.verificationKey(), null, signing.future());
+                return new Attempt(signing.verificationKey(), null, signing.future(), signingResult.submissionFuture());
             } else {
                 final var chainOfTrustProof = historyService.getCurrentChainOfTrustProof(signing.verificationKey());
-                return new Attempt(signing.verificationKey(), chainOfTrustProof, signing.future());
+                return new Attempt(
+                        signing.verificationKey(),
+                        chainOfTrustProof,
+                        signing.future(),
+                        signingResult.submissionFuture());
             }
         }
     }

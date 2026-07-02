@@ -156,8 +156,8 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final Configuration configuration = mock(Configuration.class);
         when(configuration.getConfigData(CryptoConfig.class)).thenReturn(new CryptoConfig(null));
 
-        final IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        final IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
                 () -> new TlsFactory(
                         mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
@@ -173,8 +173,8 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final Configuration configuration = mock(Configuration.class);
         when(configuration.getConfigData(CryptoConfig.class)).thenReturn(new CryptoConfig("   "));
 
-        final IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
+        final IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
                 () -> new TlsFactory(
                         mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 

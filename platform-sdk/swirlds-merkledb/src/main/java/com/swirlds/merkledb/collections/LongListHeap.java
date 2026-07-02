@@ -4,7 +4,7 @@ package com.swirlds.merkledb.collections;
 import static java.lang.Math.toIntExact;
 import static java.nio.ByteBuffer.allocateDirect;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -45,9 +45,9 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
      * reserved buffer size are read from the provided configuration.
      *
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration merkle db configuration
      */
-    public LongListHeap(final long capacity, final Configuration configuration) {
+    public LongListHeap(final long capacity, final MerkleDbConfig configuration) {
         super(capacity, configuration);
     }
 
@@ -73,13 +73,14 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
      *
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration merkle db configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final MerkleDbConfig configuration)
             throws IOException {
-        super(file, capacity, configuration);
+        super(capacity, configuration);
+        loadFromFile(file);
     }
 
     /**
@@ -89,34 +90,28 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
      * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
      * is thrown.
      *
-     * @param path The file to load the long list from
+     * @param file The file to load the long list from
      * @param longsPerChunk Number of longs to store in each chunk
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
-     * @param configuration Platform configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
     public LongListHeap(
-            @NonNull final Path path,
-            final int longsPerChunk,
-            final long capacity,
-            final long reservedBufferSize,
-            final Configuration configuration)
+            @NonNull final Path file, final int longsPerChunk, final long capacity, final long reservedBufferSize)
             throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+        super(longsPerChunk, capacity, reservedBufferSize);
+        loadFromFile(file);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void readBodyFromFileChannelOnInit(
-            final String sourceFileName, final FileChannel fileChannel, Configuration configuration)
-            throws IOException {
-        initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
+    protected void readBodyFromFileChannelOnInit(final FileChannel fileChannel) throws IOException {
+        initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.LITTLE_ENDIAN);
         try {
-            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
+            super.readBodyFromFileChannelOnInit(fileChannel);
         } finally {
             MemoryUtils.closeDirectByteBuffer(initReadBuffer);
         }
@@ -151,7 +146,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
 
     /** {@inheritDoc} */
     @Override
-    protected boolean putIfEqual(AtomicLongArray chunk, int subIndex, long oldValue, long newValue) {
+    protected boolean putIfEqual(@NonNull AtomicLongArray chunk, int subIndex, long oldValue, long newValue) {
         return chunk.compareAndSet(subIndex, oldValue, newValue);
     }
 
@@ -166,7 +161,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         // write data
         final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
         try {
-            tempBuffer.order(ByteOrder.nativeOrder());
+            tempBuffer.order(ByteOrder.LITTLE_ENDIAN);
             final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
             for (long i = minValidIndex.get(); i < size(); i++) {
                 // if buffer is full then write

@@ -13,7 +13,6 @@ mainModuleInfo {
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
-    runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.helidon.webclient.http2")
@@ -38,6 +37,7 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.hiero.consensus.state.test.fixtures")
     requires("com.esaulpaugh.headlong")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")
@@ -77,10 +77,25 @@ jmhModuleInfo {
     requires("org.hiero.base.crypto")
 }
 
+val entryPoint = "com.hedera.node.app.ServicesMain"
+
+tasks.compileJava {
+    // bake the default main class into 'module-info.class' to start the application with --module
+    options.javaModuleMainClass = entryPoint
+}
+
 // Add all the libs dependencies into the jar manifest!
 tasks.jar {
     inputs.files(configurations.runtimeClasspath)
-    manifest { attributes("Main-Class" to "com.hedera.node.app.ServicesMain") }
+    manifest {
+        attributes(
+            "Main-Class" to entryPoint,
+            // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+            // restricted-method warning for callers in the unnamed module of this JAR
+            // when launched via `java -jar`.
+            "Enable-Native-Access" to "ALL-UNNAMED",
+        )
+    }
     doFirst {
         manifest.attributes(
             "Class-Path" to
@@ -135,14 +150,31 @@ tasks.assemble {
     dependsOn(copyNodeData)
 }
 
+// Generate the signing PEM file expected by EnhancedKeyStoreLoader for the local node.
+// KeysAndCertsGenerator is deterministic per nodeId, so the resulting cert matches the
+// gossipCaCertificate baked into hedera-node/configuration/dev/genesis-network.json.
+val generateNodeKeys =
+    tasks.register<JavaExec>("generateNodeKeys") {
+        description = "Generate the local node's signing key PEM file used by the run task."
+        dependsOn(copyNodeData)
+        workingDir = nodeWorkingDir.get().asFile
+        jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
+        mainClass.set("org.hiero.consensus.pcli.Pcli")
+        args = listOf("generate-keys", "0", "--path", "data/keys")
+        outputs.file(nodeWorkingDir.get().file("data/keys/s-private-node1.pem"))
+    }
+
 // Create the "run" task for running a Hedera consensus node
 tasks.register<JavaExec>("run") {
     group = "application"
     description = "Run a Hedera consensus node instance."
     dependsOn(tasks.assemble)
+    dependsOn(generateNodeKeys)
     workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
-    mainClass.set("com.hedera.node.app.ServicesMain")
+    classpath =
+        nodeWorkingDir.get().dir("data/apps").asFileTree +
+            nodeWorkingDir.get().dir("data/lib").asFileTree
+    mainModule = "com.hedera.node.app"
 
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
@@ -169,43 +201,4 @@ tasks.clean { dependsOn(cleanRun) }
 tasks.register("showHapiVersion") {
     inputs.property("version", project.version)
     doLast { println(inputs.properties["version"]) }
-}
-
-var updateDockerEnvTask =
-    tasks.register<Exec>("updateDockerEnv") {
-        description =
-            "Creates the .env file in the docker folder that contains environment variables for docker"
-        group = "docker"
-
-        workingDir(layout.projectDirectory.dir("../docker"))
-        commandLine("./update-env.sh", project.version)
-    }
-
-dependencies { api(project(":config")) }
-
-tasks.register<Exec>("createDockerImage") {
-    description = "Creates the docker image of the services based on the current version"
-    group = "docker"
-
-    dependsOn(updateDockerEnvTask, tasks.assemble)
-    workingDir(layout.projectDirectory.dir("../docker"))
-    commandLine("./docker-build.sh", project.version, layout.projectDirectory.dir("..").asFile)
-}
-
-tasks.register<Exec>("startDockerContainers") {
-    description = "Starts docker containers of the services based on the current version"
-    group = "docker"
-
-    dependsOn(updateDockerEnvTask)
-    workingDir(layout.projectDirectory.dir("../docker"))
-    commandLine("docker-compose", "up")
-}
-
-tasks.register<Exec>("stopDockerContainers") {
-    description = "Stops running docker containers of the services"
-    group = "docker"
-
-    dependsOn(updateDockerEnvTask)
-    workingDir(layout.projectDirectory.dir("../docker"))
-    commandLine("docker-compose", "stop")
 }

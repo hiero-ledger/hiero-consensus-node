@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
@@ -73,6 +73,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDI
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -99,7 +100,6 @@ public class HelloWorldEthereumSuite {
     private static final String DEPOSIT = "deposit";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canCreateTokenWithCryptoAdminKeyOnlyIfHasTopLevelSig() {
         final var cryptoKey = "cryptoKey";
         final var thresholdKey = "thresholdKey";
@@ -168,6 +168,7 @@ public class HelloWorldEthereumSuite {
                         .sending(50 * ONE_HBAR)
                         .maxGasAllowance(ONE_HBAR * 10)
                         .gasLimit(5_000_000L)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .via("creationActivatingAdminKeyViaEthTxSig")),
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
@@ -178,7 +179,7 @@ public class HelloWorldEthereumSuite {
                                 createdIds -> assertFalse(createdIds.isEmpty(), "Top-level sig map creation failed")),
                 getTxnRecord("creationActivatingAdminKeyViaEthTxSig")
                         .exposingTokenCreationsTo(
-                                createdIds -> assertFalse(createdIds.isEmpty(), "EthTx sig creation failed")));
+                                createdIds -> assertTrue(createdIds.isEmpty(), "EthTx sig creation failed")));
     }
 
     @HapiTest
@@ -372,6 +373,7 @@ public class HelloWorldEthereumSuite {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> customizedEvmValuesAreCustomized() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -559,7 +561,6 @@ public class HelloWorldEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> contractCreateWithConstructorArgs() {
         final var contractAdminKey = "contractAdminKey";
         return hapiTest(

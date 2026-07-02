@@ -36,10 +36,11 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
@@ -50,7 +51,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_TOTAL_FEE;
 import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.feeDistributionValidator;
@@ -171,7 +171,7 @@ public class Hip1259EnabledTests {
         return hapiTest(
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(nodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L), nodeFee::get),
                                 1,
@@ -215,9 +215,7 @@ public class Hip1259EnabledTests {
                 }),
                 validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
-
-                // Validate fee across both legacy and simple-fee modes.
-                validateFees("feeTxn", 0.053, CRYPTO_CREATE_TOTAL_FEE),
+                validateChargedUsdWithin("feeTxn", CRYPTO_CREATE_TOTAL_FEE, 0.1),
 
                 /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
                 waitUntilStartOfNextStakingPeriod(1),
@@ -240,7 +238,7 @@ public class Hip1259EnabledTests {
         return hapiTest(
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsWithFeeCollectionValidator(
                                         initialNodeAccountBalance::get, nodeAccountBalanceAfterDistribution::get),
@@ -429,7 +427,7 @@ public class Hip1259EnabledTests {
         return hapiTest(
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L)),
                                 1,
@@ -474,7 +472,7 @@ public class Hip1259EnabledTests {
         return hapiTest(
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         // validate node 3 doesnt get any fees
                         selectedItems(
                                 feeDistributionValidator(1, List.of(800L, 801L, 98L)),
@@ -647,7 +645,7 @@ public class Hip1259EnabledTests {
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 // Validate that exactly ONE fee distribution happens after the multi-day outage
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L)),
                                 1, // Expect exactly 1 fee distribution, not 3 (one per day)

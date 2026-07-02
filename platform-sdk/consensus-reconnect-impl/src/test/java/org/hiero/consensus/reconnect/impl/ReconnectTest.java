@@ -8,27 +8,27 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -36,11 +36,12 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Originally this class used {@link java.io.PipedInputStream} and {@link java.io.PipedOutputStream}, but the reconnect
@@ -59,15 +60,12 @@ final class ReconnectTest {
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
 
+    @TempDir
+    Path tempDir;
+
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerSyncConstructables();
-    }
-
-    @AfterAll
-    static void tearDown() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -78,7 +76,9 @@ final class ReconnectTest {
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
-            executeReconnect(reconnectMetrics);
+            // Use a different data dir for every reconnect attempt
+            final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir.resolve("" + index));
+            executeReconnect(fileSystemManager, reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
             verify(reconnectMetrics, times(index)).incrementReceiverEndTimes();
@@ -86,8 +86,8 @@ final class ReconnectTest {
         }
     }
 
-    private void executeReconnect(final ReconnectMetrics reconnectMetrics) throws InterruptedException, IOException {
-
+    private void executeReconnect(final FileSystemManager fileSystemManager, final ReconnectMetrics reconnectMetrics)
+            throws InterruptedException, IOException {
         final long weightPerNode = 100L;
         final int numNodes = 4;
         final List<NodeId> nodeIds =
@@ -101,7 +101,8 @@ final class ReconnectTest {
 
         final VirtualMapState stateCopy;
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
+                new VirtualMapStateLifecycleManager(
+                        new NoOpMetrics(), new FakeTime(), configuration, fileSystemManager);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
@@ -151,7 +152,6 @@ final class ReconnectTest {
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
                 configuration,
-                Time.getCurrent(),
                 getStaticThreadManager(),
                 connection,
                 RECONNECT_SOCKET_TIMEOUT,

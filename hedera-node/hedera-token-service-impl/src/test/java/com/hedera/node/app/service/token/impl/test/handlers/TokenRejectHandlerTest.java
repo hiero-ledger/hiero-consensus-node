@@ -6,31 +6,22 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_REFERENCE_REPEATED;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenReference;
 import com.hedera.hapi.node.token.TokenRejectTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.service.token.impl.handlers.TokenRejectHandler;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -44,7 +35,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -122,61 +112,6 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
-    void calculateFeesFungibleReject() {
-        final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefFungible);
-
-        FeeContext feeContext = mock(IngestFeeContext.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        setupFeeTest(txn, feeContext, feeCalculator, feeCalculatorFactory);
-
-        subject.calculateFees(feeContext);
-
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
-        InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON);
-        inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(176L);
-        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(176L * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        inOrder.verify(feeCalculator, times(1)).calculate();
-    }
-
-    @Test
-    void calculateFeesNonFungibleReject() {
-        final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefNFT);
-        FeeContext feeContext = mock(IngestFeeContext.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        setupFeeTest(txn, feeContext, feeCalculator, feeCalculatorFactory);
-
-        subject.calculateFees(feeContext);
-
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
-        InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
-        inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(104L);
-        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(104L * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        inOrder.verify(feeCalculator, times(1)).calculate();
-    }
-
-    @Test
-    void calculateFeesFungibleAndNonFungibleRejects() {
-        final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefNFT, tokenRefFungible);
-        FeeContext feeContext = mock(IngestFeeContext.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        setupFeeTest(txn, feeContext, feeCalculator, feeCalculatorFactory);
-
-        subject.calculateFees(feeContext);
-
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
-        InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
-        inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(280L);
-        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(280L * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        inOrder.verify(feeCalculator, times(1)).calculate();
-    }
-
-    @Test
     void handleExceedsMaxTokenReferences() {
         config = defaultConfig().withValue(LEDGER_TOKEN_REJECTS_MAX_LEN, 1).getOrCreateConfig();
         final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefFungible, tokenRefNFT);
@@ -226,24 +161,6 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_REFERENCE_LIST));
-    }
-
-    private void setupFeeTest(
-            final TransactionBody txn,
-            final FeeContext feeContext,
-            final FeeCalculator feeCalculator,
-            final FeeCalculatorFactory feeCalculatorFactory) {
-        config = defaultConfig()
-                .withValue("fees.tokenTransferUsageMultiplier", 2)
-                .getOrCreateConfig();
-        Fees fees = mock(Fees.class);
-        when(feeContext.body()).thenReturn(txn);
-        when(feeContext.configuration()).thenReturn(config);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
-        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.addRamByteSeconds(anyLong())).thenReturn(feeCalculator);
-        when(feeCalculator.calculate()).thenReturn(fees);
     }
 
     private HandleContext mockContext(final TransactionBody txn) {

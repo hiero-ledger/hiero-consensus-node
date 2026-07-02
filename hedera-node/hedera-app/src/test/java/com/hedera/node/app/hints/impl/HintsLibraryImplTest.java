@@ -4,8 +4,10 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.node.app.hints.impl.HintsControllerImpl.decodeCrsUpdate;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.cryptography.hints.HintsLibraryBridge;
@@ -20,6 +22,10 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class HintsLibraryImplTest {
+    private static final byte[] CRS_CONTRIBUTION = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        30, 31
+    };
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private final HintsLibraryImpl subject = new HintsLibraryImpl();
 
@@ -50,6 +56,14 @@ class HintsLibraryImplTest {
     }
 
     @Test
+    void malformedCrsInputsReturnNullOrFalse() {
+        final var oldCrs = subject.newCrs((short) 4);
+
+        assertNull(subject.updateCrs(oldCrs, Bytes.wrap(new byte[31])));
+        assertFalse(subject.verifyCrsUpdate(oldCrs, Bytes.wrap("malformed"), Bytes.wrap("proof")));
+    }
+
+    @Test
     void generatesNewBlsPrivateKey() {
         assertNotNull(subject.newBlsPrivateKey());
     }
@@ -58,7 +72,8 @@ class HintsLibraryImplTest {
     void computesAndValidateHints() {
         HintsLibraryBridge.getInstance().resetCache();
 
-        final var crs = subject.newCrs((short) 256);
+        var crs = subject.newCrs((short) 256);
+        crs = subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION));
         final var blsPrivateKey = subject.newBlsPrivateKey();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
@@ -137,11 +152,24 @@ class HintsLibraryImplTest {
     }
 
     @Test
+    void rejectsTooShortAggregationKeyWithoutCrashing() {
+        final var message = Bytes.wrap("Hello World");
+        final var signature = Bytes.wrap("signature");
+        final var crs = subject.newCrs((short) 8);
+        final var tinyAggregationKey = Bytes.wrap(new byte[48]);
+        final var verificationKey = Bytes.wrap("verificationKey");
+
+        assertFalse(subject.verifyBls(crs, signature, message, tinyAggregationKey, 0));
+        assertNull(subject.aggregateSignatures(crs, tinyAggregationKey, verificationKey, Map.of(0, signature)));
+    }
+
+    @Test
     void aggregatesAndVerifiesSignatures() {
         HintsLibraryBridge.getInstance().resetCache();
 
         // When CRS is for n, then signers should be  n - 1
-        final var crs = subject.newCrs((short) 4);
+        var crs = subject.newCrs((short) 4);
+        crs = subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION));
 
         final var secretKey1 = subject.newBlsPrivateKey();
         final var hints1 = subject.computeHints(crs, secretKey1, 0, 4);

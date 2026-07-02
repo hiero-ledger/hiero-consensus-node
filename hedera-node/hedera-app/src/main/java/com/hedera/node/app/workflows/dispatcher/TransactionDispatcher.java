@@ -18,10 +18,10 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
-import com.hedera.node.config.data.FeesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code TransactionDispatcher} provides functionality to forward pre-check, pre-handle, and handle-transaction
@@ -136,72 +136,42 @@ public class TransactionDispatcher {
         requireNonNull(feeContext, "feeContext must not be null!");
 
         try {
-            final var handler = getHandler(feeContext.body());
-            if (shouldUseSimpleFees(feeContext)) {
-                var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
-                return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
+            final var kind = feeContext.body().data().kind();
+            if (kind == TransactionBody.DataOneOfType.UNSET) {
+                throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
             }
-            return handler.calculateFees(feeContext);
+            if (isFeeExempt(kind)) {
+                return feeResultToFees(new FeeResult(), fromPbj(feeContext.activeRate()));
+            }
+            var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                    .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
+            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
         } catch (UnsupportedOperationException ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
     }
 
-    private boolean shouldUseSimpleFees(FeeContext feeContext) {
-        if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            return false;
-        }
-
-        return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC,
-                    CONSENSUS_DELETE_TOPIC,
-                    CONSENSUS_SUBMIT_MESSAGE,
-                    CONSENSUS_UPDATE_TOPIC,
-                    CRYPTO_APPROVE_ALLOWANCE,
-                    CRYPTO_CREATE_ACCOUNT,
-                    CRYPTO_DELETE,
-                    CRYPTO_DELETE_ALLOWANCE,
-                    CRYPTO_UPDATE_ACCOUNT,
-                    CRYPTO_TRANSFER,
-                    SCHEDULE_CREATE,
-                    SCHEDULE_SIGN,
-                    SCHEDULE_DELETE -> true;
-            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE, SYSTEM_DELETE, SYSTEM_UNDELETE -> true;
-            case UTIL_PRNG, ATOMIC_BATCH -> true;
-            case TOKEN_CREATION,
-                    TOKEN_MINT,
-                    TOKEN_BURN,
-                    TOKEN_DELETION,
-                    TOKEN_FEE_SCHEDULE_UPDATE,
-                    TOKEN_FREEZE,
-                    TOKEN_ASSOCIATE,
-                    TOKEN_DISSOCIATE,
-                    TOKEN_GRANT_KYC,
-                    TOKEN_PAUSE,
-                    TOKEN_REVOKE_KYC,
-                    TOKEN_REJECT,
-                    TOKEN_UNFREEZE,
-                    TOKEN_UNPAUSE,
-                    TOKEN_AIRDROP,
-                    TOKEN_CLAIM_AIRDROP,
-                    TOKEN_CANCEL_AIRDROP,
-                    TOKEN_UPDATE,
-                    TOKEN_UPDATE_NFTS,
-                    TOKEN_WIPE -> true;
-            case NODE_CREATE,
-                    NODE_UPDATE,
-                    NODE_DELETE,
-                    REGISTERED_NODE_CREATE,
-                    REGISTERED_NODE_UPDATE,
-                    REGISTERED_NODE_DELETE -> true;
-            case CONTRACT_CREATE_INSTANCE,
-                    CONTRACT_DELETE_INSTANCE,
-                    CONTRACT_CALL,
-                    CONTRACT_UPDATE_INSTANCE,
-                    ETHEREUM_TRANSACTION,
-                    HOOK_STORE,
-                    HOOK_DISPATCH -> true;
+    /**
+     * Transaction types with no simple fee schedule entry: privileged or node-internal operations
+     * that are never charged, plus unsupported operations rejected in their handlers.
+     */
+    private static boolean isFeeExempt(@NonNull final TransactionBody.DataOneOfType kind) {
+        return switch (kind) {
+            case NODE_STAKE_UPDATE,
+                    FREEZE,
+                    UNCHECKED_SUBMIT,
+                    CRYPTO_ADD_LIVE_HASH,
+                    CRYPTO_DELETE_LIVE_HASH,
+                    STATE_SIGNATURE_TRANSACTION,
+                    LEDGER_ID_PUBLICATION,
+                    HINTS_KEY_PUBLICATION,
+                    HINTS_PREPROCESSING_VOTE,
+                    HINTS_PARTIAL_SIGNATURE,
+                    HISTORY_PROOF_SIGNATURE,
+                    HISTORY_PROOF_KEY_PUBLICATION,
+                    HISTORY_PROOF_VOTE,
+                    MIGRATION_ROOT_HASH_VOTE,
+                    CRS_PUBLICATION -> true;
             default -> false;
         };
     }
@@ -301,6 +271,7 @@ public class TransactionDispatcher {
             case HINTS_PARTIAL_SIGNATURE -> handlers.hintsPartialSignatureHandler();
             case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
             case CRS_PUBLICATION -> handlers.crsPublicationHandler();
+            case MIGRATION_ROOT_HASH_VOTE -> handlers.migrationRootHashVoteHandler();
 
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {

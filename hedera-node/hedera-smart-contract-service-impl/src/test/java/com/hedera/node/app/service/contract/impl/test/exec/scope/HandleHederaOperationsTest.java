@@ -33,7 +33,6 @@ import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -59,18 +58,20 @@ import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Assertions;
@@ -83,6 +84,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HandleHederaOperationsTest {
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+
     @Mock
     private TokenServiceApi tokenServiceApi;
 
@@ -260,16 +265,6 @@ class HandleHederaOperationsTest {
     }
 
     @Test
-    void collectHtsFeeUsesTheContextAndDoesNotReplay() {
-        subject.collectHtsFee(NON_SYSTEM_ACCOUNT_ID, 123L);
-
-        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
-
-        subject.replayGasChargingIn(feeChargingContext);
-        verifyNoInteractions(feeChargingContext);
-    }
-
-    @Test
     void collectAndRefundGasFeesUseTheContextAndReplay() {
         subject.collectGasFee(RELAYER_ID, 69L, false);
         subject.collectGasFee(NON_SYSTEM_ACCOUNT_ID, 123L, true);
@@ -280,13 +275,18 @@ class HandleHederaOperationsTest {
         verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
         verify(context).refundBestEffort(RELAYER_ID, 12L);
         verify(context).refundBestEffort(NON_SYSTEM_ACCOUNT_ID, 42L);
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
 
-        subject.replayGasChargingIn(feeChargingContext);
-        verify(feeChargingContext).charge(RELAYER_ID, new Fees(0, 69L - 12L, 0L), null);
-        verify(feeChargingContext).charge(NON_SYSTEM_ACCOUNT_ID, new Fees(0, 123L - 42L, 0L), null);
-        verify(tokenServiceApi).incrementSenderNonce(NON_SYSTEM_ACCOUNT_ID);
+        assertEquals(
+                List.of(
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.CHARGE, RELAYER_ID, 69L, false),
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.CHARGE, NON_SYSTEM_ACCOUNT_ID, 123L, true),
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.REFUND, RELAYER_ID, 12L, false),
+                        new HederaOperations.GasChargingEvent(
+                                HederaOperations.GasChargingAction.REFUND, NON_SYSTEM_ACCOUNT_ID, 42L, false)),
+                subject.gasChargingEvents());
     }
 
     @Test
@@ -339,6 +339,7 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
@@ -414,6 +415,7 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
@@ -480,6 +482,7 @@ class HandleHederaOperationsTest {
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
@@ -524,6 +527,7 @@ class HandleHederaOperationsTest {
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
                 .willReturn(contractCreateRecordBuilder);
@@ -593,6 +597,7 @@ class HandleHederaOperationsTest {
     void externalizeHollowAccountMerge() {
         // given
         var contractId = ContractID.newBuilder().contractNum(1001).build();
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE))
                 .willReturn(contractCreateRecordBuilder);

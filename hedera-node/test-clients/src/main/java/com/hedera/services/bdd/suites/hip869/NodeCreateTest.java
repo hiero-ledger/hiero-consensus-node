@@ -60,9 +60,7 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
-import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.crypto.CryptoStatic;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -71,6 +69,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeAll;
@@ -458,10 +457,10 @@ public class NodeCreateTest {
                 // Validate that the failed transaction charges the correct fees.
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        FeesChargingUtils.validateFees(
+                        validateChargedUsdWithin(
                                 "nodeCreationFailed",
-                                0.001,
-                                NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed")))),
+                                NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed"),
+                                0.1))),
                 nodeCreate("ntb", nodeAccount)
                         .adminKey(ED_25519_KEY)
                         .fee(ONE_HBAR)
@@ -483,12 +482,12 @@ public class NodeCreateTest {
                         .via("multipleSigsCreation"),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        FeesChargingUtils.validateFees(
+                        validateChargedUsdWithin(
                                 "multipleSigsCreation",
-                                0.0011276316,
                                 NODE_CREATE_BASE_FEE_USD
                                         + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
-                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsCreation")))));
+                                        + expectedFeeFromBytesFor(spec, log, "multipleSigsCreation"),
+                                0.1))));
     }
 
     /**
@@ -768,7 +767,7 @@ public class NodeCreateTest {
         final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
 
         try {
-            return CryptoStatic.generateKeysAndCerts(nodeIds).values().stream()
+            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds).values().stream()
                     .map(KeysAndCerts::sigCert)
                     .toList();
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {

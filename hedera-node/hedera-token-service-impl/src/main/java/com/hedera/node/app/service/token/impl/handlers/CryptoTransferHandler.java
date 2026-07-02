@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_ACCOUNT_AMOUNTS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACCOUNT_AMOUNT_BYTES;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
-import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -23,6 +15,7 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
@@ -32,20 +25,16 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -55,13 +44,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -225,129 +210,58 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         executeCryptoTransfer(txn, transferContext, context, recordBuilder);
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.cryptoTransferOrThrow();
-        final var config = feeContext.configuration();
-        final var tokenMultiplier = config.getConfigData(FeesConfig.class).tokenTransferUsageMultiplier();
-
-        /* BPT calculations shouldn't include any custom fee payment usage */
-        int totalXfers =
-                op.transfersOrElse(TransferList.DEFAULT).accountAmounts().size();
-
-        var totalTokensInvolved = 0;
-        var totalTokenTransfers = 0;
-        var numNftOwnershipChanges = 0;
-        for (final var tokenTransfers : op.tokenTransfers()) {
-            totalTokensInvolved++;
-            totalTokenTransfers += tokenTransfers.transfers().size();
-            numNftOwnershipChanges += tokenTransfers.nftTransfers().size();
-        }
-
-        int weightedTokensInvolved = tokenMultiplier * totalTokensInvolved;
-        int weightedTokenXfers = tokenMultiplier * totalTokenTransfers;
-        final var bpt = weightedTokensInvolved * LONG_BASIC_ENTITY_ID_SIZE
-                + (weightedTokenXfers + totalXfers) * LONG_ACCOUNT_AMOUNT_BYTES
-                + TOKEN_ENTITY_SIZES.bytesUsedForUniqueTokenTransfers(numNftOwnershipChanges);
-
-        /* Include custom fee payment usage in RBS calculations */
-        var customFeeHbarTransfers = 0;
-        var customFeeTokenTransfers = 0;
-        final var involvedTokens = new HashSet<TokenID>();
-        final var customFeeAssessor = new CustomFeeAssessmentStep(op);
-        List<AssessedCustomFee> assessedCustomFees;
-        boolean triedAndFailedToUseCustomFees = false;
-        try {
-            assessedCustomFees = customFeeAssessor.assessNumberOfCustomFees(feeContext);
-        } catch (HandleException ex) {
-            final var status = ex.getStatus();
-            // If the transaction tried and failed to use custom fees, enable this flag.
-            // This is used to charge a different canonical fees.
-            triedAndFailedToUseCustomFees = status == INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE
-                    || status == INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE
-                    || status == CUSTOM_FEE_CHARGING_EXCEEDED_MAX_ACCOUNT_AMOUNTS;
-            assessedCustomFees = new ArrayList<>();
-        }
-        for (final var fee : assessedCustomFees) {
-            if (!fee.hasTokenId()) {
-                customFeeHbarTransfers++;
-            } else {
-                customFeeTokenTransfers++;
-                involvedTokens.add(fee.tokenId());
-            }
-        }
-        totalXfers += customFeeHbarTransfers;
-        weightedTokenXfers += tokenMultiplier * customFeeTokenTransfers;
-        weightedTokensInvolved += tokenMultiplier * involvedTokens.size();
-        long rbs = (totalXfers * LONG_ACCOUNT_AMOUNT_BYTES)
-                + TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                        weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
-
-        final var hookInfo = getHookInfo(op);
-        /* Get subType based on the above information */
-        final var subType = getSubType(
-                numNftOwnershipChanges,
-                totalTokenTransfers,
-                customFeeHbarTransfers,
-                customFeeTokenTransfers,
-                triedAndFailedToUseCustomFees);
-        final var fees = feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(subType)
-                .addBytesPerTransaction(bpt)
-                .addRamByteSeconds(rbs * USAGE_PROPERTIES.legacyReceiptStorageSecs())
-                .calculate();
-        if (hookInfo.numHookInvocations() > 0) {
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
-            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
-            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
-            final long effectiveGasLimit = Math.max(
-                    0,
-                    Math.min(
-                            hookInfo.numHookInvocations()
-                                    * config.getConfigData(ContractsConfig.class)
-                                            .maxGasPerSec(),
-                            hookInfo.totalGasLimitOfHooks()));
-
-            final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinycents());
-            final var hookFees =
-                    clampedMultiply(hookInfo.numHookInvocations(), hooksConfig.hookInvocationCostTinyCents());
-            final var tinyBarFees = feeContext.tinybarsFromTinycents(clampedAdd(gasFees, hookFees));
-            return fees.copyBuilder().addServiceFee(tinyBarFees).build();
-        }
-        return fees;
-    }
-
     /**
      * Sums the gas limits offered by any EVM allowance hooks present on:
      * HBAR account transfers (pre-tx and pre+post), Fungible token account transfers (pre-tx and pre+post),
      * NFT transfers for sender and receiver (pre-tx and pre+post)
      * Each increment uses {@code clampedAdd} to avoid overflow.
+     *
      * @param op the crypto transfer operation
+     * @param maxGasPerTransaction the gas limit per transaction
      * @return HookInfo containing the total number of hooks and total gas limit
      */
-    public static HookInfo getHookInfo(final CryptoTransferTransactionBody op) {
+    public static HookInfo getHookInfo(
+            @NonNull final CryptoTransferTransactionBody op, final long maxGasPerTransaction) {
         var hookInfo = HookInfo.NO_HOOKS;
         for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
-            hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa));
+            hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa, maxGasPerTransaction));
         }
         for (final var ttl : op.tokenTransfers()) {
             for (final var aa : ttl.transfers()) {
-                hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa));
+                hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa, maxGasPerTransaction));
             }
             for (final var nft : ttl.nftTransfers()) {
-                hookInfo = merge(hookInfo, addNftHookGas(nft));
+                hookInfo = merge(hookInfo, addNftHookGas(nft, maxGasPerTransaction));
             }
         }
         return hookInfo;
     }
 
     /**
+     * Returns the gas limit the handler will charge for the given hook call and gas limit per transaction.
+     * @param call the hook call
+     * @param maxGasPerTransaction the gas limit per transaction
+     * @return the chargeable gas limit, in the range {@code [0, maxGasPerTransaction]}
+     */
+    public static long chargeableGasLimit(@NonNull final HookCall call, final long maxGasPerTransaction) {
+        requireNonNull(call);
+        return chargeableGasLimit(call.evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit(), maxGasPerTransaction);
+    }
+
+    /**
+     * Returns the gas limit the handler will charge for the given hook call and gas limit per transaction.
+     * @param nominalGasLimit the nominal gas limit
+     * @param maxGasPerTransaction the gas limit per transaction
+     * @return the chargeable gas limit, in the range {@code [0, maxGasPerTransaction]}
+     */
+    public static long chargeableGasLimit(long nominalGasLimit, final long maxGasPerTransaction) {
+        return Math.clamp(nominalGasLimit, 0, maxGasPerTransaction);
+    }
+
+    /**
      * Adds gas from pre-tx and pre+post allowance hooks on an account transfer.
      */
-    private static HookInfo getTotalHookGasIfAny(@NonNull final AccountAmount aa) {
+    private static HookInfo getTotalHookGasIfAny(@NonNull final AccountAmount aa, final long maxGasPerTransaction) {
         final var hasPreTxHook = aa.hasPreTxAllowanceHook();
         final var hasPrePostTxHook = aa.hasPrePostTxAllowanceHook();
         if (!hasPreTxHook && !hasPrePostTxHook) {
@@ -356,17 +270,11 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         long gas = 0L;
         int numHooks = 0;
         if (hasPreTxHook) {
-            gas = clampedAdd(
-                    gas,
-                    aa.preTxAllowanceHookOrThrow()
-                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                            .gasLimit());
+            gas = clampedAdd(gas, chargeableGasLimit(aa.preTxAllowanceHookOrThrow(), maxGasPerTransaction));
             numHooks++;
         }
         if (hasPrePostTxHook) {
-            final long gasPerCall = aa.prePostTxAllowanceHookOrThrow()
-                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                    .gasLimit();
+            final long gasPerCall = chargeableGasLimit(aa.prePostTxAllowanceHookOrThrow(), maxGasPerTransaction);
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }
@@ -376,7 +284,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     /**
      * Adds gas from sender/receiver allowance hooks (pre-tx and pre+post) on an NFT transfer.
      */
-    private static HookInfo addNftHookGas(@NonNull final NftTransfer nft) {
+    private static HookInfo addNftHookGas(@NonNull final NftTransfer nft, final long maxGasPerTransaction) {
         final var hasSenderPre = nft.hasPreTxSenderAllowanceHook();
         final var hasSenderPrePost = nft.hasPrePostTxSenderAllowanceHook();
         final var hasReceiverPre = nft.hasPreTxReceiverAllowanceHook();
@@ -387,32 +295,21 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         long gas = 0L;
         int numHooks = 0;
         if (hasSenderPre) {
-            gas = clampedAdd(
-                    gas,
-                    nft.preTxSenderAllowanceHookOrThrow()
-                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                            .gasLimit());
+            gas = clampedAdd(gas, chargeableGasLimit(nft.preTxSenderAllowanceHookOrThrow(), maxGasPerTransaction));
             numHooks++;
         }
         if (hasSenderPrePost) {
-            final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
-                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                    .gasLimit();
+            final long gasPerCall = chargeableGasLimit(nft.prePostTxSenderAllowanceHookOrThrow(), maxGasPerTransaction);
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }
         if (hasReceiverPre) {
-            gas = clampedAdd(
-                    gas,
-                    nft.preTxReceiverAllowanceHookOrThrow()
-                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                            .gasLimit());
+            gas = clampedAdd(gas, chargeableGasLimit(nft.preTxReceiverAllowanceHookOrThrow(), maxGasPerTransaction));
             numHooks++;
         }
         if (hasReceiverPrePost) {
-            final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
-                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                    .gasLimit();
+            final long gasPerCall =
+                    chargeableGasLimit(nft.prePostTxReceiverAllowanceHookOrThrow(), maxGasPerTransaction);
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }

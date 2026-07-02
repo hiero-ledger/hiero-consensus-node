@@ -3,124 +3,59 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
-import java.time.Duration;
+import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
+import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the learner side, which is responsible for sending requests to the teacher.
  *
- * <p>The very first request to send is for path 0 (virtual root node). A response to this request
- * is waited for before any other requests are sent, because root node response contains virtual
- * tree path range on the teacher side.
+ * <p>Before these tasks are started, the root node (path 0) request/response exchange is
+ * performed synchronously by {@link com.swirlds.virtualmap.sync.LearningSynchronizer}, so the
+ * traversal order is already fully initialized when this task begins.
  *
- * <p>After the root response has been received, this task keeps sending requests according to
- * the provided {@link NodeTraversalOrder}. After the next path to request is {@link
- * Path#INVALID_PATH}, this request is sent to indicate that there will be no more requests from
- * the learner, and this task is finished.
+ * <p>This tasks terminates either on exception or when no path is available to send (when {@link Path#INVALID_PATH} is returned by the exchanger).
  */
-public class LearnerPullVirtualTreeSendTask {
+public class LearnerPullVirtualTreeSendTask implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeSendTask.class);
 
-    private static final String NAME = "reconnect-learner-sender";
-
-    private final StandardWorkGroup workGroup;
     private final AsyncOutputStream out;
-    private final LearnerPullVirtualTreeView view;
+    private final LearnerTreeExchanger treeExchanger;
 
-    // Max time to wait for path 0 (virtual root) response from the teacher
-    private final Duration rootResponseTimeout;
-
-    // Indicates if a response for path 0 (virtual root) has been received
-    private final CountDownLatch rootResponseReceived;
-
-    // Number of requests sent to teacher / responses expected from the teacher. Increased in
-    // this task, decreased in the receiving task
-    private final AtomicLong responsesExpected;
-
-    private final AtomicBoolean rootRequestSent;
-    private final AtomicInteger tasksDone;
+    private final CountDownLatch tasksDone;
 
     /**
      * Create a thread for sending node requests to the teacher.
      *
-     * @param reconnectConfig
-     *      the reconnect configuration
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param out
      * 		the output stream, this object is responsible for closing this when finished
-     * @param view
-     * 		the view to be used when touching the merkle tree
-     * @param rootResponseReceived
-     *      the latch to wait for the root response from the teacher
-     * @param responsesExpected
-     *      number of responses expected from the teacher, increased by one every time a request
-     *      is sent
-     * @param rootRequestSent
-     *      the flag to set when the root request to the teacher has been sent
+     * @param treeExchanger
+     * 		the exchanger used to determine what to send to the teacher
      * @param tasksDone
-     *      the counter to decrease, when this task is finished
+     *      the counter to decrease when this task is finished
      */
     public LearnerPullVirtualTreeSendTask(
-            final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
-            final AsyncOutputStream out,
-            final LearnerPullVirtualTreeView view,
-            final CountDownLatch rootResponseReceived,
-            final AtomicLong responsesExpected,
-            final AtomicBoolean rootRequestSent,
-            final AtomicInteger tasksDone) {
-        this.workGroup = workGroup;
+            final AsyncOutputStream out, final LearnerTreeExchanger treeExchanger, final CountDownLatch tasksDone) {
         this.out = out;
-        this.view = view;
-        this.rootResponseReceived = rootResponseReceived;
-        this.responsesExpected = responsesExpected;
-        this.rootRequestSent = rootRequestSent;
+        this.treeExchanger = treeExchanger;
         this.tasksDone = tasksDone;
-
-        this.rootResponseTimeout = reconnectConfig.pullLearnerRootResponseTimeout();
     }
 
-    void exec() {
-        workGroup.execute(NAME, this::run);
-    }
-
-    private void run() {
+    /**
+     * Main loop for the sender thread. Continuously queries the view for the next path to
+     * request. Task finishes when all paths are exhausted ({@link Path#INVALID_PATH} is returned).
+     */
+    @Override
+    public void run() {
         try {
-            if (rootRequestSent.compareAndSet(false, true)) {
-                // Send a request for the root node first. The response will contain the virtual path range
-                out.sendAsync(new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash()));
-                view.getMapStats().incrementTransfersFromLearner();
-                responsesExpected.incrementAndGet();
-            }
-            // Wait for the root response as it contains leaf path range information. Leaf path
-            // range affects requests the learner will send to the teacher
-            if (!rootResponseReceived.await(rootResponseTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
-                throw new MerkleSynchronizationException("Timed out waiting for root node response from the teacher");
-            }
-
             while (!Thread.currentThread().isInterrupted()) {
-                final long path = view.getNextPathToSend();
+                final long path = treeExchanger.getNextPathToSend();
                 if (path == Path.INVALID_PATH) {
-                    // Once the last learner sending task is done, send the teacher a marker
-                    // (final) reconnect request and terminate the async out
-                    if (tasksDone.decrementAndGet() == 0) {
-                        out.sendAsync(new PullVirtualTreeRequest(Path.INVALID_PATH, null));
-                        out.done();
-                    }
                     break;
                 }
                 if (path < 0) {
@@ -129,15 +64,26 @@ public class LearnerPullVirtualTreeSendTask {
                     Thread.sleep(0, 1);
                     continue;
                 }
-                out.sendAsync(new PullVirtualTreeRequest(path, view.getNodeHash(path)));
-                responsesExpected.incrementAndGet();
-                view.getMapStats().incrementTransfersFromLearner();
+                sendRequest(new PullVirtualTreeRequest(path, treeExchanger.getNodeHash(path)));
+                treeExchanger.onRequestSend();
             }
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Learner sending task is interrupted");
             Thread.currentThread().interrupt();
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
+        } finally {
+            tasksDone.countDown();
         }
+    }
+
+    /**
+     * Serializes the given request to bytes and sends it through the async output stream.
+     *
+     * @param request the request to send
+     * @throws InterruptedException if interrupted while waiting to enqueue
+     */
+    private void sendRequest(final PullVirtualTreeRequest request) throws InterruptedException {
+        final byte[] bytes = new byte[request.getSizeInBytes()];
+        request.writeTo(BufferedData.wrap(bytes));
+        out.sendAsync(bytes);
     }
 }

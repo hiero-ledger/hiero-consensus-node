@@ -10,11 +10,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -34,6 +32,8 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
+import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -236,7 +236,7 @@ public class PcesSliceCommand extends AbstractCommand {
         // Generate node IDs and keys
         final List<NodeId> nodeIds =
                 IntStream.range(0, nodeCount).mapToObj(NodeId::of).toList();
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
 
         System.out.println("Generated keys for " + nodeCount + " nodes.");
 
@@ -370,7 +370,7 @@ public class PcesSliceCommand extends AbstractCommand {
             return null;
         }
         try (final FileInputStream fis = new FileInputStream(snapshotPath.toFile())) {
-            return ConsensusSnapshot.JSON.parse(new ReadableStreamingData(fis));
+            return ConsensusSnapshot.JSON.parseStrict(new ReadableStreamingData(fis));
         }
     }
 

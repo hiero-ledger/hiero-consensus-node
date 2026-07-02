@@ -188,9 +188,124 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test is very similar to the {@link #randomOrderTest(boolean, Random)}, except that we repeat the test
-     * several times using the same event creator. This fails when we do not clear the event creator in between runs,
-     * but should not fail if we have cleared the vent creator.
+     * This test simulates bug in Orphan Buffer, which resets NGen to 1 for events in case node has almost fallen behind.
+     * This in turn invoked the bug in event creator, which was picking the event due to selfishness reasons, but
+     * was not considering it as advancing weight (due to NGen being smaller than last used event), leading to
+     * not creating the event (and writing scary warnings)
+     * In the fixed code, when this situation happens, we fall back to using other eligible events, without focusing
+     * on reducing selfishness.
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Tipset failure due to reset NGEN")
+    void tipsetFailureTest(@ParamName("random") final Random random) {
+
+        for (int loop = 0; loop < 10; loop++) {
+
+            final int networkSize = 4;
+
+            final Roster roster = RandomRosterBuilder.create(random)
+                    .withMinimumWeight(1)
+                    .withMaximumWeight(1)
+                    .withSize(networkSize)
+                    .build();
+
+            final FakeTime time = new FakeTime();
+
+            final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+            final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+            final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+            final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+
+            // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
+            // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+            // Create some genesis events
+            final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA1);
+
+            final PlatformEvent eventB1 = createTestEventWithParent(random, nodeB, 100, 1);
+            final PlatformEvent eventC1 = createTestEventWithParent(random, nodeC, 100, 5);
+            final PlatformEvent eventD1 = createTestEventWithParent(random, nodeD, 100, 5);
+
+            eventCreator.registerEvent(eventB1);
+            eventCreator.registerEvent(eventC1);
+            eventCreator.registerEvent(eventD1);
+
+            // Create the next several events.
+            // We should be able to create a total of 3 before we exhaust all possible parents in the address book.
+
+            // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
+            final PlatformEvent eventA2 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA2);
+            eventCreator.registerEvent(eventA2);
+
+            // This will advance the snapshot, total advancement weight is 2 (2+1/4 > 2/3)
+            final PlatformEvent eventA3 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA3);
+            eventCreator.registerEvent(eventA3);
+
+            // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
+            final PlatformEvent eventA4 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA4);
+            eventCreator.registerEvent(eventA4);
+
+            // It should not be possible to create another event since we have exhausted all possible other parents in
+            // the address book.
+            assertNull(eventCreator.maybeCreateEvent());
+
+            final PlatformEvent eventB2 = createTestEventWithParent(random, nodeB, 102, 1);
+            eventCreator.registerEvent(eventB2);
+
+            PlatformEvent previousD = eventB2;
+            PlatformEvent previousC = null;
+
+            // now, we brute force creation of multiple tipset snapshots, without advancing node B
+            for (int i = 0; i < 100; i++) {
+                final PlatformEvent eventCX = createTestEventWithParent(random, nodeC, 200 + i, 6 + i, previousD);
+                eventCreator.registerEvent(eventCX);
+                eventCreator.maybeCreateEvent();
+                previousC = eventCX;
+                final PlatformEvent eventDX = createTestEventWithParent(random, nodeD, 200 + i, 6 + i, previousC);
+                eventCreator.registerEvent(eventDX);
+                eventCreator.maybeCreateEvent();
+                previousD = eventDX;
+            }
+
+            // this is an event which won't be used as parent, but updates internal data and then becomes ancient
+            final PlatformEvent eventBToExpire = createTestEventWithParent(random, nodeB, 200, 50, previousD);
+            eventCreator.registerEvent(eventBToExpire);
+            eventCreator.setEventWindow(new EventWindow(106, 107, 90, 60));
+
+            // and here we insert 'broken' event, which comes from bug in Orphan buffer, with reset nGen
+            final PlatformEvent eventBbrokenNGen = createTestEventWithParent(random, nodeB, 1, 107, previousD);
+            eventCreator.registerEvent(eventBbrokenNGen);
+
+            // and an useful event, which can be used to advance weight
+            final PlatformEvent eventCValid = createTestEventWithParent(random, nodeC, 400, 107, previousD);
+            eventCreator.registerEvent(eventCValid);
+
+            // given that we haven't used event from B in ages, chances are that anti-selfish code will pick it up
+            // in old code, it would fail due to not advancing weight; with a fix, it will fall back to eventCValid
+            // given it is random (only 80% chance of failing each time), we repeat test multiple times in a loop above
+            final PlatformEvent eventACheck = eventCreator.maybeCreateEvent();
+            assertNotNull(eventACheck);
+        }
+    }
+
+    /**
+     * {@link EventCreator#clear()} is only ever called on the reconnect path. It must reset the creator's internal
+     * state - in particular its other-parent candidates - so the node rebuilds from post-reconnect events rather than
+     * stale ones, while retaining the latest self event so the node continues its own chain instead of starting a new
+     * one (which would be a branch).
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
      * @param random         {@link RandomUtils#getRandomPrintSeed()}
@@ -207,70 +322,73 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Clear Test")
+    @DisplayName("Clear resets the creator and retains the latest self event")
     void clearTest(
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
-        final int networkSize = 10;
-
+        final int networkSize = 4;
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
-
         final FakeTime time = new FakeTime();
-
         final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
-
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
-        for (int i = 0; i < 5; i++) {
-            final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
+        final NodeId reconnectingId =
+                NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        PlatformEvent latestSelfEvent = null;
 
-            for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-
-                final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
-                Collections.shuffle(addresses, random);
-
-                boolean atLeastOneEventCreated = false;
-
-                for (final RosterEntry address : addresses) {
-                    if (advancingClock) {
-                        time.tick(Duration.ofMillis(10));
-                    }
-
-                    transactionSupplier.set(generateRandomTransactions(random));
-
-                    final NodeId nodeId = NodeId.of(address.nodeId());
-                    final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
-
-                    final PlatformEvent event = eventCreator.maybeCreateEvent();
-
-                    // It's possible a node may not be able to create an event. But we are guaranteed
-                    // to be able to create at least one event per cycle.
-                    if (event == null) {
-                        continue;
-                    }
-                    atLeastOneEventCreated = true;
-
-                    assignNGenAndDistributeEvent(nodes, events, event);
-
-                    validateNewEventAndMaybeAdvanceCreatorScore(
-                            events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
+        // Run normally so every node builds up other-parent candidates, tipset state and a self-event chain.
+        for (int cycle = 0; cycle < 20; cycle++) {
+            for (final RosterEntry address : roster.rosterEntries()) {
+                if (advancingClock) {
+                    time.tick(Duration.ofMillis(10));
                 }
-
-                assertTrue(atLeastOneEventCreated);
+                transactionSupplier.set(generateRandomTransactions(random));
+                final NodeId nodeId = NodeId.of(address.nodeId());
+                final PlatformEvent event = nodes.get(nodeId).eventCreator().maybeCreateEvent();
+                if (event == null) {
+                    continue;
+                }
+                assignNGenAndDistributeEvent(nodes, events, event);
+                if (nodeId.equals(reconnectingId)) {
+                    latestSelfEvent = event;
+                }
             }
-            // Reset the test by calling clear. This test fails in the second iteration if we don't clear things
-            // out.
-            for (final SimulatedNode node : nodes.values()) {
-                node.eventCreator().clear();
-
-                // There are copies of these data structures inside the event creator. We maintain these ones
-                // to sanity check the behavior of the event creator.
-                node.tipsetTracker().clear();
-                node.tipsetWeightCalculator().clear();
-            }
-            transactionSupplier.set(null);
         }
+        assertNotNull(latestSelfEvent, "the node should have created events before the reconnect");
+
+        // Reconnect: clear the node's creator.
+        final EventCreator creator = nodes.get(reconnectingId).eventCreator();
+        creator.clear();
+
+        // clear() emptied the node's other-parent candidates: with no new events it has nothing to build on and must
+        // not create. A no-op clear() would leave the old candidates in place and create an event here.
+        assertNull(creator.maybeCreateEvent(), "after a clear the node must not create from stale other-parents");
+
+        // Deliver fresh events from the rest of the network.
+        for (int cycle = 0; cycle < 3; cycle++) {
+            for (final RosterEntry address : roster.rosterEntries()) {
+                final NodeId nodeId = NodeId.of(address.nodeId());
+                if (nodeId.equals(reconnectingId)) {
+                    continue;
+                }
+                if (advancingClock) {
+                    time.tick(Duration.ofMillis(10));
+                }
+                transactionSupplier.set(generateRandomTransactions(random));
+                final PlatformEvent event = nodes.get(nodeId).eventCreator().maybeCreateEvent();
+                if (event != null) {
+                    assignNGenAndDistributeEvent(nodes, events, event);
+                }
+            }
+        }
+
+        // The node now resumes, chaining off the self event it retained across the clear (not a new, branching chain).
+        transactionSupplier.set(generateRandomTransactions(random));
+        final PlatformEvent resumed = creator.maybeCreateEvent();
+        assertNotNull(resumed, "the node should resume creating after receiving events");
+        assertEquals(latestSelfEvent.getDescriptor(), resumed.getSelfParent());
     }
 
     /**

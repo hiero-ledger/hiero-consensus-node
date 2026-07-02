@@ -94,7 +94,10 @@ public class HgcaaLogValidator {
                 List.of("Ignoring forced handoff to incomplete construction"),
                 List.of("Completing signing attempt"),
                 List.of("No pending blocks found"),
+                List.of("Forcing handoff to history construction", "with different target roster"),
                 List.of("Forcing handoff to construction", "with different target roster"),
+                // Guarded joint TSS handoff deliberately skips partial promotions until both services are ready
+                List.of("TssHandoffCoordinator", "Skipping forced TSS handoff because"),
                 List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
@@ -103,7 +106,16 @@ public class HgcaaLogValidator {
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
-                List.of("Native library besu blake2bf is not present"));
+                List.of("Native library besu blake2bf is not present"),
+                List.of("Restarted WRAPS signing"),
+                // Expected as part of WRAPS proving key verification tests
+                List.of("WRAPS proving key hash mismatch at"),
+                List.of("Failed to extract WRAPS proving key archive"),
+                List.of("Failed to download WRAPS proving key"),
+                List.of("WRAPS proving key download failed"),
+                List.of("Downloaded WRAPS proving key hash mismatch"),
+                List.of("WRAPS proving key download did not complete"),
+                List.of("Failed to initiate async download of WRAPS proving key (from URL "));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

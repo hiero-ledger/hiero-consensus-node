@@ -5,7 +5,9 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventC
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
@@ -15,9 +17,7 @@ import com.swirlds.component.framework.model.diagram.ModelGroup;
 import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,12 +27,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
+import org.hiero.consensus.pcli.utility.VirtualTerminal;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -114,11 +118,16 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration);
+        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
+        final IssDetectionModule issDetectionModule =
+                createNoOpIssDetectionModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule =
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -127,11 +136,13 @@ public final class DiagramCommand extends AbstractCommand {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule);
 
-        // Use non-null callbacks so all optional wires appear in the diagram
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(e -> {}, s -> {}, e -> {});
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, callbacks);
+        // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
+        // appears in the diagram; in production Execution supplies this consumer.
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, event -> {});
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);
