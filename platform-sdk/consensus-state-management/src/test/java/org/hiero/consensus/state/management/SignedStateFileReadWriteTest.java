@@ -67,6 +67,7 @@ class SignedStateFileReadWriteTest {
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
+    private FileSystemManager fileSystemManager;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     @BeforeAll
@@ -85,7 +86,7 @@ class SignedStateFileReadWriteTest {
         Files.createDirectories(testDirectory);
         final Time time = Time.getCurrent();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final FileSystemManager fileSystemManager = new TestFileSystemManager(testDirectory);
+        fileSystemManager = new TestFileSystemManager(testDirectory);
         stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(new NoOpMetrics(), time, configuration, fileSystemManager);
     }
@@ -191,7 +192,7 @@ class SignedStateFileReadWriteTest {
 
         writeSignedStateToDisk(
                 configuration,
-                new FileSystemManager(testDirectory),
+                fileSystemManager,
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,

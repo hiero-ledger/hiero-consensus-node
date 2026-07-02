@@ -49,7 +49,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
 import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
@@ -342,6 +344,7 @@ public class ConsensusNoOpModules {
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final LatestCompleteStateNexus latestCompleteStateNexus =
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
 
         return new StateManagementModule(
                 model,
@@ -354,6 +357,7 @@ public class ConsensusNoOpModules {
                 selfId,
                 swirldName,
                 stateLifecycleManager,
-                latestCompleteStateNexus);
+                latestCompleteStateNexus,
+                savedStateController);
     }
 }

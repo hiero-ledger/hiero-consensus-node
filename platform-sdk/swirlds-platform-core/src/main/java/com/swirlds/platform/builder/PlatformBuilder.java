@@ -66,7 +66,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
 import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
@@ -515,7 +517,8 @@ public final class PlatformBuilder {
 
     @NonNull
     private StateManagementModule createStateManagementModule(
-            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus) {
+            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
+            @NonNull final SavedStateController savedStateController) {
         return new StateManagementModule(
                 model,
                 platformContext.getConfiguration(),
@@ -527,7 +530,8 @@ public final class PlatformBuilder {
                 selfId,
                 swirldName,
                 stateLifecycleManager,
-                latestCompleteStateNexus);
+                latestCompleteStateNexus,
+                savedStateController);
     }
 
     /**
@@ -630,7 +634,9 @@ public final class PlatformBuilder {
                 new DefaultLatestCompleteStateNexus(configuration, platformContext.getMetrics());
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
-        final StateManagementModule stateManagementModule = createStateManagementModule(latestCompleteStateNexus);
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+        final StateManagementModule stateManagementModule =
+                createStateManagementModule(latestCompleteStateNexus, savedStateController);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -692,7 +698,8 @@ public final class PlatformBuilder {
                 reservedSignedStateResultPromise,
                 platformCoordinator,
                 latestImmutableStateNexus,
-                transactionOffsetNanos);
+                transactionOffsetNanos,
+                savedStateController);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

@@ -19,7 +19,7 @@ import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
+import org.hiero.consensus.state.management.SavedStateController;
 
 /**
  * The default implementation of {@link ReconnectModule}.

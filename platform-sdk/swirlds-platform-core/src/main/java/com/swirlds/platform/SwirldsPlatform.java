@@ -56,8 +56,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
+import org.hiero.consensus.state.management.SavedStateController;
 import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.SignedState;
@@ -146,7 +145,7 @@ public class SwirldsPlatform implements Platform {
 
         keysAndCerts = blocks.keysAndCerts();
 
-        savedStateController = new DefaultSavedStateController(platformContext.getConfiguration());
+        savedStateController = blocks.savedStateController();
 
         this.platformComponents = blocks.platformComponents();
         this.platformCoordinator = blocks.platformCoordinator();

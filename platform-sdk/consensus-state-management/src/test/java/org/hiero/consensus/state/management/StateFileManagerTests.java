@@ -46,7 +46,6 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.management.persistence.DefaultStateSnapshotManager;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.management.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.management.persistence.StateSnapshotManager;

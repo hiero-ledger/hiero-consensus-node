@@ -34,9 +34,7 @@ import org.hiero.consensus.state.management.hashing.DefaultHashLogger;
 import org.hiero.consensus.state.management.hashing.DefaultStateHasher;
 import org.hiero.consensus.state.management.hashing.HashLogger;
 import org.hiero.consensus.state.management.hashing.StateHasher;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.management.persistence.DefaultStateSnapshotManager;
-import org.hiero.consensus.state.management.persistence.SavedStateController;
 import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.management.signing.DefaultStateSignatureCollector;
 import org.hiero.consensus.state.management.signing.DefaultStateSigner;
@@ -94,7 +92,8 @@ public class StateManagementModule {
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
             @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus) {
+            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
+            @NonNull final SavedStateController savedStateController) {
 
         // Set up wiring
         this.stateDispatcher =
@@ -195,13 +194,12 @@ public class StateManagementModule {
                 swirldName,
                 stateLifecycleManager);
         stateSnapshotManagerWiring.bind(stateSnapshotManager);
-        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         savedStateControllerWiring.bind(savedStateController);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
     }
 
     /**
-     * Get the input wire for {@link StateWithHashComplexity}s to handle post-conensus.
+     * Get the input wire for {@link StateWithHashComplexity}s to handle post-consensus.
      *
      * @return the input wire for the transactions
      */
@@ -224,7 +222,7 @@ public class StateManagementModule {
     }
 
     /**
-     * Get the input wire for {@link StateSignatureTransaction}s to handle preconensus.
+     * Get the input wire for {@link StateSignatureTransaction}s to handle preconsensus.
      *
      * @return the input wire for the transactions
      */
@@ -236,7 +234,7 @@ public class StateManagementModule {
     }
 
     /**
-     * Get the input wire for {@link StateSignatureTransaction}s to handle post-conensus.
+     * Get the input wire for {@link StateSignatureTransaction}s to handle post-consensus.
      *
      * @return the input wire for the transactions
      */
@@ -309,7 +307,7 @@ public class StateManagementModule {
     }
 
     /**
-     * Flush the preHandler.
+     * Flush the {@code StateManagementModule}.
      */
     public void flush() {
         stateHasherWiring.flush();
@@ -318,7 +316,7 @@ public class StateManagementModule {
 
     /**
      * Get the input wire for clearing the state management component.
-     * .
+     *
      * @return the input wire for clearing the state management component.
      */
     public InputWire<NoInput> clearInputWire() {

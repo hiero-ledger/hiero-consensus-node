@@ -25,6 +25,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
@@ -66,6 +67,7 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  * @param latestImmutableStateNexus              a nexus for accessing the latest immutable state
  * @param transactionOffsetNanos                 nanoseconds to add to the first transaction's timestamp in an event,
  *                                               computed by the execution layer from its configuration
+ * @param savedStateController                   the controller for saving states to disk
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -92,7 +94,8 @@ public record PlatformBuildingBlocks(
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull PlatformCoordinator platformCoordinator,
         @NonNull SignedStateNexus latestImmutableStateNexus,
-        long transactionOffsetNanos) {
+        long transactionOffsetNanos,
+        @NonNull SavedStateController savedStateController) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -117,5 +120,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(reservedSignedStateResultPromise);
         requireNonNull(platformCoordinator);
         requireNonNull(latestImmutableStateNexus);
+        requireNonNull(savedStateController);
     }
 }
