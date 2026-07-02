@@ -37,6 +37,9 @@ public class StateOperatorCommand implements Runnable {
     /** Marker file written after a successful GCS download to distinguish complete from partial caches. */
     private static final String DOWNLOAD_COMPLETE_MARKER = ".download-complete";
 
+    private static final String STATE_DIR_PROPERTY = "state.dir";
+    private static final String TMP_DIR_PROPERTY = "tmp.dir";
+
     @Parameters(index = "0", description = "State directory. Accepts a local path or a GCS URI (gs://...).")
     private String stateDir;
 
@@ -71,7 +74,8 @@ public class StateOperatorCommand implements Runnable {
     void resolveAndGetStateDir() {
         if (resolvedStateDir != null) {
             // Already resolved (idempotent)
-            System.setProperty("state.dir", resolvedStateDir.getAbsolutePath());
+            System.setProperty(STATE_DIR_PROPERTY, resolvedStateDir.getAbsolutePath());
+            initializeTmpDirIfUnset();
             return;
         }
 
@@ -127,7 +131,17 @@ public class StateOperatorCommand implements Runnable {
             }
         }
 
-        System.setProperty("state.dir", resolvedStateDir.getAbsolutePath());
+        System.setProperty(STATE_DIR_PROPERTY, resolvedStateDir.getAbsolutePath());
+        initializeTmpDirIfUnset();
+    }
+
+    private void initializeTmpDirIfUnset() {
+        final String existingTmpDir = System.getProperty(TMP_DIR_PROPERTY, "");
+        if (!existingTmpDir.isBlank()) {
+            return;
+        }
+        System.setProperty(
+                TMP_DIR_PROPERTY, "state-validator-" + ProcessHandle.current().pid());
     }
 
     /**

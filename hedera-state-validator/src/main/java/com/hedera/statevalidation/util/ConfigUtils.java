@@ -140,8 +140,9 @@ public final class ConfigUtils {
                 .withConverter(HederaFunctionalitySet.class, new FunctionalitySetConverter())
                 .withConverter(Bytes.class, new BytesConverter());
         if (!TMP_DIR.isEmpty()) {
-            configurationBuilder.withSource(
-                    new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
+            configurationBuilder.withSource(new SimpleConfigSource()
+                    .withValue("paths.tmpDir", TMP_DIR)
+                    .withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
         }
         configuration = configurationBuilder.build();
     }
