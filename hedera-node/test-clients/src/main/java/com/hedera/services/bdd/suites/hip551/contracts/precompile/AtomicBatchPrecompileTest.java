@@ -457,7 +457,7 @@ class AtomicBatchPrecompileTest {
     }
 
     /**
-     * AssociatePrecompileSuite
+     * AssociatePrecompileTest
      */
     @HapiTest
     final Stream<DynamicTest> atomicFunctionCallWithLessThanFourBytesFailsWithinSingleContractCall() {

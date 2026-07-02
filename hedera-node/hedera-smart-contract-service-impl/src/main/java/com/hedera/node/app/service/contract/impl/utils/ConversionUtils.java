@@ -12,7 +12,6 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasN
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -828,7 +827,11 @@ public class ConversionUtils {
      * @return its explicit 20-byte array
      */
     public static byte[] explicitFromHeadlong(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return unhex(address.toString().substring(2));
+        byte[] raw = address.value().toByteArray(); // normally, 21 byte array
+        byte[] bytes20 = new byte[20];
+        System.arraycopy(
+                raw, Math.max(0, raw.length - 20), bytes20, Math.max(0, 20 - raw.length), Math.min(20, raw.length));
+        return bytes20;
     }
 
     /**
