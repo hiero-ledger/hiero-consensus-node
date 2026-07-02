@@ -731,6 +731,13 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
+                // The open/pending blocks are now flushed to disk; upload them to the triage/ folder (no-op unless
+                // failureBlockUpload.triageUploadEnabled).
+                app.triageBlockUploadCoordinator().uploadFlushedIssBlocks();
+                // The ISS-round block is now durable on disk; upload it to the iss/ folder synchronously (bounded),
+                // before the node halts — the deterministic, race-free capture for a halting ISS (no-op unless
+                // failureBlockUpload.issBlockUploadEnabled, or if the detection path already uploaded it).
+                app.issDetectionUploadCoordinator().uploadDetectedIssOnFailure();
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {

@@ -36,6 +36,7 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
@@ -99,13 +100,13 @@ public class BlockStreamManagerWrapper {
                 }
 
                 @Override
-                public void flushPendingBlock(@NonNull PendingProof pendingProof) {
-                    original.flushPendingBlock(pendingProof);
+                public Path flushPendingBlock(@NonNull PendingProof pendingProof) {
+                    return original.flushPendingBlock(pendingProof);
                 }
 
                 @Override
-                public void flushIncompleteBlock() {
-                    original.flushIncompleteBlock();
+                public Path flushIncompleteBlock() {
+                    return original.flushIncompleteBlock();
                 }
             };
         };

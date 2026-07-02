@@ -137,6 +137,7 @@ open module com.hedera.node.test.clients {
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;
+    requires jdk.httpserver;
     requires net.i2p.crypto.eddsa;
     requires org.apache.commons.io;
     requires org.apache.commons.lang3;

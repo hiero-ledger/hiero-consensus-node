@@ -118,12 +118,12 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+    public Path flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof, "pendingProof must not be null");
         final var blockState = blockBufferService.getBlockState(blockNumber);
         if (blockState == null) {
             logger.warn("Cannot flush pending block #{} because no block state is available", blockNumber);
-            return;
+            return null;
         }
         final var items = new ArrayList<Bytes>(blockState.itemCount());
         for (int i = 0; i < blockState.itemCount(); i++) {
@@ -134,7 +134,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         }
         if (items.isEmpty()) {
             logger.warn("Cannot flush pending block #{} because no block items are available", blockNumber);
-            return;
+            return null;
         }
         try {
             Files.createDirectories(nodeScopedBlockDir);
@@ -146,8 +146,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             final var proofPath = pendingProofPath(nodeScopedBlockDir, blockNumber);
             Files.writeString(proofPath, PendingProof.JSON.toJSON(pendingProof));
             logger.info("Flushed pending block #{} ({}, {})", blockNumber, contentsPath, proofPath);
+            return contentsPath;
         } catch (IOException e) {
             logger.error("Error flushing pending block #{}", blockNumber, e);
+            return null;
         }
     }
 
@@ -157,7 +159,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void flushIncompleteBlock() {
+    public Path flushIncompleteBlock() {
         // Persist the open, unproven block's buffered items as a ".open.gz" triage artifact (gzipped BlockBytes,
         // wire-identical to a Block so it parses back for analysis). We write NO ".pnd.json" proof sidecar, so it is
         // never picked up by pending-block recovery nor mistaken for a finished block. We also deliberately do NOT
@@ -167,7 +169,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             final var blockState = blockBufferService.getBlockState(blockNumber);
             if (blockState == null) {
                 logger.warn("Cannot flush incomplete block #{} because no block state is available", blockNumber);
-                return;
+                return null;
             }
             final var items = new ArrayList<Bytes>(blockState.itemCount());
             for (int i = 0; i < blockState.itemCount(); i++) {
@@ -178,7 +180,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
             }
             if (items.isEmpty()) {
                 logger.warn("Cannot flush incomplete block #{} because no block items are available", blockNumber);
-                return;
+                return null;
             }
             Files.createDirectories(nodeScopedBlockDir);
             final var contentsPath = incompleteContentsPath(nodeScopedBlockDir, blockNumber);
@@ -186,8 +188,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
                 out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
             }
             logger.info("Flushed incomplete block #{} for triage to {}", blockNumber, contentsPath);
+            return contentsPath;
         } catch (final Exception e) {
             logger.error("Error flushing incomplete block #{}", blockNumber, e);
+            return null;
         }
     }
 
