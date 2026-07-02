@@ -3,8 +3,9 @@ package org.hiero.base.crypto.test.fixtures;
 
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.hedera.cryptography.libsodium.Libsodium;
-import java.lang.foreign.MemorySegment;
+import com.goterl.lazysodium.LazySodiumJava;
+import com.goterl.lazysodium.SodiumJava;
+import com.goterl.lazysodium.interfaces.Sign;
 import java.security.SignatureException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,17 +16,17 @@ public class ED25519SigningProvider implements SigningProvider {
     /**
      * the length of signature in bytes
      */
-    public static final int SIGNATURE_LENGTH = Libsodium.ED25519_BYTES;
+    public static final int SIGNATURE_LENGTH = Sign.BYTES;
 
     /**
      * the length of the public key in bytes
      */
-    public static final int PUBLIC_KEY_LENGTH = Libsodium.ED25519_PUBLICKEYBYTES;
+    public static final int PUBLIC_KEY_LENGTH = Sign.PUBLICKEYBYTES;
 
     /**
      * the length of the private key in bytes
      */
-    public static final int PRIVATE_KEY_LENGTH = Libsodium.ED25519_SECRETKEYBYTES;
+    public static final int PRIVATE_KEY_LENGTH = Sign.SECRETKEYBYTES;
 
     /**
      * use this for all logging, as controlled by the optional data/log4j2.xml file
@@ -42,16 +43,15 @@ public class ED25519SigningProvider implements SigningProvider {
      */
     private byte[] privateKey;
 
-    /// Cached MemorySegment for the privateKey.
-    private MemorySegment privateKeyMemorySegment;
-
     /**
      * the public key for each signed transaction
      */
     private byte[] publicKey;
 
-    /// Libsodium signer that calls the native library.
-    private Libsodium signer;
+    /**
+     * the native NaCl signing interface
+     */
+    private Sign.Native signer;
 
     /**
      * indicates whether there is an available algorithm implementation & keypair
@@ -65,13 +65,7 @@ public class ED25519SigningProvider implements SigningProvider {
     @Override
     public byte[] sign(byte[] data) throws SignatureException {
         final byte[] sig = new byte[SIGNATURE_LENGTH];
-        if (signer.cryptoSignDetached(
-                        MemorySegment.ofArray(sig),
-                        MemorySegment.NULL,
-                        MemorySegment.ofArray(data),
-                        data.length,
-                        privateKeyMemorySegment)
-                != 0) {
+        if (!signer.cryptoSignDetached(sig, data, data.length, privateKey)) {
             throw new SignatureException();
         }
 
@@ -102,15 +96,14 @@ public class ED25519SigningProvider implements SigningProvider {
      * Initializes the {@link #signer} instance and creates the public/private keys.
      */
     private void tryAcquireSignature() {
-        signer = Libsodium.getInstance();
+        final SodiumJava sodium = new SodiumJava();
+        signer = new LazySodiumJava(sodium);
 
         publicKey = new byte[PUBLIC_KEY_LENGTH];
         privateKey = new byte[PRIVATE_KEY_LENGTH];
 
-        algorithmAvailable =
-                signer.cryptoSignKeypair(MemorySegment.ofArray(publicKey), MemorySegment.ofArray(privateKey)) == 0;
+        algorithmAvailable = signer.cryptoSignKeypair(publicKey, privateKey);
         logger.trace(LOGM_STARTUP, "Public Key -> hex('{}')", () -> hex(publicKey));
         algorithmAvailable = true;
-        privateKeyMemorySegment = MemorySegment.ofArray(privateKey);
     }
 }
