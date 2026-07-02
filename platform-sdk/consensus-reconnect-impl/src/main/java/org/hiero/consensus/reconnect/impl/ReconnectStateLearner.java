@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.state.management.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
