@@ -2,7 +2,6 @@
 package org.hiero.consensus.concurrent;
 
 import static java.lang.String.format;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.concurrent.Callable;
@@ -39,8 +38,8 @@ class ReplaceSyncPhaseParallelExecutorTests {
     @MethodSource("testParams")
     void testReplacePhase(final int phaseNum, final int taskNum) throws ParallelExecutionException {
         final AtomicInteger replacementTask = new AtomicInteger(0);
-        final ReplaceSyncPhaseParallelExecutor executor = new ReplaceSyncPhaseParallelExecutor(
-                getStaticThreadManager(), phaseNum, taskNum, replacementTask::incrementAndGet);
+        final ReplaceSyncPhaseParallelExecutor executor =
+                new ReplaceSyncPhaseParallelExecutor(phaseNum, taskNum, replacementTask::incrementAndGet);
         executor.start();
 
         executor.doParallel(

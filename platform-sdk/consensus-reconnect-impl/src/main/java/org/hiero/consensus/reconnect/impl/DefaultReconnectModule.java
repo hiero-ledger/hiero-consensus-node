@@ -15,7 +15,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -59,7 +58,7 @@ public class DefaultReconnectModule implements ReconnectModule {
                 fallenBehindMonitor,
                 new DefaultSignedStateValidator());
 
-        final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
+        final Thread reconnectControllerThread = new ThreadConfiguration()
                 .setComponent("platform-core")
                 .setThreadName("reconnectController")
                 .setRunnable(reconnectController)

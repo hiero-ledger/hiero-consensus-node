@@ -65,7 +65,6 @@ Other examples are:
 
 3. SyncGossip gossip = new SyncGossip(
         blocks.platformContext(),
-        AdHocThreadManager.getStaticThreadManager(),
         blocks.keysAndCerts(),
         blocks.rosterHistory().getCurrentRoster(),
         blocks.selfId(),

@@ -5,7 +5,6 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EVENT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.INFO_CATEGORY;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -127,7 +126,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
                     false,
                     EventStreamType.getInstance());
 
-            writeQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager())
+            writeQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>()
                     .setNodeId(selfId)
                     .setComponent("event-stream")
                     .setThreadName("write-queue")
@@ -153,7 +152,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
         // receives consensus events from hashQueueThread, calculates this event's Hash, then passes to
         // runningHashCalculator
         final HashCalculatorForStream<CesEvent> hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>()
                 .setNodeId(selfId)
                 .setComponent("event-stream")
                 .setThreadName("hash-queue")

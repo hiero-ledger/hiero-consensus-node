@@ -26,7 +26,6 @@ import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.state.management.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -66,7 +65,6 @@ public class ReconnectStateLearner {
      *
      * @param configuration the platform configuration
      * @param metrics the metrics system
-     * @param threadManager responsible for managing thread lifecycles
      * @param connection the connection to use for the reconnect
      * @param currentState the most recent state from the learner; must be a VirtualMapStateImpl
      * @param reconnectSocketTimeout the amount of time that should be used for the socket timeout
@@ -76,7 +74,6 @@ public class ReconnectStateLearner {
     public ReconnectStateLearner(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
-            @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final VirtualMapState currentState,
             @NonNull final Duration reconnectSocketTimeout,
@@ -85,7 +82,6 @@ public class ReconnectStateLearner {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
         requireNonNull(metrics);
-        requireNonNull(threadManager);
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
 
@@ -95,7 +91,7 @@ public class ReconnectStateLearner {
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.statistics = requireNonNull(statistics);
 
-        synchronizer = new LearningSynchronizer(threadManager, configuration, metrics);
+        synchronizer = new LearningSynchronizer(configuration, metrics);
 
         // Save some of the current state data for validation
     }

@@ -9,7 +9,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStat
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
@@ -688,7 +687,7 @@ public final class PlatformBuilder {
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 consensusEventStreamName,
-                NotificationEngine.buildEngine(getStaticThreadManager()),
+                NotificationEngine.buildEngine(),
                 statusActionSubmitterReference,
                 stateLifecycleManager,
                 firstPlatform,

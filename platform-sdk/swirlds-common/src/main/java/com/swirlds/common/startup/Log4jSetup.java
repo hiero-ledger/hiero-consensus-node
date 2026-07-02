@@ -3,7 +3,6 @@ package com.swirlds.common.startup;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -67,7 +66,7 @@ public final class Log4jSetup {
                 // This allows us to write a final log message before the logger is shut down.
                 ((DefaultShutdownCallbackRegistry) contextFactory.getShutdownCallbackRegistry()).stop();
                 Runtime.getRuntime()
-                        .addShutdownHook(new ThreadConfiguration(getStaticThreadManager())
+                        .addShutdownHook(new ThreadConfiguration()
                                 .setComponent("browser")
                                 .setThreadName("shutdown-hook")
                                 .setRunnable(() -> {

@@ -13,7 +13,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * A utility for migrating data within a virtual map from one format to another.
@@ -29,18 +28,13 @@ public final class VirtualMapMigration {
     /**
      * Extract all key-value pairs from a virtual map and pass it to a handler in a deterministic order.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
      * @param source
      * 		a virtual map to read from, will not be modified by this method
      * @param threadCount
      * 		the number of threads used for reading from the original map
      */
     public static void extractVirtualMapData(
-            final ThreadManager threadManager,
-            final VirtualMap source,
-            final InterruptableConsumer<Pair<Bytes, Bytes>> handler,
-            final int threadCount)
+            final VirtualMap source, final InterruptableConsumer<Pair<Bytes, Bytes>> handler, final int threadCount)
             throws InterruptedException {
 
         final long firstLeafPath = source.getMetadata().getFirstLeafPath();
@@ -65,7 +59,7 @@ public final class VirtualMapMigration {
             // Java only allows final values to be passed into a lambda
             final int index = threadIndex;
 
-            threads.add(new ThreadConfiguration(threadManager)
+            threads.add(new ThreadConfiguration()
                     .setComponent(COMPONENT_NAME)
                     .setThreadName("reader-" + threadCount)
                     .setInterruptableRunnable(() -> {
@@ -117,18 +111,13 @@ public final class VirtualMapMigration {
     /**
      * Extract all key-value pairs from a virtual map and pass it to a handler concurrently.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads
      * @param source
      * 		a virtual map to read from, will not be modified by this method
      * @param threadCount
      * 		the number of threads used for reading from the original map
      */
     public static void extractVirtualMapDataC(
-            final ThreadManager threadManager,
-            final VirtualMap source,
-            final InterruptableConsumer<Pair<Bytes, Bytes>> handler,
-            final int threadCount)
+            final VirtualMap source, final InterruptableConsumer<Pair<Bytes, Bytes>> handler, final int threadCount)
             throws InterruptedException {
 
         final long firstLeafPath = source.getMetadata().getFirstLeafPath();
@@ -147,7 +136,7 @@ public final class VirtualMapMigration {
 
             final long firstPath = firstLeafPath + threadIndex;
 
-            threads.add(new ThreadConfiguration(threadManager)
+            threads.add(new ThreadConfiguration()
                     .setComponent(COMPONENT_NAME)
                     .setThreadName("reader-" + threadCount)
                     .setInterruptableRunnable(() -> {

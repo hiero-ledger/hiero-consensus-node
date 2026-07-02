@@ -2,7 +2,6 @@
 package com.swirlds.benchmark.reconnect;
 
 import static com.swirlds.benchmark.Utils.printVirtualMap;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
@@ -73,8 +72,8 @@ public class MerkleBenchmarkUtils {
             final TeachingSynchronizer teacher;
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
-                learner = new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
-                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), configuration);
+                learner = new LearningSynchronizer(configuration, metrics);
+                teacher = new TeachingSynchronizer(desiredTree, configuration);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         configuration,
@@ -97,7 +96,7 @@ public class MerkleBenchmarkUtils {
             final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
 
             try (final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", streams::disconnect)) {
+                    new StandardWorkGroup("synchronization-test", streams::disconnect)) {
                 workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
                 workGroup.fork(
                         "learning-synchronizer-main",

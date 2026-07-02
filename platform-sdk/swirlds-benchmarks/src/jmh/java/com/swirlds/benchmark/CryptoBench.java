@@ -3,7 +3,6 @@ package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.LongGauge;
@@ -198,7 +197,7 @@ public class CryptoBench extends VirtualMapEditBench {
                 1,
                 TimeUnit.SECONDS,
                 queue,
-                new ThreadConfiguration(getStaticThreadManager())
+                new ThreadConfiguration()
                         .setComponent("benchmark")
                         .setThreadName("prefetch")
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))

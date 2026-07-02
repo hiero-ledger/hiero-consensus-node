@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent.framework.config;
 
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.consensus.concurrent.framework.QueueThread;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * An object used to configure and build {@link QueueThread}s.
@@ -16,11 +15,9 @@ public class QueueThreadConfiguration<T> extends AbstractQueueThreadConfiguratio
     /**
      * Build a new queue thread configuration with default values.
      *
-     * @param threadManager
-     * 		responsible for the creation and management of the thread used by this object
      */
-    public QueueThreadConfiguration(final ThreadManager threadManager) {
-        super(threadManager);
+    public QueueThreadConfiguration() {
+        super();
     }
 
     /**

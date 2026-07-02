@@ -2,7 +2,6 @@
 package org.hiero.consensus.concurrent.test.fixtures.assertions;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,14 +34,14 @@ public class AssertionUtils {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean error = new AtomicBoolean();
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setComponent("assertion-utils")
                 .setThreadName("assert-prompt-completion")
                 .setInterruptableRunnable(() -> {
                     operation.run();
                     latch.countDown();
                 })
-                .setExceptionHandler((final Thread thread, final Throwable exception) -> {
+                .setExceptionHandler((final Thread _, final Throwable exception) -> {
                     error.set(true);
                     exception.printStackTrace();
                 })
@@ -72,14 +71,14 @@ public class AssertionUtils {
         final AtomicBoolean error = new AtomicBoolean();
         final AtomicReference<T> value = new AtomicReference<>();
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setComponent("assertion-utils")
                 .setThreadName("assert-prompt-completion")
                 .setInterruptableRunnable(() -> {
                     value.set(operation.get());
                     latch.countDown();
                 })
-                .setExceptionHandler((final Thread thread, final Throwable exception) -> {
+                .setExceptionHandler((final Thread _, final Throwable exception) -> {
                     error.set(true);
                     exception.printStackTrace();
                 })

@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -21,11 +20,9 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
     private LinkedObjectStream<T> forwardTo;
 
     /**
-     * @param threadManager
-     * 		responsible for managing thread lifecycles
      */
-    public QueueThreadObjectStreamConfiguration(final ThreadManager threadManager) {
-        queueThreadConfiguration = new QueueThreadConfiguration<>(threadManager);
+    public QueueThreadObjectStreamConfiguration() {
+        queueThreadConfiguration = new QueueThreadConfiguration<>();
     }
 
     /**

@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.sync.streams;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,11 +40,11 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -151,8 +150,8 @@ class AsyncInputStreamTest {
                 final byte[] data,
                 final Consumer<AsyncInputStream> beforeDone,
                 final Consumer<AsyncInputStream> afterDone)
-                throws ParallelExecutionException, InterruptedException {
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                throws ExecutionException, InterruptedException {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncInputStream in = new AsyncInputStream(
                         new DataInputStream(new ByteArrayInputStream(data)), DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
                 in.start(workGroup);
@@ -180,7 +179,7 @@ class AsyncInputStreamTest {
 
         @Test
         @DisplayName("No messages correct behavior")
-        void emptyData() throws IOException, ParallelExecutionException, InterruptedException {
+        void emptyData() throws IOException, ExecutionException, InterruptedException {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final DataOutputStream dataOut = new DataOutputStream(byteOut);
             dataOut.writeInt(-1); // termination
@@ -193,7 +192,7 @@ class AsyncInputStreamTest {
         @EnumSource(YieldStrategy.class)
         @DisplayName("Less than queue size messages decoded in order under each YieldStrategy")
         void lessMessagesThanQueueSize(final YieldStrategy yield)
-                throws IOException, ParallelExecutionException, InterruptedException {
+                throws IOException, ExecutionException, InterruptedException {
             final int count = DEFAULT_QUEUE_SIZE - 1;
 
             createStreamAndTest(encodeLongs(count), _ -> {}, in -> {
@@ -211,7 +210,7 @@ class AsyncInputStreamTest {
         @EnumSource(YieldStrategy.class)
         @DisplayName("Full queue keep background stream running")
         void fullQueueKeepsStreamRunning(final YieldStrategy yield)
-                throws IOException, ParallelExecutionException, InterruptedException {
+                throws IOException, ExecutionException, InterruptedException {
             createStreamAndTest(
                     encodeLongs(DEFAULT_QUEUE_SIZE),
                     in -> {
@@ -243,7 +242,7 @@ class AsyncInputStreamTest {
 
         @Test
         @DisplayName("Zero-length payload round-trips as an empty byte array")
-        void zeroLengthPayloadRoundTrips() throws IOException, ParallelExecutionException, InterruptedException {
+        void zeroLengthPayloadRoundTrips() throws IOException, ExecutionException, InterruptedException {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final DataOutputStream dataOut = new DataOutputStream(byteOut);
             dataOut.writeInt(0); // empty payload
@@ -259,7 +258,7 @@ class AsyncInputStreamTest {
 
         @Test
         @DisplayName("Large message (1 MiB) round-trips byte-exact")
-        void largeMessageRoundTrip() throws IOException, ParallelExecutionException, InterruptedException {
+        void largeMessageRoundTrip() throws IOException, ExecutionException, InterruptedException {
             final byte[] payload = new byte[1 << 20]; // 1 MiB
             for (int i = 0; i < payload.length; i++) {
                 payload[i] = (byte) (i & 0xFF);
@@ -342,7 +341,7 @@ class AsyncInputStreamTest {
             dataOut.writeInt(-1);
             dataOut.flush();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final DataInputStream inputStream =
                         new DataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
                 final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
@@ -351,8 +350,8 @@ class AsyncInputStreamTest {
 
                 try {
                     workGroup.join();
-                    fail("Should have thrown a ParallelExecutionException");
-                } catch (ParallelExecutionException ex) {
+                    fail("Should have thrown a ExecutionException");
+                } catch (ExecutionException ex) {
                     assertInstanceOf(
                             MerkleSynchronizationException.class,
                             ex.getCause(),
@@ -370,7 +369,7 @@ class AsyncInputStreamTest {
         @Test
         @DisplayName("EOFexception is propagated from work group")
         void eofExceptionIsPropagated() throws InterruptedException {
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(new byte[0]));
                 final AsyncInputStream in = new AsyncInputStream(inputStream, DEFAULT_QUEUE_SIZE, DEFAULT_TIMEOUT);
 
@@ -378,8 +377,8 @@ class AsyncInputStreamTest {
 
                 try {
                     workGroup.join();
-                    fail("Should have thrown a ParallelExecutionException");
-                } catch (ParallelExecutionException ex) {
+                    fail("Should have thrown a ExecutionException");
+                } catch (ExecutionException ex) {
                     assertInstanceOf(
                             UncheckedIOException.class, ex.getCause(), "UncheckedIOException should be captured");
                     assertInstanceOf(EOFException.class, ex.getCause().getCause(), "EOFException should be a cause");
@@ -396,7 +395,7 @@ class AsyncInputStreamTest {
         @DisplayName("IOException is propagated from work group")
         void ioExceptionIsPropagated() throws InterruptedException, IOException {
             final String error = "broken stream";
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final DataInputStream inputStream = mock(DataInputStream.class);
                 when(inputStream.readInt()).thenThrow(new IOException(error));
 
@@ -406,8 +405,8 @@ class AsyncInputStreamTest {
 
                 try {
                     workGroup.join();
-                    fail("Should have thrown a ParallelExecutionException");
-                } catch (ParallelExecutionException ex) {
+                    fail("Should have thrown a ExecutionException");
+                } catch (ExecutionException ex) {
                     assertInstanceOf(UncheckedIOException.class, ex.getCause(), "EOFException should be captured");
                     assertEquals(error, ex.getCause().getCause().getMessage());
                 }
@@ -418,8 +417,8 @@ class AsyncInputStreamTest {
 
         @Test
         @DisplayName("Consumer timeout if no messages are available in stream")
-        void consumerTimeoutOnBlockingStream() throws IOException, InterruptedException, ParallelExecutionException {
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "timeout")) {
+        void consumerTimeoutOnBlockingStream() throws IOException, InterruptedException, ExecutionException {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("timeout")) {
                 final BlockingInputStream blockingIn =
                         new BlockingInputStream(new ByteArrayInputStream(encodeLongs(1)));
                 blockingIn.lock();
@@ -491,8 +490,8 @@ class AsyncInputStreamTest {
         @EnumSource(YieldStrategy.class)
         @DisplayName("read returns null when the calling thread is interrupted")
         void readReturnsNullOnInterrupt(final YieldStrategy yieldStrategy)
-                throws IOException, InterruptedException, ParallelExecutionException {
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "interrupted")) {
+                throws IOException, InterruptedException, ExecutionException {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("interrupted")) {
                 // Lock the underlying stream so the reader thread blocks inside readInt() and alive
                 // stays true - this forces read to exit via the interrupt branch, not !alive.
                 final BlockingInputStream blockingIn =
@@ -532,11 +531,11 @@ class AsyncInputStreamTest {
         @EnumSource(YieldStrategy.class)
         @DisplayName("Concurrent read messages")
         void concurrentReadMessages(final YieldStrategy yieldStrategy)
-                throws IOException, ParallelExecutionException, InterruptedException {
+                throws IOException, ExecutionException, InterruptedException {
             final int threadsCount = 10;
             final int messageCount = DEFAULT_QUEUE_SIZE * threadsCount;
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncInputStream in = new AsyncInputStream(
                         new DataInputStream(new ByteArrayInputStream(encodeLongs(messageCount))),
                         DEFAULT_QUEUE_SIZE,

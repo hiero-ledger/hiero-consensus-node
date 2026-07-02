@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.node.NodeId;
@@ -30,7 +29,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
-    private final ThreadManager threadManager;
     private final FallenBehindMonitor fallenBehindManager;
 
     private final Configuration configuration;
@@ -44,7 +42,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
@@ -56,7 +53,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
-        this.threadManager = requireNonNull(threadManager);
         this.reconnectStateTeacherThrottle = requireNonNull(reconnectStateTeacherThrottle);
         this.lastCompleteSignedState = requireNonNull(lastCompleteSignedState);
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
@@ -73,7 +69,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 configuration,
                 metrics,
                 time,
-                threadManager,
                 requireNonNull(peerId),
                 reconnectStateTeacherThrottle,
                 lastCompleteSignedState,

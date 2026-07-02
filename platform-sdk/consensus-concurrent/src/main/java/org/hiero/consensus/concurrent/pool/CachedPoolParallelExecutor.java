@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent.pool;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -13,13 +12,12 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * An implementation that uses a CachedThreadPool to execute parallel tasks
  */
 public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
-    private static final Runnable NOOP = () -> {};
 
     /**
      * The thread pool used by this class.
@@ -31,11 +29,13 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
     private final ThreadFactory factory;
 
     /**
-     * @param threadManager responsible for managing thread lifecycles
      * @param name          the name given to the threads in the pool
      */
-    public CachedPoolParallelExecutor(@NonNull final ThreadManager threadManager, final String name) {
-        factory = threadManager.createThreadFactory("parallel-executor", name);
+    public CachedPoolParallelExecutor(final String name) {
+        factory = new ThreadConfiguration()
+                .setComponent("parallel-executor")
+                .setThreadName(name)
+                .buildFactory();
     }
 
     /**

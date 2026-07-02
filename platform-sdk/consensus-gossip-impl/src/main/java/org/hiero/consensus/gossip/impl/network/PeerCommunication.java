@@ -23,7 +23,6 @@ import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -55,7 +54,6 @@ public class PeerCommunication implements ConnectionTracker {
     private List<PeerInfo> peers;
     private final PeerInfo selfPeer;
     private DynamicConnectionManagers connectionManagers;
-    private ThreadManager threadManager;
     private final NodeId selfId;
     private List<ProtocolRunnable> handshakeProtocols;
     private List<Protocol> protocolList;
@@ -100,16 +98,12 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Second half of constructor, to initialize things which cannot be passed in the constructor for whatever reasons
      *
-     * @param threadManager the thread manager
      * @param handshakeProtocols list of handshake protocols for new connections
      * @param protocols list of peer protocols for handling data for established connection
      */
     public void initialize(
-            @NonNull final ThreadManager threadManager,
-            @NonNull final List<ProtocolRunnable> handshakeProtocols,
-            @NonNull final List<Protocol> protocols) {
+            @NonNull final List<ProtocolRunnable> handshakeProtocols, @NonNull final List<Protocol> protocols) {
 
-        this.threadManager = threadManager;
         this.handshakeProtocols = handshakeProtocols;
         this.protocolList = protocols;
 
@@ -120,7 +114,7 @@ public class PeerCommunication implements ConnectionTracker {
 
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
 
-        this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
+        this.connectionServerThread = new StoppableThreadConfiguration<>()
                 .setPriority(gossipConfig.connectionServerThreadPriority())
                 .setNodeId(selfId)
                 .setComponent(PLATFORM_THREAD_POOL_NAME)
@@ -169,7 +163,7 @@ public class PeerCommunication implements ConnectionTracker {
                     logger.warn("Peer info for nodeId: {} not found for removal", peerInfo.nodeId());
                 } else {
 
-                    threads.add(new DedicatedStoppableThread<NodeId>(peerInfo.nodeId(), null));
+                    threads.add(new DedicatedStoppableThread<>(peerInfo.nodeId(), null));
                 }
             }
 
@@ -254,12 +248,11 @@ public class PeerCommunication implements ConnectionTracker {
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
         final Duration hangingThreadDuration = gossipConfig.hangingThreadDuration();
-        final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads =
-                new ArrayList<DedicatedStoppableThread<NodeId>>();
+        final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads = new ArrayList<>();
         for (final NodeId otherId : peers) {
-            syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(
+            syncProtocolThreads.add(new DedicatedStoppableThread<>(
                     otherId,
-                    new StoppableThreadConfiguration<>(threadManager)
+                    new StoppableThreadConfiguration<>()
                             .setPriority(Thread.NORM_PRIORITY)
                             .setNodeId(selfId)
                             .setComponent(PLATFORM_THREAD_POOL_NAME)
@@ -292,7 +285,6 @@ public class PeerCommunication implements ConnectionTracker {
         // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
         var socketFactory = NetworkUtils.createSocketFactory(selfId, peers, ownKeysAndCerts, configuration);
         return new PeerConnectionServer(
-                threadManager,
                 selfPeer.port(),
                 inboundConnectionHandler,
                 socketFactory,

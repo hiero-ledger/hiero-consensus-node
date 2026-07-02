@@ -25,7 +25,6 @@ import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
@@ -38,23 +37,17 @@ public class TeachingSynchronizer {
     private static final String WORK_GROUP_NAME = "reconnect-teacher";
 
     private final RecordAccessor teacherView;
-    private final ThreadManager threadManager;
     private final VirtualMapSyncConfig syncConfig;
 
     /**
      * Constructs a new teaching synchronizer.
      *
      * @param teacherMap teacher virtual map that would be detached so it can be released after this instance is created
-     * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
      */
-    public TeachingSynchronizer(
-            @NonNull final VirtualMap teacherMap,
-            @NonNull final ThreadManager threadManager,
-            @NonNull final Configuration config) {
+    public TeachingSynchronizer(@NonNull final VirtualMap teacherMap, @NonNull final Configuration config) {
 
         teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
-        this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.syncConfig = Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapSyncConfig.class);
     }
 
@@ -77,7 +70,7 @@ public class TeachingSynchronizer {
         Objects.requireNonNull(out, "output stream cannot be null");
         Objects.requireNonNull(breakConnection, "break connection action cannot be null");
 
-        try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
+        try (final StandardWorkGroup workGroup = createStandardWorkGroup(breakConnection)) {
             logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
 
             final AsyncInputStream input =
@@ -141,9 +134,8 @@ public class TeachingSynchronizer {
         }
     }
 
-    protected StandardWorkGroup createStandardWorkGroup(
-            @NonNull final ThreadManager threadManager, @NonNull final Runnable breakConnection) {
-        return new StandardWorkGroup(threadManager, WORK_GROUP_NAME, breakConnection);
+    protected StandardWorkGroup createStandardWorkGroup(@NonNull final Runnable breakConnection) {
+        return new StandardWorkGroup(WORK_GROUP_NAME, breakConnection);
     }
 
     /**

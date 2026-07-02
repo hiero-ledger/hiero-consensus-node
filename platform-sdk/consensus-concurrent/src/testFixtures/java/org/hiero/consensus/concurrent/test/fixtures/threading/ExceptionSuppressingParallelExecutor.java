@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent.test.fixtures.threading;
 
 import java.util.concurrent.Callable;
 import org.hiero.base.concurrent.ThrowingRunnable;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
@@ -15,14 +14,13 @@ public class ExceptionSuppressingParallelExecutor implements ParallelExecutor {
 
     private final ParallelExecutor executor;
 
-    public ExceptionSuppressingParallelExecutor(final ThreadManager threadManager) {
-        executor = new CachedPoolParallelExecutor(threadManager, "sync-phase-thread");
+    public ExceptionSuppressingParallelExecutor() {
+        executor = new CachedPoolParallelExecutor("sync-phase-thread");
     }
 
     @Override
     public <T> T doParallelWithHandler(
-            final Runnable errorHandler, final Callable<T> foregroundTask, final ThrowingRunnable... backgroundTasks)
-            throws ParallelExecutionException {
+            final Runnable errorHandler, final Callable<T> foregroundTask, final ThrowingRunnable... backgroundTasks) {
         try {
             return executor.doParallelWithHandler(errorHandler, foregroundTask, backgroundTasks);
         } catch (final ParallelExecutionException e) {

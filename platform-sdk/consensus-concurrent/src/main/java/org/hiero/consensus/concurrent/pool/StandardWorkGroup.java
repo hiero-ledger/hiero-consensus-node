@@ -3,7 +3,9 @@ package org.hiero.consensus.concurrent.pool;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -15,7 +17,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * A logic group for parallel tasks execution using {@link ExecutorService} where
@@ -48,27 +49,24 @@ public class StandardWorkGroup implements AutoCloseable {
     /**
      * Create a new work group without abort action and logging exceptions.
      *
-     * <p>See {@link #StandardWorkGroup(ThreadManager, String, Runnable, boolean)}
+     * <p>See {@link #StandardWorkGroup(String, Runnable, boolean)}
      */
-    public StandardWorkGroup(final ThreadManager threadManager, final String groupName) {
-        this(threadManager, groupName, null, false);
+    public StandardWorkGroup(@NonNull final String groupName) {
+        this(groupName, null, false);
     }
 
     /**
      * Create a new work group without logging exceptions.
      *
-     * <p>See {@link #StandardWorkGroup(ThreadManager, String, Runnable, boolean)}
+     * <p>See {@link #StandardWorkGroup(String, Runnable, boolean)}
      */
-    public StandardWorkGroup(
-            final ThreadManager threadManager, final String groupName, @Nullable final Runnable abortAction) {
-        this(threadManager, groupName, abortAction, false);
+    public StandardWorkGroup(@NonNull final String groupName, @Nullable final Runnable abortAction) {
+        this(groupName, abortAction, false);
     }
 
     /**
      * Create a new work group.
      *
-     * @param threadManager
-     * 		responsible for managing thread lifecycle
      * @param groupName
      * 		the name of the group, used for logging and debugging purposes
      * @param abortAction
@@ -79,15 +77,14 @@ public class StandardWorkGroup implements AutoCloseable {
      * @param logExceptionsToStdErr whether to log all tasks exceptions to {@link System#err}.
      */
     public StandardWorkGroup(
-            final ThreadManager threadManager,
-            final String groupName,
+            @NonNull final String groupName,
             @Nullable final Runnable abortAction,
             final boolean logExceptionsToStdErr) {
-        this.groupName = groupName;
+        this.groupName = Objects.requireNonNull(groupName, "groupName cannot be null");
         this.logExceptionsToStdErr = logExceptionsToStdErr;
         this.abortAction = abortAction;
 
-        final ThreadConfiguration configuration = new ThreadConfiguration(threadManager)
+        final ThreadConfiguration configuration = new ThreadConfiguration()
                 .setComponent("work group " + groupName)
                 .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
                 .setThreadName(DEFAULT_TASK_NAME);
@@ -117,7 +114,7 @@ public class StandardWorkGroup implements AutoCloseable {
      * @param operation
      * 		the method to run on the thread
      */
-    public void fork(final Runnable operation) {
+    public void fork(@NonNull Runnable operation) {
         fork(null, operation);
     }
 
@@ -131,7 +128,8 @@ public class StandardWorkGroup implements AutoCloseable {
      * @param operation
      * 		the method to run on the thread
      */
-    public void fork(final String taskName, final Runnable operation) {
+    public void fork(@Nullable final String taskName, @NonNull final Runnable operation) {
+        Objects.requireNonNull(operation, "runnable cannot be null");
         try {
             futures.add(executorService.submit(wrap(taskName, operation)));
         } catch (final RuntimeException e) {
@@ -178,9 +176,9 @@ public class StandardWorkGroup implements AutoCloseable {
      *
      * @throws InterruptedException if the calling thread is interrupted while waiting;
      *         all running tasks will have been interrupted before this is thrown
-     * @throws ParallelExecutionException wrapping the first exception thrown by any task
+     * @throws ExecutionException wrapping the first exception thrown by any task
      */
-    public void join() throws InterruptedException, ParallelExecutionException {
+    public void join() throws InterruptedException, ExecutionException {
         Future<?> future;
         while ((future = futures.poll()) != null) {
             try {
@@ -197,7 +195,7 @@ public class StandardWorkGroup implements AutoCloseable {
 
         final Throwable throwable = firstException.get();
         if (throwable != null) {
-            throw new ParallelExecutionException(throwable);
+            throw new ExecutionException(throwable);
         }
     }
 

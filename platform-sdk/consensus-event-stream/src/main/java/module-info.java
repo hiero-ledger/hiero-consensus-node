@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.swirlds.config.api.ConfigurationExtension;
-import org.hiero.consensus.event.stream.config.EventStreamConfigurationExtension;
-
 module org.hiero.consensus.event.stream {
     exports org.hiero.consensus.event.stream;
     exports org.hiero.consensus.event.stream.config;
@@ -14,19 +11,18 @@ module org.hiero.consensus.event.stream {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
+    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
-    provides ConfigurationExtension with
-            EventStreamConfigurationExtension;
-
+    provides com.swirlds.config.api.ConfigurationExtension with
+            org.hiero.consensus.event.stream.config.EventStreamConfigurationExtension;
     opens org.hiero.consensus.event.stream to
             com.fasterxml.jackson.databind;
     opens org.hiero.consensus.event.stream.internal to

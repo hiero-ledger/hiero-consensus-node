@@ -2,7 +2,6 @@
 package org.hiero.consensus.concurrent.pool;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -22,7 +21,7 @@ class CachedPoolParallelExecutorTest {
     @Tag(TestComponentTags.THREADING)
     @DisplayName("Simple 2 parallel task test")
     void simpleTasks() throws Exception {
-        final ParallelExecutor executor = new CachedPoolParallelExecutor(getStaticThreadManager(), "a name");
+        final ParallelExecutor executor = new CachedPoolParallelExecutor("a name");
         executor.start();
         // create 2 latches where both threads need to do the countdown on one and wait for the other
         // these 2 operations need to happen in parallel
@@ -49,7 +48,7 @@ class CachedPoolParallelExecutorTest {
     @Tag(TestComponentTags.THREADING)
     @DisplayName("Exception test")
     void testException() {
-        final ParallelExecutor executor = new CachedPoolParallelExecutor(getStaticThreadManager(), "a name");
+        final ParallelExecutor executor = new CachedPoolParallelExecutor("a name");
         executor.start();
         final Exception exception1 = new Exception("exception 1");
         final Exception exception2 = new Exception("exception 2");

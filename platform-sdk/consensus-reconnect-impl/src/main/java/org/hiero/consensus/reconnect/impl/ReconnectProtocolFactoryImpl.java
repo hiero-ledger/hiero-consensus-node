@@ -11,7 +11,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
@@ -30,7 +29,6 @@ public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
@@ -46,7 +44,6 @@ public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
                 configuration,
                 metrics,
                 time,
-                threadManager,
                 reconnectStateTeacherThrottle,
                 latestCompleteState,
                 reconnectConfig.socketTimeout(),

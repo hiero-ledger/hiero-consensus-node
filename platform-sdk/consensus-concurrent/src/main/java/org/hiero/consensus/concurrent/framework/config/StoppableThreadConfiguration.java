@@ -4,7 +4,6 @@ package org.hiero.consensus.concurrent.framework.config;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * An object responsible for configuring and constructing {@link StoppableThread}s.
@@ -17,12 +16,9 @@ public class StoppableThreadConfiguration<T extends InterruptableRunnable>
 
     /**
      * Build a new stoppable thread configuration with default values.
-     *
-     * @param threadManager
-     * 		responsible for creating threads
      */
-    public StoppableThreadConfiguration(final ThreadManager threadManager) {
-        super(threadManager);
+    public StoppableThreadConfiguration() {
+        super();
     }
 
     /**

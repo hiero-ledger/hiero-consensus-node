@@ -5,7 +5,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,7 +77,7 @@ class BackpressureObjectCounterTests {
         // Attempt to add one more, should block.
         final AtomicBoolean added = new AtomicBoolean(false);
         final AtomicReference<Boolean> interrupted = new AtomicReference<>();
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     counter.onRamp();
                     added.set(true);
@@ -156,7 +155,7 @@ class BackpressureObjectCounterTests {
         }
 
         final AtomicBoolean empty = new AtomicBoolean(false);
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     counter.waitUntilEmpty();
                     empty.set(true);

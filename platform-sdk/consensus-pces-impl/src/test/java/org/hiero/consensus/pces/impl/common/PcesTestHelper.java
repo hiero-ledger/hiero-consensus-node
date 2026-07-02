@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.common;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -60,7 +58,6 @@ public class PcesTestHelper {
                 ? TestRecycleBin.getInstance()
                 : new RecycleBinImpl(
                         new NoOpMetrics(),
-                        getStaticThreadManager(),
                         Time.getCurrent(),
                         recycleBinPath,
                         TestRecycleBin.MAXIMUM_FILE_AGE,

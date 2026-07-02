@@ -21,8 +21,6 @@ import java.time.Duration;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
@@ -74,14 +72,12 @@ public final class DefaultGossipModule implements GossipModule {
         this.gossipWiring = new GossipWiring(configuration, model);
 
         // Create and bind components
-        final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
         final ReconnectProtocolFactory factory =
                 ServiceLoader.load(ReconnectProtocolFactory.class).findFirst().orElseThrow();
         final Protocol reconnectProtocol = factory.createProtocol(
                 configuration,
                 metrics,
                 time,
-                threadManager,
                 latestCompleteState,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
@@ -90,7 +86,6 @@ public final class DefaultGossipModule implements GossipModule {
                 configuration,
                 metrics,
                 time,
-                threadManager,
                 keysAndCerts,
                 currentRoster,
                 selfId,

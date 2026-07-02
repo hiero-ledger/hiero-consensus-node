@@ -9,7 +9,6 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.Stoppable;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * Boilerplate getters, setters, and configuration for stoppable configuration.
@@ -63,8 +62,8 @@ public abstract class AbstractStoppableThreadConfiguration<
      */
     private Duration hangingThreadPeriod = DEFAULT_HANGING_PERIOD;
 
-    protected AbstractStoppableThreadConfiguration(final ThreadManager threadManager) {
-        super(threadManager);
+    protected AbstractStoppableThreadConfiguration() {
+        super();
     }
 
     /**

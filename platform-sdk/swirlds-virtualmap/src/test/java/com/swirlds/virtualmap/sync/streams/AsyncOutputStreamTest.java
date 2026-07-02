@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.sync.streams;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -39,11 +38,11 @@ import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -171,9 +170,9 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("done() with no messages writes only the termination marker")
-        void doneWithNoMessagesWritesOnlyMarker() throws IOException, ParallelExecutionException, InterruptedException {
+        void doneWithNoMessagesWritesOnlyMarker() throws IOException, ExecutionException, InterruptedException {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = newOut(new DataOutputStream(byteOut));
                 out.start(workGroup);
 
@@ -189,11 +188,11 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("Less than queue size messages drain in order followed by -1")
-        void lessMessagesThanQueueSize() throws IOException, InterruptedException, ParallelExecutionException {
+        void lessMessagesThanQueueSize() throws IOException, InterruptedException, ExecutionException {
             final int count = DEFAULT_QUEUE_SIZE - 1;
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = newOut(new DataOutputStream(byteOut));
                 out.start(workGroup);
 
@@ -210,14 +209,14 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("More than buffer size messages — backpressure works, all messages delivered")
-        void moreMessagesThanBuffer() throws IOException, InterruptedException, ParallelExecutionException {
+        void moreMessagesThanBuffer() throws IOException, InterruptedException, ExecutionException {
             final int bufferSize = 16;
             final int count = bufferSize * 100;
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final BlockingOutputStream blockingOut = new BlockingOutputStream(byteOut);
             blockingOut.lock();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = new AsyncOutputStream(
                         new DataOutputStream(blockingOut), bufferSize, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
                 out.start(workGroup);
@@ -260,9 +259,9 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("Zero-length payload round-trips as an empty length-prefixed frame")
-        void zeroLengthPayloadRoundTrips() throws IOException, InterruptedException, ParallelExecutionException {
+        void zeroLengthPayloadRoundTrips() throws IOException, InterruptedException, ExecutionException {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = newOut(new DataOutputStream(byteOut));
                 out.start(workGroup);
 
@@ -278,14 +277,14 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("Large message (1 MiB) round-trips byte-exact")
-        void largeMessageRoundTrip() throws IOException, InterruptedException, ParallelExecutionException {
+        void largeMessageRoundTrip() throws IOException, InterruptedException, ExecutionException {
             final byte[] payload = new byte[1 << 20];
             for (int i = 0; i < payload.length; i++) {
                 payload[i] = (byte) (i & 0xFF);
             }
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = newOut(new DataOutputStream(byteOut));
                 out.start(workGroup);
 
@@ -306,7 +305,7 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("Buffered writes are flushed within flushInterval without further sends")
-        void flushIntervalTriggersFlush() throws InterruptedException, ParallelExecutionException {
+        void flushIntervalTriggersFlush() throws InterruptedException, ExecutionException {
             final AtomicInteger flushCount = new AtomicInteger();
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final OutputStream flushCounter = new OutputStream() {
@@ -327,7 +326,7 @@ class AsyncOutputStreamTest {
             };
             final Duration flushInterval = Duration.ofMillis(50);
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = new AsyncOutputStream(
                         new DataOutputStream(flushCounter), DEFAULT_QUEUE_SIZE, flushInterval, DEFAULT_TIMEOUT);
                 out.start(workGroup);
@@ -346,7 +345,7 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("Periodic flush still fires when the queue is continuously populated")
-        void flushHappensUnderSustainedLoad() throws InterruptedException, ParallelExecutionException {
+        void flushHappensUnderSustainedLoad() throws InterruptedException, ExecutionException {
             // Each underlying byte write sleeps briefly, so writeMessage takes longer than the
             // flushInterval. With a constantly populated queue, poll() always returns immediately,
             // so flushing must be driven by the wall-clock time-since-last-flush check, not by
@@ -370,7 +369,7 @@ class AsyncOutputStreamTest {
             };
             final Duration flushInterval = Duration.ofMillis(5);
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = new AsyncOutputStream(
                         new DataOutputStream(slowOut), DEFAULT_QUEUE_SIZE, flushInterval, DEFAULT_TIMEOUT);
                 out.start(workGroup);
@@ -441,13 +440,13 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("sendAsync after done() is rejected (status is FINISHING/DONE)")
-        void sendAsyncAfterDoneIsRejected() throws InterruptedException, ParallelExecutionException {
+        void sendAsyncAfterDoneIsRejected() throws InterruptedException, ExecutionException {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final BlockingOutputStream blockingOut = new BlockingOutputStream(byteOut);
             // Hold the writer in the middle of a write so we can observe FINISHING.
             blockingOut.lock();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = newOut(new DataOutputStream(blockingOut));
                 out.start(workGroup);
 
@@ -480,13 +479,13 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("sendAsync times out with MerkleSynchronizationException when buffer stays full")
-        void sendAsyncTimesOutWhenQueueFull() throws InterruptedException, ParallelExecutionException {
+        void sendAsyncTimesOutWhenQueueFull() throws InterruptedException, ExecutionException {
             final int bufferSize = 5;
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final BlockingOutputStream blockingOut = new BlockingOutputStream(byteOut);
             blockingOut.lock();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = new AsyncOutputStream(
                         new DataOutputStream(blockingOut), bufferSize, Duration.ofMillis(10), Duration.ofMillis(100));
                 out.start(workGroup);
@@ -526,7 +525,7 @@ class AsyncOutputStreamTest {
                 }
             };
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = newOut(new DataOutputStream(brokenOut));
                 out.start(workGroup);
                 out.sendAsync(serializeLong(1));
@@ -536,7 +535,7 @@ class AsyncOutputStreamTest {
                 try {
                     workGroup.join();
                     fail("Should have thrown an exception");
-                } catch (ParallelExecutionException e) {
+                } catch (ExecutionException e) {
                     assertInstanceOf(
                             UncheckedIOException.class,
                             e.getCause(),
@@ -601,13 +600,12 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("Concurrent sendAsync from many producers preserves per-producer order")
-        void concurrentSendPreservesPerProducerOrder()
-                throws IOException, ParallelExecutionException, InterruptedException {
+        void concurrentSendPreservesPerProducerOrder() throws IOException, ExecutionException, InterruptedException {
             final int producers = 8;
             final int perProducer = 200;
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = new AsyncOutputStream(
                         new DataOutputStream(byteOut), DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
                 out.start(workGroup);
@@ -677,13 +675,13 @@ class AsyncOutputStreamTest {
 
         @Test
         @DisplayName("sendAsync interrupted while waiting on a full buffer throws InterruptedException")
-        void sendAsyncInterruptedOnFullBuffer() throws InterruptedException, ParallelExecutionException {
+        void sendAsyncInterruptedOnFullBuffer() throws InterruptedException, ExecutionException {
             final int bufferSize = 2;
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             final BlockingOutputStream blockingOut = new BlockingOutputStream(byteOut);
             blockingOut.lock();
 
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup("test")) {
                 final AsyncOutputStream out = new AsyncOutputStream(
                         new DataOutputStream(blockingOut), bufferSize, DEFAULT_FLUSH_INTERVAL, Duration.ofSeconds(60));
                 out.start(workGroup);

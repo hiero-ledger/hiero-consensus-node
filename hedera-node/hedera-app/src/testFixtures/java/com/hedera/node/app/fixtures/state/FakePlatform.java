@@ -3,7 +3,6 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.METRIC_EXECUTOR;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -15,7 +14,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
@@ -35,7 +33,6 @@ public final class FakePlatform implements Platform {
     private final Roster roster;
     private final PlatformContext context;
     private final NotificationEngine notificationEngine;
-    private final Random random = new Random(12345L);
 
     /**
      * Constructor for Embedded Hedera that uses a single node network
@@ -50,7 +47,7 @@ public final class FakePlatform implements Platform {
                 .build();
 
         this.context = createPlatformContext();
-        this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
+        this.notificationEngine = NotificationEngine.buildEngine();
     }
 
     /**
@@ -62,7 +59,7 @@ public final class FakePlatform implements Platform {
         this.selfNodeId = NodeId.of(nodeId);
         this.roster = roster;
         this.context = createPlatformContext();
-        this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
+        this.notificationEngine = NotificationEngine.buildEngine();
     }
 
     /**
@@ -86,17 +83,20 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
+    @NonNull
     public PlatformContext getContext() {
         return context;
     }
 
     @Override
+    @NonNull
     public NotificationEngine getNotificationEngine() {
         return notificationEngine;
     }
 
     @Override
-    public Signature sign(byte[] bytes) {
+    @NonNull
+    public Signature sign(@NonNull byte[] bytes) {
         return null;
     }
 
@@ -104,11 +104,13 @@ public final class FakePlatform implements Platform {
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {}
 
     @Override
+    @NonNull
     public Roster getRoster() {
         return roster;
     }
 
     @Override
+    @NonNull
     public NodeId getSelfId() {
         return selfNodeId;
     }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream.internal;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,7 +48,7 @@ class QueueThreadObjectStreamTest {
         consumer = new WriteToStreamConsumer(
                 new SerializableDataOutputStream(new BufferedOutputStream(new ByteArrayOutputStream())), initialHash);
 
-        queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>()
                 .setForwardTo(consumer)
                 .build();
         runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread);

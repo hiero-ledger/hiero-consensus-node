@@ -5,7 +5,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignedStateToDisk;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -328,6 +327,6 @@ public class StartupStateUtilsTests {
         final var metrics = new NoOpMetrics();
         final var configuration = platformContext.getConfiguration();
         final var time = Time.getCurrent();
-        return RecycleBinImpl.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
+        return RecycleBinImpl.create(metrics, configuration, time, fileSystemManager, selfId);
     }
 }

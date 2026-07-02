@@ -6,7 +6,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import org.hiero.base.concurrent.ThrowingRunnable;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
@@ -26,15 +25,12 @@ public class ReplaceSyncPhaseParallelExecutor implements ParallelExecutor {
     private final ThrowingRunnable replacementTask;
 
     public ReplaceSyncPhaseParallelExecutor(
-            @NonNull final ThreadManager threadManager,
-            final int phaseToReplace,
-            final int taskNumToReplace,
-            @NonNull final ThrowingRunnable replacementTask) {
+            final int phaseToReplace, final int taskNumToReplace, @NonNull final ThrowingRunnable replacementTask) {
         this.phaseToReplace = phaseToReplace;
         this.taskNumToReplace = taskNumToReplace;
         this.replacementTask = Objects.requireNonNull(replacementTask);
 
-        executor = new CachedPoolParallelExecutor(threadManager, "sync-phase-thread");
+        executor = new CachedPoolParallelExecutor("sync-phase-thread");
         phase = 1;
     }
 

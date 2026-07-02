@@ -16,7 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHandler;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 
@@ -38,17 +37,12 @@ public class PeerConnectionServer implements InterruptableRunnable {
     private final ExecutorService incomingConnPool;
 
     /**
-     * @param threadManager            responsible for managing thread lifecycles
      * @param port                     the port ot use
      * @param inboundConnectionHandler handles a new connection after it has been created
      * @param socketFactory            responsible for creating new sockets
      */
     public PeerConnectionServer(
-            final ThreadManager threadManager,
-            int port,
-            InboundConnectionHandler inboundConnectionHandler,
-            SocketFactory socketFactory,
-            int maxThreads) {
+            int port, InboundConnectionHandler inboundConnectionHandler, SocketFactory socketFactory, int maxThreads) {
         this.port = port;
         this.newConnectionHandler = inboundConnectionHandler;
         this.socketFactory = socketFactory;
@@ -57,10 +51,8 @@ public class PeerConnectionServer implements InterruptableRunnable {
                 maxThreads,
                 60L,
                 TimeUnit.SECONDS,
-                new SynchronousQueue<Runnable>(),
-                new ThreadConfiguration(threadManager)
-                        .setThreadName("peer_sync_server")
-                        .buildFactory(),
+                new SynchronousQueue<>(),
+                new ThreadConfiguration().setThreadName("peer_sync_server").buildFactory(),
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }
 

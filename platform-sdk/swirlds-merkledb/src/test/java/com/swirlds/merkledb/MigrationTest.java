@@ -2,7 +2,6 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,7 +65,6 @@ class MigrationTest {
         final Set<Long> visited = new HashSet<>();
 
         VirtualMapMigration.extractVirtualMapData(
-                getStaticThreadManager(),
                 map,
                 (final Pair<Bytes, Bytes> pair) -> {
                     final long key = ExampleLongKey.keyToLong(pair.key());
@@ -78,7 +76,6 @@ class MigrationTest {
                 32);
 
         VirtualMapMigration.extractVirtualMapData(
-                getStaticThreadManager(),
                 map,
                 (final Pair<Bytes, Bytes> pair) -> {
                     final long key = ExampleLongKey.keyToLong(pair.key());
@@ -135,7 +132,6 @@ class MigrationTest {
         // Migrate the last copy concurrently
         final AtomicLong checkSum2 = new AtomicLong(0L);
         VirtualMapMigration.extractVirtualMapDataC(
-                getStaticThreadManager(),
                 map,
                 (final Pair<Bytes, Bytes> pair) -> {
                     final byte[] data = ExampleFixedValue.valueToData(pair.value());

@@ -4,9 +4,7 @@ package org.hiero.consensus.concurrent.framework.internal;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -19,13 +17,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
-import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.AbstractQueueThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
 import org.hiero.consensus.concurrent.framework.queue.MeasuredBlockingQueue;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -45,8 +41,8 @@ class AbstractQueueThreadConfigurationTest {
     static class DummyQueueThreadConfiguration<T>
             extends AbstractQueueThreadConfiguration<DummyQueueThreadConfiguration<T>, T> {
 
-        protected DummyQueueThreadConfiguration(final ThreadManager threadManager) {
-            super(threadManager);
+        protected DummyQueueThreadConfiguration() {
+            super();
         }
 
         protected DummyQueueThreadConfiguration(
@@ -84,13 +80,10 @@ class AbstractQueueThreadConfigurationTest {
     @DisplayName("Testing constructor with thread manager and metrics")
     void constructorWithThreadManagerAndMetrics() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
-        final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
 
         // when
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
+        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>()
                 .setNodeId(NODE_ID)
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
@@ -112,11 +105,8 @@ class AbstractQueueThreadConfigurationTest {
     @DisplayName("Testing constructor with other configuration")
     void constructorWithOtherConfiguration() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
-        final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
+        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>()
                 .setNodeId(NODE_ID)
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
@@ -141,13 +131,10 @@ class AbstractQueueThreadConfigurationTest {
     @DisplayName("Testing build with start = false")
     void buildShouldCreateQueueThreadThatDoesNotStart() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
-        final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
 
         // when
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
+        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>()
                 .setNodeId(NODE_ID)
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
@@ -166,15 +153,11 @@ class AbstractQueueThreadConfigurationTest {
     @DisplayName("Testing build with start = true")
     void buildWithStartShouldCreateQueueThreadThatStarts() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
-        final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
 
         // when
-        when(threadManager.createThread(any(ThreadGroup.class), any(Runnable.class)))
-                .thenReturn(new Thread());
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
+
+        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>()
                 .setNodeId(NODE_ID)
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
@@ -193,14 +176,11 @@ class AbstractQueueThreadConfigurationTest {
     @DisplayName("Testing build with external queue")
     void buildShouldCreateQueueThreadWithExternalQueue() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
-        final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
         final BlockingQueue<String> queue = new PriorityBlockingQueue<>(List.of("A", "B", "C"));
 
         // when
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
+        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>()
                 .setNodeId(NODE_ID)
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
@@ -231,14 +211,11 @@ class AbstractQueueThreadConfigurationTest {
     @Disabled("Enabling metrics has been removed. Need to decide about the future of metrics in queue threads.")
     void buildShouldCreateQueueThreadThatCanBeMonitoredWithMetrics() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
-        final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
         final BlockingQueue<String> queue = new LinkedBlockingQueue<>(List.of("A", "B", "C"));
 
         // when
-        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
-                        threadManager)
+        final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>()
                 .setNodeId(NODE_ID)
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
@@ -281,11 +258,10 @@ class AbstractQueueThreadConfigurationTest {
     @DisplayName("Testing build with metric enabled with null metrics")
     void buildShouldExceptionIfMetricEnabledWithNullMetrics() {
         // given
-        final ThreadManager threadManager = mock(ThreadManager.class);
         final InterruptableConsumer<String> handler = mock(InterruptableConsumer.class);
 
         // then
-        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager)
+        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>()
                         .setNodeId(NODE_ID)
                         .setComponent(THREAD_POOL_NAME)
                         .setThreadName(THREAD_NAME)
@@ -296,7 +272,7 @@ class AbstractQueueThreadConfigurationTest {
                         .buildQueueThread(false))
                 .isInstanceOf(NullPointerException.class);
 
-        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager)
+        assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>()
                         .setNodeId(NODE_ID)
                         .setComponent(THREAD_POOL_NAME)
                         .setThreadName(THREAD_NAME)

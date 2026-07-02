@@ -2,7 +2,6 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.virtualmap.VirtualMap;
@@ -34,12 +33,11 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     private final AtomicLong snapshotTime = new AtomicLong(0L);
 
     /* Asynchronous hasher */
-    private final ExecutorService hasher =
-            Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                    .setComponent("benchmark")
-                    .setThreadName("hasher")
-                    .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during hashing", ex))
-                    .buildFactory());
+    private final ExecutorService hasher = Executors.newSingleThreadExecutor(new ThreadConfiguration()
+            .setComponent("benchmark")
+            .setThreadName("hasher")
+            .setExceptionHandler((_, ex) -> logger.error("Uncaught exception during hashing", ex))
+            .buildFactory());
 
     /**
      * {@inheritDoc}
@@ -187,7 +185,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         final AtomicInteger countBad = new AtomicInteger(0);
         final AtomicInteger countMissing = new AtomicInteger(0);
 
-        IntStream.range(0, 64).parallel().forEach(thread -> {
+        IntStream.range(0, 64).parallel().forEach(_ -> {
             int idx;
             while ((idx = index.getAndIncrement()) < map.length) {
                 BenchmarkValue dataItem = virtualMap.get(longToKey(idx), BenchmarkValueCodec.INSTANCE);

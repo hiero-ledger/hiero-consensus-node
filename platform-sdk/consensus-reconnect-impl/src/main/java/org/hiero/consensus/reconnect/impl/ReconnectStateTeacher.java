@@ -24,7 +24,6 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -61,7 +60,6 @@ public class ReconnectStateTeacher {
 
     /**
      * @param configuration the platform context
-     * @param threadManager responsible for managing thread lifecycles
      * @param connection the connection to be used for the reconnect
      * @param reconnectSocketTimeout the socket timeout to use during the reconnect
      * @param selfId this node's ID
@@ -72,7 +70,6 @@ public class ReconnectStateTeacher {
      */
     public ReconnectStateTeacher(
             @NonNull final Configuration configuration,
-            @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final NodeId selfId,
@@ -82,7 +79,6 @@ public class ReconnectStateTeacher {
             @NonNull final ReconnectMetrics statistics) {
 
         Objects.requireNonNull(configuration);
-        Objects.requireNonNull(threadManager);
 
         this.connection = Objects.requireNonNull(connection);
         this.reconnectSocketTimeout = reconnectSocketTimeout;
@@ -98,7 +94,7 @@ public class ReconnectStateTeacher {
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
 
-        synchronizer = new TeachingSynchronizer(virtualMapState.getRoot(), threadManager, configuration);
+        synchronizer = new TeachingSynchronizer(virtualMapState.getRoot(), configuration);
 
         logReconnectStart(signedState);
     }

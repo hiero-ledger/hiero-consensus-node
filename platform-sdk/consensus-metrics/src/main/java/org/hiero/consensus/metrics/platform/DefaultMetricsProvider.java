@@ -3,7 +3,6 @@ package org.hiero.consensus.metrics.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.sun.net.httpserver.HttpServer;
 import com.swirlds.base.state.Lifecycle;
@@ -26,6 +25,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.FileUtils;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.PlatformMetricsProvider;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -42,8 +42,11 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
     private static final Logger logger = LogManager.getLogger(DefaultMetricsProvider.class);
 
     private final @NonNull PlatformMetricsFactory factory;
-    private final @NonNull ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-            getStaticThreadManager().createThreadFactory("platform-core", "MetricsThread"));
+    private final @NonNull ScheduledExecutorService executor =
+            Executors.newSingleThreadScheduledExecutor(new ThreadConfiguration()
+                    .setComponent("platform-core")
+                    .setThreadName("MetricsThread")
+                    .buildFactory());
 
     private final @NonNull MetricKeyRegistry metricKeyRegistry = new MetricKeyRegistry();
     private final @NonNull DefaultPlatformMetrics globalMetrics;

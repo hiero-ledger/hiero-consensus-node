@@ -4,7 +4,6 @@ package com.swirlds.component.framework.counters;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -121,7 +120,7 @@ class MultiObjectCounterTests {
         counterC.forceOnRamp();
 
         final AtomicBoolean empty = new AtomicBoolean(false);
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     counter.waitUntilEmpty();
                     empty.set(true);

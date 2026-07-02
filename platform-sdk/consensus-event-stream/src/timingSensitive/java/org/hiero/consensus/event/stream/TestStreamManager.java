@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
@@ -44,7 +42,7 @@ public class TestStreamManager {
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream<>(countDownLatchStream);
         hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>()
                 .setForwardTo(hashCalculator)
                 .build();
         hashQueueThread.start();
@@ -58,7 +56,7 @@ public class TestStreamManager {
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream<>();
         hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>()
                 .setForwardTo(hashCalculator)
                 .build();
 

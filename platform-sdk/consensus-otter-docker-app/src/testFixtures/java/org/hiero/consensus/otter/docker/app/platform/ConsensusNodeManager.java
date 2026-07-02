@@ -6,7 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -108,8 +107,7 @@ public class ConsensusNodeManager {
         final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final FileSystemManager fileSystemManager =
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-        final RecycleBin recycleBin = RecycleBinImpl.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final RecycleBin recycleBin = RecycleBinImpl.create(metrics, platformConfig, time, fileSystemManager, selfId);
         getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
                 new ToFilePrometheusExporter(selfId, platformConfig)::handleSnapshots);
 

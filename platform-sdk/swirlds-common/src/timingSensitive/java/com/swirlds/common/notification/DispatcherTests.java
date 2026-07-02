@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.notification;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -21,7 +20,7 @@ class DispatcherTests {
     @DisplayName("Notification Engine: Dispatcher Sync Exception Handling")
     void validateSyncExceptionHandling() throws InterruptedException, TimeoutException {
         final Dispatcher<SyncOrderedIntegerListener> syncDispatcher =
-                new Dispatcher<>(getStaticThreadManager(), SyncOrderedIntegerListener.class);
+                new Dispatcher<>(SyncOrderedIntegerListener.class);
 
         syncDispatcher.addListener((n) -> {
             throw new RuntimeException(n.toString());
@@ -60,7 +59,7 @@ class DispatcherTests {
     @DisplayName("Notification Engine: Dispatcher ASync Exception Handling")
     void validateASyncExceptionHandling() throws InterruptedException, TimeoutException {
         final Dispatcher<AsyncOrderedIntegerListener> asyncDispatcher =
-                new Dispatcher<>(getStaticThreadManager(), AsyncOrderedIntegerListener.class);
+                new Dispatcher<>(AsyncOrderedIntegerListener.class);
 
         asyncDispatcher.addListener((n) -> {
             throw new RuntimeException(n.toString());
