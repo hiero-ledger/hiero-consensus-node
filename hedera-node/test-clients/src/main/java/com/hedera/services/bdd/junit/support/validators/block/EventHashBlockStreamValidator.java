@@ -105,14 +105,20 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
-        logger.info("Processing {} blocks for event chain verification", blocks.size());
+        final var normalBlocks = blocks.stream()
+                .filter(b -> !BlockStreamValidator.isWrappedRecordBlock(b.items()))
+                .toList();
+        logger.info(
+                "Processing {} blocks for event chain verification ({} WRBs skipped)",
+                normalBlocks.size(),
+                blocks.size() - normalBlocks.size());
 
-        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(normalBlocks);
         final var events = eventBuilder.getEvents();
 
         validateEventHashChain(events, eventBuilder.getCrossBlockParentRefs(), pcesData);
 
-        logger.info("Successfully processed and verified {} events in {} blocks", events.size(), blocks.size());
+        logger.info("Successfully processed and verified {} events in {} blocks", events.size(), normalBlocks.size());
     }
 
     /**

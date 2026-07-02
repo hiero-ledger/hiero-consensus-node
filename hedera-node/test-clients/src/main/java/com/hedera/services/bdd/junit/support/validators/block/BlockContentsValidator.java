@@ -89,11 +89,23 @@ public class BlockContentsValidator implements BlockStreamValidator {
             final var kind = item.item().kind();
             switch (kind) {
                 case STATE_CHANGES -> {
-                    Assertions.fail("WRB StateChanges found  at index " + i);
+                    if (blockNumber != 0) {
+                        Assertions.fail(
+                                "WRB for non-genesis block " + blockNumber + " contains StateChanges at index " + i);
+                    }
+                    if (foundRecordFile) {
+                        Assertions.fail("WRB StateChanges found after RecordFileItem at index " + i);
+                    }
+                    if (foundFooter) {
+                        Assertions.fail("WRB StateChanges found after BlockFooter at index " + i);
+                    }
                 }
                 case RECORD_FILE -> {
                     if (foundRecordFile) {
                         Assertions.fail("WRB contains more than one RecordFileItem at index " + i);
+                    }
+                    if (foundFooter) {
+                        Assertions.fail("WRB RecordFileItem found after BlockFooter at index " + i);
                     }
                     validateRecordFileItem(item, i);
                     foundRecordFile = true;
