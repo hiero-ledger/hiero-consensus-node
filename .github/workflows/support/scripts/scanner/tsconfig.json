@@ -1,0 +1,11 @@
+{
+  "buildOptions": {
+    "verbose": true
+  },
+  "compilerOptions": {
+    "target": "es2017",
+    "module": "es2022",
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true
+  }
+}
