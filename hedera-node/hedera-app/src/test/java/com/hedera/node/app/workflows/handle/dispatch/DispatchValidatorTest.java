@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -57,10 +58,12 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
@@ -197,6 +200,64 @@ class DispatchValidatorTest {
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
         assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerAllowedWhenNoSystemEntitiesFlag() throws PreCheckException {
+        // The in-process standalone transaction executor supplies a null system-entities flag and
+        // legitimately dispatches NODE-category transactions (empty signature map) with a caller-chosen,
+        // non-node payer. The payer guard must not reject these; it applies only on a live consensus node
+        // (where the flag is present), so with a null flag the dispatch proceeds to a normal success.
+        givenCreatorInfo();
+        givenNodeDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        // Config is only consulted by the payer guard, which is skipped when the flag is null; stub it
+        // leniently so that if the guard were (incorrectly) reached it would reject with a clean
+        // INVALID_PAYER_ACCOUNT_ID rather than a mock NPE — making this a faithful negative control.
+        lenient().when(dispatch.config()).thenReturn(HederaTestConfigBuilder.createConfig());
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerRejectedOnLiveNode() {
+        // On a live consensus node (system-entities flag present), a NODE-category dispatch whose payer is
+        // neither the system admin account nor the creator node's own account is a node due-diligence failure.
+        final var liveNodeSubject = new DispatchValidator(
+                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), new AtomicBoolean(true));
+        givenCreatorInfo();
+        givenNodeDispatch();
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        final var report = liveNodeSubject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
+    }
+
+    @Test
+    void nodeCategoryCreatorPayerAllowedOnLiveNode() throws PreCheckException {
+        // The creator node's own account is a legitimate NODE-category payer (gossiped node-submitted votes),
+        // so the guard permits it even on a live node.
+        final var liveNodeSubject = new DispatchValidator(
+                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), new AtomicBoolean(true));
+        givenCreatorInfo();
+        givenNodeDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var payerAccount = givenPayer(CREATOR_ACCOUNT_ID, payer -> payer.tinybarBalance(1L));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        final var report = liveNodeSubject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(CREATOR_ACCOUNT_ID, payerAccount), report);
     }
 
     @Test
@@ -467,19 +528,27 @@ class DispatchValidatorTest {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
     }
 
+    private void givenNodeDispatch() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.NODE);
+    }
+
     private void givenCreatorInfo() {
         given(dispatch.creatorInfo()).willReturn(creatorInfo);
         given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
     }
 
     private Account givenPayer(@NonNull final Consumer<Account.Builder> spec) {
-        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        return givenPayer(PAYER_ACCOUNT_ID, spec);
+    }
+
+    private Account givenPayer(@NonNull final AccountID payerId, @NonNull final Consumer<Account.Builder> spec) {
+        given(dispatch.payerId()).willReturn(payerId);
         given(dispatch.readableStoreFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-        final var payer = Account.newBuilder().accountId(PAYER_ACCOUNT_ID).key(Key.DEFAULT);
+        final var payer = Account.newBuilder().accountId(payerId).key(Key.DEFAULT);
         spec.accept(payer);
         final var payerAccount = payer.build();
-        given(readableAccountStore.getAccountById(PAYER_ACCOUNT_ID)).willReturn(payerAccount);
+        given(readableAccountStore.getAccountById(payerId)).willReturn(payerAccount);
         return payerAccount;
     }
 

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
@@ -28,6 +29,8 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,6 +81,17 @@ public class DispatchValidator {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             return newGenesisWaiver(dispatch.creatorInfo().accountId());
         }
+        // A NODE-category dispatch skips payer-signature verification below, so its payer MUST be
+        // node-controlled: the system admin account (synthetic system transactions) or the creator
+        // node's own account (gossiped node-submitted votes that the node pays for itself). Any other
+        // payer means a node is charging a foreign account it never authorized; treat it as a node
+        // due-diligence failure so the creator node is charged instead of the named payer. Genesis is
+        // already waived above. This applies only to a live consensus node (where the system-entities
+        // flag is present); the in-process standalone transaction executor has no gossip source and
+        // legitimately dispatches NODE-category transactions with a caller-chosen payer, so it is exempt.
+        if (systemEntitiesCreatedFlag != null && dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
+            return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_ACCOUNT_ID);
+        }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
@@ -106,6 +120,28 @@ public class DispatchValidator {
                 case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
+    }
+
+    /**
+     * Returns whether the given dispatch's payer is permitted for a NODE-category transaction, which skips
+     * payer-signature verification. Only two payers are node-controlled and therefore legitimate: the configured
+     * system admin account (used by synthetically dispatched system transactions such as node fee payments) and
+     * the creator node's own account (used by gossiped node-submitted votes the node pays for itself).
+     *
+     * @param dispatch the dispatch
+     * @return true if the payer is the system admin account or the creator node's own account
+     */
+    private boolean payerIsNodeControlled(@NonNull final Dispatch dispatch) {
+        final var payerId = dispatch.payerId();
+        if (payerId.equals(dispatch.creatorInfo().accountId())) {
+            return true;
+        }
+        final var config = dispatch.config();
+        final var hederaConfig = config.getConfigData(HederaConfig.class);
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        return payerId.shardNum() == hederaConfig.shard()
+                && payerId.realmNum() == hederaConfig.realm()
+                && payerId.accountNumOrElse(0L) == accountsConfig.systemAdmin();
     }
 
     /**
