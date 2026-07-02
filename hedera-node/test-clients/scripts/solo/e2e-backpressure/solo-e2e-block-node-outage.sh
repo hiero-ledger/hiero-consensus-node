@@ -18,7 +18,8 @@ LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
 GRAFANA_LOCAL_PORT="${GRAFANA_LOCAL_PORT:-3000}"
-OUTAGE_WAIT_SECONDS="${OUTAGE_WAIT_SECONDS:-600}"
+# buffer saturates in ~60s (maxBlocks=30 x 2s blockPeriod); 120s leaves margin
+OUTAGE_WAIT_SECONDS="${OUTAGE_WAIT_SECONDS:-120}"
 RECOVERY_WAIT_SECONDS="${RECOVERY_WAIT_SECONDS:-60}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 
@@ -121,7 +122,6 @@ cleanup() {
   log "Destroying Solo resources and Kind cluster"
   if command -v solo >/dev/null 2>&1; then
     solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
-    solo relay node destroy --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     solo block node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
@@ -429,7 +429,7 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
 fix_consensus_metrics_scrape_config
 
-#log "Deploying mirror node, JSON-RPC relay, and explorer"
+log "Deploying mirror node and explorer"
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --force
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}"
 
