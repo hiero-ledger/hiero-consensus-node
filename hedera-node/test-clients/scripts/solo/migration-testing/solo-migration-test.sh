@@ -7,8 +7,9 @@
 #
 #   Step 1 — Version detection
 #     Read version.txt, derive MAJOR.MINOR, compute the previous minor series,
-#     pick the latest matching v<MAJOR>.<MINOR-1>.* tag, derive UPGRADE_VERSION
-#     by stripping -SNAPSHOT.
+#     pick the latest matching v<MAJOR>.<MINOR-1>.* tag as the baseline
+#     (source) version. The upgrade target is always the local build; its
+#     version is read from HederaNode.jar's manifest.
 #
 #   Step 2 — Solo 3-node + Mirror Node deployment at the previous-minor tag
 #     kind cluster + solo {init, cluster-ref, deployment, cluster-ref-setup,
@@ -17,9 +18,10 @@
 #     the tag computed in step 1.
 #
 #   Step 3 — Upgrade to the local build (current branch)
-#     `solo consensus network upgrade --local-build-path` with UPGRADE_VERSION,
-#     wait for pods + haproxy, then verify each consensus node is actually
-#     running the local build's HederaNode.jar via META-INF/MANIFEST.MF.
+#     `solo consensus network upgrade --local-build-path` (intentionally no
+#     --upgrade-version; see upgrade_to_local), wait for pods + haproxy, then
+#     verify each consensus node is actually running the local build's
+#     HederaNode.jar via META-INF/MANIFEST.MF.
 #
 # Steps 4+ (CryptoCreate smoke, runner label, Slack reporting, XTS plumbing)
 # are out of scope here — they belong in the wrapping `zxc-*.yaml` workflow,
@@ -67,7 +69,7 @@ CLUSTER_CREATED_THIS_RUN="false"
 
 # Filled in by step 1.
 DEPLOY_RELEASE_TAG=""
-UPGRADE_VERSION=""
+TARGET_VERSION=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -180,7 +182,9 @@ run_command_with_timeout() {
 
 # === Step 1 ====================================================================
 # Read version.txt -> extract MAJOR.MINOR -> previous minor -> latest matching
-# released/RC tag. Derive UPGRADE_VERSION by stripping -SNAPSHOT.
+# released/RC tag; that tag is the BASELINE (source) version the network is
+# first deployed at. The upgrade TARGET is always the local build staged via
+# --local-build-path; its real version comes from HederaNode.jar's manifest.
 compute_versions() {
   local raw major_minor major minor prev_series prev_tag
   raw="$(cat "${REPO_ROOT}/version.txt")"
@@ -203,20 +207,14 @@ compute_versions() {
   }
 
   DEPLOY_RELEASE_TAG="${prev_tag}"
-  UPGRADE_VERSION="v${raw%-SNAPSHOT}"
+  TARGET_VERSION="$(local_build_implementation_version)"
+  [[ -n "${TARGET_VERSION}" ]] || {
+    echo "Unable to read Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
+    return 1
+  }
 
-  # `solo consensus network upgrade --upgrade-version <tag>` validates the tag
-  # against solo's image registry before applying --local-build-path. For an
-  # in-development MAJOR.MINOR (no rc or final yet published) the derived label
-  # won't resolve, so fall back to the deploy tag — the label is purely
-  # informational; what actually gets staged is `--local-build-path`.
-  if ! git -C "${REPO_ROOT}" rev-parse -q --verify "refs/tags/${UPGRADE_VERSION}" >/dev/null 2>&1; then
-    log "No published tag ${UPGRADE_VERSION}; falling back upgrade label to ${DEPLOY_RELEASE_TAG}"
-    UPGRADE_VERSION="${DEPLOY_RELEASE_TAG}"
-  fi
-
-  log "DEPLOY_RELEASE_TAG = ${DEPLOY_RELEASE_TAG}"
-  log "UPGRADE_VERSION    = ${UPGRADE_VERSION}"
+  log "Migration source (baseline): ${DEPLOY_RELEASE_TAG} (latest released v${prev_series}.* tag)"
+  log "Migration target           : ${TARGET_VERSION} (local build at ${LOCAL_BUILD_PATH})"
 }
 
 # === Step 2 ====================================================================
@@ -330,16 +328,26 @@ deploy_baseline() {
 
 # === Step 3 ====================================================================
 # Upgrade the running consensus network to the local build (current branch
-# checkout) labeled UPGRADE_VERSION, then verify each CN is actually running
-# the local build's HederaNode.jar.
+# checkout), then verify each CN is actually running the local build's
+# HederaNode.jar.
 upgrade_to_local() {
-  log "Upgrading consensus network to local build (labeled ${UPGRADE_VERSION})"
+  log "Upgrading consensus network: ${DEPLOY_RELEASE_TAG} -> ${TARGET_VERSION} (local build)"
 
+  # Intentionally NO --upgrade-version here. As of solo v0.79.0 the flag is
+  # optional (only --deployment is required for `consensus network upgrade`),
+  # and when it IS passed solo HEAD-checks
+  # https://builds.hedera.com/node/software/vX.Y/build-<version>.zip and fails
+  # the whole command if that artifact doesn't exist — which is always the
+  # case for an in-development -SNAPSHOT version, and is why this script used
+  # to pass a confusing released-tag stand-in. Omitting the flag alongside
+  # --local-build-path is explicitly supported: solo's fetchPlatformSoftware
+  # (src/commands/node/tasks.ts) falls through to uploading the local build
+  # whenever localBuildPath is set, and skips the platform swap only when
+  # BOTH the flag and the local build path are absent.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --quiet-mode
     --force
@@ -476,4 +484,4 @@ deploy_baseline              #         CN @ prev_tag + MN with pinger
 upgrade_to_local             # Step 3 (CN upgrade to local build)
 step4_crypto_create_smoke    # Step 4 + 4a (CryptoCreate via SDK + MN log scan)
 
-log "PASS: baseline ${DEPLOY_RELEASE_TAG} -> local ${UPGRADE_VERSION} upgrade + CryptoCreate smoke completed"
+log "PASS: migration ${DEPLOY_RELEASE_TAG} -> ${TARGET_VERSION} (local build) + CryptoCreate smoke completed"
