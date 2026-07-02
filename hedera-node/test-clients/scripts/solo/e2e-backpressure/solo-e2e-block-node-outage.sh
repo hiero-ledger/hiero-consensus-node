@@ -423,7 +423,7 @@ solo block node add --deployment "${SOLO_DEPLOYMENT}"
 
 log "Deploying consensus network with application.properties overrides"
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3,node4
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3,node4 --application-properties "${APP_PROPS_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --release-tag v0.74.0
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3,node4 --application-properties "${APP_PROPS_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag v0.74.0
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3,node4 --local-build-path "${LOCAL_BUILD_PATH}"
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3,node4
 
