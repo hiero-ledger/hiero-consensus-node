@@ -23,6 +23,7 @@ on:
           - "wrb-streaming"
           - "e2e-block-stream-cutover"
           - "075-to-076-tss"
+          - "e2e-backpressure"
       cluster-target:
         description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
         required: true
@@ -603,6 +604,100 @@ jobs:
       # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
       - name: Always Destroy Kind Cluster
         if: ${{ always() && inputs.cluster-target == 'kind' }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+  solo-e2e-backpressure:
+    name: "Solo E2E Backpressure (Block Node Outage)"
+    needs:
+      - extract-jdk-version
+    if: ${{ inputs.scenario == 'e2e-backpressure' }}
+    # Kind-only: the script provisions its own ephemeral Kind cluster on the runner
+    # and scales block-node workloads directly, so cluster-target is ignored.
+    runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 150
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "20.18.0"
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          kubectl version --client=true
+
+      # The scenario always runs the local build via `solo consensus node setup --local-build-path`.
+      - name: Build Consensus Node Local Artifacts
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Run E2E Backpressure Scenario
+        run: |
+          set -eo pipefail
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-backpressure/solo-e2e-block-node-outage.sh"
+          chmod +x "${SCRIPT_PATH}"
+          timeout --signal=SIGINT --kill-after=5m 120m \
+            env \
+              ARTIFACT_DIR="${RUNNER_TEMP}/backpressure-artifacts" \
+              KEEP_NETWORK="false" \
+            "${SCRIPT_PATH}"
+
+      # The script tees its output to run.log and collects kubectl/solo diagnostics
+      # into the artifact dir itself when it fails.
+      - name: Upload Backpressure Failure Artifacts
+        if: ${{ !cancelled() && failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: E2E Backpressure Failure Artifacts
+          path: ${{ runner.temp }}/backpressure-artifacts/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      # On failure the script intentionally leaves the cluster up for local debugging;
+      # in CI always tear it down.
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
