@@ -330,7 +330,7 @@ class WritableHistoryStoreImplTest {
                         .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
                         .size());
 
-        final var updated = subject.restartWrapsSigning(123L, Set.of(1L, 2L));
+        final var updated = subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)));
 
         assertEquals(2, updated.wrapsRetryCount());
         assertFalse(updated.hasFailureReason());
