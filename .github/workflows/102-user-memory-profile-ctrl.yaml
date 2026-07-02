@@ -120,8 +120,10 @@ jobs:
           node-version: 20.18.0
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
           # verify the installation
           solo --version

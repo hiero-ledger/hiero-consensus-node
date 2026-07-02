@@ -41,9 +41,11 @@ jobs:
 
       - name: Extract Tag Version
         id: tag
+        env:
+          TAG_TO_DEPLOY: ${{ github.event.inputs.tag-to-deploy }}
         run: |
-          RELEASE_VERSION="$(semver get release "${{ github.event.inputs.tag-to-deploy }}")"
-          PRERELEASE_VERSION="$(semver get prerel "${{ github.event.inputs.tag-to-deploy }}")"
+          RELEASE_VERSION="$(semver get release "${TAG_TO_DEPLOY}")"
+          PRERELEASE_VERSION="$(semver get prerel "${TAG_TO_DEPLOY}")"
 
           FINAL_VERSION="${RELEASE_VERSION}"
           PRERELEASE_FLAG="false"
