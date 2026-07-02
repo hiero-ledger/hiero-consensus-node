@@ -65,7 +65,7 @@ public void flushPrimaryPipeline() {
     components.hashgraphModule().flush();
     components.transactionHandlingModule().flush();
     components.eventCreatorModule().flush();
-    components.stateHasherWiring().flush();
+    components.stateManagementModule().flush();
 }
 ```
 

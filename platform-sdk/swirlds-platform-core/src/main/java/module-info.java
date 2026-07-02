@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import com.swirlds.platform.config.PlatformConfigurationExtension;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
@@ -10,57 +12,42 @@ import org.hiero.consensus.pces.PcesModule;
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
-    uses EventCreatorModule;
-    uses EventIntakeModule;
-    uses HashgraphModule;
-    uses PcesModule;
-    uses GossipModule;
-    uses ReconnectModule;
-
-    /* Public Package Exports. This list should remain alphabetized. */
-    exports com.swirlds.platform;
+    exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.builder;
-    exports com.swirlds.platform.components;
     exports com.swirlds.platform.components.common.output;
     exports com.swirlds.platform.components.state.output;
-    exports com.swirlds.platform.config;
+    exports com.swirlds.platform.components;
+    exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.config.legacy;
+    exports com.swirlds.platform.config;
     exports com.swirlds.platform.crypto;
-    exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
     exports com.swirlds.platform.health.filesystem;
-    exports com.swirlds.platform.listeners;
-    exports com.swirlds.platform.metrics;
-    exports com.swirlds.platform.state;
-    exports com.swirlds.platform.state.signed;
-    exports com.swirlds.platform.state.address;
-    exports com.swirlds.platform.system;
-    exports com.swirlds.platform.system.transaction;
-    exports com.swirlds.platform.system.state.notifications;
-    exports com.swirlds.platform.util;
-
-    /* Targeted Exports to External Libraries */
+    exports com.swirlds.platform.health;
     exports com.swirlds.platform.internal to
             org.hiero.consensus.pcli,
             com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
+    exports com.swirlds.platform.listeners;
+    exports com.swirlds.platform.metrics;
+    exports com.swirlds.platform.reconnect;
+    exports com.swirlds.platform.state.address;
+    exports com.swirlds.platform.state.signed;
+    exports com.swirlds.platform.state;
+    exports com.swirlds.platform.system.state.notifications;
+    exports com.swirlds.platform.system.transaction;
+    exports com.swirlds.platform.system;
     exports com.swirlds.platform.uptime to
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.state.nexus to
-            org.hiero.consensus.reconnect.impl,
-            org.hiero.consensus.transaction.handling; // temporary until state management extracted
-    exports com.swirlds.platform.wiring;
+    exports com.swirlds.platform.util;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.state.snapshot;
-    exports com.swirlds.platform.state.service.schemas;
-    exports com.swirlds.platform.builder.internal;
-    exports com.swirlds.platform.config.internal;
+    exports com.swirlds.platform.wiring;
+    exports com.swirlds.platform;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -85,6 +72,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
+    requires transitive org.hiero.consensus.state.management;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
@@ -102,6 +90,13 @@ module com.swirlds.platform.core {
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
 
-    provides com.swirlds.config.api.ConfigurationExtension with
-            com.swirlds.platform.config.PlatformConfigurationExtension;
+    uses EventCreatorModule;
+    uses EventIntakeModule;
+    uses GossipModule;
+    uses HashgraphModule;
+    uses PcesModule;
+    uses ReconnectModule;
+    // spotless:off
+    provides ConfigurationExtension with
+            PlatformConfigurationExtension;
 }

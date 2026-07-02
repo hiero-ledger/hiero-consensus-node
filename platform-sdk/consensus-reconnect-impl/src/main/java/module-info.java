@@ -19,6 +19,7 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.reconnect;
+    requires transitive org.hiero.consensus.state.management;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;

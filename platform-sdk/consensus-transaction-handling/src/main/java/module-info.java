@@ -2,11 +2,9 @@
 import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfigurationExtension;
 
-// SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.transaction.handling {
-    exports org.hiero.consensus.transaction.handling;
     exports org.hiero.consensus.transaction.handling.config;
-    exports org.hiero.consensus.transaction.handling.internal;
+    exports org.hiero.consensus.transaction.handling;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;

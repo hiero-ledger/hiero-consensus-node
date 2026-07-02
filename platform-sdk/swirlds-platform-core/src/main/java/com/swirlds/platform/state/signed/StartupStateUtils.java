@@ -3,8 +3,8 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.state.management.SignedStateFileReader.readState;
 import static org.hiero.consensus.state.signed.ReservedSignedState.createNullReservation;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -14,9 +14,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SavedStateInfo;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -32,6 +29,9 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
+import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -158,8 +158,8 @@ public final class StartupStateUtils {
         final DeserializedSignedState deserializedSignedState;
         final Configuration configuration = platformContext.getConfiguration();
         try {
-            deserializedSignedState =
-                    readState(savedStateInfo.stateDirectory(), platformContext, stateLifecycleManager);
+            deserializedSignedState = readState(
+                    savedStateInfo.stateDirectory(), platformContext.getConfiguration(), stateLifecycleManager);
         } catch (final IOException | UncheckedIOException | ParseException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 

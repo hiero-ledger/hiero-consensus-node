@@ -4,8 +4,6 @@ package com.swirlds.platform.wiring;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.hashlogger.HashLogger;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.system.PlatformMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -36,7 +34,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
 
     /**
      * Flushes the primary consensus-layer pipeline component-by-component, in upstream-to-downstream order: intake →
-     * pces → gossip → hashgraph → transaction handling (pre-handler then handler) → event creation → state hasher.
+     * pces → gossip → hashgraph → transaction handling (pre-handler then handler) → event creation → state management.
      *
      * <p>This only flushes the pipeline; it does not decide whether in-flight work is delivered or discarded. That
      * depends on the state of the components when it is called — live components deliver (the PCES-replay caller),
@@ -60,7 +58,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.hashgraphModule().flush();
         components.transactionHandlingModule().flush();
         components.eventCreatorModule().flush();
-        components.stateHasherWiring().flush();
+        components.stateManagementModule().flush();
     }
 
     /**
@@ -75,17 +73,13 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      *
      * @param signedState the state to forward
      */
-    public void sendStateToHashLogger(@NonNull final SignedState signedState) {
-        if (signedState.getState().getHash() != null) {
-            final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
+    public void sendStateToStateManagement(@NonNull final SignedState signedState) {
+        final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
 
-            final boolean offerResult = components
-                    .hashLoggerWiring()
-                    .getInputWire(HashLogger::logHashes)
-                    .offer(stateReservedForHasher);
-            if (!offerResult) {
-                stateReservedForHasher.close();
-            }
+        final boolean offerResult =
+                components.stateManagementModule().hashedStatesInputWire().offer(stateReservedForHasher);
+        if (!offerResult) {
+            stateReservedForHasher.close();
         }
     }
 
@@ -177,16 +171,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void injectPcesMinimumBirthRoundToStore(@NonNull final long minimumBirthRoundNonAncientForOldestState) {
         components.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
-    }
-
-    /**
-     * @see StateSignatureCollector#addReservedState(ReservedSignedState)
-     */
-    public void injectSignatureCollectorState(@NonNull final ReservedSignedState reservedSignedState) {
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::addReservedState)
-                .put(reservedSignedState);
     }
 
     /**

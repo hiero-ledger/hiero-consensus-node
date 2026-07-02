@@ -6,16 +6,8 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.state.hasher.DefaultStateHasher;
-import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
-import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.signed.DefaultSignedStateSentinel;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signer.DefaultStateSigner;
-import com.swirlds.platform.state.signer.StateSigner;
-import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
@@ -26,10 +18,11 @@ import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.persistence.DefaultStateSnapshotManager;
+import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
-import org.hiero.consensus.transaction.handling.internal.TransactionHandler;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -57,11 +50,7 @@ public class PlatformComponentBuilder {
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
-    private StateHasher stateHasher;
     private StateSnapshotManager stateSnapshotManager;
-    private HashLogger hashLogger;
-    private StateSigner stateSigner;
-    private TransactionHandler transactionHandler;
 
     private SwirldsPlatform swirldsPlatform;
 
@@ -257,37 +246,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a state hasher in place of the platform's default state hasher.
-     *
-     * @param stateHasher the state hasher to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withStateHasher(@NonNull final StateHasher stateHasher) {
-        throwIfAlreadyUsed();
-        if (this.stateHasher != null) {
-            throw new IllegalStateException("Signed state hasher has already been set");
-        }
-        this.stateHasher = Objects.requireNonNull(stateHasher);
-        return this;
-    }
-
-    /**
-     * Build the state hasher if it has not yet been built. If one has been provided via
-     * {@link #withStateHasher(StateHasher)}, that hasher will be used. If this method is called more than once, only
-     * the first call will build the state hasher. Otherwise, the default hasher will be created and returned.
-     *
-     * @return the signed state hasher
-     */
-    @NonNull
-    public StateHasher buildStateHasher() {
-        if (stateHasher == null) {
-            stateHasher = new DefaultStateHasher(blocks.platformContext());
-        }
-        return stateHasher;
-    }
-
-    /**
      * Provide a state snapshot manager in place of the platform's default state snapshot manager.
      *
      * @param stateSnapshotManager the state snapshot manager to use
@@ -319,73 +277,15 @@ public class PlatformComponentBuilder {
             final String actualMainClassName = stateConfig.getMainClassName(blocks.mainClassName());
 
             stateSnapshotManager = new DefaultStateSnapshotManager(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    blocks.platformContext().getFileSystemManager(),
                     actualMainClassName,
                     blocks.selfId(),
                     blocks.swirldName(),
                     blocks.stateLifecycleManager());
         }
         return stateSnapshotManager;
-    }
-
-    /**
-     * Provide a hash logger in place of the platform's default hash logger.
-     *
-     * @param hashLogger the hash logger to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withHashLogger(@NonNull final HashLogger hashLogger) {
-        throwIfAlreadyUsed();
-        if (this.hashLogger != null) {
-            throw new IllegalStateException("Hash logger has already been set");
-        }
-        this.hashLogger = Objects.requireNonNull(hashLogger);
-        return this;
-    }
-
-    /**
-     * Build the hash logger if it has not yet been built. If one has been provided via
-     * {@link #withHashLogger(HashLogger)}, that logger will be used. If this method is called more than once, only the
-     * first call will build the hash logger. Otherwise, the default logger will be created and returned.
-     *
-     * @return the hash logger
-     */
-    @NonNull
-    public HashLogger buildHashLogger() {
-        if (hashLogger == null) {
-            hashLogger = new DefaultHashLogger(blocks.platformContext());
-        }
-        return hashLogger;
-    }
-
-    /**
-     * Provide a state signer in place of the platform's default state signer.
-     *
-     * @param stateSigner the state signer to use
-     * @return this builder
-     */
-    public PlatformComponentBuilder withStateSigner(@NonNull final StateSigner stateSigner) {
-        throwIfAlreadyUsed();
-        if (this.stateSigner != null) {
-            throw new IllegalStateException("State signer has already been set");
-        }
-        this.stateSigner = Objects.requireNonNull(stateSigner);
-        return this;
-    }
-
-    /**
-     * Build the state signer if it has not yet been built. If one has been provided via
-     * {@link #withStateSigner(StateSigner)}, that signer will be used. If this method is called more than once, only
-     * the first call will build the state signer. Otherwise, the default signer will be created and returned.
-     *
-     * @return the state signer
-     */
-    @NonNull
-    public StateSigner buildStateSigner() {
-        if (stateSigner == null) {
-            stateSigner = new DefaultStateSigner(new PlatformSigner(blocks.keysAndCerts()));
-        }
-        return stateSigner;
     }
 }
