@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import static com.swirlds.platform.test.fixtures.PlatformTestUtils.generateRoster;
+import static org.hiero.consensus.roster.test.fixtures.RosterFactory.generateRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -52,7 +51,7 @@ class PcesEventGraphSourceTest {
     void setUp() throws IOException, KeyStoreException, ExecutionException, InterruptedException {
         pcesLocation = baseDir.resolve(Path.of("preconsensus-events"));
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final Roster roster = generateRoster(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, NUM_EVENTS);
@@ -61,7 +60,7 @@ class PcesEventGraphSourceTest {
     @Test
     void sourceHasNextAndNextWorks() {
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
 
@@ -77,7 +76,7 @@ class PcesEventGraphSourceTest {
     @Test
     void sourceReturnsAllEvents() {
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
 
@@ -94,7 +93,7 @@ class PcesEventGraphSourceTest {
     @Test
     void resetRestartsIterationFromTheBeginning() {
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
 
@@ -125,7 +124,7 @@ class PcesEventGraphSourceTest {
     @Test
     void emptyDirCreatesEmptySource() throws IOException {
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final Path empty = Files.createDirectory(baseDir.resolve("empty"));
         final PcesEventGraphSource source = new PcesEventGraphSource(empty, context);
@@ -135,7 +134,7 @@ class PcesEventGraphSourceTest {
     @Test
     void failsWhenCreatingAContextWithNonExistingDir() {
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         Assertions.assertThrows(
                 UncheckedIOException.class, () -> new PcesEventGraphSource(baseDir.resolve("non-existing"), context));

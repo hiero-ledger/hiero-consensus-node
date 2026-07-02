@@ -9,10 +9,9 @@ description = "Default Consensus Gossip Implementation"
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.platform.core")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.platform.core")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.gossip.impl.test.fixtures")
@@ -21,11 +20,11 @@ testModuleInfo {
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("awaitility")
+    requires("java.management")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requires("java.management")
 
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
     opensTo("org.hiero.junit.extensions")

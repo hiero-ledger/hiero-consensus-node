@@ -2,8 +2,7 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignedStateToDisk;
@@ -20,13 +19,18 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -36,14 +40,19 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.signed.SignedState;
@@ -61,6 +70,18 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StartupStateUtilities Tests")
 public class StartupStateUtilsTests {
+
+    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .withConfigDataType(BasicConfig.class)
+            .withConfigDataType(MerkleDbConfig.class)
+            .withSource(new SimpleConfigSource().withValue(MerkleDbConfig_.INITIAL_CAPACITY, "" + 65_536L))
+            .withConfigDataType(VirtualMapConfig.class)
+            .withConfigDataType(PathsConfig.class)
+            .withConfigDataType(CryptoConfig.class)
+            .withConfigDataType(StateConfig.class)
+            .withConfigDataType(PathsConfig.class)
+            .withConfigDataType(ReconnectConfig.class)
+            .build();
 
     /**
      * Location to save states

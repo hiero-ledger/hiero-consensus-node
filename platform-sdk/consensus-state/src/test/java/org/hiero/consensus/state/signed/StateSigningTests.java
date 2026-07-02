@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package org.hiero.consensus.state.signed;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
@@ -36,9 +36,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
-import org.hiero.consensus.state.signed.SigSet;
-import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.state.signed.SignedStateInvalidException;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;

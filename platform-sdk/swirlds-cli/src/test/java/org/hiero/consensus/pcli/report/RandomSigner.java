@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.simulated;
+package org.hiero.consensus.pcli.report;
 
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
