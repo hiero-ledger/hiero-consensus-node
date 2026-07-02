@@ -25,6 +25,7 @@ module org.hiero.base.crypto {
             com.swirlds.common,
             com.swirlds.common.test.fixtures,
             org.hiero.base.crypto.test.fixtures;
+    // spotless:off
     opens org.hiero.base.crypto to
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
@@ -32,6 +33,7 @@ module org.hiero.base.crypto {
             org.hiero.base.crypto.test.fixtures,
             org.hiero.otter.test,
             com.fasterxml.jackson.databind;
+    // spotless:off
     provides ConfigurationExtension with
             CryptoConfigurationExtension;
 }
