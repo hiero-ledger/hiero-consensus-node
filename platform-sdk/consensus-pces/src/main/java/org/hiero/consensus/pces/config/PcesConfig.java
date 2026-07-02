@@ -88,7 +88,7 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "preconsensus-events")
         Path databaseDirectory,
 
-        @ConfigProperty(defaultValue = "true") boolean copyRecentStreamToStateSnapshots,
+        @ConfigProperty(defaultValue = "false") boolean copyRecentStreamToStateSnapshots,
         @ConfigProperty(defaultValue = "true") boolean compactLastFileOnStartup,
         @ConfigProperty(defaultValue = "true") boolean forceIgnorePcesSignatures,
         @ConfigProperty(defaultValue = "true") boolean allowUnsignedPcesEvents,
