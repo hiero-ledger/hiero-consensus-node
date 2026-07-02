@@ -13,6 +13,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeConstants.CRYPTO_ALLOWANCE_S
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.TOKEN_ALLOWANCE_SIZE;
+import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isDelegatingSpenderPresent;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isValidOwner;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.validateAllowanceLimit;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
@@ -409,7 +410,12 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             final var effectiveOwner = getEffectiveOwnerAccount(owner, payerId, accountStore, expiryValidator);
             final var mutableNftAllowances = new ArrayList<>(effectiveOwner.approveForAllNftAllowances());
 
-            if (allowance.hasApprovedForAll()) {
+            // A delegating spender may only sub-delegate individual serials on the owner's behalf; it must never
+            // add or remove the owner's approveForAll grants. Only the owner (who is the one required to sign when
+            // there is no delegating spender) can change the approveForAll list. See NftAllowance.delegating_spender
+            // in the protobuf.
+            final var isDelegated = isDelegatingSpenderPresent(allowance);
+            if (!isDelegated && allowance.hasApprovedForAll()) {
                 final var approveForAllAllowance = AccountApprovalForAllAllowance.newBuilder()
                         .tokenId(tokenId)
                         .spenderId(spender)
