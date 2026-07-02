@@ -400,9 +400,13 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          GRPCURL_VERSION="v1.8.7"
+          GRPCURL_FILE="grpcurl_1.8.7_linux_x86_64.tar.gz"
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/${GRPCURL_FILE}" -o grpcurl.tar.gz
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/grpcurl_1.8.7_checksums.txt" -o grpcurl_checksums.txt
+          grep "${GRPCURL_FILE}" grpcurl_checksums.txt | sha256sum --check
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          rm grpcurl.tar.gz grpcurl_checksums.txt
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
@@ -541,9 +545,13 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          GRPCURL_VERSION="v1.8.7"
+          GRPCURL_FILE="grpcurl_1.8.7_linux_x86_64.tar.gz"
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/${GRPCURL_FILE}" -o grpcurl.tar.gz
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/grpcurl_1.8.7_checksums.txt" -o grpcurl_checksums.txt
+          grep "${GRPCURL_FILE}" grpcurl_checksums.txt | sha256sum --check
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          rm grpcurl.tar.gz grpcurl_checksums.txt
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
@@ -696,9 +704,13 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          GRPCURL_VERSION="v1.8.7"
+          GRPCURL_FILE="grpcurl_1.8.7_linux_x86_64.tar.gz"
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/${GRPCURL_FILE}" -o grpcurl.tar.gz
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/grpcurl_1.8.7_checksums.txt" -o grpcurl_checksums.txt
+          grep "${GRPCURL_FILE}" grpcurl_checksums.txt | sha256sum --check
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          rm grpcurl.tar.gz grpcurl_checksums.txt
 
       - name: Verify Solo Dependency Versions
         run: |
