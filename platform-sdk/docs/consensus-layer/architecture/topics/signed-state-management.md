@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Signed state management
-last_reviewed: 2026-07-01
+last_reviewed: 2026-07-02
 ---
 
 # Signed state management
@@ -125,12 +125,12 @@ A signed state passes through six phases.
    they are expected to lack quorum and are emitted immediately on
    arrival at the collector.
 4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
-   ([`DefaultSavedStateController.java:111`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java))
+   ([`DefaultSavedStateController.java:109`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java))
    marks freeze states for saving unconditionally; for non-freeze rounds
    it tests whether the round's consensus timestamp crosses a
-   `stateConfig.saveStatePeriod` boundary (read at line 116; the period
-   crossing is computed at lines 133-134). When saving is selected, the
-   controller calls `signedState.markAsStateToSave(reason)` (line 92).
+   `stateConfig.saveStatePeriod` boundary (read at line 117; the period
+   crossing is computed at lines 134-135). When saving is selected, the
+   controller calls `signedState.markAsStateToSave(reason)` (line 93).
    The `reason` is one of `FREEZE_STATE`, `FIRST_ROUND_AFTER_GENESIS`,
    or `PERIODIC_SNAPSHOT`
    ([`StateToDiskReason.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java));
@@ -142,7 +142,7 @@ A signed state passes through six phases.
    `executeAndRename`. After the state files are written, it copies PCES
    files into the round directory by calling
    `pcesModule.copyPcesFilesRetryOnFailure`
-   ([`SignedStateFileWriter.java:303`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java)).
+   ([`SignedStateFileWriter.java:310`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java)).
 6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
    ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
    destroys states whose reservation count has reached zero, off the hot
@@ -157,7 +157,7 @@ reproduced here.
 ## On-disk layout
 
 `SignedStateFileWriter.writeSignedStateToDisk`
-([`SignedStateFileWriter.java:362`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java))
+([`SignedStateFileWriter.java:420`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java))
 is the entry point used whenever a signed state is persisted — periodic
 snapshot, freeze state, or state dump. The writer computes the round
 directory via
@@ -169,7 +169,7 @@ directory via
 
 The whole round directory is built under a temporary path and moved into
 place via `executeAndRename`
-([`SignedStateFileWriter.java:386`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java)),
+([`SignedStateFileWriter.java:444`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java)),
 so readers never observe a half-built directory; on a mid-write crash the
 temporary tree is orphaned without affecting the live `saved/…/<round>/`
 hierarchy.

@@ -89,7 +89,7 @@ path is described in [`../architecture/topics/reconnect.md`](../architecture/top
   `RECONNECT_COMPLETE` by the time the save runs
   (`platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java:247-250`).
   The same path immediately marks the learned state to be saved to disk with reason `RECONNECT`
-  (`platform-sdk/consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java:62-67`).
+  (`platform-sdk/consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java:64-68`).
 - In `RECONNECT_COMPLETE` the platform **gossips but does not create events**. The event-creation gate permits creation
   only in `ACTIVE`, `CHECKING`, or `FREEZING` (the last only to emit the freeze-state signature)
   (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
@@ -184,7 +184,7 @@ See **Decision** above.
   and `RECONNECT_COMPLETE` status definitions and their javadoc.
 - `platform-sdk/consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java:247-250`
   — the reconnect path transitions to `RECONNECT_COMPLETE` and then marks the learned state for disk save.
-- `platform-sdk/consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java:62-67`
+- `platform-sdk/consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java:64-68`
   — `reconnectStateReceived(...)` marks the learned state to be written to disk with reason `RECONNECT`.
 - `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
   — the event-creation gate; creation is withheld in `RECONNECT_COMPLETE`.

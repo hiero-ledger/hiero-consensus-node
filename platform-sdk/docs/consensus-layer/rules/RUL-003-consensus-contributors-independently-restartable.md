@@ -75,7 +75,7 @@ persistence path, signed-state saving, and the reconnect gate.
   [restart-and-pces.md](../architecture/topics/restart-and-pces.md)).
 - **Periodic — a recent on-disk base state.** A signed state is produced at every
   block boundary (and at the freeze round) and marked for saving on a period
-  (`DefaultSavedStateController.java:111`), written to disk by
+  (`DefaultSavedStateController.java:109`), written to disk by
   `SignedStateFileWriter` (see
   [signed-state-management.md](../architecture/topics/signed-state-management.md)).
   This gives the node a recent, complete on-disk state to restart from — the base
