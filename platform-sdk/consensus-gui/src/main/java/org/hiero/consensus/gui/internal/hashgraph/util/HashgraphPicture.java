@@ -256,7 +256,7 @@ public class HashgraphPicture extends JPanel {
         g.fillOval(xPos, yPos, d, d);
         g.setFont(g.getFont().deriveFont(Font.BOLD));
 
-        StringBuilder s = new StringBuilder();
+        final StringBuilder s = new StringBuilder();
 
         if (options.writeRoundCreated()) {
             s.append(" ").append(event.getRoundCreated());
@@ -300,7 +300,8 @@ public class HashgraphPicture extends JPanel {
         final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
         if (options.writeBranches()
                 && hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(gossipEvent)) {
-            s.append(" " + "\\/ ")
+            s.append(" ")
+                    .append("\\/ ")
                     .append(hashgraphSource
                             .getEventStorage()
                             .getBranchedEventsMetadata()
@@ -312,17 +313,18 @@ public class HashgraphPicture extends JPanel {
             s.append(" ").append(event.getDeGen());
         }
         if (!s.isEmpty()) {
-            final Rectangle2D rect = fm.getStringBounds(s.toString(), g);
+            final String eventText = s.toString();
+            final Rectangle2D rect = fm.getStringBounds(eventText, g);
 
             final int x = (int) (pictureMetadata.xpos(event) - rect.getWidth() / 2. - fa / 4.);
             final int y = (int) (pictureMetadata.ypos(event) + rect.getHeight() / 2. - fd / 2);
             g.setColor(HashgraphGuiConstants.LABEL_OUTLINE);
-            g.drawString(s.toString(), x - 1, y - 1);
-            g.drawString(s.toString(), x + 1, y - 1);
-            g.drawString(s.toString(), x - 1, y + 1);
-            g.drawString(s.toString(), x + 1, y + 1);
+            g.drawString(eventText, x - 1, y - 1);
+            g.drawString(eventText, x + 1, y - 1);
+            g.drawString(eventText, x - 1, y + 1);
+            g.drawString(eventText, x + 1, y + 1);
             g.setColor(color);
-            g.drawString(s.toString(), x, y);
+            g.drawString(eventText, x, y);
         }
     }
 
