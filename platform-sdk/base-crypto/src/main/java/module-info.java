@@ -3,21 +3,8 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.base.crypto.config.CryptoConfigurationExtension;
 
 module org.hiero.base.crypto {
-    exports org.hiero.base.crypto;
     exports org.hiero.base.crypto.config;
-
-    /* Targeted exports */
-    exports org.hiero.base.crypto.engine to
-            com.swirlds.common,
-            com.swirlds.common.test.fixtures,
-            org.hiero.base.crypto.test.fixtures;
-
-    opens org.hiero.base.crypto to
-            com.swirlds.platform.core,
-            com.swirlds.common.test.fixtures,
-            org.hiero.base.crypto.test.fixtures,
-            org.hiero.otter.test,
-            com.fasterxml.jackson.databind;
+    exports org.hiero.base.crypto;
 
     requires transitive com.hedera.cryptography.libsodium;
     requires transitive com.hedera.pbj.runtime;
@@ -33,6 +20,17 @@ module org.hiero.base.crypto {
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires static transitive com.github.spotbugs.annotations;
 
+    /* Targeted exports */
+    exports org.hiero.base.crypto.engine to
+            com.swirlds.common,
+            com.swirlds.common.test.fixtures,
+            org.hiero.base.crypto.test.fixtures;
+    opens org.hiero.base.crypto to
+            com.swirlds.platform.core,
+            com.swirlds.common.test.fixtures,
+            org.hiero.base.crypto.test.fixtures,
+            org.hiero.otter.test,
+            com.fasterxml.jackson.databind;
     provides ConfigurationExtension with
             CryptoConfigurationExtension;
 }
