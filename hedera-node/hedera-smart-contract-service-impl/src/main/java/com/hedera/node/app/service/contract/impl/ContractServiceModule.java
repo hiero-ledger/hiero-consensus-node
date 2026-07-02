@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.*;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
+import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.annotations.*;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -65,6 +66,12 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
 public interface ContractServiceModule {
+    @Provides
+    @Singleton
+    static AssetsLoader provideAssetsLoader() {
+        return new AssetsLoader();
+    }
+
     @Provides
     @Singleton
     static ContractHandlers provideHandlers(

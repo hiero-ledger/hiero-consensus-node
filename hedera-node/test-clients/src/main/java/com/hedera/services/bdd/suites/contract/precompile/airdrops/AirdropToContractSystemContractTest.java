@@ -328,7 +328,7 @@ public class AirdropToContractSystemContractTest {
                                 .via("pendingAirdrop"),
                         checkForBalances(receiverContract, List.of(token1), List.of()),
                         checkForEmptyBalance(receiverContract, List.of(token2), List.of()),
-                        validateChargedUsd("pendingAirdrop", 0.124),
+                        validateChargedUsd("pendingAirdrop", 0.0049904196),
                         // have ERC20 event for token1
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord("pendingAirdrop"),
@@ -1070,7 +1070,7 @@ public class AirdropToContractSystemContractTest {
                         receiverContract
                                 .getInfo()
                                 .andAssert(info -> info.has(contractWith().hasAlreadyUsedAutomaticAssociations(1))),
-                        validateChargedUsdWithChild(TXN_NAME, (0.123 + 0.05), 1.0),
+                        validateChargedUsdWithChild(TXN_NAME, (0.05403), 1.0),
                         // check ERC20 events
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
@@ -1098,7 +1098,7 @@ public class AirdropToContractSystemContractTest {
                             .via("pendingAirdrops")
                             .gas(1_750_000L),
                     // airdrop fee + association fees
-                    validateChargedUsdWithChild("pendingAirdrops", (0.125 + (6 * 0.05)), 1.0),
+                    validateChargedUsdWithChild("pendingAirdrops", 0.30601997, 1.0),
                     // check ERC20 events
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord("pendingAirdrops"),
@@ -1144,7 +1144,7 @@ public class AirdropToContractSystemContractTest {
                             .gas(1_750_000L)
                             .via("pendingAirdrops"),
                     // airdrop fee + association fees
-                    validateChargedUsdWithChild("pendingAirdrops", (0.125 + (5 * 0.05)), 1.0),
+                    validateChargedUsdWithChild("pendingAirdrops", (0.25747), 1.0),
                     checkForBalances(receiverContract, tokens, List.of()),
                     // check ERC20 events
                     TransferTokenTest.validateErcEvent(
@@ -1184,7 +1184,7 @@ public class AirdropToContractSystemContractTest {
                             .gas(1_750_000L)
                             .via("pendingAirdropsMulti"),
                     // airdrop fee + association fees
-                    validateChargedUsdWithChild("pendingAirdropsMulti", (0.125 + (5 * 0.05)), 1.0),
+                    validateChargedUsdWithChild("pendingAirdropsMulti", 0.257957, 1.0),
                     // check ERC20 events
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord("pendingAirdropsMulti"),

@@ -70,7 +70,7 @@ public class RedirectPrecompileSuite {
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.ERC_BALANCE)
                                                 .withBalance(totalSupply))
-                                        .gasUsed(2607L))));
+                                        .gasUsed(1200L))));
     }
 
     @HapiTest
@@ -103,7 +103,7 @@ public class RedirectPrecompileSuite {
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
                                 .status(INVALID_TOKEN_ID)
-                                .contractCallResult(resultWith().gasUsed(2607L))));
+                                .contractCallResult(resultWith().gasUsed(1200L))));
     }
 
     @HapiTest

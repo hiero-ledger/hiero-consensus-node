@@ -4111,7 +4111,7 @@ public class TraceabilitySuite {
                                                     .setGas(78304)
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(PRECOMPILE_CALLER))
-                                                    .setGasUsed(7837)
+                                                    .setGasUsed(6430)
                                                     .setInput(
                                                             encodeFunctionCall(
                                                                     PRECOMPILE_CALLER,
@@ -4147,7 +4147,7 @@ public class TraceabilitySuite {
                                                     // HTS precompile address is
                                                     // 0x167
                                                     .setRecipientContract(contractIdFactory.apply(359L))
-                                                    .setGasUsed(2607)
+                                                    .setGasUsed(1200)
                                                     .setInput(
                                                             ByteStringUtils.wrapUnsafely(
                                                                     Function.parse("isToken" + "(address)")
