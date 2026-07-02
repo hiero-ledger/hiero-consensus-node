@@ -187,15 +187,17 @@ jobs:
         id: jrs-parameters
         env:
           GITHUB_TOKEN: ${{ secrets.access-token }}
+          BRANCH_NAME_INPUT: ${{ inputs.branch-name }}
+          BASE_BRANCH_NAME_INPUT: ${{ inputs.base-branch-name }}
         run: |
-          FEAT_BRANCH_EXISTS="$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/hashgraph/jrs-legacy/branches/${{ inputs.branch-name }})"
+          FEAT_BRANCH_EXISTS="$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/hashgraph/jrs-legacy/branches/${BRANCH_NAME_INPUT})"
 
           BRANCH_NAME=""
-          [[ "${FEAT_BRANCH_EXISTS}" -eq 200 ]] && BRANCH_NAME="${{ inputs.branch-name }}"
+          [[ "${FEAT_BRANCH_EXISTS}" -eq 200 ]] && BRANCH_NAME="${BRANCH_NAME_INPUT}"
 
           if [[ -z "${BRANCH_NAME}" ]]; then
-            BASE_BRANCH_EXISTS="$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/hashgraph/jrs-legacy/branches/${{ inputs.base-branch-name }})"
-            [[ "${BASE_BRANCH_EXISTS}" -eq 200 ]] && BRANCH_NAME="${{ inputs.base-branch-name }}"
+            BASE_BRANCH_EXISTS="$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/hashgraph/jrs-legacy/branches/${BASE_BRANCH_NAME_INPUT})"
+            [[ "${BASE_BRANCH_EXISTS}" -eq 200 ]] && BRANCH_NAME="${BASE_BRANCH_NAME_INPUT}"
           fi
 
           echo "branch-name=${BRANCH_NAME}" >> "${GITHUB_OUTPUT}"
@@ -365,8 +367,10 @@ jobs:
 
       - name: Compute Actual Branch Name
         id: branch
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
-          REF="${{ github.head_ref || github.ref_name }}"
+          REF="${HEAD_REF}"
           REF="${REF##origin/}"
 
           echo "name=${REF}" >> "${GITHUB_OUTPUT}"
@@ -374,9 +378,11 @@ jobs:
       - name: Retrieve Existing JRS Branch History (If Available)
         env:
           BRANCH_NAME: ${{ steps.branch.outputs.name }}
+          SUMMARY_PATH: ${{ inputs.summary-path }}
+          SUMMARY_BUCKET: ${{ inputs.summary-bucket }}
         run: |
-          [[ -d "${{ inputs.summary-path }}" ]] || mkdir -p "${{ inputs.summary-path }}"
-          rclone sync --gcs-bucket-policy-only --checksum --fast-list --stats-one-line -v "gcs:${{ inputs.summary-bucket }}/${BRANCH_NAME}/" "${{ inputs.summary-path }}/"
+          [[ -d "${SUMMARY_PATH}" ]] || mkdir -p "${SUMMARY_PATH}"
+          rclone sync --gcs-bucket-policy-only --checksum --fast-list --stats-one-line -v "gcs:${SUMMARY_BUCKET}/${BRANCH_NAME}/" "${SUMMARY_PATH}/"
 
       - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
         id: run-jrs-regression
@@ -396,19 +402,21 @@ jobs:
           JRS_WEB_PORT: ${{ inputs.jrs-web-port }}
           ACTIONS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SLACK_API_TOKEN: ${{ secrets.slack-api-token }}
+          GH_ACTOR: ${{ github.actor }}
+          GH_JOB: ${{ github.job }}
         working-directory: ${{ github.workspace }}/platform-sdk/${{ inputs.regression-path }}
         run: |
           set -x
 
           readonly BRANCH_VERSION_REGEX="([A-Za-z]+)/?[0-9]+\.([0-9]+)\.?[0-9]*-?[A-Za-z]*\.?[0-9]*"
 
-          if [[ -z "${{ github.actor }}" ]]; then
+          if [[ -z "${GH_ACTOR}" ]]; then
             JRS_USER="swirlds-automation"
           else
-            JRS_USER="${{ github.actor }}"
+            JRS_USER="${GH_ACTOR}"
           fi
 
-          [[ -n "${JRS_BRANCH}" ]] || JRS_BRANCH="${{ github.job }}"
+          [[ -n "${JRS_BRANCH}" ]] || JRS_BRANCH="${GH_JOB}"
 
           JRS_ARGUMENTS="-po"
           JRS_ARGUMENTS="${JRS_ARGUMENTS} -u ${JRS_USER}"
@@ -484,6 +492,10 @@ jobs:
           echo "Test Exit Code: $?"
       - name: Show JRS Folder Structures
         if: ${{ inputs.enable-workflow-debug && always() }}
+        env:
+          SUMMARY_PATH: ${{ inputs.summary-path }}
+          RESULT_PATH: ${{ inputs.result-path }}
+          REGRESSION_PATH_INPUT: ${{ inputs.regression-path }}
         run: |
           if ! command -v tree >/dev/null 2>&1; then
             echo "::group::Install Tree Command"
@@ -493,35 +505,39 @@ jobs:
           fi
 
           echo "::group::Show History Folder Contents"
-          tree -apshug  "${{ inputs.summary-path }}/"
+          tree -apshug  "${SUMMARY_PATH}/"
           echo "::endgroup::"
 
           echo "::group::Show Results Folder Contents"
-          tree -apshug  "${{ inputs.result-path }}/"
+          tree -apshug  "${RESULT_PATH}/"
           echo "::endgroup::"
 
           echo "::group::Show Regression Folder Contents"
-          tree -apshug  "${{ inputs.regression-path }}/"
+          tree -apshug  "${REGRESSION_PATH_INPUT}/"
           echo "::endgroup::"
 
       - name: Store JRS Branch History
         if: ${{ always() }}
         env:
           BRANCH_NAME: ${{ steps.branch.outputs.name }}
+          SUMMARY_PATH: ${{ inputs.summary-path }}
+          SUMMARY_BUCKET: ${{ inputs.summary-bucket }}
         run: |
-          [[ -d "${{ inputs.summary-path }}" ]] || mkdir -p "${{ inputs.summary-path }}"
+          [[ -d "${SUMMARY_PATH}" ]] || mkdir -p "${SUMMARY_PATH}"
           # do not use sync, since another test flow may have uploaded some test results that this test flow did not have
-          rclone copy --gcs-bucket-policy-only --checksum --stats-one-line -v "${{ inputs.summary-path }}/" "gcs:${{ inputs.summary-bucket }}/${BRANCH_NAME}/"
+          rclone copy --gcs-bucket-policy-only --checksum --stats-one-line -v "${SUMMARY_PATH}/" "gcs:${SUMMARY_BUCKET}/${BRANCH_NAME}/"
 
       - name: Upload JRS Results
         env:
           JRS_USER: ${{ github.actor || 'swirlds-automation' }}
           BRANCH_NAME: ${{ steps.branch.outputs.name }}
+          RESULT_PATH: ${{ inputs.result-path }}
+          RESULT_BUCKET: ${{ inputs.result-bucket }}
         if: ${{ !cancelled() && always() }}
         run: |
           set -x
-          [[ ! -d "${{ inputs.result-path }}" ]] && mkdir -p "${{ inputs.result-path }}"
-          rclone copy --gcs-bucket-policy-only --checksum --stats-one-line -v "${{ inputs.result-path }}/" "gcs:${{ inputs.result-bucket }}/${JRS_USER}/${BRANCH_NAME}/"
+          [[ ! -d "${RESULT_PATH}" ]] && mkdir -p "${RESULT_PATH}"
+          rclone copy --gcs-bucket-policy-only --checksum --stats-one-line -v "${RESULT_PATH}/" "gcs:${RESULT_BUCKET}/${JRS_USER}/${BRANCH_NAME}/"
 
       - name: Remove RClone Authentication
         if: ${{ always() }}
