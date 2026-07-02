@@ -159,7 +159,6 @@ public class TransactionDispatcher {
         return switch (kind) {
             case NODE_STAKE_UPDATE,
                     FREEZE,
-                    UNCHECKED_SUBMIT,
                     CRYPTO_ADD_LIVE_HASH,
                     CRYPTO_DELETE_LIVE_HASH,
                     STATE_SIGNATURE_TRANSACTION,
