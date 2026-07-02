@@ -32,22 +32,6 @@ Column conventions:
   otherwise blank. Blank means "not constrained beyond the type."
 - **Fragility** — reserved for SME curation; `—` until filled in.
 
-## `state.*` — StateCommonConfig
-
-Module: `swirlds-common`. Source: [StateCommonConfig.java](../../swirlds-common/src/main/java/com/swirlds/common/config/StateCommonConfig.java).
-
-|   ID    |             Key             | Type |   Default    |                                       Effect                                       | Range | Fragility |
-|---------|-----------------------------|------|--------------|------------------------------------------------------------------------------------|-------|-----------|
-| TUN-001 | `state.savedStateDirectory` | Path | `data/saved` | Directory where states are saved; relative to CWD unless the path begins with `/`. |       | —         |
-
-## `temporaryFiles.*` — TemporaryFileConfig
-
-Module: `swirlds-common`. Source: [TemporaryFileConfig.java](../../swirlds-common/src/main/java/com/swirlds/common/io/config/TemporaryFileConfig.java).
-
-|   ID    |                Key                 | Type |    Default    |                                   Effect                                   | Range | Fragility |
-|---------|------------------------------------|------|---------------|----------------------------------------------------------------------------|-------|-----------|
-| TUN-002 | `temporaryFiles.temporaryFilePath` | Path | `swirlds-tmp` | Directory where temporary files are created (relative to saved-state dir). |       | —         |
-
 ## `platform.wiring.*` — WiringConfig
 
 Module: `swirlds-component-framework`. Source: [WiringConfig.java](../../swirlds-component-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
@@ -258,7 +242,7 @@ Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-re
 
 Module: `consensus-state`. Source: [StateConfig.java](../../consensus-state/src/main/java/org/hiero/consensus/state/config/StateConfig.java).
 
-Shares the `state.*` prefix with [StateCommonConfig](#state---statecommonconfig); the keys below come from `StateConfig` (SignedStateManager / SignedStateFileManager behavior).
+The `state.*` keys below come from `StateConfig` (SignedStateManager / SignedStateFileManager behavior).
 
 |   ID    |                  Key                  |   Type   | Default |                                                                    Effect                                                                     | Range | Fragility |
 |---------|---------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -344,7 +328,7 @@ Preconsensus event storage (PCES).
 | TUN-119 | `event.preconsensus.spanOverlapFactor`                   | double             | `1.2`                 | Multiplier on the previous-file-span running average during steady state.                                     | ≥1    | —         |
 | TUN-120 | `event.preconsensus.minimumSpan`                         | int                | `5`                   | Floor on the available span when creating a new file (sanity floor on the heuristic).                         |       | —         |
 | TUN-121 | `event.preconsensus.permitGaps`                          | boolean            | `false`               | If false, throw on detected gaps in the PCES file sequence (only relevant if files were deleted out of band). |       | —         |
-| TUN-122 | `event.preconsensus.databaseDirectory`                   | Path               | `preconsensus-events` | Directory where PCES events are stored, relative to `StateCommonConfig.savedStateDirectory`.                  |       | —         |
+| TUN-122 | `event.preconsensus.databaseDirectory`                   | Path               | `preconsensus-events` | Directory where PCES events are stored, relative to `paths.savedStateDir`.                  |       | —         |
 | TUN-123 | `event.preconsensus.copyRecentStreamToStateSnapshots`    | boolean            | `true`                | If true, copy recent PCES files into the saved-state snapshot directory whenever a snapshot is taken.         |       | —         |
 | TUN-124 | `event.preconsensus.compactLastFileOnStartup`            | boolean            | `true`                | If true, compact the last file's span at startup.                                                             |       | —         |
 | TUN-125 | `event.preconsensus.forceIgnorePcesSignatures`           | boolean            | `false`               | If true, ignore PCES event signatures. **TEST ONLY** — must never be enabled in production.                   |       | —         |
@@ -492,3 +476,12 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-189 | `sync.fairMinimalRoundRobinSize`          | double   | `0.3`   | Minimum past-syncs-against-different-peers before re-syncing the same peer (`(0,1]` fraction of network; `>1` absolute count).                   |       | —         |
 | TUN-190 | `sync.keepSendingEventsWhenUnhealthy`     | boolean  | `true`  | When unhealthy, stop receiving remote events but keep sending our own (instead of fully throttling syncs).                                       |       | —         |
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
+
+## Retired parameters
+
+Parameters whose backing config record has been removed. IDs are retained (never reused); each row names the successor tunable.
+
+|   ID    | Key | Type | Default | Effect | Range | Fragility |
+|---------|-----|------|---------|--------|-------|-----------|
+| TUN-001 | `state.savedStateDirectory` | Path | `data/saved` | **Retired** — `StateCommonConfig` removed in #25676; superseded by `paths.savedStateDir` (TUN-062). | | — |
+| TUN-002 | `temporaryFiles.temporaryFilePath` | Path | `swirlds-tmp` | **Retired** — `TemporaryFileConfig` removed in #25676; superseded by `paths.tmpDir` (TUN-063). | | — |
