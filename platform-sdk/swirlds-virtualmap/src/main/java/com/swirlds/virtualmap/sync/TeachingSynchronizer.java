@@ -5,7 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
@@ -25,7 +27,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Performs reconnect in the role of the teacher.
@@ -38,23 +39,23 @@ public class TeachingSynchronizer {
 
     private final RecordAccessor teacherView;
     private final ThreadManager threadManager;
-    private final ReconnectConfig reconnectConfig;
+    private final VirtualMapSyncConfig syncConfig;
 
     /**
      * Constructs a new teaching synchronizer.
      *
      * @param teacherMap teacher virtual map that would be detached so it can be released after this instance is created
      * @param threadManager responsible for managing thread lifecycles
-     * @param reconnectConfig the reconnect configuration
+     * @param config the configuration
      */
     public TeachingSynchronizer(
             @NonNull final VirtualMap teacherMap,
             @NonNull final ThreadManager threadManager,
-            @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final Configuration config) {
 
         teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
-        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
+        this.syncConfig = Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapSyncConfig.class);
     }
 
     /**
@@ -79,10 +80,10 @@ public class TeachingSynchronizer {
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
 
-            final AsyncInputStream input = new AsyncInputStream(
-                    in, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
+            final AsyncInputStream input =
+                    new AsyncInputStream(in, syncConfig.asyncStreamBufferSize(), syncConfig.asyncStreamTimeout());
             input.start(workGroup);
-            final AsyncOutputStream output = buildOutputStream(out, reconnectConfig);
+            final AsyncOutputStream output = buildOutputStream(out, syncConfig);
             output.start(workGroup);
 
             // Perform the root-node (path 0) request/response handshake synchronously before forking
@@ -149,12 +150,12 @@ public class TeachingSynchronizer {
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final DataOutputStream out, @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
         return new AsyncOutputStream(
                 out,
-                reconnectConfig.asyncStreamBufferSize(),
-                reconnectConfig.asyncOutputStreamFlush(),
-                reconnectConfig.asyncStreamTimeout());
+                syncConfig.asyncStreamBufferSize(),
+                syncConfig.asyncOutputStreamFlush(),
+                syncConfig.asyncStreamTimeout());
     }
 
     /**

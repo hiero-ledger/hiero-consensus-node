@@ -29,4 +29,7 @@ open module com.swirlds.merkledb {
     requires org.eclipse.collections.api;
     requires org.eclipse.collections.impl;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.swirlds.merkledb.config.MerkleDbConfigExtension;
 }

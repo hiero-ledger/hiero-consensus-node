@@ -478,6 +478,18 @@ public class BlockNodeConnectionManager {
                 continue;
             }
 
+            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
+
+            if (status.latestBlockAvailable() < -1 || willAdditionOverflow(status.latestBlockAvailable(), 1)) {
+                node.applyCoolDown(new BlockNodeOutOfRange(Long.MAX_VALUE));
+                logger.info(
+                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (latestBlockAvailable: {}))",
+                        streamingEndpoint.host(),
+                        streamingEndpoint.port(),
+                        status.latestBlockAvailable());
+                continue;
+            }
+
             /*
             There is a scenario in which this consensus node may not have any blocks loaded. For example, this node may
             be initializing for the first time or the node may have restarted but there aren't any buffered blocks that
@@ -488,7 +500,6 @@ public class BlockNodeConnectionManager {
             node, then existing reconnect operations will engage to sort things out.
              */
 
-            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
             final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
             if (latestAvailableBlock != -1) {
                 if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
@@ -537,6 +548,16 @@ public class BlockNodeConnectionManager {
                 .filter(c -> c.wantedBlock() == lowestAheadWantedBlock)
                 .toList();
         return new GroupSelectionOutcome(List.of(), lowestAheadCandidates, lowestAheadWantedBlock);
+    }
+
+    /**
+     * @param x the first value
+     * @param y the second value
+     * @return true if the addition of the specified values will overflow a long, else false
+     */
+    private static boolean willAdditionOverflow(final long x, final long y) {
+        final long r = x + y;
+        return ((x ^ r) & (y ^ r)) < 0;
     }
 
     /**

@@ -335,6 +335,7 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      enable-block-node-regression-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
@@ -375,7 +376,6 @@ jobs:
       custom-job-label: "XTS (Optional):"
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
-      enable-block-node-regression-panel: "true"
       enable-migration-testing-panel: "true"
       enable-chaos-otter-test-suite: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
@@ -673,6 +673,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         env:
           SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled${{ needs.fetch-xts-candidate.outputs.xts-info != '' && format(' ({0})', needs.fetch-xts-candidate.outputs.xts-info) || '' }} — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+          XTS_TAG_EXISTS: "${{needs.fetch-xts-candidate.outputs.xts-tag-exists}}"
         run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
       # Notification routing:

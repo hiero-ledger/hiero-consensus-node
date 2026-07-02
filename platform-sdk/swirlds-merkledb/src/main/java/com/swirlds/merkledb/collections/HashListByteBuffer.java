@@ -9,7 +9,6 @@ import static java.nio.ByteBuffer.allocateDirect;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.HashTools;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -116,14 +115,14 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      *
      * @param file The file to load the hash list from
      * @param capacity The max number of hashes to store in this hash list. Must be non-negative
-     * @param configuration Platform configuration
+     * @param merkleDbConfig merkle db configuration
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public HashListByteBuffer(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public HashListByteBuffer(
+            @NonNull final Path file, final long capacity, @NonNull final MerkleDbConfig merkleDbConfig)
             throws IOException {
         requireNonNull(file);
-        requireNonNull(configuration);
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        requireNonNull(merkleDbConfig);
         if (!Files.exists(file)) {
             throw new IOException("Cannot load hash list, file doesn't exist: " + file.toAbsolutePath());
         }
@@ -206,11 +205,10 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      * are read from the provided platform configuration.
      *
      * @param capacity The number of hashes to store in this hash list. Must be non-negative
-     * @param configuration Platform configuration
+     * @param merkleDbConfig merkleDb configuration
      */
-    public HashListByteBuffer(final long capacity, @NonNull final Configuration configuration) {
-        requireNonNull(configuration);
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+    public HashListByteBuffer(final long capacity, @NonNull final MerkleDbConfig merkleDbConfig) {
+        requireNonNull(merkleDbConfig);
         if (capacity < 0) {
             throw new IllegalArgumentException("The maximum number of hashes must be non-negative");
         }
@@ -238,7 +236,7 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      * {@inheritDoc}
      */
     @Override
-    public Hash get(final long index) throws IOException {
+    public Hash get(final long index) {
         // Range-check on the index
         if (index < 0 || index >= capacity) {
             throw new IndexOutOfBoundsException();

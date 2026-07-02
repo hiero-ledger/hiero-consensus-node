@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -10,11 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
@@ -37,7 +37,7 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
-                CONFIGURATION,
+                DEFAULT_MERKLE_DB_CONFIG,
                 fileSystemManager,
                 count,
                 fileSystemManager.resolve(name),
@@ -49,10 +49,14 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
     }
 
     private MemoryIndexDiskKeyValueStore createNewTempKV(final String name, final int count) throws IOException {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final LongList index = new LongListHeap(count, CONFIGURATION);
+        final LongList index = new LongListHeap(count, DEFAULT_MERKLE_DB_CONFIG);
         return new MemoryIndexDiskKeyValueStore(
-                merkleDbConfig, fileSystemManager.resolve(name + "_kv"), "HalfDiskHashMapTestKV", null, null, index);
+                DEFAULT_MERKLE_DB_CONFIG,
+                fileSystemManager.resolve(name + "_kv"),
+                "HalfDiskHashMapTestKV",
+                null,
+                null,
+                index);
     }
 
     private static void createSomeData(
@@ -115,7 +119,13 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
             map.snapshot(tempSnapshotDir);
             // open snapshot and check data
             HalfDiskHashMap mapFromSnapshot = new HalfDiskHashMap(
-                    CONFIGURATION, fileSystemManager, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
+                    DEFAULT_MERKLE_DB_CONFIG,
+                    fileSystemManager,
+                    count,
+                    tempSnapshotDir,
+                    "HalfDiskHashMapTest",
+                    null,
+                    false);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -260,9 +270,8 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
 
     @Test
     void testInitialBucketIndexCapacity() throws Exception {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final long maxNumOfKeys = merkleDbConfig.maxNumOfKeys();
-        final long goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
+        final long maxNumOfKeys = DEFAULT_MERKLE_DB_CONFIG.maxNumOfKeys();
+        final long goodAverageBucketEntryCount = DEFAULT_MERKLE_DB_CONFIG.goodAverageBucketEntryCount();
         // Bucket index capacity doesn't depend on HDHM initial size, so 1024 below can be anything
         try (final HalfDiskHashMap hdhm = createNewTempMap("testInitialBucketIndexCapacity", 1024)) {
             final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
@@ -591,10 +600,11 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
 
     @Test
     void testResizeRespectsBucketIndexCapacity() throws Exception {
-        final Configuration config = ConfigurationBuilder.create()
+        final MerkleDbConfig config = ConfigurationBuilder.create()
                 .withConfigDataType(MerkleDbConfig.class)
-                .withValue("merkleDb.maxNumOfKeys", "500")
-                .build();
+                .withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "500")
+                .build()
+                .getConfigData(MerkleDbConfig.class);
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
                 config,
                 fileSystemManager,
@@ -627,8 +637,7 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
     }
 
     private int calcExpectedNumOfBuckets(final long mapSizeHint) {
-        int goodAverageBucketEntryCount =
-                CONFIGURATION.getConfigData(MerkleDbConfig.class).goodAverageBucketEntryCount();
+        int goodAverageBucketEntryCount = DEFAULT_MERKLE_DB_CONFIG.goodAverageBucketEntryCount();
         return Integer.highestOneBit(Math.toIntExact(mapSizeHint / goodAverageBucketEntryCount)) * 2;
     }
 

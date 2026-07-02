@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,8 +31,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     public static final String FOLDER_SUFFIX = "merkledb-";
 
-    /** Platform configuration */
-    private final Configuration configuration;
+    private final MerkleDbConfig configuration;
 
     /**
      * A folder name for the first MerkleDb instance managed by this builder. It's used
@@ -71,7 +71,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             final long initialCapacity) {
         this.defaultDbFolderName =
                 (defaultDbFolderName == null) || defaultDbFolderName.isBlank() ? null : defaultDbFolderName;
-        this.configuration = requireNonNull(configuration);
+        this.configuration = requireNonNull(configuration).getConfigData(MerkleDbConfig.class);
         this.fileSystemManager = requireNonNull(fileSystemManager);
         this.initialCapacity = initialCapacity;
     }
