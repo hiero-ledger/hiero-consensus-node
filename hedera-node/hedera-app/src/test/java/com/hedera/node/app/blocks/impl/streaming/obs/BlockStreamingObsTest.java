@@ -74,59 +74,83 @@ class BlockStreamingObsTest {
     // ── full lifecycle aggregation values ───────────────────────────────────────
 
     @Test
-    void fullLifecycle_reportContainsExactAggregates() {
+    void testFullLifecycle_reportContainsExactAggregates() {
         final BlockStreamingObs obs = makeObs(true);
-        final long blockNumber = 10L;
+        final long block1 = 10L;
+        final long block2 = 11L;
 
         clock.set(secs(1));
-        obs.onBlockInit(blockNumber);
+        obs.onBlockInit(block1);
         clock.set(secs(1) + MILLI);
-        obs.onBlockOpen(blockNumber);
+        obs.onBlockOpen(block1);
         clock.set(secs(1) + 2 * MILLI);
-        obs.onBlockItemAdd(blockNumber, 0, 100, false);
+        obs.onBlockItemAdd(block1, 0, 100, false);
         clock.set(secs(1) + 3 * MILLI);
-        obs.onBlockItemAdd(blockNumber, 1, 200, false);
+        obs.onBlockItemAdd(block1, 1, 200, false);
         clock.set(secs(1) + 4 * MILLI);
-        obs.onBlockItemAdd(blockNumber, 2, 300, false);
-        obs.onBlockHeaderSend(blockNumber, secs(1) + 10 * MILLI, secs(1) + 11 * MILLI);
-        obs.onBlockItemsSend(blockNumber, 0, 2, secs(1) + 10 * MILLI, secs(1) + 11 * MILLI);
-        obs.onBlockEndSend(blockNumber, secs(1) + 12 * MILLI, secs(1) + 13 * MILLI);
+        obs.onBlockItemAdd(block1, 2, 300, false);
+        obs.onBlockHeaderSend(block1, secs(1) + 10 * MILLI, secs(1) + 11 * MILLI);
+        obs.onBlockItemsSend(block1, 0, 2, secs(1) + 10 * MILLI, secs(1) + 11 * MILLI);
+        obs.onBlockEndSend(block1, secs(1) + 12 * MILLI, secs(1) + 13 * MILLI);
         clock.set(secs(1) + 14 * MILLI);
-        obs.onBlockClose(blockNumber);
+        obs.onBlockClose(block1);
         clock.set(secs(1) + 20 * MILLI);
-        obs.onBlockAcknowledge(blockNumber);
+        obs.onBlockAcknowledge(block1);
+
+        // create another block to test the open delay is calculated
+        clock.set(secs(2));
+        obs.onBlockInit(block2);
+        clock.set(secs(2) + MILLI);
+        obs.onBlockOpen(block2);
+        clock.set(secs(2) + 2 * MILLI);
+        obs.onBlockItemAdd(block2, 0, 100, false);
+        clock.set(secs(2) + 3 * MILLI);
+        obs.onBlockItemAdd(block2, 1, 200, false);
+        clock.set(secs(2) + 4 * MILLI);
+        obs.onBlockItemAdd(block2, 2, 300, false);
+        obs.onBlockHeaderSend(block2, secs(2) + 10 * MILLI, secs(2) + 11 * MILLI);
+        obs.onBlockItemsSend(block2, 0, 2, secs(2) + 10 * MILLI, secs(2) + 11 * MILLI);
+        obs.onBlockEndSend(block2, secs(2) + 12 * MILLI, secs(2) + 13 * MILLI);
+        clock.set(secs(2) + 14 * MILLI);
+        obs.onBlockClose(block2);
+        clock.set(secs(2) + 20 * MILLI);
+        obs.onBlockAcknowledge(block2);
 
         clock.set(secs(10)); // move past the 2-second gather grace period
         final String report = gather(obs);
+        System.out.println(report);
 
         assertThat(report).isNotNull();
         // block lifecycle spans (exact line for the simplest probe; prefixes elsewhere)
         assertThat(report)
-                .contains("InitToOpen { (Unit:NANOS|Samples:1|Sum:1000000|Min:1000000|Max:1000000"
-                        + "|Avg:1000000.0000|StdDev:0.0000) }");
-        assertThat(report).contains("OpenToClose { (Unit:NANOS|Samples:1|Sum:13000000|");
-        assertThat(report).contains("OpenToAck { (Unit:NANOS|Samples:1|Sum:19000000|");
-        assertThat(report).contains("ClosedToAck { (Unit:NANOS|Samples:1|Sum:6000000|");
-        assertThat(report).contains("HeaderSentToAck { (Unit:NANOS|Samples:1|Sum:9000000|");
-        assertThat(report).contains("EndSentToAck { (Unit:NANOS|Samples:1|Sum:7000000|");
-        assertThat(report).contains("ItemsPerBlock { (Unit:COUNT|Samples:1|Sum:3|");
-        assertThat(report).contains("BlockSize { (Unit:BYTES|Samples:1|Sum:600|");
+                .contains(
+                        "InitToOpen { (Unit:NANOS|Samples:2|Sum:2000000|Min:1000000|Max:1000000|Avg:1000000.0000|StdDev:0.0000) }");
+        assertThat(report).contains("OpenToClose { (Unit:NANOS|Samples:2|Sum:26000000|");
+        assertThat(report).contains("OpenToAck { (Unit:NANOS|Samples:2|Sum:38000000|");
+        assertThat(report).contains("ClosedToAck { (Unit:NANOS|Samples:2|Sum:12000000|");
+        assertThat(report).contains("HeaderSentToAck { (Unit:NANOS|Samples:2|Sum:18000000|");
+        assertThat(report).contains("EndSentToAck { (Unit:NANOS|Samples:2|Sum:14000000|");
+        assertThat(report).contains("ItemsPerBlock { (Unit:COUNT|Samples:2|Sum:6|");
+        assertThat(report).contains("BlockSize { (Unit:BYTES|Samples:2|Sum:1200|");
+        // verify the open delay - there is only 1 sample even though there are 2 blocks. The open delay can only be
+        // determined for the second block since there was no block before the first to compare against
+        assertThat(report).contains("OpenDelay { (Unit:NANOS|Samples:1|Sum:987000000|");
         // per-item details: idle = send start - buffered (8/7/6 ms), latency = send window (1 ms each)
-        assertThat(report).contains("ItemSize { (Unit:BYTES|Samples:3|Sum:600|Min:100|Max:300|");
-        assertThat(report).contains("ItemIdle { (Unit:NANOS|Samples:3|Sum:21000000|Min:6000000|Max:8000000|");
-        assertThat(report).contains("ItemSendLatency { (Unit:NANOS|Samples:3|Sum:3000000|Min:1000000|Max:1000000|");
+        assertThat(report).contains("ItemSize { (Unit:BYTES|Samples:6|Sum:1200|Min:100|Max:300|");
+        assertThat(report).contains("ItemIdle { (Unit:NANOS|Samples:6|Sum:42000000|Min:6000000|Max:8000000|");
+        assertThat(report).contains("ItemSendLatency { (Unit:NANOS|Samples:6|Sum:6000000|Min:1000000|Max:1000000|");
         assertThat(report).contains("ItemsNeverSent { (Unit:COUNT|Sum:0) }");
         // summary counters
-        assertThat(report).contains("Opened { (Unit:COUNT|Sum:1) }");
-        assertThat(report).contains("Closed { (Unit:COUNT|Sum:1) }");
-        assertThat(report).contains("Acknowledged { (Unit:COUNT|Sum:1) }");
+        assertThat(report).contains("Opened { (Unit:COUNT|Sum:2) }");
+        assertThat(report).contains("Closed { (Unit:COUNT|Sum:2) }");
+        assertThat(report).contains("Acknowledged { (Unit:COUNT|Sum:2) }");
         assertThat(report).contains("Abandoned { (Unit:COUNT|Sum:0) }");
-        assertThat(report).contains("Created-Total { (Unit:COUNT|Sum:3)(Unit:BYTES|Sum:600) }");
-        assertThat(report).contains("Sent-Total { (Unit:COUNT|Sum:3)(Unit:BYTES|Sum:600) }");
+        assertThat(report).contains("Created-Total { (Unit:COUNT|Sum:6)(Unit:BYTES|Sum:1200) }");
+        assertThat(report).contains("Sent-Total { (Unit:COUNT|Sum:6)(Unit:BYTES|Sum:1200) }");
     }
 
     @Test
-    void proofAndFooterSpans_reported() {
+    void testProofAndFooterSpans_reported() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -154,7 +178,7 @@ class BlockStreamingObsTest {
     /** Regression guard for sentinel pollution: a block acked while only partially tracked must
      * contribute zero samples to the spans it has no ticks for, not ~-10^14 garbage values. */
     @Test
-    void partiallyTrackedBlock_doesNotPolluteProbesWithSentinelGarbage() {
+    void testPartiallyTrackedBlock_doesNotPolluteProbesWithSentinelGarbage() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -174,7 +198,7 @@ class BlockStreamingObsTest {
     // ── never-sent items ────────────────────────────────────────────────────────
 
     @Test
-    void itemsNeverSent_countTowardSizeButNotIdleOrLatency() {
+    void testItemsNeverSent_countTowardSizeButNotIdleOrLatency() {
         final BlockStreamingObs obs = makeObs(true);
 
         // block 5: two items buffered but never sent (e.g. the block node already had the block)
@@ -207,7 +231,7 @@ class BlockStreamingObsTest {
     // ── throughput buckets / fencepost ──────────────────────────────────────────
 
     @Test
-    void throughput_sameSecondSharesBucket_andDivisorSpansFullWindow() {
+    void testThroughput_sameSecondSharesBucket_andDivisorSpansFullWindow() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -231,7 +255,7 @@ class BlockStreamingObsTest {
     // ── dynamic enable/disable ──────────────────────────────────────────────────
 
     @Test
-    void dynamicDisable_clearsAccumulatedData_andLateAckIsNoOp() {
+    void testDynamicDisable_clearsAccumulatedData_andLateAckIsNoOp() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -254,7 +278,7 @@ class BlockStreamingObsTest {
     }
 
     @Test
-    void allHooks_whenDisabled_storeNothing() {
+    void testAllHooks_whenDisabled_storeNothing() {
         final BlockStreamingObs obs = makeObs(false);
 
         clock.set(secs(1));
@@ -275,7 +299,7 @@ class BlockStreamingObsTest {
     // ── leak guard / abandoned blocks ───────────────────────────────────────────
 
     @Test
-    void neverAckedBlock_isEvictedAsAbandoned() {
+    void testNeverAckedBlock_isEvictedAsAbandoned() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -293,7 +317,7 @@ class BlockStreamingObsTest {
     }
 
     @Test
-    void unackedBlockYoungerThanThreshold_isRetained() {
+    void testUnackedBlockYoungerThanThreshold_isRetained() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -313,7 +337,7 @@ class BlockStreamingObsTest {
     // ── concurrency ─────────────────────────────────────────────────────────────
 
     @Test
-    void concurrentItemAdds_distinctIndices_allCounted() throws InterruptedException {
+    void testConcurrentItemAdds_distinctIndices_allCounted() throws InterruptedException {
         final BlockStreamingObs obs = makeObs(true);
         final int threads = 8;
         final int itemsPerThread = 100;
@@ -339,7 +363,7 @@ class BlockStreamingObsTest {
     }
 
     @Test
-    void concurrentItemAdds_collidingIndices_exactlyOneWinsPerIndex() throws InterruptedException {
+    void testConcurrentItemAdds_collidingIndices_exactlyOneWinsPerIndex() throws InterruptedException {
         final BlockStreamingObs obs = makeObs(true);
         final int threads = 8;
         final int items = 100;
@@ -367,7 +391,7 @@ class BlockStreamingObsTest {
     /** Regression guard for the ack-vs-gather race: racing the two must never throw (the old code
      * could throw IllegalStateException into the ack path) and every block is drained exactly once. */
     @Test
-    void ackAndGatherRacing_neverThrows_andEveryBlockIsDrainedExactlyOnce() throws InterruptedException {
+    void testAckAndGatherRacing_neverThrows_andEveryBlockIsDrainedExactlyOnce() throws InterruptedException {
         final BlockStreamingObs obs = makeObs(true);
 
         for (long block = 0; block < 50; block++) {
@@ -397,7 +421,7 @@ class BlockStreamingObsTest {
     // ── idempotency / unknown-block smoke tests ─────────────────────────────────
 
     @Test
-    void onBlockOpen_onlyFirstCallCounts() {
+    void testOnBlockOpen_onlyFirstCallCounts() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -417,7 +441,7 @@ class BlockStreamingObsTest {
     }
 
     @Test
-    void onBlockItemAdd_duplicateIndex_firstWins() {
+    void testOnBlockItemAdd_duplicateIndex_firstWins() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));
@@ -437,7 +461,7 @@ class BlockStreamingObsTest {
     }
 
     @Test
-    void unknownBlock_allHooksAreNoOps() {
+    void testUnknownBlock_allHooksAreNoOps() {
         final BlockStreamingObs obs = makeObs(true);
 
         clock.set(secs(1));

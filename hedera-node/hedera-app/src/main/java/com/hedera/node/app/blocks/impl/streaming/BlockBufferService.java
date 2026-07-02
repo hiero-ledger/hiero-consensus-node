@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -129,8 +130,16 @@ public class BlockBufferService {
      * Flag indicating if the buffer service has been started.
      */
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
-
+    /**
+     * Low-level observability mechanism for block streaming.
+     */
     private final BlockStreamingObs streamingObs;
+    /**
+     * Tracks the amount of data (in bytes) held by the block buffer in memory. This value represents the serialized
+     * data and does not include any overhead of things like the ConcurrentMap or overhead related to sending the block
+     * data to a block node or persisting on disk.
+     */
+    private final LongAdder bufferSizeInBytes = new LongAdder();
 
     /**
      * Creates a new BlockBufferService with the given configuration.
@@ -338,7 +347,10 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
-        blockStreamMetrics.recordBlockItemBytes((int) serializedItem.length());
+
+        final long sizeInBytes = serializedItem.length();
+        bufferSizeInBytes.add(sizeInBytes);
+        blockStreamMetrics.recordBlockItemBytes(sizeInBytes);
         final int itemIndex = blockState.addSerializedItem(serializedItem, itemType);
 
         if (itemIndex != -1) {
@@ -703,6 +715,7 @@ public class BlockBufferService {
                 blockBuffer.remove(blockNumber);
                 ++numPruned;
                 --size;
+                bufferSizeInBytes.add(-block.sizeBytes()); // subtract the size of the block
             } else {
                 // Track all unacknowledged blocks
                 if (blockNumber > highestBlockAcked) {
@@ -808,20 +821,25 @@ public class BlockBufferService {
 
         final PruneResult pruningResult = pruneBuffer();
         final PruneResult previousPruneResult = lastPruningResultRef.getAndSet(pruningResult);
+        final long bufferTotalBytes = bufferSizeInBytes.sum();
 
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%",
+                    "Block buffer status: idealMaxBufferSize: {}, blocksChecked: {}, blocksInProgress: {}, blocksPruned: {}, blocksPendingAck: {}, blockRange: {}, saturation: {}%, bufferSizeBytes: {}",
                     pruningResult.idealMaxBufferSize,
                     pruningResult.numBlocksChecked,
                     pruningResult.numBlocksInProgress,
                     pruningResult.numBlocksPruned,
                     pruningResult.numBlocksPendingAck,
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
-                    pruningResult.saturationPercent);
+                    pruningResult.saturationPercent,
+                    bufferTotalBytes);
         }
 
+        blockStreamMetrics.recordBufferedBlocks(blockBuffer.size());
+        blockStreamMetrics.recordBufferedBlocksPendingAck(pruningResult.numBlocksPendingAck);
+        blockStreamMetrics.recordBufferSizeInBytes(bufferTotalBytes);
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
 
         final double actionStageThreshold = actionStageThreshold();
