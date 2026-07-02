@@ -6,7 +6,6 @@ module org.hiero.base.crypto {
     exports org.hiero.base.crypto.config;
     exports org.hiero.base.crypto;
 
-    requires transitive com.hedera.cryptography.libsodium;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
