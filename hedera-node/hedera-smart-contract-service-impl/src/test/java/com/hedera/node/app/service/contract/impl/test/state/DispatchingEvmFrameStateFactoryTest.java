@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
@@ -31,7 +31,7 @@ class DispatchingEvmFrameStateFactoryTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ScopedEvmFrameStateFactory(scope, extFrameScope, CODE_FACTORY);
+        subject = new ScopedEvmFrameStateFactory(scope, extFrameScope, new ContractCodeCache());
     }
 
     @Test

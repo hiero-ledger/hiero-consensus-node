@@ -48,6 +48,8 @@ public class ContractMetrics {
     private CountAccumulateAverageMetricTriplet failedTransactionDuration;
     private CountAccumulateAverageMetricTriplet transactionGasUsed;
     private LongGauge gasPrice;
+    private CountAccumulateAverageMetricTriplet successfullyProcessedCodeDelegations;
+    private CountAccumulateAverageMetricTriplet ignoredCodeDelegations;
 
     private final OpsDurationMetrics opsDurationMetrics;
 
@@ -75,7 +77,13 @@ public class ContractMetrics {
     }
 
     public record TransactionProcessingSummary(
-            long durationNanos, long opsDurationUnitsConsumed, long gasUsed, OptionalLong gasPrice, boolean success) {}
+            long durationNanos,
+            long opsDurationUnitsConsumed,
+            long gasUsed,
+            OptionalLong gasPrice,
+            boolean success,
+            int successfullyProcessedCodeDelegations,
+            int ignoredCodeDelegations) {}
 
     // Counters that are the P2 metrics, and maps that take `SystemContractMethods` into the specific counters
 
@@ -218,6 +226,16 @@ public class ContractMetrics {
                     "Actual gas used by smart contract transactions");
             gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + ":LatestGasPrice")
                     .withDescription("Gas price of the latest processed smart contract transaction"));
+            successfullyProcessedCodeDelegations = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + ":SuccessfullyProcessedCodeDelegations",
+                    "Count of successfully processed EIP-7702 code delegations per transaction");
+            ignoredCodeDelegations = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + ":IgnoredCodeDelegations",
+                    "Count of ignored EIP-7702 code delegations per transaction");
         }
     }
 
@@ -407,6 +425,8 @@ public class ContractMetrics {
             summary.gasPrice().ifPresent(newGasPrice -> {
                 this.gasPrice.set(newGasPrice);
             });
+            this.successfullyProcessedCodeDelegations.recordObservation(summary.successfullyProcessedCodeDelegations());
+            this.ignoredCodeDelegations.recordObservation(summary.ignoredCodeDelegations());
         }
 
         this.opsDurationMetrics.recordTxnTotalOpsDuration(summary.opsDurationUnitsConsumed());

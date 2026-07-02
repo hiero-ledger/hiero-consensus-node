@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synt
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
@@ -26,6 +27,7 @@ import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -41,6 +43,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -58,6 +61,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -187,7 +191,7 @@ public class HandleHederaOperations implements HederaOperations {
         final var payerId = context.payer();
         // Calculate gas for a CryptoCreateTransactionBody with an alias address
         final var synthCreation = TransactionBody.newBuilder()
-                .cryptoCreateAccount(CREATE_TXN_BODY_BUILDER.alias(tuweniToPbjBytes(recipient)))
+                .cryptoCreateAccount(CREATE_TXN_BODY_BUILDER.alias(tuweniToPbjBytes(recipient.getBytes())))
                 .build();
         final var createFee = gasCalculator.feeCalculatorPriceInTinyBars(synthCreation, payerId);
 
@@ -534,5 +538,27 @@ public class HandleHederaOperations implements HederaOperations {
     @Override
     public ContractMetrics contractMetrics() {
         return contractMetrics;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean setAccountCodeDelegation(@NonNull AccountID accountID, @NonNull Address delegationAddress) {
+        // Dispatch a synthetic transaction to set the delegation
+        final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(accountID)
+                .delegationAddress(tuweniToPbjBytes(delegationAddress.getBytes()))
+                .build();
+        final var body =
+                TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();
+
+        final var streamBuilder = context.dispatch(stepDispatch(
+                context.payer(),
+                body,
+                CryptoUpdateStreamBuilder.class,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                new HandleContext.DispatchMetadata(Map.of())));
+        return streamBuilder.status() == SUCCESS;
     }
 }

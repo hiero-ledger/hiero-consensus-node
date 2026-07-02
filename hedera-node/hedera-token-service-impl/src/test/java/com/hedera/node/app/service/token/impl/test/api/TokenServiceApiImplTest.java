@@ -201,7 +201,7 @@ class TokenServiceApiImplTest {
     }
 
     @Test
-    void refusesToUpdateKvCountsForNonContract() {
+    void allowsToUpdateKvCountsForNonContract() {
         accountStore.put(Account.newBuilder()
                 .accountId(CONTRACT_ACCOUNT_ID)
                 .contractKvPairsNumber(3)

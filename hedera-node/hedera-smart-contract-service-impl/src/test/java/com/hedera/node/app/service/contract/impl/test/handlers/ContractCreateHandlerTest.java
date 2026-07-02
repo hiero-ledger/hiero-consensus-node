@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -35,6 +36,9 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
@@ -42,6 +46,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -60,7 +65,6 @@ import com.swirlds.metrics.api.Metrics;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -114,7 +118,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private EntityIdFactory entityIdFactory;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock(strictness = Strictness.LENIENT)
     private ContractServiceComponent contractServiceComponent;
@@ -127,9 +131,6 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private TokenServiceApi tokenServiceApi;
-
-    @Mock
-    private EvmFrameStates evmFrameStates;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
@@ -173,6 +174,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 
@@ -221,6 +223,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
                 null,
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 
@@ -260,7 +263,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(streamBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(streamBuilder);
@@ -304,7 +308,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(streamBuilder.createdContractID(null)).willReturn(streamBuilder);
@@ -381,8 +386,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void validatePureChecks() {
         // check at least intrinsic gas
         final var txn1 = contractCreateTransactionWithInsufficientGas();
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
-                .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+        given(gasCalculator.transactionGasRequirements(0, 0, true, null, null))
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD));
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
@@ -410,6 +415,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void validateRepeatedHookIds() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(GasCharges.NONE);
         final var txn = TransactionBody.newBuilder()
                 .transactionID(transactionID)
                 .contractCreateInstance(ContractCreateTransactionBody.newBuilder()

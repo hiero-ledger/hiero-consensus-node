@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
@@ -21,6 +22,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SI
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -60,15 +62,18 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AutoRenewConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.utility.ByteUtils;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_UPDATE}.
@@ -92,8 +97,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoUpdateAccountOrThrow();
-        // HIP-1340 isn't supported yet
-        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
         validateTruePreCheck(op.hasAccountIDToUpdate(), ACCOUNT_ID_DOES_NOT_EXIST);
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
@@ -103,6 +106,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
             validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
+        // If a delegation address is set, it must be of delegation address size
+        validateTruePreCheck(
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                INVALID_CONTRACT_ID);
     }
 
     @Override
@@ -265,6 +272,17 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     - op.hookIdsToDelete().size()
                     + op.hookCreationDetails().size());
         }
+
+        if (op.delegationAddress().length() != 0) {
+            if (ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
+                // Address is 0x00..00 -> clear the delegation
+                builder.delegationAddress(Bytes.EMPTY);
+            } else {
+                // Set the delegation (note: the correct EVM addres length is verified in pureChecks)
+                builder.delegationAddress(op.delegationAddress());
+            }
+        }
+
         return builder;
     }
 
@@ -294,6 +312,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
+        final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
 
         // validate expiry metadata
         final var currentMetadata = new ExpiryMeta(
@@ -332,6 +351,11 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
         // validate if account is not deleted
         validateFalse(updateAccount.deleted(), ACCOUNT_DELETED);
+
+        validateTrue(
+                contractsConfig.codeDelegationsEnabled()
+                        || op.delegationAddress().length() == 0,
+                NOT_SUPPORTED);
     }
 
     /**

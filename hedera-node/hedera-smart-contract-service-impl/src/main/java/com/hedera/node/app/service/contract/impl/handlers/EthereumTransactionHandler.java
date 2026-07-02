@@ -7,8 +7,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.getTransactionType;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
@@ -24,9 +26,14 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -41,6 +48,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -48,11 +56,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#ETHEREUM_TRANSACTION}.
@@ -74,7 +82,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             @NonNull final EthTxSigsCache ethereumSignatures,
             @NonNull final EthereumCallDataHydration callDataHydration,
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, entityIdFactory, component);
@@ -101,6 +109,8 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             final var adminKey = account.keyOrThrow();
             validateTruePreCheck(adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_SIGNATURE);
         }
+        // Also validate the transaction type
+        validateTransactionType(context.body().ethereumTransactionOrThrow(), context.configuration());
     }
 
     @Override
@@ -123,16 +133,46 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             // gas requirements check
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
             final var isContractCreate = !ethTxData.hasToAddress();
-            // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L);
-            validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
+            final var accessLists = parseAccessLists(ethTxData);
+            // Ensure that type 4 transactions have at least one authorization in the list
+            final List<CodeDelegation> codeDelegations;
+            if (ethTxData.type().equals(EthTransactionType.EIP7702)) {
+                validateTruePreCheck(
+                        ethTxData.authorizationList() != null && ethTxData.authorizationListAsRlp().length > 0,
+                        INVALID_ETHEREUM_TRANSACTION);
+                validateTruePreCheck(ethTxData.hasToAddress(), INVALID_ETHEREUM_TRANSACTION);
+                // parse the inner code delegations to ensure they are valid
+                codeDelegations = parseInnerCodeDelegations(ethTxData);
+            } else {
+                codeDelegations = null;
+            }
+            final var gasRequirements = gasCalculator.transactionGasRequirements(
+                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, accessLists, codeDelegations);
+            validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);
             if (e instanceof NullPointerException) {
                 component.contractMetrics().incrementRejectedType3EthTx();
             }
             throw e;
+        }
+    }
+
+    private static List<AccessListItem> parseAccessLists(final EthTxData ethTxData) throws PreCheckException {
+        try {
+            return ethTxData.extractAccessList();
+        } catch (final IllegalArgumentException e) {
+            throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
+        }
+    }
+
+    private static List<CodeDelegation> parseInnerCodeDelegations(final EthTxData ethTxData) throws PreCheckException {
+        try {
+            final var codeDelegations = ethTxData.extractCodeDelegations();
+            validateTruePreCheck(!codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
+            return codeDelegations;
+        } catch (final IllegalArgumentException e) {
+            throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
         }
     }
 
@@ -185,7 +225,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
         }
         final var rollbackHandler = new EthereumTransactionRollbackHandler(
-                outcome, component.hederaOperations().gasChargingEvents());
+                outcome, component.hederaOperations().gasChargingEvents(), component.rootProxyWorldUpdater());
         context.dispatchMetadata()
                 .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
                 .ifPresent(consumer -> consumer.accept(rollbackHandler));
@@ -194,6 +234,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
 
     /**
      * Does work needed to externalize details after an Ethereum transaction is throttled.
+     *
      * @param context the handle context
      */
     public void handleThrottled(@NonNull final HandleContext context) {
@@ -238,5 +279,22 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             }
         }
         return true;
+    }
+
+    /**
+     * Validates that the given transaction is a supported Ethereum transaction type
+     *
+     * @param op The Ethereum transaction body
+     * @throws PreCheckException thrown if the transaction type is not supported
+     */
+    private void validateTransactionType(@NonNull final EthereumTransactionBody op, @NonNull final Configuration config)
+            throws PreCheckException {
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+
+        final var type = getTransactionType(op.ethereumData().toByteArray());
+        validateTruePreCheck(type >= 0, NOT_SUPPORTED);
+
+        // Type 4 transactions are only supported if the feature flag is disabled
+        validateTruePreCheck(contractsConfig.codeDelegationsEnabled() || type < 4, NOT_SUPPORTED);
     }
 }

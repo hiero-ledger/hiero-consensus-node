@@ -40,8 +40,8 @@ class GetAllowanceCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -59,8 +59,8 @@ class GetAllowanceCallTest extends CallTestBase {
         given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID)).willReturn(null);
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ALLOWANCE_OWNER_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ALLOWANCE_OWNER_ID), result.output());
     }
 
     @Test
@@ -78,13 +78,13 @@ class GetAllowanceCallTest extends CallTestBase {
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(GetAllowanceTranslator.ERC_GET_ALLOWANCE
                         .getOutputs()
                         .encode(Tuple.singleton(BigInteger.valueOf(0L)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -102,12 +102,12 @@ class GetAllowanceCallTest extends CallTestBase {
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(GetAllowanceTranslator.GET_ALLOWANCE
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.getNumber(), BigInteger.valueOf(0L)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

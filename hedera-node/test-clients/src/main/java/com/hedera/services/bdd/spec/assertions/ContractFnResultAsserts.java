@@ -248,7 +248,8 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
             final var result = (ContractFunctionResult) o;
             final var expectedContractAddress = org.hyperledger.besu.datatypes.Address.contractAddress(
                     org.hyperledger.besu.datatypes.Address.wrap(Bytes.wrap(senderAddress.toByteArray())), nonce);
-            final var expectedAddress = ByteString.copyFrom(expectedContractAddress.toArray());
+            final var expectedAddress =
+                    ByteString.copyFrom(expectedContractAddress.getBytes().toArray());
             assertTrue(result.hasEvmAddress(), "Missing EVM address, expected " + expectedAddress);
             final var actual = result.getEvmAddress().getValue();
             assertEquals(expectedAddress, actual, "Bad EVM address");

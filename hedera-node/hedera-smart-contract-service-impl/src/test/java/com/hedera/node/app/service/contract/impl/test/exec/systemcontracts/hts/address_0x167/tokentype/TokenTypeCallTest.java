@@ -25,13 +25,13 @@ class TokenTypeCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenTypeTranslator.TOKEN_TYPE
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.protoOrdinal(), 0))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -40,13 +40,13 @@ class TokenTypeCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenTypeTranslator.TOKEN_TYPE
                         .getOutputs()
                         .encode(Tuple.of(INVALID_TOKEN_ID.protoOrdinal(), 0))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -55,7 +55,7 @@ class TokenTypeCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

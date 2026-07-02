@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -26,6 +28,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  */
 @QueryScope
 public class QueryHederaNativeOperations implements HederaNativeOperations {
+
     private final QueryContext context;
 
     private final EntityIdFactory entityIdFactory;
@@ -112,6 +115,12 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
         throw new UnsupportedOperationException("Cannot create hollow account in query context");
     }
 
+    @Override
+    public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull final Bytes evmAddress, @NonNull final Key key, @NonNull final Bytes delegationAddress) {
+        throw new UnsupportedOperationException("Cannot create an account in query context");
+    }
+
     /**
      * Refuses to finalize a hollow account as a contract.
      * @param evmAddress the EVM address of the hollow account to finalize as a contract
@@ -192,5 +201,11 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public Bytes ledgerId() {
         return context.ledgerId();
+    }
+
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        throw new UnsupportedOperationException("Cannot create child record builder in query context");
     }
 }

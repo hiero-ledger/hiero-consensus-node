@@ -17,7 +17,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * Implements the Hedera gas charging logic. The main difference from Besu here is that we can have a
@@ -33,16 +32,18 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  */
 @Singleton
 public class CustomGasCharging {
-    /** One HBAR denominated in tinybars */
+    /**
+     * One HBAR denominated in tinybars
+     */
     public static final long ONE_HBAR_IN_TINYBARS = 100_000_000L;
 
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
 
     /**
      * @param gasCalculator the gas calculator to use
      */
     @Inject
-    public CustomGasCharging(@NonNull final GasCalculator gasCalculator) {
+    public CustomGasCharging(@NonNull final HederaGasCalculator gasCalculator) {
         this.gasCalculator = gasCalculator;
     }
 
@@ -51,12 +52,12 @@ public class CustomGasCharging {
      * relayer-aware logic. The relayer gets refund priority, so any charged allowance
      * is first refunded, with the sender only getting a refund if there is any left over.
      *
-     * @param unusedGas the actual gas used by the transaction
+     * @param unusedGas     the actual gas used by the transaction
      * @param allowanceUsed the amount of the relayer's gas allowance used
-     * @param sender the sender account
-     * @param relayer the relayer account, if present
-     * @param context the context of the transaction, including the network gas price
-     * @param worldUpdater the world updater for the transaction
+     * @param sender        the sender account
+     * @param relayer       the relayer account, if present
+     * @param context       the context of the transaction, including the network gas price
+     * @param worldUpdater  the world updater for the transaction
      */
     public void maybeRefundGiven(
             final long unusedGas,
@@ -93,11 +94,11 @@ public class CustomGasCharging {
      *
      * <p>Even if there are no gas charges, still returns the intrinsic gas cost of the transaction.
      *
-     * @param sender  the sender account
-     * @param relayer the relayer account
-     * @param context the context of the transaction, including the network gas price
+     * @param sender       the sender account
+     * @param relayer      the relayer account
+     * @param context      the context of the transaction, including the network gas price
      * @param worldUpdater the world updater for the transaction
-     * @param transaction the transaction to charge gas for
+     * @param transaction  the transaction to charge gas for
      * @return the result of the gas charging
      * @throws HandleException if the gas charging fails for any reason
      */
@@ -112,24 +113,24 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
-        // TODO: Revisit baselineGas with Pectra support epic
-        final var intrinsicGas =
-                gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate(), 0L);
+        final var payload = transaction.payload();
+        final var gasCharges = gasCalculator.transactionGasRequirements(
+                (int) payload.length(),
+                HederaGasCalculator.payloadZeroBytes(payload),
+                transaction.isCreate(),
+                transaction.accessLists(),
+                transaction.codeDelegations());
         if (context.isNoopGasContext()) {
-            return new GasCharges(intrinsicGas, 0L);
+            return gasCharges;
         }
-        validateTrue(transaction.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
+        validateTrue(transaction.gasLimit() >= gasCharges.minimumGasUsed(), INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
-
-            // Increment nonce right after the gas is charged
-            sender.incrementNonce();
-
-            return new GasCharges(intrinsicGas, allowanceUsed);
+            return new GasCharges(gasCharges.intrinsicGas(), gasCharges.minimumGasUsed(), allowanceUsed);
         } else {
             chargeWithOnlySender(sender, context, worldUpdater, transaction);
-            return new GasCharges(intrinsicGas, 0L);
+            return gasCharges;
         }
     }
 
@@ -138,10 +139,10 @@ public class CustomGasCharging {
      * within the given context and world updater.  This is used when transaction are aborted due to an exception check
      * failure before the transaction has started execution in the EVM.
      *
-     * @param sender  the sender accountID
-     * @param context the context of the transaction, including the network gas price
+     * @param sender       the sender accountID
+     * @param context      the context of the transaction, including the network gas price
      * @param worldUpdater the world updater for the transaction
-     * @param transaction the transaction to charge gas for
+     * @param transaction  the transaction to charge gas for
      * @throws HandleException if the gas charging fails for any reason
      */
     public void chargeGasForAbortedTransaction(
@@ -153,15 +154,20 @@ public class CustomGasCharging {
         requireNonNull(context);
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
-
-        // TODO: Revisit baselineGas with Pectra support epic
-        final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false, 0L);
+        final var payload = transaction.payload();
+        final var gasRequirements = gasCalculator.transactionGasRequirements(
+                (int) payload.length(),
+                HederaGasCalculator.payloadZeroBytes(payload),
+                transaction.isCreate(),
+                transaction.accessLists(),
+                transaction.codeDelegations());
 
         if (transaction.isEthereumTransaction()) {
-            final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
+            final var fee =
+                    feeForAborted(transaction.relayerId(), context, worldUpdater, gasRequirements.minimumGasUsed());
             worldUpdater.collectGasFee(transaction.relayerId(), fee, false);
         } else {
-            final var fee = feeForAborted(sender, context, worldUpdater, intrinsicGas);
+            final var fee = feeForAborted(sender, context, worldUpdater, gasRequirements.minimumGasUsed());
             worldUpdater.collectGasFee(sender, fee, false);
         }
     }
@@ -227,7 +233,7 @@ public class CustomGasCharging {
 
     /**
      * @param gasCharge gas to be charged
-     * @param gasPrice the gas price
+     * @param gasPrice  the gas price
      * @return return th cost of the gas
      */
     public long gasCostGiven(final long gasCharge, final long gasPrice) {

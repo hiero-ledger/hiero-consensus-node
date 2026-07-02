@@ -113,17 +113,19 @@ import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 import org.hyperledger.besu.evm.operation.InvalidOperation;
 import org.hyperledger.besu.evm.operation.Operation;
+import org.hyperledger.besu.evm.tracing.OpCodeTracerConfigBuilder;
+import org.hyperledger.besu.evm.tracing.OpCodeTracerConfigBuilder.OpCodeTracerConfig;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
-import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
+import org.hyperledger.besu.evm.tracing.StreamingOperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -139,7 +141,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *   <li>Executing a {@link HederaFunctionality#FILE_CREATE} to upload some contract initcode.</li>
  *   <li>Executing a {@link HederaFunctionality#CONTRACT_CREATE} to create an instance of the contract.</li>
  *   <li>Executing a {@link HederaFunctionality#CONTRACT_CALL} to call a function on the contract, and capturing
- *   the output of a {@link StandardJsonTracer} that is passed in as an extra argument.</li>
+ *   the output of a {@link StreamingOperationTracer} that is passed in as an extra argument.</li>
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
@@ -157,7 +159,7 @@ public class TransactionExecutorsTest {
     private static final com.esaulpaugh.headlong.abi.Function GET_LAST_BLOCKHASH_FUNCTION =
             new com.esaulpaugh.headlong.abi.Function("getLastBlockHash()", "(bytes32)");
     private static final String EXPECTED_TRACE_START =
-            "{\"pc\":0,\"op\":96,\"gas\":\"0x5c838\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
+            "{\"pc\":0,\"op\":\"0x60\",\"gas\":378936,\"gasCost\":3,\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
             new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
 
@@ -214,8 +216,15 @@ public class TransactionExecutorsTest {
         // the executor now expects ActionSidecarContentTracer instances.
         final var stringWriter = new StringWriter();
         final var printWriter = new PrintWriter(stringWriter);
-        final var jsonTracer = new StandardJsonTracer(printWriter, false, false, false, false);
-        final var addOnTracer = new OperationTracerAdapter(jsonTracer);
+        final var opCodeTracerConfig = OpCodeTracerConfigBuilder.createFrom(OpCodeTracerConfig.DEFAULT)
+                .traceMemory(false)
+                .traceStack(false)
+                .traceReturnData(false)
+                .traceStorage(false)
+                .eip3155Strict(false)
+                .build();
+        final var streamingOperationTracer = new StreamingOperationTracer(printWriter, opCodeTracerConfig);
+        final var addOnTracer = new OperationTracerAdapter(streamingOperationTracer);
         final var callOutput = executor.execute(contractCallMultipurposePickFunction(), Instant.EPOCH, addOnTracer);
         final var callRecord = callOutput.getFirst().transactionRecord();
         final var callResult = callRecord.contractCallResultOrThrow().contractCallResult();
