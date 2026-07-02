@@ -443,7 +443,8 @@ kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest "${MIRROR_REST_LOC
 MIRROR_PORT_FORWARD_PID="$!"
 
 log "Waiting for mirror REST to become available"
-wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
+# /api/v1/network/nodes 404s on current mirror charts; probe blocks instead
+wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 60 5
 
 log "Preparing JS SDK scenario runner"
 write_sdk_verifier
