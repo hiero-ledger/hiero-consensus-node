@@ -114,17 +114,12 @@ Per-component `TaskSchedulerConfiguration` values that shape the platform wiring
 |   ID    |                            Key                            |            Type            |                                                Default                                                |                               Effect                                | Range | Fragility |
 |---------|-----------------------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|-------|-----------|
 | TUN-023 | `platformSchedulers.consensusEngine`                      | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`    | Scheduler configuration for the consensus engine.                   |       | —         |
-| TUN-024 | `platformSchedulers.stateSnapshotManager`                 | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC`                                                | Scheduler configuration for the state snapshot manager.             |       | —         |
-| TUN-025 | `platformSchedulers.stateSigner`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC`                                                       | Scheduler configuration for the state signer.                       |       | —         |
 | TUN-026 | `platformSchedulers.futureEventBuffer`                    | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`                       | Scheduler configuration for the future-event buffer.                |       | —         |
 | TUN-027 | `platformSchedulers.pcesSequencer`                        | TaskSchedulerConfiguration | `DIRECT`                                                                                              | Scheduler configuration for the preconsensus event sequencer.       |       | —         |
 | TUN-028 | `platformSchedulers.applicationTransactionPrehandler`     | TaskSchedulerConfiguration | `CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the application transaction prehandler. |       | —         |
-| TUN-029 | `platformSchedulers.stateSignatureCollector`              | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the state signature collector.          |       | —         |
 | TUN-030 | `platformSchedulers.transactionHandler`                   | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the transaction handler.                |       | —         |
 | TUN-031 | `platformSchedulers.issDetector`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC`                                                      | Scheduler configuration for the ISS detector.                       |       | —         |
 | TUN-032 | `platformSchedulers.issHandler`                           | TaskSchedulerConfiguration | `DIRECT`                                                                                              | Scheduler configuration for the ISS handler.                        |       | —         |
-| TUN-033 | `platformSchedulers.hashLogger`                           | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC`                                                      | Scheduler configuration for the hash logger.                        |       | —         |
-| TUN-034 | `platformSchedulers.stateHasher`                          | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`             | Scheduler configuration for the state hasher.                       |       | —         |
 | TUN-035 | `platformSchedulers.stateGarbageCollector`                | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC`                                                       | Scheduler configuration for the state garbage collector.            |       | —         |
 | TUN-036 | `platformSchedulers.stateGarbageCollectorHeartbeatPeriod` | Duration                   | `200ms`                                                                                               | Heartbeat frequency sent to the state garbage collector.            |       | —         |
 | TUN-037 | `platformSchedulers.signedStateSentinel`                  | TaskSchedulerConfiguration | `SEQUENTIAL UNHANDLED_TASK_METRIC`                                                                    | Scheduler configuration for the signed-state sentinel.              |       | —         |
@@ -135,6 +130,10 @@ Per-component `TaskSchedulerConfiguration` values that shape the platform wiring
 | TUN-042 | `platformSchedulers.transactionPool`                      | TaskSchedulerConfiguration | `DIRECT_THREADSAFE`                                                                                   | Scheduler configuration for the transaction pool.                   |       | —         |
 | TUN-043 | `platformSchedulers.branchDetector`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch detector.                    |       | —         |
 | TUN-044 | `platformSchedulers.branchReporter`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch reporter.                    |       | —         |
+
+**Retired.** TUN-024, TUN-025, TUN-029, TUN-033, TUN-034 moved out of this record to
+[`state.management.wiring.*` — StateManagementWiringConfig](#statemanagementwiring---statemanagementwiringconfig)
+(now TUN-192…TUN-196) when the state-management schedulers were extracted into `consensus-state-management`. IDs retired, not reused.
 
 ## `os.health.*` — OSHealthCheckConfig
 
@@ -262,6 +261,20 @@ Shares the `state.*` prefix with [StateCommonConfig](#state---statecommonconfig)
 | TUN-097 | `state.deleteInvalidStateFiles`       | boolean  | `false` | At startup, delete state files that can't be deserialized and try the next one; be very careful enabling network-wide.                        |       | —         |
 | TUN-098 | `state.validateInitialState`          | boolean  | `true`  | If false, skip ISS validation on the state loaded from disk at startup (test-only).                                                           |       | —         |
 | TUN-099 | `state.periodicSnapshotsEnabled`      | boolean  | `true`  | Create periodic snapshots of the signed state.                                                                                                |       | —         |
+
+## `state.management.wiring.*` — StateManagementWiringConfig
+
+Module: `consensus-state-management`. Source: [StateManagementWiringConfig.java](../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/config/StateManagementWiringConfig.java).
+
+Per-component `TaskSchedulerConfiguration` values for the state-management pipeline. These schedulers were extracted from [PlatformSchedulersConfig](#platformschedulers---platformschedulersconfig) (retired TUN-024, TUN-025, TUN-029, TUN-033, TUN-034); defaults are unchanged.
+
+|   ID    |                        Key                        |            Type            |                                          Default                                          |                           Effect                           | Range | Fragility |
+|---------|---------------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------|------------------------------------------------------------|-------|-----------|
+| TUN-192 | `state.management.wiring.stateHasher`             | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the state hasher.              |       | —         |
+| TUN-193 | `state.management.wiring.hashLogger`              | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC`                                          | Scheduler configuration for the hash logger.               |       | —         |
+| TUN-194 | `state.management.wiring.stateSigner`             | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC`                                           | Scheduler configuration for the state signer.              |       | —         |
+| TUN-195 | `state.management.wiring.stateSignatureCollector` | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                | Scheduler configuration for the state signature collector. |       | —         |
+| TUN-196 | `state.management.wiring.stateSnapshotManager`    | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC`                                    | Scheduler configuration for the state snapshot manager.    |       | —         |
 
 ## `consensus.*` — ConsensusConfig
 

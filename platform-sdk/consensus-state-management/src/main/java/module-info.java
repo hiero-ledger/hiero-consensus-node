@@ -31,10 +31,6 @@ module org.hiero.consensus.state.management {
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
-    requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
 
     provides ConfigurationExtension with
