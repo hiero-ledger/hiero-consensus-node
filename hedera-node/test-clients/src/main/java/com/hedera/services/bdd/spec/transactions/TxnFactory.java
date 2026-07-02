@@ -67,7 +67,6 @@ import com.hederahashgraph.api.proto.java.TokenWipeAccountTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.UncheckedSubmitBody;
 import com.hederahashgraph.api.proto.java.UtilPrngTransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -258,10 +257,6 @@ public class TxnFactory {
             builder.setInitialSupply(setup.defaultTokenInitialSupply());
             builder.setSymbol(TxnUtils.randomUppercase(8));
         };
-    }
-
-    public Consumer<UncheckedSubmitBody.Builder> defaultDefUncheckedSubmitBody() {
-        return builder -> {};
     }
 
     public Consumer<ConsensusSubmitMessageTransactionBody.Builder> defaultDefConsensusSubmitMessageTransactionBody() {

@@ -159,7 +159,6 @@ public class TransactionDispatcher {
         return switch (kind) {
             case NODE_STAKE_UPDATE,
                     FREEZE,
-                    UNCHECKED_SUBMIT,
                     CRYPTO_ADD_LIVE_HASH,
                     CRYPTO_DELETE_LIVE_HASH,
                     STATE_SIGNATURE_TRANSACTION,
@@ -232,8 +231,6 @@ public class TransactionDispatcher {
             case REGISTERED_NODE_CREATE -> handlers.registeredNodeCreateHandler();
             case REGISTERED_NODE_UPDATE -> handlers.registeredNodeUpdateHandler();
             case REGISTERED_NODE_DELETE -> handlers.registeredNodeDeleteHandler();
-
-            case UNCHECKED_SUBMIT -> handlers.networkUncheckedSubmitHandler();
 
             case SCHEDULE_CREATE -> handlers.scheduleCreateHandler();
             case SCHEDULE_SIGN -> handlers.scheduleSignHandler();

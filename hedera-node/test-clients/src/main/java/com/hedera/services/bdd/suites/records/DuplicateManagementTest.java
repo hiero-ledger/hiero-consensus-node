@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.getDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
@@ -28,12 +27,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,7 +43,6 @@ import org.junit.jupiter.api.DynamicTest;
 public class DuplicateManagementTest {
     private static final String REPEATED = "repeated";
     public static final String TXN_ID = "txnId";
-    private static final String TO = "3";
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
     private static final long DUPLICATE_FEE_TOLERANCE_TINYBARS = 25L;
@@ -57,13 +52,21 @@ public class DuplicateManagementTest {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
                 usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
-                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID))
+                cryptoCreate(REPEATED)
                         .payingWith(CIVILIAN)
-                        .fee(ONE_HBAR)
-                        .hasPrecheckFrom(NOT_SUPPORTED, BUSY),
-                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
-                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
-                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                        .txnId(TXN_ID)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll(),
+                cryptoCreate(REPEATED)
+                        .payingWith(CIVILIAN)
+                        .txnId(TXN_ID)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll(),
+                cryptoCreate(REPEATED)
+                        .payingWith(CIVILIAN)
+                        .txnId(TXN_ID)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll(),
                 sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
                 getReceipt(TXN_ID)
                         .andAnyDuplicates()
@@ -174,41 +177,48 @@ public class DuplicateManagementTest {
                 newKeyNamed("wrongKey"),
                 cryptoCreate(CIVILIAN),
                 usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)),
-                uncheckedSubmit(
-                        cryptoCreate("nope").payingWith(CIVILIAN).txnId(TXN_ID).signedBy("wrongKey")),
-                sleepFor(500), // time to reach consensus
-                getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)),
+                cryptoCreate("nope")
+                        .payingWith(CIVILIAN)
+                        .txnId(TXN_ID)
+                        .signedBy("wrongKey")
+                        .setNode(4) // for skipping ingest
+                        .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                 getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
                         .hasPriority(recordWith()
                                 .status(INVALID_PAYER_SIGNATURE)
-                                .transfers(includingDeduction("node payment", TO))));
+                                .transfers(includingDeduction("node payment", "4"))));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
         return hapiTest(
+                newKeyNamed("wrongKey"),
                 cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),
                 usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, TO, 100_000_000L)),
-                uncheckedSubmit(cryptoCreate("nope")
-                                .txnId(TXN_ID)
-                                .payingWith(CIVILIAN)
-                                .setNode("4"))
-                        .logged(),
-                uncheckedSubmit(
-                        cryptoCreate("sure").txnId(TXN_ID).payingWith(CIVILIAN).setNode(TO)),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", 100_000_000L)),
+                cryptoCreate("nope")
+                        .txnId(TXN_ID)
+                        .payingWith(CIVILIAN)
+                        .signedBy("wrongKey")
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll(),
+                cryptoCreate("sure")
+                        .txnId(TXN_ID)
+                        .payingWith(CIVILIAN)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll(),
                 sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
                 getReceipt(TXN_ID)
                         .andAnyDuplicates()
                         .logged()
                         .hasPriorityStatus(SUCCESS)
-                        .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
+                        .hasDuplicateStatuses(INVALID_PAYER_SIGNATURE),
                 getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
                         .andAnyDuplicates()
                         .hasPriority(recordWith().status(SUCCESS))
-                        .hasDuplicates(inOrder(recordWith().status(INVALID_NODE_ACCOUNT))));
+                        .hasDuplicates(inOrder(recordWith().status(INVALID_PAYER_SIGNATURE))));
     }
 }

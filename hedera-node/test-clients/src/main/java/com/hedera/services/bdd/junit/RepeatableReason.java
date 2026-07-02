@@ -35,4 +35,9 @@ public enum RepeatableReason {
      * The test uses a short-circuiting transaction callback.
      */
     USES_SHORT_CIRCUITING_TRANSACTION_CALLBACK,
+    /**
+     * The test must skip the ingest workflow to submit its transactions, as they would always be rejected by
+     * a node in normal operations.
+     */
+    MUST_SKIP_INGEST,
 }

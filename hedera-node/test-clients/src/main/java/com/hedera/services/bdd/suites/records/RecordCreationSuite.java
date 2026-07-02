@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -16,7 +17,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -36,8 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
@@ -148,7 +150,7 @@ public class RecordCreationSuite {
     }
 
     @LeakyRepeatableHapiTest(
-            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            value = {RepeatableReason.MUST_SKIP_INGEST, NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW},
             overrides = {"nodes.feeCollectionAccountEnabled"})
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForLackOfDueDiligence() {
         final String disquietingMemo = "\u0000his is ok, it's fine, it's whatever.";
@@ -156,13 +158,14 @@ public class RecordCreationSuite {
         return hapiTest(
                 overriding("nodes.feeCollectionAccountEnabled", "false"),
                 cryptoCreate(PAYER),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)).payingWith(GENESIS),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
-                uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
-                                .memo(disquietingMemo)
-                                .payingWith(PAYER)
-                                .txnId(TXN_ID))
-                        .payingWith(GENESIS),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
+                        .memo(disquietingMemo)
+                        .payingWith(PAYER)
+                        .txnId(TXN_ID)
+                        .setNode("4") // for skipping ingest
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 doingContextual(spec -> {
                     final var lookup = getTxnRecord(TXN_ID).assertingNothingAboutHashes();
                     allRunFor(spec, lookup);
@@ -172,12 +175,12 @@ public class RecordCreationSuite {
                             INVALID_ZERO_BYTE_IN_STRING, record.getReceipt().getStatus());
 
                     final var transfers = record.getTransferList().getAccountAmountsList();
-                    final var nodeId = asId(TO_ACCOUNT, spec);
+                    final var nodeId = asId("4", spec);
                     final long nodeNet = transfers.stream()
                             .filter(aa -> aa.getAccountID().equals(nodeId))
                             .mapToLong(AccountAmount::getAmount)
                             .sum();
-                    assertTrue(nodeNet < 0, "Expected a net deduction from 0.0." + TO_ACCOUNT + " but was " + nodeNet);
+                    assertTrue(nodeNet < 0, "Expected a net deduction from 0.0.4 but was " + nodeNet);
 
                     final long chargedFee = -nodeNet;
                     final long expectedStakingRewards = chargedFee / 10;
@@ -203,7 +206,8 @@ public class RecordCreationSuite {
                 }));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
             requirement = SYSTEM_ACCOUNT_BALANCES,
             overrides = {"nodes.feeCollectionAccountEnabled"})
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForIgnoringPayerUnwillingness() {
@@ -211,7 +215,7 @@ public class RecordCreationSuite {
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
         return hapiTest(
                 overriding("nodes.feeCollectionAccountEnabled", "false"),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)).payingWith(GENESIS),
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                         .memo(comfortingMemo)
@@ -220,12 +224,15 @@ public class RecordCreationSuite {
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
                 sourcing(() -> {
                     feeObs.set(new FeeObject(100000, 150000, 0));
-                    return uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
-                                    .memo(comfortingMemo)
-                                    .fee(feeObs.get().networkFee() - 1L)
-                                    .payingWith(PAYER)
-                                    .txnId(TXN_ID))
-                            .payingWith(GENESIS);
+                    // Send to a non-default node to skip ingest, which would otherwise reject the
+                    // below-network fee at precheck before it could reach consensus
+                    return cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
+                            .memo(comfortingMemo)
+                            .fee(feeObs.get().networkFee() - 1L)
+                            .payingWith(PAYER)
+                            .txnId(TXN_ID)
+                            .setNode("4")
+                            .hasKnownStatus(INSUFFICIENT_TX_FEE);
                 }),
                 sourcing(() -> {
                     feeObs.set(new FeeObject(100000, 150000, 0));
@@ -233,14 +240,14 @@ public class RecordCreationSuite {
                             .assertingNothingAboutHashes()
                             .hasPriority(recordWith()
                                     .transfers(includingDeduction(
-                                            () -> 3L, feeObs.get().networkFee()))
+                                            () -> 4L, feeObs.get().networkFee()))
                                     .transfers(including(spec -> {
                                         final var networkFee = feeObs.get().networkFee();
                                         var fudge = 0;
                                         return TransferList.newBuilder()
                                                 .addAllAccountAmounts(List.of(
                                                         AccountAmount.newBuilder()
-                                                                .setAccountID(asId(TO_ACCOUNT, spec))
+                                                                .setAccountID(asId("4", spec))
                                                                 .setAmount(-networkFee)
                                                                 .build(),
                                                         AccountAmount.newBuilder()
