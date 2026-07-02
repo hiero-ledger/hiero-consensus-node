@@ -1,4 +1,4 @@
-{{- $xts_tag_exists := (getenv "XTS_TAG_EXISTS" | required "XTS_TAG_EXISTS must be set") -}}
+{{- $xts_proceed := (getenv "XTS_PROCEED" | required "XTS_PROCEED must be set") -}}
 {
   "attachments": [
     {
@@ -9,12 +9,17 @@
           "text": {
             "type": "mrkdwn",
             "text": {{ getenv "SLACK_SUMMARY_TEXT" | required "SLACK_SUMMARY_TEXT must be set" | data.ToJSON }}
-          },
-          "text": {
-            "type": "mrkdwn",
-            "text": {{- if eq $xts_tag_exists "true" -}}{{ "tag exists" }}{{else}}{{"No new XTS Candidate available."}}{{end}}
           }
-        }
+        }{{ if ne $xts_proceed "true" }},
+        {
+          "type": "context",
+          "elements": [
+            {
+              "type": "mrkdwn",
+              "text": {{ "No new XTS Candidate available." | data.ToJSON }}
+            }
+          ]
+        }{{ end }}
       ]
     }
   ]
