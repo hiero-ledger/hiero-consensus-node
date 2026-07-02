@@ -8,10 +8,10 @@ components:
   - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java
   - consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/CommonPcesWriter.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java
+  - consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java
+  - consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java
   - consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ReconnectCompleteStatusLogic.java
+  - consensus-utility/src/main/java/org/hiero/consensus/status/logic/ReconnectCompleteStatusLogic.java
   - consensus-reconnect-impl/src/main/java/org/hiero/consensus/reconnect/impl/ReconnectController.java
 related:
   invariants: []
@@ -75,7 +75,7 @@ persistence path, signed-state saving, and the reconnect gate.
   [restart-and-pces.md](../architecture/topics/restart-and-pces.md)).
 - **Periodic — a recent on-disk base state.** A signed state is produced at every
   block boundary (and at the freeze round) and marked for saving on a period
-  (`DefaultSavedStateController.java:111`), written to disk by
+  (`DefaultSavedStateController.java:109`), written to disk by
   `SignedStateFileWriter` (see
   [signed-state-management.md](../architecture/topics/signed-state-management.md)).
   This gives the node a recent, complete on-disk state to restart from — the base

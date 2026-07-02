@@ -28,9 +28,9 @@ after replaying events, the platform transitions into `OBSERVING`
 permits creation only in `ACTIVE` or `CHECKING`
 (`platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`).
 The node remains in `OBSERVING` for a configured span of wall-clock time — `platformStatus.observingStatusDelay`,
-default `10s` (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/PlatformStatusConfig.java:23`) —
+default `10s` (`platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java:23`) —
 then transitions to `CHECKING` (or `FREEZING` if a freeze boundary was crossed while observing)
-(`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ObservingStatusLogic.java:176-187`).
+(`platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ObservingStatusLogic.java:176-187`).
 
 The purpose of this pause is to give the node a high chance of **learning its latest self event before it starts
 creating new ones**, so it does not create a new event off an old self-parent. A node that creates two events sharing
@@ -152,9 +152,9 @@ See **Decision** above.
   for the ordinary-crash case.
 - `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41` — the
   `OBSERVING` status definition.
-- `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/ObservingStatusLogic.java:176-187`
+- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/status/logic/ObservingStatusLogic.java:176-187`
   — the exit transition driven by `observingStatusDelay`.
-- `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/PlatformStatusConfig.java:23` —
+- `platform-sdk/consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java:23` —
   the `observingStatusDelay` config field (default `10s`).
 - `platform-sdk/consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java:37-45`
   — the event-creation gate that withholds creation while in `OBSERVING`.

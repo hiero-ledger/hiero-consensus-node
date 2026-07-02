@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: ISS detection
-last_reviewed: 2026-05-28
+last_reviewed: 2026-06-30
 ---
 
 # ISS detection
@@ -38,10 +38,15 @@ Out of scope (covered by sibling topics):
 
 ## Runtime types
 
+ISS detection lives in the `consensus-iss-detection` module;
+`IssDetectionModule` is its public entry point, and the types below sit in
+its `org.hiero.consensus.iss.detection.internal` package (`IssNotification`
+is the exception — it is shared through `consensus-model`).
+
 ### `IssDetector`
 
 Interface at
-[`IssDetector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/IssDetector.java).
+[`IssDetector.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/IssDetector.java).
 Two input methods participate in detection:
 
 - `handleState(ReservedSignedState)` — called once per hashed signed
@@ -66,12 +71,12 @@ Carries a round number and an `IssType` (`SELF_ISS`, `OTHER_ISS`,
 
 Defined in
 [
-`RoundHashValidator.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/internal/RoundHashValidator.java).
+`RoundHashValidator.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/RoundHashValidator.java).
 Per-round state machine. Buffers asynchronously-arriving evidence (the
 local hash and per-peer reported hashes) until enough data is present
 to decide, then exposes a `HashValidityStatus`
 ([
-`HashValidityStatus.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/internal/HashValidityStatus.java)):
+`HashValidityStatus.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/HashValidityStatus.java)):
 `UNDECIDED`, `VALID`, `SELF_ISS`, `CATASTROPHIC_ISS`, `LACK_OF_DATA`,
 or `CATASTROPHIC_LACK_OF_DATA`.
 
@@ -79,7 +84,7 @@ or `CATASTROPHIC_LACK_OF_DATA`.
 
 Defined in
 [
-`ConsensusHashFinder.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/internal/ConsensusHashFinder.java).
+`ConsensusHashFinder.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/ConsensusHashFinder.java).
 Groups peer-reported hashes into weight-summed *partitions* keyed by
 hash value. The consensus hash is the hash of the partition that
 exceeds the `SUPER_MAJORITY` weight threshold; if no partition can
@@ -89,10 +94,10 @@ result is catastrophic.
 ### `IssHandler`
 
 Interface at
-[`IssHandler.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/IssHandler.java)
+[`IssHandler.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/IssHandler.java)
 with default implementation at
 [
-`DefaultIssHandler.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/internal/DefaultIssHandler.java).
+`DefaultIssHandler.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/DefaultIssHandler.java).
 Reads each `IssNotification` and applies the configured response:
 halt, force-restart, or no-op.
 
@@ -203,7 +208,7 @@ halt-bit to flip outside `haltOnAnyIss`.
 
 For `SELF_ISS` and `CATASTROPHIC_ISS`, the round number is written to a
 persistent `IssScratchpad` ([
-`IssScratchpad.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/iss/IssScratchpad.java))
+`IssScratchpad.java`](../../../../consensus-iss-detection/src/main/java/org/hiero/consensus/iss/detection/internal/IssScratchpad.java))
 under key `LAST_ISS_ROUND`, monotonically increasing only. The
 scratchpad survives restarts so an operator can observe the latest ISS
 round even after an automated recovery.
