@@ -5,6 +5,7 @@ import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.config.NetworkProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.util.Set;
 
 @ConfigData("contracts")
@@ -53,6 +54,9 @@ public record ContractsConfig(
         // c.f. https://hips.hedera.com/hip/hip-26 for reference
         @ConfigProperty(defaultValue = "295") @NetworkProperty
         int chainId,
+
+        @ConfigProperty(defaultValue = "262144") @Min(0) @NetworkProperty
+        int maxSerializedTraceDataBytes,
 
         @ConfigProperty(defaultValue = "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE,CONTRACT_ACTION") @NetworkProperty
         Set<SidecarType> sidecars,

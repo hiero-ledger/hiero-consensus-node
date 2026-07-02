@@ -39,6 +39,8 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -252,6 +254,28 @@ public class StreamBuilderTest {
                         false,
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, contractBytecode)));
         assertEquals(expectedTransactionSidecarRecords, singleTransactionRecord.transactionSidecarRecords());
+    }
+
+    @Test
+    void exceededContractTraceDataLimitClearsAllContractSidecars() {
+        final var actions = new ContractActions(List.of(
+                ContractAction.newBuilder().callType(ContractActionType.CALL).build()));
+        final var stateChanges = ContractStateChanges.DEFAULT;
+        final var bytecode =
+                ContractBytecode.newBuilder().initcode(Bytes.wrap("too-large")).build();
+        final var maxTraceDataBytes = ContractActions.PROTOBUF.measureRecord(actions);
+
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxTraceDataBytes)
+                .signedTx(NORMAL_SIGNED_TX)
+                .transactionID(transactionID)
+                .addContractStateChanges(stateChanges, false)
+                .addContractActions(actions, false)
+                .addContractBytecode(bytecode, false)
+                .addContractActions(actions, false);
+
+        final var sidecars = builder.build().transactionSidecarRecords();
+        assertTrue(builder.hasTraceDataSizeLimitExceeded());
+        assertTrue(sidecars.isEmpty());
     }
 
     @Test
