@@ -65,6 +65,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -90,22 +91,22 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * Maintains information about all services known by this instance. Map keys are
      * service names, values are service states by service ID.
      */
-    protected final Map<String, Map<Integer, StateMetadata<?, ?>>> services = new HashMap<>();
+    protected final HashMap<String, HashMap<Integer, StateMetadata<?, ?>>> services = new HashMap<>();
 
     /**
      * Cache of used {@link ReadableStates}.
      */
-    private final Map<String, ReadableStates> readableStatesMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReadableStates> readableStatesMap = new ConcurrentHashMap<>();
 
     /**
      * Cache of used {@link WritableStates}.
      */
-    private final Map<String, MerkleWritableStates> writableStatesMap = new HashMap<>();
+    private final HashMap<String, MerkleWritableStates> writableStatesMap = new HashMap<>();
 
     /**
      * Listeners to be notified of state changes on {@link MerkleWritableStates#commit()} calls for any service.
      */
-    private final List<StateChangeListener> listeners = new ArrayList<>();
+    private final ArrayList<StateChangeListener> listeners = new ArrayList<>();
 
     private final Metrics metrics;
 
@@ -162,7 +163,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
     public WritableStates getWritableStates(@NonNull final String serviceName) {
         virtualMap.throwIfImmutable();
         return writableStatesMap.computeIfAbsent(serviceName, s -> {
-            final var stateMetadata = services.getOrDefault(s, Map.of());
+            final var stateMetadata = services.getOrDefault(s, new HashMap<>());
             return new MerkleWritableStates(serviceName, stateMetadata);
         });
     }
@@ -246,7 +247,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
 
     // Getters and setters
 
-    public Map<String, Map<Integer, StateMetadata<?, ?>>> getServices() {
+    public HashMap<String, HashMap<Integer, StateMetadata<?, ?>>> getServices() {
         return services;
     }
 
@@ -330,9 +331,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
     private abstract static class MerkleStates implements ReadableStates {
 
         protected final Map<Integer, StateMetadata<?, ?>> stateMetadata;
-        protected final Map<Integer, ReadableKVState<?, ?>> kvInstances;
-        protected final Map<Integer, ReadableSingletonState<?>> singletonInstances;
-        protected final Map<Integer, ReadableQueueState<?>> queueInstances;
+        protected final ConcurrentHashMap<Integer, ReadableKVState<?, ?>> kvInstances;
+        protected final ConcurrentHashMap<Integer, ReadableSingletonState<?>> singletonInstances;
+        protected final ConcurrentHashMap<Integer, ReadableQueueState<?>> queueInstances;
         private final Set<Integer> stateIds;
 
         /**
@@ -343,63 +344,42 @@ public class VirtualMapStateImpl implements VirtualMapState {
         MerkleStates(@NonNull final Map<Integer, StateMetadata<?, ?>> stateMetadata) {
             this.stateMetadata = requireNonNull(stateMetadata);
             this.stateIds = Collections.unmodifiableSet(stateMetadata.keySet());
-            this.kvInstances = new HashMap<>();
-            this.singletonInstances = new HashMap<>();
-            this.queueInstances = new HashMap<>();
+            this.kvInstances = new ConcurrentHashMap<>();
+            this.singletonInstances = new ConcurrentHashMap<>();
+            this.queueInstances = new ConcurrentHashMap<>();
         }
 
         @NonNull
         @Override
         public <K, V> ReadableKVState<K, V> get(final int stateId) {
-            final ReadableKVState<K, V> instance = (ReadableKVState<K, V>) kvInstances.get(stateId);
-            if (instance != null) {
-                return instance;
-            }
-
-            final var md = stateMetadata.get(stateId);
-            if (md == null || !md.stateDefinition().keyValue()) {
-                throw new IllegalArgumentException("Unknown k/v state ID '" + stateId + ";");
-            }
-
-            final var ret = createReadableKVState(md);
-            kvInstances.put(stateId, ret);
-            return ret;
+            return (ReadableKVState<K, V>) kvInstances.computeIfAbsent(stateId, id -> {
+                final var md = stateMetadata.get(id);
+                if (md == null || !md.stateDefinition().keyValue())
+                    throw new IllegalArgumentException("Unknown k/v state ID '" + id + "'");
+                return createReadableKVState(md);
+            });
         }
 
         @NonNull
         @Override
         public <V> ReadableSingletonState<V> getSingleton(final int stateId) {
-            final ReadableSingletonState<V> instance = (ReadableSingletonState<V>) singletonInstances.get(stateId);
-            if (instance != null) {
-                return instance;
-            }
-
-            final var md = stateMetadata.get(stateId);
-            if (md == null || !md.stateDefinition().singleton()) {
-                throw new IllegalArgumentException("Unknown singleton state ID '" + stateId + "'");
-            }
-
-            final var ret = createReadableSingletonState(md);
-            singletonInstances.put(stateId, ret);
-            return ret;
+            return (ReadableSingletonState<V>) singletonInstances.computeIfAbsent(stateId, id -> {
+                final var md = stateMetadata.get(id);
+                if (md == null || !md.stateDefinition().singleton())
+                    throw new IllegalArgumentException("Unknown singleton state ID '" + id + "'");
+                return createReadableSingletonState(md);
+            });
         }
 
         @NonNull
         @Override
         public <E> ReadableQueueState<E> getQueue(final int stateId) {
-            final ReadableQueueState<E> instance = (ReadableQueueState<E>) queueInstances.get(stateId);
-            if (instance != null) {
-                return instance;
-            }
-
-            final var md = stateMetadata.get(stateId);
-            if (md == null || !md.stateDefinition().queue()) {
-                throw new IllegalArgumentException("Unknown queue state ID '" + stateId + "'");
-            }
-
-            final var ret = createReadableQueueState(md);
-            queueInstances.put(stateId, ret);
-            return ret;
+            return (ReadableQueueState<E>) queueInstances.computeIfAbsent(stateId, id -> {
+                final var md = stateMetadata.get(id);
+                if (md == null || !md.stateDefinition().queue())
+                    throw new IllegalArgumentException("Unknown queue state ID '" + id + "'");
+                return createReadableQueueState(md);
+            });
         }
 
         @Override
@@ -552,11 +532,11 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     extractKeyCodec(md),
                     extractValueCodec(md),
                     virtualMap);
-            listeners.forEach(listener -> {
+            for (var listener : listeners) {
                 if (listener.stateTypes().contains(MAP)) {
                     registerKVListener(state, listener);
                 }
-            });
+            }
             return state;
         }
 
@@ -568,11 +548,11 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractValueCodec(md),
                     virtualMap);
-            listeners.forEach(listener -> {
+            for (var listener : listeners) {
                 if (listener.stateTypes().contains(SINGLETON)) {
                     registerSingletonListener(state, listener);
                 }
-            });
+            }
             return state;
         }
 
@@ -584,25 +564,32 @@ public class VirtualMapStateImpl implements VirtualMapState {
                     computeLabel(md.serviceName(), extractStateKey(md)),
                     extractValueCodec(md),
                     virtualMap);
-            listeners.forEach(listener -> {
+            for (var listener : listeners) {
                 if (listener.stateTypes().contains(QUEUE)) {
                     registerQueueListener(state, listener);
                 }
-            });
+            }
             return state;
         }
 
         @Override
         public void commit() {
-            // Ensure all commits always happen in lexicographic order by state ID
-            kvInstances.keySet().stream().sorted().forEach(stateId -> ((WritableKVStateBase) kvInstances.get(stateId))
-                    .commit());
-            singletonInstances.keySet().stream()
-                    .sorted()
-                    .forEach(stateId -> ((WritableSingletonStateBase) singletonInstances.get(stateId)).commit());
-            queueInstances.keySet().stream()
-                    .sorted()
-                    .forEach(stateId -> ((WritableQueueStateBase) queueInstances.get(stateId)).commit());
+            // Ensure all commits always happen in ascending order by state ID
+            Integer[] kvIds = kvInstances.keySet().toArray(new Integer[0]);
+            Arrays.sort(kvIds);
+            Integer[] sinIds = singletonInstances.keySet().toArray(new Integer[0]);
+            Arrays.sort(sinIds);
+            Integer[] qIds = queueInstances.keySet().toArray(new Integer[0]);
+            Arrays.sort(qIds);
+            for (Integer id : kvIds) {
+                ((WritableKVStateBase) kvInstances.get(id)).commit();
+            }
+            for (Integer id : sinIds) {
+                ((WritableSingletonStateBase) singletonInstances.get(id)).commit();
+            }
+            for (Integer id : qIds) {
+                ((WritableQueueStateBase) queueInstances.get(id)).commit();
+            }
             readableStatesMap.remove(serviceName);
         }
 
@@ -664,15 +651,16 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * Commit all singleton states for every registered service.
      */
     public void commitSingletons() {
-        services.forEach((serviceKey, serviceStates) -> serviceStates.entrySet().stream()
-                .filter(stateMetadata ->
-                        stateMetadata.getValue().stateDefinition().singleton())
-                .forEach(service -> {
-                    WritableStates writableStates = getWritableStates(serviceKey);
+        for (var svcEntry : services.entrySet()) {
+            for (var stateEntry : svcEntry.getValue().entrySet()) {
+                if (stateEntry.getValue().stateDefinition().singleton()) {
+                    WritableStates writableStates = getWritableStates(svcEntry.getKey());
                     WritableSingletonStateBase<?> writableSingleton =
-                            (WritableSingletonStateBase<?>) writableStates.getSingleton(service.getKey());
+                            (WritableSingletonStateBase<?>) writableStates.getSingleton(stateEntry.getKey());
                     writableSingleton.commit();
-                }));
+                }
+            }
+        }
     }
 
     /**
@@ -786,8 +774,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
         final JSONObject singletons = new JSONObject();
         final JSONObject queues = new JSONObject();
 
-        services.forEach((key, value) -> {
-            value.forEach((s, stateMetadata) -> {
+        for (var svcEntry : services.entrySet()) {
+            for (var stateEntry : svcEntry.getValue().entrySet()) {
+                final var stateMetadata = stateEntry.getValue();
                 final String serviceName = stateMetadata.serviceName();
                 final StateDefinition<?, ?> stateDefinition = stateMetadata.stateDefinition();
                 final int stateId = stateDefinition.stateId();
@@ -831,8 +820,8 @@ public class VirtualMapStateImpl implements VirtualMapState {
                         }
                     }
                 }
-            });
-        });
+            }
+        }
 
         rootJson.put("Singletons", singletons);
         rootJson.put("Queues (Queue States)", queues);
