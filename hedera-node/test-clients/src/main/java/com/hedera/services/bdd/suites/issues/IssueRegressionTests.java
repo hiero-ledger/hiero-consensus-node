@@ -41,7 +41,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OBTAINER_DOES_NOT_EXIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -193,9 +198,7 @@ public class IssueRegressionTests {
     @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         // Verifies that a second node, having learned of a transaction via gossip, rejects a
-        // same-type duplicate at precheck. The former consensus-level cross-node duplicate-record
-        // assertion required uncheckedSubmit to bypass ingest; that mechanism has been removed, so
-        // only the precheck-level cross-node detection is exercised here.
+        // same-type duplicate at precheck.
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate("acct3").setNode(3).via("txnId1"),
