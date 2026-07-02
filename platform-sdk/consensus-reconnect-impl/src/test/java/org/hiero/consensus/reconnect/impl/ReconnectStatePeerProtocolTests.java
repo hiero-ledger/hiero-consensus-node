@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.state.signed.ReservedSignedState.createNullReservation;
@@ -30,6 +29,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
@@ -78,6 +79,7 @@ class ReconnectStatePeerProtocolTests {
     private record InitiateParams(
             boolean getsPermit, boolean isReconnectNeighbor, boolean shouldInitiate, String desc) {
         @Override
+        @NonNull
         public String toString() {
             return desc;
         }
@@ -105,6 +107,7 @@ class ReconnectStatePeerProtocolTests {
         }
 
         @Override
+        @NonNull
         public String toString() {
             return (teacherIsThrottled ? "throttled teacher" : "un-throttled teacher") + ", "
                     + (selfIsBehind ? "teacher is behind" : "teacher not behind")
@@ -153,7 +156,6 @@ class ReconnectStatePeerProtocolTests {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 mock(ReconnectStateTeacherThrottle.class),
                 () -> null,
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -196,7 +198,6 @@ class ReconnectStatePeerProtocolTests {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 teacherThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -229,7 +230,6 @@ class ReconnectStatePeerProtocolTests {
                 config,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 node1,
                 reconnectThrottle,
                 () -> null,
@@ -250,7 +250,6 @@ class ReconnectStatePeerProtocolTests {
                 config,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 node2,
                 reconnectThrottle,
                 () -> reservedSignedState,
@@ -285,7 +284,6 @@ class ReconnectStatePeerProtocolTests {
                     new TestConfigBuilder().getOrCreateConfig(),
                     new NoOpMetrics(),
                     Time.getCurrent(),
-                    getStaticThreadManager(),
                     mock(ReconnectStateTeacherThrottle.class),
                     () -> null,
                     Duration.of(100, ChronoUnit.MILLIS),
@@ -327,7 +325,7 @@ class ReconnectStatePeerProtocolTests {
     void abortedLearner() {
         when(reservedSignedStateResultPromise.acquireProvidePermit()).thenReturn(true);
         final ValueReference<Boolean> permitCancelled = new ValueReference<>(false);
-        doAnswer(invocation -> {
+        doAnswer(_ -> {
                     assertFalse(permitCancelled.getValue(), "permit should only be cancelled once");
                     permitCancelled.setValue(true);
                     return null;
@@ -343,7 +341,6 @@ class ReconnectStatePeerProtocolTests {
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 mock(ReconnectStateTeacherThrottle.class),
                 () -> mock(ReservedSignedState.class),
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -385,7 +382,6 @@ class ReconnectStatePeerProtocolTests {
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 reconnectThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -420,7 +416,6 @@ class ReconnectStatePeerProtocolTests {
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 reconnectThrottle,
                 ReservedSignedState::createNullReservation,
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -448,7 +443,6 @@ class ReconnectStatePeerProtocolTests {
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 teacherThrottle,
                 () -> reservedSignedState,
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -472,7 +466,6 @@ class ReconnectStatePeerProtocolTests {
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 teacherThrottle,
                 () -> signedState.reserve("test"),
                 Duration.of(100, ChronoUnit.MILLIS),
@@ -516,7 +509,6 @@ class ReconnectStatePeerProtocolTests {
                 new TestConfigBuilder().getOrCreateConfig(),
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                getStaticThreadManager(),
                 teacherThrottle,
                 () -> signedState.reserve("test"),
                 Duration.of(100, ChronoUnit.MILLIS),

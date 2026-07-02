@@ -4,9 +4,9 @@ package org.hiero.base.concurrent.futures;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,7 +34,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertEquals(value, future.get(), "unexpected value");
@@ -69,7 +69,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertEquals(value, future.getAndRethrow(), "unexpected value");
@@ -105,7 +105,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertEquals(value, future.get(), "unexpected value");
@@ -131,7 +131,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     // This one should time out
                     assertThrows(TimeoutException.class, () -> future.get(1, MILLISECONDS));
@@ -170,7 +170,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     // This one should time out
                     assertThrows(TimeoutException.class, () -> future.getAndRethrow(1, MILLISECONDS));
@@ -209,7 +209,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertThrows(CancellationException.class, future::get, "expected future to be cancelled");
@@ -244,7 +244,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertThrows(ExecutionException.class, future::get, "expected future to be cancelled");
@@ -279,7 +279,7 @@ class StandardFutureTests {
 
         final AtomicBoolean finished = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertThrows(RuntimeException.class, future::getAndRethrow, "expected future to be cancelled");
@@ -314,13 +314,13 @@ class StandardFutureTests {
         final StandardFuture<Integer> future =
                 new StandardFuture<>((final boolean interrupt, final Throwable exception) -> {
                     assertTrue(interrupt, "interrupt should be true");
-                    assertTrue(exception instanceof IllegalAccessError, "exception should have correct type");
+                    assertInstanceOf(IllegalAccessError.class, exception, "exception should have correct type");
                     callbackFinished.set(true);
                 });
         assertFalse(future.isDone(), "future should not be done");
         assertFalse(future.isCancelled(), "future should not be cancelled");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setRunnable(() -> {
                     try {
                         assertThrows(ExecutionException.class, future::get, "expected future to be cancelled");

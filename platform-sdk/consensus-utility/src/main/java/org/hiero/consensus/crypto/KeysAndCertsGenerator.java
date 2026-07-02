@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
 import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
@@ -149,12 +148,11 @@ public class KeysAndCertsGenerator {
     public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(@NonNull final Collection<NodeId> nodeIds)
             throws ExecutionException, InterruptedException, KeyStoreException {
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
-        try (final ExecutorService threadPool =
-                Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                        .setComponent("crypto")
-                        .setThreadName("crypto-generate")
-                        .setDaemon(false)
-                        .buildFactory())) {
+        try (final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadConfiguration()
+                .setComponent("crypto")
+                .setThreadName("crypto-generate")
+                .setDaemon(false)
+                .buildFactory())) {
             for (final NodeId nodeId : nodeIds) {
                 futures.put(nodeId, threadPool.submit(() -> generate(nodeId)));
             }

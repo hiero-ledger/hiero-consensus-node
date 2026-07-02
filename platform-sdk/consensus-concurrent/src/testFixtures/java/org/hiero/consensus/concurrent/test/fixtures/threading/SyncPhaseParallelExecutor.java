@@ -10,7 +10,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.ThrowingRunnable;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 
@@ -45,23 +45,16 @@ public class SyncPhaseParallelExecutor implements ParallelExecutor {
 
     private final boolean waitForSecondThread;
 
-    public SyncPhaseParallelExecutor(
-            final ThreadManager threadManager, final Runnable afterPhase1, final Runnable afterPhase2) {
-
-        this(threadManager, afterPhase1, afterPhase2, null, true);
+    public SyncPhaseParallelExecutor(final Runnable afterPhase1, final Runnable afterPhase2) {
+        this(afterPhase1, afterPhase2, null, true);
     }
 
     public SyncPhaseParallelExecutor(
-            final ThreadManager threadManager,
-            final Runnable afterPhase1,
-            final Runnable afterPhase2,
-            final boolean waitForSecondThread) {
-
-        this(threadManager, afterPhase1, afterPhase2, null, waitForSecondThread);
+            final Runnable afterPhase1, final Runnable afterPhase2, final boolean waitForSecondThread) {
+        this(afterPhase1, afterPhase2, null, waitForSecondThread);
     }
 
     public SyncPhaseParallelExecutor(
-            final ThreadManager threadManager,
             final Runnable afterPhase1,
             final Runnable afterPhase2,
             final Runnable beforePhase3,
@@ -72,7 +65,10 @@ public class SyncPhaseParallelExecutor implements ParallelExecutor {
         this.beforePhase3 = noopIfNull(beforePhase3);
         this.waitForSecondThread = waitForSecondThread;
 
-        executor = Executors.newCachedThreadPool(threadManager.createThreadFactory("SyncPhase", "SyncPhase"));
+        executor = Executors.newCachedThreadPool(new ThreadConfiguration()
+                .setComponent("SyncPhase")
+                .setThreadName("SyncPhase")
+                .buildFactory());
         threadStatus = new AtomicReference<>(ThreadStatus.WAITING_FOR_FIRST_THREAD);
         phase = PHASE_1;
     }

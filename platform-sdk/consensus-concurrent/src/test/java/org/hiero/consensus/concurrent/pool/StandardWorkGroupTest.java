@@ -5,12 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,7 +27,7 @@ class StandardWorkGroupTest {
 
     @BeforeEach
     void setUp() {
-        subject = new StandardWorkGroup(getStaticThreadManager(), "test-group");
+        subject = new StandardWorkGroup("test-group");
     }
 
     @AfterEach
@@ -42,7 +42,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void joinAfterNoTasksForked() throws InterruptedException, ParallelExecutionException {
+    void joinAfterNoTasksForked() throws InterruptedException, ExecutionException {
         subject.join(); // no exception expected
 
         assertThat(subject.isShutdown()).isFalse(); // close() not called yet
@@ -75,7 +75,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void forkJoinWithTaskNames() throws InterruptedException, ParallelExecutionException {
+    void forkJoinWithTaskNames() throws InterruptedException, ExecutionException {
         final AtomicInteger executedCount = new AtomicInteger();
         for (int i = 0; i < 10; i++) {
             subject.fork("task-" + i, executedCount::incrementAndGet);
@@ -86,7 +86,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void forkJoinWithoutTaskNames() throws InterruptedException, ParallelExecutionException {
+    void forkJoinWithoutTaskNames() throws InterruptedException, ExecutionException {
         final AtomicInteger executedCount = new AtomicInteger();
         for (int i = 0; i < 10; i++) {
             subject.fork(executedCount::incrementAndGet);
@@ -122,7 +122,7 @@ class StandardWorkGroupTest {
         });
 
         assertThatThrownBy(() -> subject.join())
-                .isInstanceOf(ParallelExecutionException.class)
+                .isInstanceOf(ExecutionException.class)
                 .hasRootCauseInstanceOf(AssertionError.class)
                 .hasRootCauseMessage("exception");
 
@@ -157,7 +157,7 @@ class StandardWorkGroupTest {
                 subject.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-            } catch (ParallelExecutionException e) {
+            } catch (ExecutionException e) {
                 throw new RuntimeException(e);
             }
         });
@@ -199,7 +199,7 @@ class StandardWorkGroupTest {
         }
 
         assertThatThrownBy(() -> subject.join())
-                .isInstanceOf(ParallelExecutionException.class)
+                .isInstanceOf(ExecutionException.class)
                 .cause()
                 .message()
                 .isIn(IntStream.range(0, tasksCount).mapToObj(i -> "error-" + i).collect(Collectors.toSet()));
@@ -215,7 +215,7 @@ class StandardWorkGroupTest {
         });
 
         assertThatThrownBy(() -> subject.join())
-                .isInstanceOf(ParallelExecutionException.class)
+                .isInstanceOf(ExecutionException.class)
                 .hasRootCauseInstanceOf(RuntimeException.class)
                 .hasRootCauseMessage("named task error");
 
@@ -223,8 +223,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void taskThrowingInterruptedExceptionDoesNotTriggerShutdown()
-            throws InterruptedException, ParallelExecutionException {
+    void taskThrowingInterruptedExceptionDoesNotTriggerShutdown() throws InterruptedException, ExecutionException {
         // InterruptedException is excluded from handleError — must not trigger shutdownNow().
         final AtomicInteger completedCount = new AtomicInteger();
 
@@ -263,7 +262,7 @@ class StandardWorkGroupTest {
     }
 
     @Test
-    void closeIsIdempotent() throws InterruptedException, ParallelExecutionException {
+    void closeIsIdempotent() throws InterruptedException, ExecutionException {
         subject.fork(() -> {});
         subject.join();
 
@@ -277,7 +276,7 @@ class StandardWorkGroupTest {
     void tryWithResourcesPattern() {
         final AtomicInteger interruptedCount = new AtomicInteger();
 
-        try (final StandardWorkGroup wg = new StandardWorkGroup(getStaticThreadManager(), "try-group")) {
+        try (final StandardWorkGroup wg = new StandardWorkGroup("try-group")) {
             wg.fork(() -> {
                 try {
                     Thread.sleep(Duration.ofSeconds(10).toMillis());
@@ -289,9 +288,7 @@ class StandardWorkGroupTest {
                 throw new RuntimeException("trigger shutdown");
             });
 
-            assertThatThrownBy(wg::join)
-                    .isInstanceOf(ParallelExecutionException.class)
-                    .hasRootCauseMessage("trigger shutdown");
+            assertThatThrownBy(wg::join).isInstanceOf(ExecutionException.class).hasRootCauseMessage("trigger shutdown");
         } // close() called here — sleeping task must have been interrupted
 
         assertThat(interruptedCount.get()).isEqualTo(1);
@@ -302,8 +299,7 @@ class StandardWorkGroupTest {
         final AtomicInteger abortCount = new AtomicInteger();
         final CyclicBarrier allReady = new CyclicBarrier(3);
 
-        try (final StandardWorkGroup wg =
-                new StandardWorkGroup(getStaticThreadManager(), "abort-test", abortCount::incrementAndGet)) {
+        try (final StandardWorkGroup wg = new StandardWorkGroup("abort-test", abortCount::incrementAndGet)) {
             for (int i = 0; i < 3; i++) {
                 wg.fork(() -> {
                     try {
@@ -314,18 +310,17 @@ class StandardWorkGroupTest {
                     throw new RuntimeException("failure");
                 });
             }
-            assertThatThrownBy(wg::join).isInstanceOf(ParallelExecutionException.class);
+            assertThatThrownBy(wg::join).isInstanceOf(ExecutionException.class);
         }
 
         assertThat(abortCount.get()).isEqualTo(1);
     }
 
     @Test
-    void abortActionNotCalledWhenNoTaskFails() throws InterruptedException, ParallelExecutionException {
+    void abortActionNotCalledWhenNoTaskFails() throws InterruptedException, ExecutionException {
         final AtomicInteger abortCount = new AtomicInteger();
 
-        try (final StandardWorkGroup wg =
-                new StandardWorkGroup(getStaticThreadManager(), "abort-test", abortCount::incrementAndGet)) {
+        try (final StandardWorkGroup wg = new StandardWorkGroup("abort-test", abortCount::incrementAndGet)) {
             wg.fork(() -> {});
             wg.fork(() -> {});
             wg.join();

@@ -3,7 +3,7 @@ package org.hiero.consensus.io;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,7 +53,7 @@ class RecycleBinImplTests {
     private void validateFile(@NonNull final Path path, @NonNull final String expectedContents) throws IOException {
         assertTrue(Files.exists(path));
         final String contents = Files.readString(path);
-        assertTrue(contents.equals(expectedContents));
+        assertEquals(expectedContents, contents);
     }
 
     @Test
@@ -269,11 +269,6 @@ class RecycleBinImplTests {
 
     private RecycleBinImpl createRecycleBin(final Time time, final Duration minimumPeriod) {
         return new RecycleBinImpl(
-                new NoOpMetrics(),
-                getStaticThreadManager(),
-                time,
-                recycleBinDirectory,
-                RecycleBinImplTests.MAXIMUM_FILE_AGE,
-                minimumPeriod);
+                new NoOpMetrics(), time, recycleBinDirectory, RecycleBinImplTests.MAXIMUM_FILE_AGE, minimumPeriod);
     }
 }

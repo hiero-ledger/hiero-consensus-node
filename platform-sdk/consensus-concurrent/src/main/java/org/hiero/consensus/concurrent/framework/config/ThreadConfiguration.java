@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent.framework.config;
 
 import java.util.concurrent.ThreadFactory;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * This object is used to configure and build {@link Thread} instances.
@@ -12,12 +11,9 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
 
     /**
      * Build a new thread configuration with default values.
-     *
-     * @param threadManager
-     * 		capable of building raw thread objects
      */
-    public ThreadConfiguration(final ThreadManager threadManager) {
-        super(threadManager);
+    public ThreadConfiguration() {
+        super();
     }
 
     /**
@@ -44,26 +40,21 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
     /**
      * Extracts the thread configuration from the caller's thread.
      *
-     * @param threadManager
-     * 		capable of building raw thread objects
      * @return a thread configuration with properties matching the caller's thread
      */
-    public static ThreadConfiguration captureThreadConfiguration(final ThreadManager threadManager) {
-        return captureThreadConfiguration(threadManager, Thread.currentThread());
+    public static ThreadConfiguration captureThreadConfiguration() {
+        return captureThreadConfiguration(Thread.currentThread());
     }
 
     /**
      * Extracts the thread configuration from a given thread.
      *
-     * @param threadManager
-     * 		capable of building raw thread objects
      * @param thread
      * 		the thread to copy configuration from
      * @return a thread configuration that matches the provided thread
      */
-    public static ThreadConfiguration captureThreadConfiguration(
-            final ThreadManager threadManager, final Thread thread) {
-        final ThreadConfiguration configuration = new ThreadConfiguration(threadManager);
+    public static ThreadConfiguration captureThreadConfiguration(final Thread thread) {
+        final ThreadConfiguration configuration = new ThreadConfiguration();
         configuration.copyThreadConfiguration(thread);
         return configuration;
     }
@@ -120,7 +111,7 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
 
         final java.util.concurrent.ThreadFactory factory = (final Runnable r) -> {
             final Runnable contextAwareRunnable = wrapRunnableWithSnapshot(r, snapshot);
-            final Thread thread = getThreadManager().createThread(getThreadGroup(), contextAwareRunnable);
+            final Thread thread = new Thread(getThreadGroup(), contextAwareRunnable);
             configureThread(thread);
             return thread;
         };

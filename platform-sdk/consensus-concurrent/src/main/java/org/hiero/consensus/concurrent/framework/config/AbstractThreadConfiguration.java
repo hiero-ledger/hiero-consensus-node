@@ -20,7 +20,6 @@ import org.apache.logging.log4j.ThreadContext;
 import org.hiero.base.Copyable;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -33,11 +32,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         implements Copyable, Mutable {
 
     private static final Logger logger = LogManager.getLogger(AbstractThreadConfiguration.class);
-
-    /**
-     * Responsible for creating and managing threads used by this object.
-     */
-    private final ThreadManager threadManager;
 
     /**
      * The ID of the node that is running the thread.
@@ -114,8 +108,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     /**
      * Build a new thread configuration with default values.
      */
-    protected AbstractThreadConfiguration(final ThreadManager threadManager) {
-        this.threadManager = threadManager;
+    protected AbstractThreadConfiguration() {
         nextThreadNumber = new AtomicInteger();
     }
 
@@ -127,7 +120,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      */
     @SuppressWarnings("CopyConstructorMissesField")
     protected AbstractThreadConfiguration(final AbstractThreadConfiguration<C> that) {
-        this.threadManager = that.threadManager;
         this.nodeId = that.nodeId;
         this.component = that.component;
         this.threadName = that.threadName;
@@ -141,15 +133,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         this.runnable = that.runnable;
         this.nextThreadNumber = that.nextThreadNumber;
         this.useThreadNumbers = that.useThreadNumbers;
-    }
-
-    /**
-     * Get the thread manager responsible for creating threads.
-     *
-     * @return a thread factory
-     */
-    protected ThreadManager getThreadManager() {
-        return threadManager;
     }
 
     /**
@@ -203,7 +186,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         final Runnable runnable = requireNonNull(getRunnable(), "runnable must not be null");
         final ContextSnapshot snapshot = captureContextSnapshot();
         final Runnable contextAwareRunnable = wrapRunnableWithSnapshot(runnable, snapshot);
-        final Thread thread = threadManager.createThread(getThreadGroup(), contextAwareRunnable);
+        final Thread thread = new Thread(getThreadGroup(), contextAwareRunnable);
         configureThread(thread);
 
         if (start) {
@@ -239,7 +222,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         final ContextSnapshot snapshot = captureContextSnapshot();
 
         return () -> {
-            final ThreadConfiguration originalConfiguration = captureThreadConfiguration(threadManager);
+            final ThreadConfiguration originalConfiguration = captureThreadConfiguration();
 
             try {
                 configureThread(Thread.currentThread());

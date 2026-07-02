@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
@@ -42,7 +40,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent) {
 
-        super(getStaticThreadManager(), configuration, metrics);
+        super(configuration, metrics);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

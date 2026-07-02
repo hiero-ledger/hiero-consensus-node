@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -26,8 +25,8 @@ class ConnectionServerTest {
         final Socket socket = mock(Socket.class);
         final ServerSocket serverSocket = mock(ServerSocket.class);
         final AtomicBoolean serverSocketClosed = new AtomicBoolean(false);
-        doAnswer(i -> serverSocketClosed.get()).when(serverSocket).isClosed();
-        doAnswer(i -> {
+        doAnswer(_ -> serverSocketClosed.get()).when(serverSocket).isClosed();
+        doAnswer(_ -> {
                     // unbind the socket after calling accept
                     serverSocketClosed.set(true);
                     return socket;
@@ -35,11 +34,10 @@ class ConnectionServerTest {
                 .when(serverSocket)
                 .accept();
         final SocketFactory socketFactory = mock(SocketFactory.class);
-        doAnswer(i -> serverSocket).when(socketFactory).createServerSocket(anyInt());
+        doAnswer(_ -> serverSocket).when(socketFactory).createServerSocket(anyInt());
         final AtomicReference<Socket> connectionHandler = new AtomicReference<>(null);
 
-        final ConnectionServer server =
-                new ConnectionServer(getStaticThreadManager(), 0, socketFactory, connectionHandler::set);
+        final ConnectionServer server = new ConnectionServer(0, socketFactory, connectionHandler::set);
 
         server.run();
         Assertions.assertSame(
@@ -49,7 +47,7 @@ class ConnectionServerTest {
 
         // test interrupt
         serverSocketClosed.set(false);
-        doAnswer(i -> {
+        doAnswer(_ -> {
                     throw new SocketTimeoutException();
                 })
                 .when(serverSocket)
@@ -63,8 +61,8 @@ class ConnectionServerTest {
         final Socket socket = mock(Socket.class);
         final ServerSocket serverSocket = mock(ServerSocket.class);
         final AtomicBoolean serverSocketClosed = new AtomicBoolean(false);
-        doAnswer(i -> serverSocketClosed.get()).when(serverSocket).isClosed();
-        doAnswer(i -> {
+        doAnswer(_ -> serverSocketClosed.get()).when(serverSocket).isClosed();
+        doAnswer(_ -> {
                     // unbind the socket after calling accept
                     serverSocketClosed.set(true);
                     return socket;
@@ -72,12 +70,11 @@ class ConnectionServerTest {
                 .when(serverSocket)
                 .accept();
         final SocketFactory socketFactory = mock(SocketFactory.class);
-        doAnswer(i -> serverSocket).when(socketFactory).createServerSocket(anyInt());
+        doAnswer(_ -> serverSocket).when(socketFactory).createServerSocket(anyInt());
 
         final InboundConnectionHandler handler = mock(InboundConnectionHandler.class);
 
-        final PeerConnectionServer server =
-                new PeerConnectionServer(getStaticThreadManager(), 0, handler, socketFactory, 1);
+        final PeerConnectionServer server = new PeerConnectionServer(0, handler, socketFactory, 1);
 
         server.run();
 
@@ -85,7 +82,7 @@ class ConnectionServerTest {
 
         // test interrupt
         serverSocketClosed.set(false);
-        doAnswer(i -> {
+        doAnswer(_ -> {
                     throw new SocketTimeoutException();
                 })
                 .when(serverSocket)

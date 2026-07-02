@@ -22,7 +22,6 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
@@ -68,7 +67,6 @@ public class SyncGossipModular implements Gossip {
      * @param configuration the configuration
      * @param metrics the metrics registry
      * @param time the time source
-     * @param threadManager the thread manager
      * @param ownKeysAndCerts private keys and public certificates for this node
      * @param roster the current roster
      * @param selfId this node's ID
@@ -81,7 +79,6 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final ThreadManager threadManager,
             @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
@@ -132,7 +129,7 @@ public class SyncGossipModular implements Gossip {
                 metrics,
                 time,
                 rpcSynchronizer,
-                new CachedPoolParallelExecutor(threadManager, "node-rpc-sync"),
+                new CachedPoolParallelExecutor("node-rpc-sync"),
                 intakeEventCounter,
                 rosterSize,
                 this.network.getNetworkMetrics(),
@@ -150,7 +147,7 @@ public class SyncGossipModular implements Gossip {
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
 
-        network.initialize(threadManager, handshakeProtocols, protocols);
+        network.initialize(handshakeProtocols, protocols);
     }
 
     /**

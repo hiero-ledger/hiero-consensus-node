@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,7 +42,7 @@ class SyncPhaseParallelExecutorTest {
         };
 
         // set the ref to a new executor
-        phaseExecutorRef.set(new SyncPhaseParallelExecutor(getStaticThreadManager(), afterPhase1, afterPhase2));
+        phaseExecutorRef.set(new SyncPhaseParallelExecutor(afterPhase1, afterPhase2));
 
         // setup the background thread
         final Thread thread = new Thread(threadTask1.getThreadRun());
@@ -85,7 +84,7 @@ class SyncPhaseParallelExecutorTest {
         };
 
         // set the ref to a new executor
-        phaseExecutorRef.set(new SyncPhaseParallelExecutor(getStaticThreadManager(), afterPhase1, afterPhase2, false));
+        phaseExecutorRef.set(new SyncPhaseParallelExecutor(afterPhase1, afterPhase2, false));
 
         // run the task in the foreground
         threadTask.getThreadRun().run();

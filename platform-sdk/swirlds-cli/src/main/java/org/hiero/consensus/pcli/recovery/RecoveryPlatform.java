@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
@@ -62,7 +61,7 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
             keysAndCerts = null;
         }
 
-        notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
+        notificationEngine = NotificationEngine.buildEngine();
 
         context = PlatformContext.create(configuration);
 

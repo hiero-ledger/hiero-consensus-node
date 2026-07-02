@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.cache;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
@@ -320,7 +319,7 @@ public final class VirtualNodeCache implements FastCopyable {
                     60L,
                     TimeUnit.SECONDS,
                     new LinkedBlockingQueue<>(),
-                    new ThreadConfiguration(getStaticThreadManager())
+                    new ThreadConfiguration()
                             .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
                             .setComponent("virtual-map")
                             .setThreadName("cache-cleaner")

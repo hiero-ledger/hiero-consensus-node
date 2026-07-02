@@ -30,7 +30,6 @@ import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.config.RecycleBinConfig;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -63,7 +62,6 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
      * Create a new recycle bin under an existing directory.
      *
      * @param metrics       manages the creation of metrics
-     * @param threadManager manages the creation of threads
      * @param time          provides wall clock time
      * @param recycleBinPath the existing directory to be used as bin
      * @param maximumFileAge maximum file age
@@ -71,13 +69,11 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
      */
     public RecycleBinImpl(
             @NonNull final Metrics metrics,
-            @NonNull final ThreadManager threadManager,
             @NonNull final Time time,
             @NonNull final Path recycleBinPath,
             @NonNull final Duration maximumFileAge,
             @NonNull final Duration minimumPeriod) {
 
-        Objects.requireNonNull(threadManager);
         this.time = Objects.requireNonNull(time);
         this.maximumFileAge = maximumFileAge;
         this.recycleBinPath = recycleBinPath;
@@ -91,7 +87,7 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
         this.recycledFileCountMetric = metrics.getOrCreate(RECYLED_FILE_COUNT_CONFIG);
         this.recycledFileCountMetric.set(topLevelRecycledFileCount);
 
-        this.cleanupThread = new StoppableThreadConfiguration<>(threadManager)
+        this.cleanupThread = new StoppableThreadConfiguration<>()
                 .setComponent("platform")
                 .setThreadName("recycle-bin-cleanup")
                 .setMinimumPeriod(minimumPeriod)
@@ -104,7 +100,6 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
      *
      * @param metrics           manages the creation of metrics
      * @param configuration     configuration
-     * @param threadManager     manages the creation of threads
      * @param time              provides wall clock time
      * @param fileSystemManager the manager that would be used to operate the fs.
      * @param nodeId            this node id
@@ -112,7 +107,6 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
     public static RecycleBin create(
             @NonNull final Metrics metrics,
             @NonNull final Configuration configuration,
-            @NonNull final ThreadManager threadManager,
             @NonNull final Time time,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId nodeId) {
@@ -121,12 +115,7 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
                 fileSystemManager.resolve(recycleBinConfig.dirName()).resolve(nodeId.toString());
 
         return new RecycleBinImpl(
-                metrics,
-                threadManager,
-                time,
-                recycleBinPath,
-                recycleBinConfig.maximumFileAge(),
-                recycleBinConfig.collectionPeriod());
+                metrics, time, recycleBinPath, recycleBinConfig.maximumFileAge(), recycleBinConfig.collectionPeriod());
     }
 
     /**

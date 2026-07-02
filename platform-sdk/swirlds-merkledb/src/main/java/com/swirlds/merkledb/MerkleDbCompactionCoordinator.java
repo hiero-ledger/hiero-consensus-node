@@ -8,7 +8,6 @@ import static com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats.estima
 import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
 import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
@@ -91,7 +90,7 @@ class MerkleDbCompactionCoordinator {
                     50L,
                     TimeUnit.MILLISECONDS,
                     new LinkedBlockingQueue<>(),
-                    new ThreadConfiguration(getStaticThreadManager())
+                    new ThreadConfiguration()
                             .setThreadGroup(new ThreadGroup("Compaction"))
                             .setComponent(MERKLEDB_COMPONENT)
                             .setThreadName("Compacting")

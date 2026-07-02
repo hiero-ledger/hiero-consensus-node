@@ -3,7 +3,6 @@ package org.hiero.consensus.concurrent;
 
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.framework.config.ThreadConfiguration.captureThreadConfiguration;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -38,7 +37,7 @@ class ThreadTests {
             runnableCalled.set(true);
         };
 
-        final ThreadConfiguration config = new ThreadConfiguration(getStaticThreadManager());
+        final ThreadConfiguration config = new ThreadConfiguration();
         final Thread thread = config.setRunnable(runnable).build();
 
         assertSame(
@@ -79,7 +78,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -89,7 +88,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "there should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -113,7 +112,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -123,7 +122,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "there should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -134,7 +133,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "there should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -162,7 +161,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -172,7 +171,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -198,7 +197,7 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -208,7 +207,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -219,7 +218,7 @@ class ThreadTests {
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> {
                     e.printStackTrace();
                     threadException.set(true);
@@ -242,14 +241,14 @@ class ThreadTests {
 
         final AtomicBoolean threadException = new AtomicBoolean(false);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> threadException.set(true))
                 .setRunnable(runnable1)
                 .build(true)
                 .join();
         assertFalse(threadException.get(), "should not have been any exceptions");
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setExceptionHandler((t, e) -> threadException.set(true))
                 .setRunnable(runnable2)
                 .build(true)
@@ -268,7 +267,7 @@ class ThreadTests {
         final ClassLoader classLoader =
                 Thread.currentThread().getContextClassLoader().getParent();
 
-        final ThreadFactory factory = new ThreadConfiguration(getStaticThreadManager())
+        final ThreadFactory factory = new ThreadConfiguration()
                 .setNodeId(NodeId.of(1234L))
                 .setComponent("pool1")
                 .setThreadName("thread1")
@@ -296,25 +295,23 @@ class ThreadTests {
     @DisplayName("Naming Tests")
     void namingTests() {
 
-        final Thread thread0 = new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {})
-                .build();
+        final Thread thread0 = new ThreadConfiguration().setRunnable(() -> {}).build();
         assertEquals("<unnamed>", thread0.getName(), "unexpected thread name");
 
-        final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread1 = new ThreadConfiguration()
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .build();
         assertEquals("<foo: unnamed>", thread1.getName(), "unexpected thread name");
 
-        final Thread thread2 = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread2 = new ThreadConfiguration()
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
                 .build();
         assertEquals("<foo: bar>", thread2.getName(), "unexpected thread name");
 
-        final Thread thread3 = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread3 = new ThreadConfiguration()
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
@@ -322,7 +319,7 @@ class ThreadTests {
                 .build();
         assertEquals("<foo: bar 1234>", thread3.getName(), "unexpected thread name");
 
-        final Thread thread4 = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread4 = new ThreadConfiguration()
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
@@ -331,7 +328,7 @@ class ThreadTests {
                 .build();
         assertEquals("<foo: bar 1234 to 4321>", thread4.getName(), "unexpected thread name");
 
-        final ThreadFactory factory = new ThreadConfiguration(getStaticThreadManager())
+        final ThreadFactory factory = new ThreadConfiguration()
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
@@ -360,7 +357,7 @@ class ThreadTests {
         final CountDownLatch seedLatch = new CountDownLatch(1);
 
         // This seed will inject itself into another thread.
-        final ThreadSeed seed = new ThreadConfiguration(getStaticThreadManager())
+        final ThreadSeed seed = new ThreadConfiguration()
                 .setComponent("seed-component")
                 .setThreadName("seed")
                 .setPriority(Thread.MAX_PRIORITY)
@@ -379,7 +376,7 @@ class ThreadTests {
         final CountDownLatch exitLatch = new CountDownLatch(1);
 
         // This thread will have the seed injected into it.
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setThreadName("inject-into-this-thread")
                 .setExceptionHandler(threadHandler)
                 .setInterruptableRunnable(() -> {
@@ -394,7 +391,7 @@ class ThreadTests {
                 .build(true);
 
         // Do some initial sanity checks on the configuration parameters of the original thread.
-        final ThreadConfiguration initialConfig = captureThreadConfiguration(getStaticThreadManager(), thread);
+        final ThreadConfiguration initialConfig = captureThreadConfiguration(thread);
         assertEquals("<inject-into-this-thread>", thread.getName(), "name should not have changed");
         assertSame(threadHandler, initialConfig.getExceptionHandler(), "thread should have original exception handler");
         assertEquals(Thread.NORM_PRIORITY, initialConfig.getPriority(), "thread priority should be the default");
@@ -408,7 +405,7 @@ class ThreadTests {
         assertEventuallyTrue(seedStarted::get, Duration.ofSeconds(1), "seed should eventually start executing");
 
         // Validate that the thread configuration has been overwritten by the seed.
-        final ThreadConfiguration overwrittenConfig = captureThreadConfiguration(getStaticThreadManager(), thread);
+        final ThreadConfiguration overwrittenConfig = captureThreadConfiguration(thread);
         assertEquals("<seed-component: seed>", thread.getName(), "name not changed to expected value");
         assertSame(seedHandler, overwrittenConfig.getExceptionHandler(), "thread should be using the seed's handler");
         assertEquals(Thread.MAX_PRIORITY, overwrittenConfig.getPriority(), "the seed should have updated the priority");
@@ -418,7 +415,7 @@ class ThreadTests {
         seedLatch.countDown();
         assertEventuallyTrue(seedHasYieldedControl::get, Duration.ofSeconds(1), "seed should eventually yield control");
 
-        final ThreadConfiguration resultingConfig = captureThreadConfiguration(getStaticThreadManager(), thread);
+        final ThreadConfiguration resultingConfig = captureThreadConfiguration(thread);
         assertEquals("<inject-into-this-thread>", thread.getName(), "name should have been changed back");
         assertSame(
                 threadHandler, resultingConfig.getExceptionHandler(), "thread should have original exception handler");
@@ -435,8 +432,7 @@ class ThreadTests {
     @DisplayName("Configuration Mutability Test")
     void configurationMutabilityTest() {
         // Build should make the configuration immutable
-        final ThreadConfiguration configuration0 =
-                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
+        final ThreadConfiguration configuration0 = new ThreadConfiguration().setRunnable(() -> {});
 
         assertTrue(configuration0.isMutable(), "configuration should be mutable");
 
@@ -485,8 +481,7 @@ class ThreadTests {
                 MutabilityException.class, () -> configuration0.setRunnable(null), "configuration should be immutable");
 
         // Build seed should make the configuration immutable
-        final ThreadConfiguration configuration1 =
-                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
+        final ThreadConfiguration configuration1 = new ThreadConfiguration().setRunnable(() -> {});
 
         assertTrue(configuration1.isMutable(), "configuration should be mutable");
 
@@ -535,8 +530,7 @@ class ThreadTests {
                 MutabilityException.class, () -> configuration1.setRunnable(null), "configuration should be immutable");
 
         // Build factory should make the configuration immutable
-        final ThreadConfiguration configuration2 =
-                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
+        final ThreadConfiguration configuration2 = new ThreadConfiguration().setRunnable(() -> {});
 
         assertTrue(configuration2.isMutable(), "configuration should be mutable");
 
@@ -590,8 +584,7 @@ class ThreadTests {
     void singleUsePerConfigTest() {
 
         // build() should cause future calls to build(), buildSeed(), and buildFactory() to fail.
-        final ThreadConfiguration configuration0 =
-                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
+        final ThreadConfiguration configuration0 = new ThreadConfiguration().setRunnable(() -> {});
 
         configuration0.build();
 
@@ -600,8 +593,7 @@ class ThreadTests {
         assertThrows(MutabilityException.class, configuration0::buildFactory, "configuration has already been used");
 
         // buildSeed() should cause future calls to build(), buildSeed(), and buildFactory() to fail.
-        final ThreadConfiguration configuration1 =
-                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
+        final ThreadConfiguration configuration1 = new ThreadConfiguration().setRunnable(() -> {});
 
         configuration1.buildSeed();
 
@@ -610,8 +602,7 @@ class ThreadTests {
         assertThrows(MutabilityException.class, configuration1::buildFactory, "configuration has already been used");
 
         // buildSeed() should cause future calls to build(), buildSeed(), and buildFactory() to fail.
-        final ThreadConfiguration configuration2 =
-                new ThreadConfiguration(getStaticThreadManager()).setRunnable(() -> {});
+        final ThreadConfiguration configuration2 = new ThreadConfiguration().setRunnable(() -> {});
 
         configuration2.buildFactory();
 
@@ -632,7 +623,7 @@ class ThreadTests {
 
         final Runnable runnable = () -> {};
 
-        final ThreadConfiguration configuration = new ThreadConfiguration(getStaticThreadManager())
+        final ThreadConfiguration configuration = new ThreadConfiguration()
                 .setNodeId(NodeId.of(1234L))
                 .setComponent("component")
                 .setThreadName("name")

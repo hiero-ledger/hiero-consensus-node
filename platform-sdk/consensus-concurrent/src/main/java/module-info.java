@@ -4,10 +4,9 @@ import org.hiero.consensus.concurrent.config.ConcurrentConfigurationExtension;
 
 module org.hiero.consensus.concurrent {
     exports org.hiero.consensus.concurrent.config;
-    exports org.hiero.consensus.concurrent.framework;
     exports org.hiero.consensus.concurrent.framework.config;
     exports org.hiero.consensus.concurrent.framework.queue;
-    exports org.hiero.consensus.concurrent.manager;
+    exports org.hiero.consensus.concurrent.framework;
     exports org.hiero.consensus.concurrent.pool;
     exports org.hiero.consensus.concurrent.throttle;
 

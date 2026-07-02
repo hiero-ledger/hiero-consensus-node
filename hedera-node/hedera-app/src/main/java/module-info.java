@@ -1,5 +1,71 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app {
+    exports com.hedera.node.app.authorization;
+    exports com.hedera.node.app.blocks.impl.streaming.config;
+    exports com.hedera.node.app.blocks.impl.streaming.obs;
+    exports com.hedera.node.app.blocks.impl.streaming;
+    exports com.hedera.node.app.blocks.impl;
+    exports com.hedera.node.app.blocks.schemas;
+    exports com.hedera.node.app.blocks;
+    exports com.hedera.node.app.components;
+    exports com.hedera.node.app.config;
+    exports com.hedera.node.app.fees.congestion;
+    exports com.hedera.node.app.fees.context;
+    exports com.hedera.node.app.fees;
+    exports com.hedera.node.app.grpc.impl.netty;
+    exports com.hedera.node.app.grpc;
+    exports com.hedera.node.app.hints.handlers;
+    exports com.hedera.node.app.hints.impl;
+    exports com.hedera.node.app.hints.schemas;
+    exports com.hedera.node.app.hints;
+    exports com.hedera.node.app.history.handlers;
+    exports com.hedera.node.app.history.impl;
+    exports com.hedera.node.app.history.schemas;
+    exports com.hedera.node.app.history;
+    exports com.hedera.node.app.info;
+    exports com.hedera.node.app.metrics;
+    exports com.hedera.node.app.platform;
+    exports com.hedera.node.app.quiescence;
+    exports com.hedera.node.app.records.handlers;
+    exports com.hedera.node.app.records.impl.producers.formats;
+    exports com.hedera.node.app.records.impl.producers;
+    exports com.hedera.node.app.records.impl;
+    exports com.hedera.node.app.records.schemas;
+    exports com.hedera.node.app.records;
+    exports com.hedera.node.app.services;
+    exports com.hedera.node.app.signature.impl;
+    exports com.hedera.node.app.signature;
+    exports com.hedera.node.app.state.listeners;
+    exports com.hedera.node.app.state.merkle to
+            com.hedera.node.app.test.fixtures,
+            com.hedera.node.test.clients,
+            com.hedera.state.validator;
+    exports com.hedera.node.app.state.recordcache;
+    exports com.hedera.node.app.state;
+    exports com.hedera.node.app.store;
+    exports com.hedera.node.app.throttle.annotations;
+    exports com.hedera.node.app.throttle;
+    exports com.hedera.node.app.tss;
+    exports com.hedera.node.app.validation;
+    exports com.hedera.node.app.workflows.dispatcher;
+    exports com.hedera.node.app.workflows.handle.cache;
+    exports com.hedera.node.app.workflows.handle.dispatch;
+    exports com.hedera.node.app.workflows.handle.metric;
+    exports com.hedera.node.app.workflows.handle.record;
+    exports com.hedera.node.app.workflows.handle.stack;
+    exports com.hedera.node.app.workflows.handle.steps;
+    exports com.hedera.node.app.workflows.handle.throttle;
+    exports com.hedera.node.app.workflows.handle.validation;
+    exports com.hedera.node.app.workflows.handle;
+    exports com.hedera.node.app.workflows.ingest;
+    exports com.hedera.node.app.workflows.prehandle;
+    exports com.hedera.node.app.workflows.query.annotations;
+    exports com.hedera.node.app.workflows.query;
+    exports com.hedera.node.app.workflows.standalone.impl;
+    exports com.hedera.node.app.workflows.standalone;
+    exports com.hedera.node.app.workflows;
+    exports com.hedera.node.app;
+
     requires transitive com.hedera.cryptography.hints;
     requires transitive com.hedera.cryptography.wraps;
     requires transitive com.hedera.node.app.hapi.fees;
@@ -55,7 +121,6 @@ module com.hedera.node.app {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
@@ -71,72 +136,6 @@ module com.hedera.node.app {
     requires org.apache.commons.lang3;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
-
-    exports com.hedera.node.app;
-    exports com.hedera.node.app.state;
-    exports com.hedera.node.app.quiescence;
-    exports com.hedera.node.app.workflows.ingest;
-    exports com.hedera.node.app.workflows.query;
-    exports com.hedera.node.app.workflows;
-    exports com.hedera.node.app.state.merkle to
-            com.hedera.node.app.test.fixtures,
-            com.hedera.node.test.clients,
-            com.hedera.state.validator;
-    exports com.hedera.node.app.workflows.dispatcher;
-    exports com.hedera.node.app.workflows.standalone;
-    exports com.hedera.node.app.config;
-    exports com.hedera.node.app.workflows.handle.validation;
-    exports com.hedera.node.app.signature;
-    exports com.hedera.node.app.info;
-    exports com.hedera.node.app.grpc;
-    exports com.hedera.node.app.hints;
-    exports com.hedera.node.app.hints.handlers;
-    exports com.hedera.node.app.hints.impl;
-    exports com.hedera.node.app.history;
-    exports com.hedera.node.app.history.handlers;
-    exports com.hedera.node.app.history.impl;
-    exports com.hedera.node.app.metrics;
-    exports com.hedera.node.app.authorization;
-    exports com.hedera.node.app.platform;
-    exports com.hedera.node.app.components;
-    exports com.hedera.node.app.workflows.handle;
-    exports com.hedera.node.app.workflows.prehandle;
-    exports com.hedera.node.app.validation;
-    exports com.hedera.node.app.state.listeners;
-    exports com.hedera.node.app.services;
-    exports com.hedera.node.app.store;
-    exports com.hedera.node.app.workflows.handle.steps;
-    exports com.hedera.node.app.workflows.handle.record;
-    exports com.hedera.node.app.workflows.handle.throttle;
-    exports com.hedera.node.app.workflows.handle.dispatch;
-    exports com.hedera.node.app.workflows.handle.cache;
-    exports com.hedera.node.app.state.recordcache;
-    exports com.hedera.node.app.records;
-    exports com.hedera.node.app.blocks;
-    exports com.hedera.node.app.fees;
-    exports com.hedera.node.app.throttle;
-    exports com.hedera.node.app.blocks.impl;
-    exports com.hedera.node.app.blocks.impl.streaming;
-    exports com.hedera.node.app.blocks.impl.streaming.obs;
-    exports com.hedera.node.app.workflows.handle.metric;
-    exports com.hedera.node.app.tss;
-    exports com.hedera.node.app.workflows.handle.stack;
-    exports com.hedera.node.app.fees.congestion;
-    exports com.hedera.node.app.throttle.annotations;
-    exports com.hedera.node.app.workflows.query.annotations;
-    exports com.hedera.node.app.signature.impl;
-    exports com.hedera.node.app.workflows.standalone.impl;
-    exports com.hedera.node.app.records.impl;
-    exports com.hedera.node.app.records.impl.producers;
-    exports com.hedera.node.app.records.impl.producers.formats;
-    exports com.hedera.node.app.grpc.impl.netty;
-    exports com.hedera.node.app.blocks.schemas;
-    exports com.hedera.node.app.records.schemas;
-    exports com.hedera.node.app.records.handlers;
-    exports com.hedera.node.app.hints.schemas;
-    exports com.hedera.node.app.blocks.impl.streaming.config;
-    exports com.hedera.node.app.history.schemas;
-    exports com.hedera.node.app.fees.context;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

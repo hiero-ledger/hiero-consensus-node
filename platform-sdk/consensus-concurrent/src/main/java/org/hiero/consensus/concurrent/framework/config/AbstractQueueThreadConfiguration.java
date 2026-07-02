@@ -11,7 +11,6 @@ import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.Stoppable;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * Boilerplate getters, setters, and configuration for queue thread configuration.
@@ -62,8 +61,8 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      */
     private Duration waitForWorkDuration = Duration.ofMillis(10);
 
-    protected AbstractQueueThreadConfiguration(final ThreadManager threadManager) {
-        super(threadManager);
+    protected AbstractQueueThreadConfiguration() {
+        super();
 
         // Queue threads are not interruptable by default
         setStopBehavior(Stoppable.StopBehavior.BLOCKING);

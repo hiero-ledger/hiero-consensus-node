@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.concurrent;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import java.util.concurrent.Callable;
@@ -14,8 +13,7 @@ class ExceptionSuppressingParallelExecutorTests {
     @Test
     @DisplayName("Test exception suppressed")
     void testExceptionsSuppressed() {
-        ExceptionSuppressingParallelExecutor executor =
-                new ExceptionSuppressingParallelExecutor(getStaticThreadManager());
+        ExceptionSuppressingParallelExecutor executor = new ExceptionSuppressingParallelExecutor();
         executor.start();
 
         assertDoesNotThrow(

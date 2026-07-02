@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
 import org.hiero.consensus.gossip.impl.network.PeerCommunication;
@@ -72,8 +71,6 @@ public class PeerCommunicationTests {
         }
     }
 
-    private static final byte[] EMPTY_ARRAY = new byte[] {};
-
     private void loadAddressBook(int nodeCount) throws Exception {
 
         // 15301 is used by other tests and may cause conflicts with parallel runs
@@ -90,8 +87,6 @@ public class PeerCommunicationTests {
     }
 
     private void startNonConnected() {
-        var threadManager = AdHocThreadManager.getStaticThreadManager();
-
         peerCommunications = new PeerCommunication[allPeers.size()];
 
         for (int i = 0; i < allPeers.size(); i++) {
@@ -114,7 +109,7 @@ public class PeerCommunicationTests {
             protocols.add(testProtocol);
             protocols.add(HeartbeatProtocol.create(configuration, Time.getCurrent(), pc.getNetworkMetrics()));
 
-            pc.initialize(threadManager, handshakeProtocols, protocols);
+            pc.initialize(handshakeProtocols, protocols);
 
             pc.start();
 
@@ -167,9 +162,7 @@ public class PeerCommunicationTests {
             // let's dump whatever metadata we can
 
             synchronized (protocolsForDebug) {
-                protocolsForDebug.forEach(protocol -> {
-                    System.out.println(protocol.getDebugInfo());
-                });
+                protocolsForDebug.forEach(protocol -> System.out.println(protocol.getDebugInfo()));
             }
 
             // this is a temporary debug code, will be removed

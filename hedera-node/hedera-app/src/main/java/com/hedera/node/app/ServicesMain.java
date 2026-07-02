@@ -15,7 +15,6 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.rethrowIO;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
@@ -171,8 +170,7 @@ public class ServicesMain {
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        final var recycleBin = RecycleBinImpl.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final var recycleBin = RecycleBinImpl.create(metrics, platformConfig, time, fileSystemManager, selfId);
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);

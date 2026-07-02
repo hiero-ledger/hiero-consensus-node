@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * Listens on a server socket for incoming connections. All new connections are passed on to the supplied handler.
@@ -34,22 +33,17 @@ public class ConnectionServer implements InterruptableRunnable {
     private final ExecutorService incomingConnPool;
 
     /**
-     * @param threadManager        responsible for managing thread lifecycles
      * @param port                 the port ot use
      * @param socketFactory        responsible for creating new sockets
      * @param newConnectionHandler handles a new connection after it has been created
      */
     public ConnectionServer(
-            final ThreadManager threadManager,
-            final int port,
-            final SocketFactory socketFactory,
-            final Consumer<Socket> newConnectionHandler) {
+            final int port, final SocketFactory socketFactory, final Consumer<Socket> newConnectionHandler) {
         this.port = port;
         this.newConnectionHandler = newConnectionHandler;
         this.socketFactory = socketFactory;
-        this.incomingConnPool = Executors.newCachedThreadPool(new ThreadConfiguration(threadManager)
-                .setThreadName("sync_server")
-                .buildFactory());
+        this.incomingConnPool = Executors.newCachedThreadPool(
+                new ThreadConfiguration().setThreadName("sync_server").buildFactory());
     }
 
     @Override

@@ -6,7 +6,6 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_V
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -72,7 +71,7 @@ class VirtualPipelineTests {
 
         final CountDownLatch latch = new CountDownLatch(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setComponent("test")
                 .setThreadName("interrupt-on-timeout")
                 .setRunnable(() -> {

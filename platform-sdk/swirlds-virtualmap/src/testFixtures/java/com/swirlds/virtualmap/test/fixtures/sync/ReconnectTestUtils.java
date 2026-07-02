@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.test.fixtures.sync;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -18,7 +17,6 @@ import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -65,30 +63,24 @@ public final class ReconnectTestUtils {
         teacherMap.getHash(); // ensure teacher has a hash
 
         try (PairedStreams streams = new PairedStreams()) {
-            final LearningSynchronizer learner =
-                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics) {
+            final LearningSynchronizer learner = new LearningSynchronizer(configuration, metrics) {
 
-                        @Override
-                        protected StandardWorkGroup createStandardWorkGroup(
-                                ThreadManager threadManager, Runnable breakConnection) {
-                            return new StandardWorkGroup(
-                                    threadManager, "test-learning-synchronizer", breakConnection, true);
-                        }
-                    };
+                @Override
+                protected StandardWorkGroup createStandardWorkGroup(Runnable breakConnection) {
+                    return new StandardWorkGroup("test-learning-synchronizer", breakConnection, true);
+                }
+            };
 
-            final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(teacherMap, getStaticThreadManager(), configuration) {
-                        @Override
-                        protected StandardWorkGroup createStandardWorkGroup(
-                                @NonNull ThreadManager threadManager, @NonNull Runnable breakConnection) {
-                            return new StandardWorkGroup(
-                                    threadManager, "test-teaching-synchronizer", breakConnection, true);
-                        }
-                    };
+            final TeachingSynchronizer teacher = new TeachingSynchronizer(teacherMap, configuration) {
+                @Override
+                protected StandardWorkGroup createStandardWorkGroup(@NonNull Runnable breakConnection) {
+                    return new StandardWorkGroup("test-teaching-synchronizer", breakConnection, true);
+                }
+            };
 
             final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
-            try (final StandardWorkGroup workGroup = new StandardWorkGroup(
-                    getStaticThreadManager(), "synchronization-test", streams::disconnect, true)) {
+            try (final StandardWorkGroup workGroup =
+                    new StandardWorkGroup("synchronization-test", streams::disconnect, true)) {
                 workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
                 workGroup.fork(
                         "learning-synchronizer-main",

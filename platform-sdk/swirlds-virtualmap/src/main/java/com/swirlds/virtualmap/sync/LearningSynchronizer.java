@@ -30,7 +30,6 @@ import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
@@ -42,23 +41,17 @@ public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
-    private final ThreadManager threadManager;
     private final VirtualMapSyncConfig syncConfig;
     private final Metrics metrics;
 
     /**
      * Constructs a new learning synchronizer.
      *
-     * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
      * @param metrics the metrics system for recording synchronization metrics
      */
-    public LearningSynchronizer(
-            @NonNull final ThreadManager threadManager,
-            @NonNull final Configuration config,
-            @NonNull final Metrics metrics) {
+    public LearningSynchronizer(@NonNull final Configuration config, @NonNull final Metrics metrics) {
 
-        this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
         this.syncConfig =
                 Objects.requireNonNull(config, "config cannot be null").getConfigData(VirtualMapSyncConfig.class);
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
@@ -117,7 +110,7 @@ public class LearningSynchronizer {
         final LearnerSyncMetrics syncMetrics = new LearnerSyncMetrics(metrics);
         final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, syncMetrics);
 
-        try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
+        try (final StandardWorkGroup workGroup = createStandardWorkGroup(breakConnection)) {
             logger.info(RECONNECT.getMarker(), "learner start synchronizing");
 
             final AsyncInputStream input =
@@ -190,8 +183,8 @@ public class LearningSynchronizer {
         }
     }
 
-    protected StandardWorkGroup createStandardWorkGroup(ThreadManager threadManager, Runnable breakConnection) {
-        return new StandardWorkGroup(threadManager, WORK_GROUP_NAME, breakConnection);
+    protected StandardWorkGroup createStandardWorkGroup(Runnable breakConnection) {
+        return new StandardWorkGroup(WORK_GROUP_NAME, breakConnection);
     }
 
     /**

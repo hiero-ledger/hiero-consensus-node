@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.sync;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -53,7 +52,7 @@ public class RpcPeerProtocolTests {
 
         final AtomicBoolean running = new AtomicBoolean(true);
 
-        final ParallelExecutor executor = new CachedPoolParallelExecutor(getStaticThreadManager(), "a name");
+        final ParallelExecutor executor = new CachedPoolParallelExecutor("a name");
         executor.start();
 
         final Roster roster = RandomRosterBuilder.create(randotron).withSize(2).build();
@@ -76,7 +75,7 @@ public class RpcPeerProtocolTests {
 
             final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
             // other peer will be the only one in list of other peers
-            final NodeId otherPeer = peers.get(0).nodeId();
+            final NodeId otherPeer = peers.getFirst().nodeId();
 
             final RpcPeerProtocol peerProtocol = new RpcPeerProtocol(
                     selfId,

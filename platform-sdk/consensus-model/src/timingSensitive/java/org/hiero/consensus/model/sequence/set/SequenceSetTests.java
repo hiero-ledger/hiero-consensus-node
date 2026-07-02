@@ -2,7 +2,6 @@
 package org.hiero.consensus.model.sequence.set;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.concurrent.test.fixtures.assertions.AssertionUtils.completeBeforeTimeout;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -110,7 +109,7 @@ public class SequenceSetTests {
                         set.contains(new SequenceSetElement(key, getSequenceNumber.apply(key))), "should contain key");
 
                 keysBySequenceNumber
-                        .computeIfAbsent(sequenceNumber, k -> new HashSet<>())
+                        .computeIfAbsent(sequenceNumber, _ -> new HashSet<>())
                         .add(key);
                 smallestSequenceNumber = Math.min(smallestSequenceNumber, sequenceNumber);
                 largestSequenceNumber = Math.max(largestSequenceNumber, sequenceNumber);
@@ -367,7 +366,7 @@ public class SequenceSetTests {
 
         assertEquals(0, set.getSize(), "set should be empty");
 
-        validateSetContents(set, 0, (int) (set.getLastSequenceNumberInWindow() * keysPerSeq + 100), key -> null);
+        validateSetContents(set, 0, (int) (set.getLastSequenceNumberInWindow() * keysPerSeq + 100), _ -> null);
 
         // Reinserting values should work the same way as when the set was "fresh"
         for (int i = 0; i < set.getLastSequenceNumberInWindow() * keysPerSeq + 100; i++) {
@@ -400,13 +399,13 @@ public class SequenceSetTests {
 
         // Validate removal of an existing value
         assertEquals(0, set.getSize(), "set should be empty");
-        validateSetContents(set, 0, (int) (set.getLastSequenceNumberInWindow() * keysPerSeq + 100), key -> null);
+        validateSetContents(set, 0, (int) (set.getLastSequenceNumberInWindow() * keysPerSeq + 100), _ -> null);
 
         set.add(new SequenceSetElement(10, 2));
         assertTrue(set.remove(new SequenceSetElement(10, 2)), "value should have been removed");
 
         assertEquals(0, set.getSize(), "set should be empty");
-        validateSetContents(set, 0, (int) (set.getLastSequenceNumberInWindow() * keysPerSeq + 100), key -> null);
+        validateSetContents(set, 0, (int) (set.getLastSequenceNumberInWindow() * keysPerSeq + 100), _ -> null);
 
         // Re-inserting after removal should work the same as regular insertion
         set.add(new SequenceSetElement(10, 2));
@@ -573,8 +572,8 @@ public class SequenceSetTests {
         });
 
         // Remove sequence numbers that are not in the set
-        set.removeSequenceNumber(-1000, key -> fail("should not be called"));
-        set.removeSequenceNumber(1000, key -> fail("should not be called"));
+        set.removeSequenceNumber(-1000, _ -> fail("should not be called"));
+        set.removeSequenceNumber(1000, _ -> fail("should not be called"));
         validateSetContents(set, -size, 2 * size, key -> {
             if (key >= 0 && key < size) {
                 return (long) key / keysPerSeq;
@@ -652,9 +651,9 @@ public class SequenceSetTests {
 
         final AtomicBoolean error = new AtomicBoolean();
 
-        final StoppableThread purgeThread = new StoppableThreadConfiguration<>(getStaticThreadManager())
+        final StoppableThread purgeThread = new StoppableThreadConfiguration<>()
                 .setMinimumPeriod(Duration.ofMillis(10))
-                .setExceptionHandler((t, e) -> {
+                .setExceptionHandler((_, e) -> {
                     e.printStackTrace();
                     error.set(true);
                 })
@@ -680,8 +679,8 @@ public class SequenceSetTests {
         final int threadCount = 4;
         final List<StoppableThread> updaterThreads = new LinkedList<>();
         for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
-            updaterThreads.add(new StoppableThreadConfiguration<>(getStaticThreadManager())
-                    .setExceptionHandler((t, e) -> {
+            updaterThreads.add(new StoppableThreadConfiguration<>()
+                    .setExceptionHandler((_, e) -> {
                         e.printStackTrace();
                         error.set(true);
                     })

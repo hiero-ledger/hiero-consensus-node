@@ -4,7 +4,6 @@ package org.hiero.consensus.pces.impl.common;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.hiero.base.utility.test.fixtures.file.FileManipulation.writeRandomBytes;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.pces.impl.common.PcesFile.EVENT_FILE_SEPARATOR;
 import static org.hiero.consensus.pces.impl.common.PcesFile.MAXIMUM_BIRTH_ROUND_PREFIX;
 import static org.hiero.consensus.pces.impl.common.PcesFile.MINIMUM_BIRTH_ROUND_PREFIX;
@@ -190,7 +189,6 @@ class PcesFileTests {
                 IOException.class, () -> PcesFile.of(Path.of("1997-02-16T21+42+49.730Z_seq443_ming884_maxg303.pces")));
     }
 
-    @SuppressWarnings("resource")
     @Test
     @DisplayName("Deletion Test")
     void deletionTest() throws IOException {
@@ -256,7 +254,6 @@ class PcesFileTests {
         assertEquals(0, filesCount, "Unexpected number of files: " + filesCount);
     }
 
-    @SuppressWarnings("resource")
     @Test
     @DisplayName("Recycle Test")
     void recycleTest() throws IOException {
@@ -268,7 +265,6 @@ class PcesFileTests {
 
         RecycleBin bin = new RecycleBinImpl(
                 new NoOpMetrics(),
-                getStaticThreadManager(),
                 Time.getCurrent(),
                 recycleDirectory,
                 TestRecycleBin.MAXIMUM_FILE_AGE,

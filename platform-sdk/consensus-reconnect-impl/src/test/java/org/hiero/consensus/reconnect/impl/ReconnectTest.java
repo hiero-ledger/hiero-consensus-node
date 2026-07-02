@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -96,7 +95,7 @@ final class ReconnectTest {
 
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(numNodes)
-                .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
+                .withWeightGenerator((_, _) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
         final VirtualMapState stateCopy;
@@ -152,7 +151,6 @@ final class ReconnectTest {
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
                 configuration,
-                getStaticThreadManager(),
                 connection,
                 RECONNECT_SOCKET_TIMEOUT,
                 selfId,
@@ -171,7 +169,6 @@ final class ReconnectTest {
         return new ReconnectStateLearner(
                 configuration,
                 new NoOpMetrics(),
-                getStaticThreadManager(),
                 connection,
                 state,
                 RECONNECT_SOCKET_TIMEOUT,

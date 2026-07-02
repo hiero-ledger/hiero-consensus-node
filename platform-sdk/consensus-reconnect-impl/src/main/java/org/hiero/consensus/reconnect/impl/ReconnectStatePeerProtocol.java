@@ -24,7 +24,6 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
@@ -55,7 +54,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final ReconnectMetrics reconnectMetrics;
     private final CountPerSecond reconnectRejectionMetrics;
     private InitiatedBy initiatedBy = InitiatedBy.NO_ONE;
-    private final ThreadManager threadManager;
     private final FallenBehindMonitor fallenBehindMonitor;
 
     /**
@@ -92,7 +90,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param configuration the platform configuration
      * @param metrics the metrics system
      * @param time the time object to use
-     * @param threadManager responsible for creating and managing threads
      * @param peerId the ID of the peer we are communicating with
      * @param teacherThrottle restricts reconnects as a teacher
      * @param lastCompleteSignedState provides the latest completely signed state
@@ -107,7 +104,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final ThreadManager threadManager,
             @NonNull final NodeId peerId,
             @NonNull final ReconnectStateTeacherThrottle teacherThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
@@ -120,7 +116,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
-        this.threadManager = requireNonNull(threadManager);
         this.peerId = requireNonNull(peerId);
         this.teacherThrottle = requireNonNull(teacherThrottle);
         this.lastCompleteSignedState = requireNonNull(lastCompleteSignedState);
@@ -293,7 +288,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     configuration,
                     metrics,
-                    threadManager,
                     connection,
                     consensusState,
                     reconnectSocketTimeout,
@@ -358,7 +352,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             try {
                 teacher = new ReconnectStateTeacher(
                         configuration,
-                        threadManager,
                         connection,
                         reconnectSocketTimeout,
                         connection.getSelfId(),

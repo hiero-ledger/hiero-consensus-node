@@ -5,7 +5,6 @@ import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
 import com.swirlds.config.api.Configuration;
@@ -34,6 +33,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -339,8 +339,10 @@ public final class BenchmarkMetrics {
                 .build();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        metricService = Executors.newSingleThreadScheduledExecutor(
-                getStaticThreadManager().createThreadFactory("benchmark", "MetricsWriter"));
+        metricService = Executors.newSingleThreadScheduledExecutor(new ThreadConfiguration()
+                .setComponent("benchmark")
+                .setThreadName("MetricsWriter")
+                .buildFactory());
         metrics = new DefaultPlatformMetrics(
                 null, registry, metricService, new PlatformMetricsFactoryImpl(metricsConfig), metricsConfig);
 

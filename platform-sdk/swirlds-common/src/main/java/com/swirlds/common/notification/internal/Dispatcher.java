@@ -9,7 +9,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.function.Consumer;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.notification.Notification;
 
 public class Dispatcher<L extends Listener> {
@@ -30,20 +29,12 @@ public class Dispatcher<L extends Listener> {
     private volatile boolean running;
 
     /**
-     * Responsible for creating and managing threads used by this object.
-     */
-    private final ThreadManager threadManager;
-
-    /**
      * Create a new dispatcher.
      *
-     * @param threadManager
-     * 		responsible for creating and managing threads used for dispatches
      * @param listenerClass
      * 		the dispatch type
      */
-    public Dispatcher(final ThreadManager threadManager, final Class<L> listenerClass) {
-        this.threadManager = threadManager;
+    public Dispatcher(final Class<L> listenerClass) {
         this.mutex = new Object();
         this.listeners = new CopyOnWriteArrayList<>();
         this.asyncDispatchQueue = new PriorityBlockingQueue<>();
@@ -63,7 +54,7 @@ public class Dispatcher<L extends Listener> {
             stop();
         }
 
-        dispatchThread = new ThreadConfiguration(threadManager)
+        dispatchThread = new ThreadConfiguration()
                 .setComponent(COMPONENT_NAME)
                 .setThreadName(String.format("notify %s", listenerClassName))
                 .setRunnable(this::worker)
@@ -76,7 +67,7 @@ public class Dispatcher<L extends Listener> {
     public synchronized void stop() {
         running = false;
 
-        if (asyncDispatchQueue.size() == 0) {
+        if (asyncDispatchQueue.isEmpty()) {
             dispatchThread.interrupt();
         }
 
@@ -141,7 +132,7 @@ public class Dispatcher<L extends Listener> {
 
     private void worker() {
         try {
-            while (running || asyncDispatchQueue.size() > 0) {
+            while (running || !asyncDispatchQueue.isEmpty()) {
                 @SuppressWarnings("unchecked")
                 final DispatchTask<Listener<Notification>, Notification> task =
                         (DispatchTask<Listener<Notification>, Notification>) asyncDispatchQueue.take();

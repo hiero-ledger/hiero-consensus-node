@@ -11,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.notification.Notification;
 
 public class AsyncNotificationEngine extends AbstractNotificationEngine {
@@ -22,17 +21,9 @@ public class AsyncNotificationEngine extends AbstractNotificationEngine {
     private final Map<Class<? extends Listener<?>>, Dispatcher<? extends Listener<?>>> listenerRegistry;
 
     /**
-     * Responsible for creating and managing threads used by this object.
-     */
-    private final ThreadManager threadManager;
-
-    /**
      * Default Constructor.
-     * @param threadManager
-     * 		responsible for managing thread lifecycles
      */
-    public AsyncNotificationEngine(final ThreadManager threadManager) {
-        this.threadManager = threadManager;
+    public AsyncNotificationEngine() {
         this.listenerRegistry = new ConcurrentHashMap<>();
         Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
@@ -145,11 +136,11 @@ public class AsyncNotificationEngine extends AbstractNotificationEngine {
 
     private <L extends Listener<?>> Dispatcher<L> ensureDispatcherExists(final Class<L> listenerClass) {
         @SuppressWarnings("unchecked")
-        Dispatcher<L> dispatcher = (Dispatcher<L>)
-                listenerRegistry.putIfAbsent(listenerClass, new Dispatcher<>(threadManager, listenerClass));
+        Dispatcher<L> dispatcher =
+                (Dispatcher<L>) listenerRegistry.putIfAbsent(listenerClass, new Dispatcher<>(listenerClass));
 
         if (dispatcher == null) {
-            dispatcher = new Dispatcher<>(threadManager, listenerClass);
+            dispatcher = new Dispatcher<>(listenerClass);
             listenerRegistry.put(listenerClass, dispatcher);
         }
 

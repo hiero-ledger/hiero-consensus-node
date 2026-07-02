@@ -9,7 +9,6 @@ import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterru
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.tryToSleep;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,7 +33,7 @@ class UninterruptableTest {
 
         final AtomicBoolean exceptionEncountered = new AtomicBoolean(false);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     retryIfInterrupted(() -> queue.put(0));
                     retryIfInterrupted(() -> queue.put(1));
@@ -71,7 +70,7 @@ class UninterruptableTest {
 
         final AtomicBoolean exceptionEncountered = new AtomicBoolean(false);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> assertEquals(1234, retryIfInterrupted(operation), "unexpected value"))
                 .setExceptionHandler((t, throwable) -> exceptionEncountered.set(true))
                 .build(true);
@@ -98,7 +97,7 @@ class UninterruptableTest {
 
         final BlockingQueue<Integer> queue = new LinkedBlockingDeque<>(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     abortIfInterrupted(() -> queue.put(0));
                     abortIfInterrupted(() -> queue.put(1));
@@ -125,7 +124,7 @@ class UninterruptableTest {
 
         final BlockingQueue<Integer> queue = new LinkedBlockingDeque<>(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     abortAndLogIfInterrupted(() -> queue.put(0), "unexpected error");
                     abortAndLogIfInterrupted(() -> queue.put(1), "expected error");
@@ -152,7 +151,7 @@ class UninterruptableTest {
 
         final BlockingQueue<Integer> queue = new LinkedBlockingDeque<>(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     abortAndThrowIfInterrupted(() -> queue.put(0), "unexpected error");
                     abortAndThrowIfInterrupted(() -> queue.put(1), "expected error");
@@ -177,7 +176,7 @@ class UninterruptableTest {
     void tryToSleepTest() throws InterruptedException {
         final AtomicBoolean exceptionEncountered = new AtomicBoolean(false);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     tryToSleep(Duration.ofSeconds(1000));
                 })
@@ -200,7 +199,7 @@ class UninterruptableTest {
 
         final BlockingQueue<Integer> queue = new LinkedBlockingDeque<>(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     abortAndLogIfInterrupted(queue::put, 0, "unexpected error");
                     abortAndLogIfInterrupted(queue::put, 1, "expected error");
@@ -227,7 +226,7 @@ class UninterruptableTest {
 
         final BlockingQueue<Integer> queue = new LinkedBlockingDeque<>(1);
 
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread thread = new ThreadConfiguration()
                 .setRunnable(() -> {
                     abortAndThrowIfInterrupted(queue::put, 0, "unexpected error");
                     assertThrows(

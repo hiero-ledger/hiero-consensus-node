@@ -4,7 +4,6 @@ package com.swirlds.common.notification;
 import com.swirlds.common.notification.internal.AsyncNotificationEngine;
 import java.util.concurrent.Future;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.notification.Notification;
 
 /**
@@ -16,12 +15,10 @@ public interface NotificationEngine {
     /**
      * Build a new notification engine.
      *
-     * @param threadManager
-     * 		the thread manager for this node
      * @return a new notification engine
      */
-    static NotificationEngine buildEngine(final ThreadManager threadManager) {
-        return new AsyncNotificationEngine(threadManager);
+    static NotificationEngine buildEngine() {
+        return new AsyncNotificationEngine();
     }
 
     /**
@@ -34,13 +31,10 @@ public interface NotificationEngine {
      * other external resources that must be explicitly released.
      */
     void shutdown();
-
     /**
      * Dispatches a {@link Notification} instance to the listeners of the specified type.
-     *
      * If the listener class uses {@link DispatchMode#SYNC} then this method will block until all registered listeners
      * have been notified and the {@link Future} returned by this method will already be complete.
-     *
      * However, If the listener class uses {@link DispatchMode#ASYNC} then this method will return immediately after the
      * dispatch request has been given to the dispatcher. Only when the returned {@link Future} is resolved will all the
      * registered listeners have been notified. Any exceptions thrown during listener notification will be provided by
@@ -64,10 +58,8 @@ public interface NotificationEngine {
 
     /**
      * Dispatches a {@link Notification} instance to the listeners of the specified type.
-     *
      * If the listener class uses {@link DispatchMode#SYNC} then this method will block until all registered listeners
      * have been notified and the {@link Future} returned by this method will already be complete.
-     *
      * However, If the listener class uses {@link DispatchMode#ASYNC} then this method will return immediately after the
      * dispatch request has been given to the dispatcher. Only when the returned {@link Future} is resolved will all the
      * registered listeners have been notified. Any exceptions thrown during listener notification will be provided by

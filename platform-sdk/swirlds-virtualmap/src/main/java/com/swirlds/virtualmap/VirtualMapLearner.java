@@ -4,7 +4,6 @@ package com.swirlds.virtualmap;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
@@ -366,7 +365,7 @@ public final class VirtualMapLearner {
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setComponent("virtualmap")
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
@@ -425,7 +424,7 @@ public final class VirtualMapLearner {
             return null;
         });
 
-        new ThreadConfiguration(getStaticThreadManager())
+        new ThreadConfiguration()
                 .setComponent("virtualmap")
                 .setThreadName("leaf-deleter")
                 .setRunnable(leafDeletionTask)

@@ -2,7 +2,9 @@
 package org.hiero.base.concurrent.futures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -33,5 +35,27 @@ public final class FutureUtils {
             map.put(entry.getKey(), entry.getValue().get());
         }
         return map;
+    }
+
+    /**
+     * Waits for all futures in the given list to complete and returns a new list of futures results.
+     *
+     * @param futures a list of futures
+     * @param <V> the value type
+     * @return a new list futures results or nulls if future was canceled
+     * @throws ExecutionException if any future's computation threw an exception
+     * @throws InterruptedException if the current thread was interrupted while waiting
+     */
+    public static <V> List<V> awaitAll(@NonNull final List<Future<V>> futures)
+            throws ExecutionException, InterruptedException {
+        final List<V> results = new ArrayList<>(futures.size());
+        for (final Future<V> future : futures) {
+            if (future.isCancelled()) {
+                results.add(null);
+            } else {
+                results.add(future.get());
+            }
+        }
+        return results;
     }
 }

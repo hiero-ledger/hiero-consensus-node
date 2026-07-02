@@ -3,7 +3,6 @@ package com.swirlds.common.notification;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.concurrent.test.fixtures.assertions.AssertionUtils.completeBeforeTimeout;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,7 +18,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -30,9 +31,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
-import org.hiero.base.concurrent.futures.FuturePool;
+import org.hiero.base.concurrent.futures.FutureUtils;
 import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.Disabled;
@@ -53,7 +54,7 @@ public class IntegerNotificationTests {
     @DisplayName("Sync: Unordered Summation")
     public void syncUnorderedSummation(int iterations) {
 
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicLong lastKnownId = new AtomicLong(0);
@@ -86,7 +87,7 @@ public class IntegerNotificationTests {
     @DisplayName("Sync: Unordered Dual Ops")
     public void syncUnorderedDualOps(int iterations) {
 
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicInteger subtract = new AtomicInteger(iterations * 4);
@@ -129,9 +130,9 @@ public class IntegerNotificationTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Async: Unordered Summation")
-    public void asyncUnorderedSummation(int iterations) {
+    public void asyncUnorderedSummation(int iterations) throws ExecutionException, InterruptedException {
 
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicLong lastKnownId = new AtomicLong(0);
@@ -149,13 +150,12 @@ public class IntegerNotificationTests {
             lastKnownId.set(n.getSequence());
         });
 
-        final FuturePool<NotificationResult<IntegerNotification>> futures = new FuturePool<>();
-
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
         for (int i = 0; i < iterations; i++) {
             futures.add(engine.dispatch(AsyncUnorderedIntegerListener.class, new IntegerNotification(1)));
         }
 
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
         engine.shutdown();
 
         assertEquals(iterations, lastKnownId.get());
@@ -165,9 +165,9 @@ public class IntegerNotificationTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Async: Unordered Dual Ops")
-    public void asyncUnorderedDualOps(int iterations) {
+    public void asyncUnorderedDualOps(int iterations) throws ExecutionException, InterruptedException {
 
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicInteger subtract = new AtomicInteger(iterations * 4);
@@ -197,13 +197,12 @@ public class IntegerNotificationTests {
             lastKnownId.set(n.getSequence());
         });
 
-        final FuturePool<NotificationResult<IntegerNotification>> futures = new FuturePool<>();
-
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
         for (int i = 0; i < iterations; i++) {
             futures.add(engine.dispatch(AsyncUnorderedIntegerListener.class, new IntegerNotification(4)));
         }
 
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
         engine.shutdown();
 
         assertEquals(iterations * 4, sum.get());
@@ -214,7 +213,7 @@ public class IntegerNotificationTests {
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Sync: Unordered MT Summation")
     public void syncUnorderedThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicLong lastKnownId = new AtomicLong(0);
@@ -234,21 +233,16 @@ public class IntegerNotificationTests {
             lastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
-
-        for (int i = 0; i < iterations; i++) {
-            final Future future = executorService.submit(() -> {
-                try {
-                    engine.dispatch(SyncUnorderedIntegerListener.class, new IntegerNotification(1));
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
-
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(_ -> (Callable<Void>) () -> {
+                    try {
+                        engine.dispatch(SyncUnorderedIntegerListener.class, new IntegerNotification(1));
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
+                    }
+                    return null;
+                })
+                .toList());
 
         executorService.shutdown();
         assertTrue(
@@ -264,7 +258,7 @@ public class IntegerNotificationTests {
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Sync: Ordered MT Summation")
     public void syncOrderedThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicLong lastKnownId = new AtomicLong(0);
@@ -284,21 +278,16 @@ public class IntegerNotificationTests {
             lastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
-
-        for (int i = 0; i < iterations; i++) {
-            final Future future = executorService.submit(() -> {
-                try {
-                    engine.dispatch(SyncOrderedIntegerListener.class, new IntegerNotification(1));
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
-
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(_ -> (Callable<Void>) () -> {
+                    try {
+                        engine.dispatch(SyncOrderedIntegerListener.class, new IntegerNotification(1));
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
+                    }
+                    return null;
+                })
+                .toList());
 
         executorService.shutdown();
         assertTrue(
@@ -314,8 +303,8 @@ public class IntegerNotificationTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Async: Unordered MT Summation")
-    public void asyncUnorderedThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+    public void asyncUnorderedThreadedSummation(int iterations) throws InterruptedException, ExecutionException {
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicLong lastKnownId = new AtomicLong(0);
@@ -336,23 +325,20 @@ public class IntegerNotificationTests {
             lastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<NotificationResult<IntegerNotification>> futures = new ConcurrentFuturePool<>();
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
 
-        for (int i = 0; i < iterations; i++) {
-            Future future = executorService.submit(() -> {
-                try {
-                    futures.add(engine.dispatch(AsyncUnorderedIntegerListener.class, new IntegerNotification(1)));
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(_ -> (Callable<Void>) () -> {
+                    try {
+                        futures.add(engine.dispatch(AsyncUnorderedIntegerListener.class, new IntegerNotification(1)));
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
+                    }
+                    return null;
+                })
+                .toList());
 
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
 
         executorService.shutdown();
         assertTrue(
@@ -367,8 +353,8 @@ public class IntegerNotificationTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Async: Ordered MT Summation")
-    public void asyncOrderedThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+    public void asyncOrderedThreadedSummation(int iterations) throws InterruptedException, ExecutionException {
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger sum = new AtomicInteger(0);
         final AtomicLong lastKnownId = new AtomicLong(0);
@@ -388,23 +374,20 @@ public class IntegerNotificationTests {
             lastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<NotificationResult<IntegerNotification>> futures = new ConcurrentFuturePool<>();
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
 
-        for (int i = 0; i < iterations; i++) {
-            final Future future = executorService.submit(() -> {
-                try {
-                    futures.add(engine.dispatch(AsyncOrderedIntegerListener.class, new IntegerNotification(1)));
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(_ -> (Callable<Void>) () -> {
+                    try {
+                        futures.add(engine.dispatch(AsyncOrderedIntegerListener.class, new IntegerNotification(1)));
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
+                    }
+                    return null;
+                })
+                .toList());
 
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
 
         executorService.shutdown();
         assertTrue(
@@ -420,8 +403,8 @@ public class IntegerNotificationTests {
     @ParameterizedTest
     @ValueSource(ints = {2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Mixed: Unordered MT Summation")
-    public void mixedUnorderedThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+    public void mixedUnorderedThreadedSummation(int iterations) throws InterruptedException, ExecutionException {
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger syncSum = new AtomicInteger(0);
         final AtomicInteger asyncSum = new AtomicInteger(0);
@@ -456,28 +439,25 @@ public class IntegerNotificationTests {
             asyncLastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<NotificationResult<IntegerNotification>> futures = new ConcurrentFuturePool<>();
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
-
-        for (int i = 0; i < iterations; i++) {
-            final int iter = i;
-            final Future future = executorService.submit(() -> {
-                try {
-                    if (isEven(iter)) {
-                        futures.add(engine.dispatch(SyncUnorderedIntegerListener.class, new IntegerNotification(1)));
-                    } else {
-                        futures.add(engine.dispatch(AsyncUnorderedIntegerListener.class, new IntegerNotification(1)));
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(iter -> (Callable<Void>) () -> {
+                    try {
+                        if (isEven(iter)) {
+                            futures.add(
+                                    engine.dispatch(SyncUnorderedIntegerListener.class, new IntegerNotification(1)));
+                        } else {
+                            futures.add(
+                                    engine.dispatch(AsyncUnorderedIntegerListener.class, new IntegerNotification(1)));
+                        }
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
                     }
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
+                    return null;
+                })
+                .toList());
 
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
 
         executorService.shutdown();
         assertTrue(
@@ -496,8 +476,8 @@ public class IntegerNotificationTests {
     @ParameterizedTest
     @ValueSource(ints = {2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("Mixed: Ordered MT Summation")
-    public void mixedOrderedThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+    public void mixedOrderedThreadedSummation(int iterations) throws InterruptedException, ExecutionException {
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger syncSum = new AtomicInteger(0);
         final AtomicInteger asyncSum = new AtomicInteger(0);
@@ -532,28 +512,24 @@ public class IntegerNotificationTests {
             asyncLastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<NotificationResult<IntegerNotification>> futures = new ConcurrentFuturePool<>();
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
 
-        for (int i = 0; i < iterations; i++) {
-            final int iter = i;
-            final Future future = executorService.submit(() -> {
-                try {
-                    if (isEven(iter)) {
-                        futures.add(engine.dispatch(SyncOrderedIntegerListener.class, new IntegerNotification(1)));
-                    } else {
-                        futures.add(engine.dispatch(AsyncOrderedIntegerListener.class, new IntegerNotification(1)));
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(iter -> (Callable<Void>) () -> {
+                    try {
+                        if (isEven(iter)) {
+                            futures.add(engine.dispatch(SyncOrderedIntegerListener.class, new IntegerNotification(1)));
+                        } else {
+                            futures.add(engine.dispatch(AsyncOrderedIntegerListener.class, new IntegerNotification(1)));
+                        }
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
                     }
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
+                    return null;
+                })
+                .toList());
 
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
 
         executorService.shutdown();
         assertTrue(
@@ -580,8 +556,8 @@ public class IntegerNotificationTests {
     @ValueSource(ints = {2, 5, 21, 57, 1_000, 10_000, 100_000})
     @DisplayName("SUAO: MT Summation")
     @Disabled("this test is flaky")
-    public void suaoThreadedSummation(int iterations) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+    public void suaoThreadedSummation(int iterations) throws InterruptedException, ExecutionException {
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final AtomicInteger syncSum = new AtomicInteger(0);
         final AtomicInteger asyncSum = new AtomicInteger(0);
@@ -619,28 +595,25 @@ public class IntegerNotificationTests {
             asyncLastKnownId.set(n.getSequence());
         });
 
-        final ConcurrentFuturePool<NotificationResult<IntegerNotification>> futures = new ConcurrentFuturePool<>();
-        final ConcurrentFuturePool<?> callableFutures = new ConcurrentFuturePool<>();
+        final List<Future<NotificationResult<IntegerNotification>>> futures = new ArrayList<>(iterations);
 
-        for (int i = 0; i < iterations; i++) {
-            final int iter = i;
-            final Future future = executorService.submit(() -> {
-                try {
-                    if (isEven(iter)) {
-                        futures.add(engine.dispatch(SyncUnorderedIntegerListener.class, new IntegerNotification(1)));
-                    } else {
-                        futures.add(engine.dispatch(AsyncOrderedIntegerListener.class, new IntegerNotification(1)));
+        executorService.invokeAll(IntStream.range(0, iterations)
+                .mapToObj(iter -> (Callable<Void>) () -> {
+                    try {
+                        if (isEven(iter)) {
+                            futures.add(
+                                    engine.dispatch(SyncUnorderedIntegerListener.class, new IntegerNotification(1)));
+                        } else {
+                            futures.add(engine.dispatch(AsyncOrderedIntegerListener.class, new IntegerNotification(1)));
+                        }
+                    } catch (DispatchException ex) {
+                        ex.printStackTrace();
                     }
-                } catch (DispatchException ex) {
-                    ex.printStackTrace();
-                }
-            });
+                    return null;
+                })
+                .toList());
 
-            callableFutures.add(future);
-        }
-
-        callableFutures.waitForCompletion();
-        futures.waitForCompletion();
+        FutureUtils.awaitAll(futures);
 
         executorService.shutdown();
         assertTrue(
@@ -795,7 +768,7 @@ public class IntegerNotificationTests {
     @MethodSource("buildArgumentsForCompletionCallbackTest")
     @DisplayName("Completion Test")
     void completionTest(final CompletionCallbackTestConfiguration config) throws InterruptedException {
-        final NotificationEngine engine = new AsyncNotificationEngine(getStaticThreadManager());
+        final NotificationEngine engine = new AsyncNotificationEngine();
 
         final Class<? extends Listener<IntegerNotification>> listenerClass =
                 (Class<? extends Listener<IntegerNotification>>)
@@ -850,7 +823,7 @@ public class IntegerNotificationTests {
         // allow the main thread to do assertions while those operations are blocking.
         final AtomicReference<NotificationResult<IntegerNotification>> futureNotificationResult =
                 new AtomicReference<>();
-        final Thread dispatchThread = new ThreadConfiguration(getStaticThreadManager())
+        final Thread dispatchThread = new ThreadConfiguration()
                 .setInterruptableRunnable(() -> {
                     final Future<NotificationResult<IntegerNotification>> future =
                             engine.dispatch(listenerClass, new IntegerNotification(value), callback);
