@@ -1,6 +1,6 @@
 # Global Cluster Evidence Summary
 
-Updated: `2026-06-30`
+Updated: `2026-07-01`
 
 ## Purpose
 
@@ -17,6 +17,7 @@ back to that manifest instead of duplicating raw artifact roots.
 | `2026-05-29-cluster-calibration` | extracted | [batch-summary.md](2026-05-29-cluster-calibration/batch-summary.md) | Initial traversal-order calibration batch. No valid three-mode ordering is available because parallel sync is `NETWORK_DISEASE_FATAL`, and two-phase is rejected for missing first-window passive TCP/window samples. |
 | `2026-06-29-cluster-calibration` | extracted | [batch-summary.md](2026-06-29-cluster-calibration/batch-summary.md) | Follow-up traversal-order calibration batch. Top-to-bottom and parallel-sync are accepted for calibration evidence; two-phase is rejected for full calibration because passive TCP/window evidence is absent and workload ends before final completion. |
 | `2026-06-30-cluster-calibration` | extracted | [batch-summary.md](2026-06-30-cluster-calibration/batch-summary.md) | High-state follow-up calibration batch. Top-to-bottom and parallel-sync are accepted for calibration evidence; two-phase is diagnostic/rejected because passive TCP/window evidence is absent, workload ends before final completion, and teacher-window coverage is partial. No valid three-mode traversal ordering is available from this batch. |
+| `2026-07-01-cluster-calibration` | extracted | [batch-summary.md](2026-07-01-cluster-calibration/batch-summary.md) | High-state follow-up calibration batch. Top-to-bottom and parallel-sync are accepted for calibration evidence; two-phase is diagnostic/rejected because passive TCP/window evidence does not cover later/final reconnect windows, workload ends before final completion, and teacher-window coverage is partial. No valid three-mode traversal ordering is available from this batch. |
 
 ## Trend Rule
 

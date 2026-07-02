@@ -1,6 +1,6 @@
 # Cluster ReconnectBench Artifact Manifest
 
-Updated: `2026-06-30`
+Updated: `2026-07-01`
 
 ## Purpose
 
@@ -27,6 +27,7 @@ reference this manifest instead of duplicating raw artifact paths or concrete ru
 | `2026-05-29-cluster-calibration` | extracted | Initial traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs` | `extracted-cluster-evidence/2026-05-29-cluster-calibration/` |
 | `2026-06-29-cluster-calibration` | extracted | Follow-up traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/29-06-2026` | `extracted-cluster-evidence/2026-06-29-cluster-calibration/` |
 | `2026-06-30-cluster-calibration` | extracted | Follow-up high-state traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/30-06-2026` | `extracted-cluster-evidence/2026-06-30-cluster-calibration/` |
+| `2026-07-01-cluster-calibration` | extracted | Follow-up high-state traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/01-07-2026` | `extracted-cluster-evidence/2026-07-01-cluster-calibration/` |
 
 ## 2026-05-29 Cluster Calibration
 
@@ -160,4 +161,53 @@ Use `runRoot` as the base path for top-level run artifacts, network sampler file
 |---|---|
 | Batch summary | `extracted-cluster-evidence/2026-06-30-cluster-calibration/batch-summary.md` |
 | Verification notes | `extracted-cluster-evidence/2026-06-30-cluster-calibration/verification-notes.md` |
+| Global summary index | `extracted-cluster-evidence/global-summary.md` |
+
+## 2026-07-01 Cluster Calibration
+
+### Batch Context
+
+Keep these facts with the batch so the collected artifacts are interpreted in the context in which they were produced.
+Treat them as expected run context to verify from artifacts, not as substitutes for parsing logs, settings, metrics, and
+script output.
+
+- The collected data came from traversal-order reconnect workflow runs under the dated artifact parent
+  `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/01-07-2026`.
+- The run strategy was one full workflow/job per traversal order, rather than an in-script traversal matrix.
+- Cluster traversal artifacts are expected to be independent live-state workflow runs. Do not require a common restored
+  baseline state for cluster extraction. Treat each run as a separate calibration anchor, and compare traversal modes
+  locally only after reproducing comparable state size, state gap, work shape, and network profile in `ReconnectBench`.
+- The intended learner is expected to be `network-node1-0` / node `0`; extraction must validate the observed learner
+  from reconnect lifecycle logs.
+- The intended NLG state/load shape used `97.5M` NLG accounts, `6h` duration, and the default `8K` TPS cap; extraction
+  must validate the actual workload rate and timing from NLG/client logs.
+- `version_run.txt` records commit `0cc709860be30d5892ba5fa70ed9300ce4107628` for all three runs; extraction must still
+  source the commit from each run artifact.
+- No `performance-tests-start.log` or `performance-tests-watch.log` files were visible during manifest pre-inspection;
+  extraction must record workflow-control evidence as missing if no workflow logs or equivalent script output are found.
+- Passive per-node TCP/socket sampler logs were visible during manifest pre-inspection for all three runs, but the
+  two-phase pessimistic run uses the alternate `network-node<N>-0_network_sampler.log` naming pattern. Extraction must
+  still verify sampler coverage against exact reconnect windows.
+- Some node directories were missing a plain `swirlds.log` file during manifest pre-inspection; extraction must search
+  available log files and record missing or ambiguous evidence rather than infer values from intended run shape.
+- The `parallel-sync` artifact uses an `sdpt` pod log root while the other two artifacts use `mdlt`; extraction must use
+  the per-run pod log root below instead of assuming a common log-root suffix.
+
+### Run Entries
+
+Use `runRoot` as the base path for top-level run artifacts, network sampler files, and `version_run.txt`. Use
+`podLogRoot` as the base path for `network-node<N>_logs` directories.
+
+| Run ID | Traversal mode | `runRoot` | `podLogRoot` | Workflow log root | Intended learner | Output file | Status |
+|---|---|---|---|---|---|---|---:|
+| `top-to-bottom` | `pullTopToBottom` | `dallas10_pullTopToBottom/report` | `dallas10_pullTopToBottom/report/podlog_solo-mdlt-n10` | `dallas10_pullTopToBottom/report` | `network-node1-0` / node `0` | `extracted-cluster-evidence/2026-07-01-cluster-calibration/top-to-bottom.md` | accepted |
+| `two-phase-pessimistic` | `pullTwoPhasePessimistic` | `dallas11_pullTwoPhasePessimistic/report` | `dallas11_pullTwoPhasePessimistic/report/podlog_solo-mdlt-n11` | `dallas11_pullTwoPhasePessimistic/report` | `network-node1-0` / node `0` | `extracted-cluster-evidence/2026-07-01-cluster-calibration/two-phase-pessimistic.md` | rejected |
+| `parallel-sync` | `pullParallelSync` | `dallas14_pullParallelSync/report` | `dallas14_pullParallelSync/report/podlog_solo-sdpt-n14` | `dallas14_pullParallelSync/report` | `network-node1-0` / node `0` | `extracted-cluster-evidence/2026-07-01-cluster-calibration/parallel-sync.md` | accepted |
+
+### Batch Outputs
+
+| Output | Path |
+|---|---|
+| Batch summary | `extracted-cluster-evidence/2026-07-01-cluster-calibration/batch-summary.md` |
+| Verification notes | `extracted-cluster-evidence/2026-07-01-cluster-calibration/verification-notes.md` |
 | Global summary index | `extracted-cluster-evidence/global-summary.md` |
