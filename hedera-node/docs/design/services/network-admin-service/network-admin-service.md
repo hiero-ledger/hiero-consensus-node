@@ -58,7 +58,6 @@ The Network Service is defined in the `network_service.proto` file. It includes 
 
 - `getVersionInfo`: Retrieves the active versions of Hedera Services and HAPI proto.
 - `getExecutionTime`: Retrieves the time in nanoseconds spent in `handleTransaction` for one or more TransactionIDs.
-- `uncheckedSubmit`: Submits a "wrapped" transaction to the network, skipping its standard prechecks.
 - `getAccountDetails`: Get all the information about an account, including balance and allowances.
 
 #### NetworkGetVersionInfoQuery
