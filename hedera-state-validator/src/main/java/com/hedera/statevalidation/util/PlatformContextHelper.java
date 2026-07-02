@@ -12,6 +12,9 @@ import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
+import java.io.IOException;
+import java.nio.file.Files;
+
 /**
  * Provides singleton access to a configured {@link PlatformContext} instance.
  */
@@ -54,6 +57,14 @@ public final class PlatformContextHelper {
                 if (fileSystemManager == null) {
                     final PathsConfig pathsConfig =
                             ConfigUtils.getConfiguration().getConfigData(PathsConfig.class);
+                    // Ensure savedStateDir and its tmpDir subdirectory exist before
+                    // FileSystemManager's constructor tries to create children under them.
+                    try {
+                        Files.createDirectories(pathsConfig.savedStateDir());
+                        Files.createDirectories(pathsConfig.savedStateDir().resolve(pathsConfig.tmpDir()));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
                 }
                 return fileSystemManager;
