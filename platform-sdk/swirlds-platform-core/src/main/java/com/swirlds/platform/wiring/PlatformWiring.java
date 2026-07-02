@@ -119,7 +119,7 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .preHandleSignaturesOutputWire()
-                .solderTo(components.stateManagementModule().preconsensusSystemTranscationsInputWire());
+                .solderTo(components.stateManagementModule().preconsensusSystemTransactionsInputWire());
 
         solderEventWindow(components);
 
