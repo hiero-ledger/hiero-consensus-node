@@ -9,6 +9,8 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
@@ -52,8 +54,8 @@ public record RosterTransitionWeights(
      * Returns the source node ids in the target roster.
      * @return the source node ids in the target roster
      */
-    public Set<Long> sourceNodeIds() {
-        return sourceNodeWeights.keySet();
+    public SortedSet<Long> sourceNodeIds() {
+        return new TreeSet<>(sourceNodeWeights.keySet());
     }
 
     /**
