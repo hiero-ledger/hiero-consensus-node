@@ -127,7 +127,7 @@ jobs:
     name: Fetch XTS Candidate Tag
     runs-on: hl-cn-default-lin-sm
     outputs:
-      xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
+      xts-proceed: ${{ steps.check-tags-exist.outputs.xts-proceed }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
       xts-tag-short-commit: ${{ steps.check-tags-exist.outputs.xts-tag-short-commit }}
       xts-commit-branch: ${{ steps.check-tags-exist.outputs.xts-commit-branch }}
@@ -162,15 +162,18 @@ jobs:
           echo "::group::Check for XTS Candidate Tag"
           if [[ -n "${RC_TAG}" ]]; then
             echo "::group::Use RC Tag"
-            echo "::debug::Using RC Tag: ${RC_TAG}"
+            echo "Using RC Tag: ${RC_TAG}"
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
-              echo "::debug::Tag ${RC_TAG} not found. Cancelling out."
-              gh run cancel ${{ github.run_id }}
+              echo "Tag ${RC_TAG} not found. No XTS execution will be performed."
+              echo "xts-proceed=false" >> "${GITHUB_OUTPUT}"
+              echo "### No RC Tag Found" >> "${GITHUB_STEP_SUMMARY}"
+              echo "Tag \`${RC_TAG}\` was not found. No XTS execution will be performed." >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
             fi
 
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
@@ -182,10 +185,13 @@ jobs:
             XTS_COMMIT_FOUND="${?}"
             set -e
 
-            # Cancel out if the tag does not exist
+            # Skip to report-failure if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
-              echo "::debug::Tag ${XTS_CANDIDATE_TAG} not found. Cancelling out."
-              gh run cancel ${{ github.run_id }}
+              echo "Tag '${XTS_CANDIDATE_TAG}' not found. No XTS execution will be performed."
+              echo "xts-proceed=false" >> "${GITHUB_OUTPUT}"
+              echo "### No XTS Candidate Found" >> "${GITHUB_STEP_SUMMARY}"
+              echo "Tag \`${XTS_CANDIDATE_TAG}\` was not found. No XTS execution will be performed." >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
             fi
 
             # Check if this commit has already been tagged xts-pass-* or build-*
@@ -196,8 +202,9 @@ jobs:
 
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
             if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-              echo "::debug::Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. Cancelling out."
+              echo "Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. No XTS execution will be performed."
               gh run cancel ${{ github.run_id }}
+              exit 0
             fi
 
             # Get the list of commits between the previous XTS Pass and the current commit
@@ -260,7 +267,7 @@ jobs:
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
             # GitHub Outputs
-            echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
+            echo "xts-proceed=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
@@ -299,6 +306,7 @@ jobs:
           else
             echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
             gh run cancel "${{ github.run_id }}"
+            exit 0
           fi
           echo "::endgroup::" # Set Outputs
 
@@ -306,7 +314,7 @@ jobs:
     name: Build & Publish Hedera State Validator Uber JAR
     needs:
       - fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
     uses: ./.github/workflows/816-call-build-publish-state-validator.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -320,7 +328,7 @@ jobs:
       - extract-jdk-version
       - extract-citr-vars
       - verify-citr-vars
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -364,7 +372,7 @@ jobs:
       - extract-jdk-version
       - extract-citr-vars
       - verify-citr-vars
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -518,7 +526,8 @@ jobs:
         id: report-category
         run: |
           if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]] \
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "success" && "${{ needs.fetch-xts-candidate.outputs.xts-proceed }}" != "true" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
@@ -673,7 +682,7 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         env:
           SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled${{ needs.fetch-xts-candidate.outputs.xts-info != '' && format(' ({0})', needs.fetch-xts-candidate.outputs.xts-info) || '' }} — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-          XTS_TAG_EXISTS: "${{needs.fetch-xts-candidate.outputs.xts-tag-exists}}"
+          XTS_PROCEED: "${{needs.fetch-xts-candidate.outputs.xts-proceed}}"
         run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
       # Notification routing:
