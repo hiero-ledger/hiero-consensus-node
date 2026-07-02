@@ -12,6 +12,7 @@ import org.hiero.consensus.pces.PcesModule;
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
+    /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.components.common.output;
@@ -25,11 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.health.entropy;
     exports com.swirlds.platform.health.filesystem;
     exports com.swirlds.platform.health;
-    exports com.swirlds.platform.internal to
-            org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures,
-            com.fasterxml.jackson.core,
-            com.fasterxml.jackson.databind;
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
     exports com.swirlds.platform.reconnect;
@@ -39,15 +35,22 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system;
+    exports com.swirlds.platform.util;
+    exports com.swirlds.platform.wiring.components;
+    exports com.swirlds.platform.wiring;
+    exports com.swirlds.platform;
+
+    /* Targeted Exports to External Libraries */
+    exports com.swirlds.platform.internal to
+            org.hiero.consensus.pcli,
+            com.swirlds.platform.core.test.fixtures,
+            com.fasterxml.jackson.core,
+            com.fasterxml.jackson.databind;
     exports com.swirlds.platform.uptime to
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.util;
-    exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.wiring;
-    exports com.swirlds.platform;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -96,7 +99,7 @@ module com.swirlds.platform.core {
     uses HashgraphModule;
     uses PcesModule;
     uses ReconnectModule;
-    // spotless:off
+
     provides ConfigurationExtension with
             PlatformConfigurationExtension;
 }
