@@ -81,7 +81,7 @@ env:
 
   #Release version from jFrog
   NLG_VERSION: 0.14.3
-  NUM_OF_BLOCK_NODES: 3
+  NUM_OF_BLOCK_NODES: 1
   java-version: "25.0.2"
   #Thresholds for performance
   #benchmarks
@@ -462,7 +462,7 @@ jobs:
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
           #git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout 41e9377b2a7f3ea7579c80acc726be4f0ff968ae #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
+          git checkout v0.80.0 #41e9377b2a7f3ea7579c80acc726be4f0ff968ae #until new stable Solo release 'fix: update TSS wraps artifacts path to data/keys subdirectory (#4662)' #${{ inputs.solo-version }}
           #echo > resources/templates/application.properties
           #echo > resources/templates/application.env
           #echo > resources/templates/settings.txt
@@ -555,18 +555,7 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
 
-          mv block-node-values.yaml block-node-values.yaml.orig
           export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
-          #export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
-
-          #dedicate top-3 nodes for BN
-          NETWORK_ID="$(echo "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
-
-          #create local-path-storage
-          #sed -i -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
-          #echo "kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml"
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
 
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
@@ -580,25 +569,8 @@ jobs:
            sleep 10
           done
 
-          bnindex=1
-          BNNODE=$(grep "${bnindex}:" firstNode.txt | awk -F : '{print $2}')
-
-          #BN node 1
-          sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-2-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values1.yaml
-          cp block-node-values1.yaml block-node-values.yaml;
-          export BN_MAPPING="node1=1,node2=2,node3=2,node4=2,node5=3,node6=2,node7=3"
-          task solo:block:add
-
-          #BN node 2
-          sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values2.yaml
-          cp block-node-values2.yaml block-node-values.yaml;
-          export BN_MAPPING="node1=1,node2=2,node3=1,node4=1,node5=2,node6=1,node7=2"
-          task solo:block:add
-
-          #BN node 3
-          sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-2-0@g" block-node-values.yaml.orig > block-node-values3.yaml
-          cp block-node-values3.yaml block-node-values.yaml;
-          export BN_MAPPING="node1=3,node2=1,node3=3,node4=3,node5=1,node6=3,node7=1"
+          sed -i -e "s@%NODE_ID%@1@g" block-node-values.yaml
+          export BN_MAPPING="node1=1,node2=1,node3=1,node4=1,node5=1,node6=1,node7=1"
           task solo:block:add
 
           sleep 30
@@ -649,6 +621,7 @@ jobs:
           done
 
       - name: Update back-fill
+        if: false
         run: |
           set +x
           set +e
@@ -675,7 +648,6 @@ jobs:
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "cd /opt/hiero/block-node/; tar xf /tmp/BN.tar --overwrite"
-
           done
 
       - name: Start BlockNodes

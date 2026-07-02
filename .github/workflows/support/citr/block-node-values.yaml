@@ -11,16 +11,15 @@ resources:
 
 nodeSelector:
   #solo.hashgraph.io/role: "auxiliary-services"consensus-node
-  solo.hashgraph.io/role: "consensus-node"
+  solo.hashgraph.io/role: "auxiliary-services"
   solo.hashgraph.io/owner: "%NETWORK_OWNER%"
   solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  kubernetes.io/hostname: "%BNNODE%"
 
 tolerations:
   - key: "solo.hashgraph.io/role"
     operator: "Equal"
     #value: "auxiliary-services"
-    value: "consensus-node"
+    value: "auxiliary-services"
     effect: "NoSchedule"
   - key: "solo.hashgraph.io/owner"
     operator: "Equal"
@@ -30,9 +29,6 @@ tolerations:
     operator: "Equal"
     value: "%NETWORK_ID%"
     effect: "NoSchedule"
-  - key: "kubernetes.io/hostname"
-    operator: "Equal"
-    value: "%BNNODE%"
 
 image:
   repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
