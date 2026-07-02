@@ -148,6 +148,24 @@ public class KeysAndCertsGenerator {
     @NonNull
     public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(@NonNull final Collection<NodeId> nodeIds)
             throws ExecutionException, InterruptedException, KeyStoreException {
+        return generateKeysAndCerts(nodeIds, SigningSchema.RSA);
+    }
+
+    /**
+     * Generates keys and certificates for all given node IDs in parallel using a cached thread pool. Each node's keys
+     * are generated based on its {@link NodeId} and the supplied signing schema.
+     *
+     * @param nodeIds the node IDs to generate keys for
+     * @param schema  the signing schema that determines the type of signing keys to generate
+     * @return a map of node IDs to their generated keys and certificates
+     * @throws ExecutionException if key generation throws an exception
+     * @throws InterruptedException if this thread is interrupted
+     * @throws KeyStoreException if there is no provider that supports the required keystore type
+     */
+    @NonNull
+    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(
+            @NonNull final Collection<NodeId> nodeIds, @NonNull final SigningSchema schema)
+            throws ExecutionException, InterruptedException, KeyStoreException {
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
                 Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
@@ -156,7 +174,7 @@ public class KeysAndCertsGenerator {
                         .setDaemon(false)
                         .buildFactory())) {
             for (final NodeId nodeId : nodeIds) {
-                futures.put(nodeId, threadPool.submit(() -> generate(nodeId)));
+                futures.put(nodeId, threadPool.submit(() -> generate(nodeId, schema)));
             }
             final Map<NodeId, KeysAndCerts> keysAndCerts = FutureUtils.awaitAll(futures);
             threadPool.shutdown();
