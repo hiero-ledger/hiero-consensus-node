@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.leaky.batch;
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -31,7 +32,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
@@ -50,7 +50,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
@@ -289,7 +288,7 @@ public class AtomicLeakyContractTestsSuite {
                                         .gasUsed(4_000_000))));
     }
 
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @EmbeddedHapiTest({MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> payerCannotOverSendValue() {
         final var payerBalance = 666 * ONE_HBAR;
         final var overdraftAmount = payerBalance + ONE_HBAR;
@@ -304,15 +303,16 @@ public class AtomicLeakyContractTestsSuite {
                         .sending(overdraftAmount)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 usableTxnIdNamed(uncheckedCC).payerId(overAmbitiousPayer),
-                uncheckedSubmit(atomicBatch(contractCall(
-                                                PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
-                                        .txnId(uncheckedCC)
-                                        .payingWith(overAmbitiousPayer)
-                                        .sending(overdraftAmount)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))
-                        .payingWith(GENESIS),
-                sleepFor(1_000),
+                atomicBatch(contractCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
+                                .txnId(uncheckedCC)
+                                .payingWith(overAmbitiousPayer)
+                                .sending(overdraftAmount)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasAnyStatusAtAll())
+                        .payingWith(BATCH_OPERATOR)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll()
+                        .deferStatusResolution(),
                 getReceipt(uncheckedCC)
                         .hasRetryAnswerOnlyPrecheck(RECEIPT_NOT_FOUND)
                         .setRetryLimit(300) // 3s
