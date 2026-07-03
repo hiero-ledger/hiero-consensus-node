@@ -92,7 +92,7 @@ fun JMHTask.configureReconnectParameters(
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", defaultProfile))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
-        jmhParamProperty("networkLatencyMicroseconds", "75000"),
+        jmhParamProperty("networkLatencyMicroseconds", "270"),
     )
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
@@ -141,17 +141,22 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
-tasks.register<JMHTask>("jmhReconnect") {
+tasks.register<JMHTask>("jmhReconnectSimulatedFast") {
+    configureReconnectJvmArgs()
+    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "LOOPBACK")
+}
+
+tasks.register<JMHTask>("jmhReconnectSimulatedRealistic") {
     configureReconnectJvmArgs()
     configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "REALISTIC")
 }
 
-tasks.register<JMHTask>("jmhReconnectLoopbackSocket") {
+tasks.register<JMHTask>("jmhReconnectLoopbackFast") {
     configureReconnectJvmArgs()
     configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "LOOPBACK")
 }
 
-tasks.register<JMHTask>("jmhReconnectSimulated") {
+tasks.register<JMHTask>("jmhReconnectLoopbackRealistic") {
     configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "LOOPBACK")
+    configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "REALISTIC")
 }

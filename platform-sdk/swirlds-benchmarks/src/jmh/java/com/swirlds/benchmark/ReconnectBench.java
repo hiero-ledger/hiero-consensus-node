@@ -29,7 +29,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @BenchmarkMode(Mode.SingleShotTime)
 @Fork(value = 1)
 @Warmup(iterations = 0)
-@Measurement(iterations = 1)
+@Measurement(iterations = 3)
 public class ReconnectBench extends VirtualMapBaseBench {
 
     /** A random seed for the StateBuilder. */

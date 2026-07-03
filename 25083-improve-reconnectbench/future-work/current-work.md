@@ -1,6 +1,6 @@
 # ReconnectBench Current Work
 
-Updated: `2026-07-02`
+Updated: `2026-07-03`
 
 Purpose: concise task list for work that should be completed before the ReconnectBench update is considered ready for
 main. Calibration-critical concerns have been resolved or deferred; there are no active critical calibration risks in
@@ -68,6 +68,8 @@ Tasks:
   exceptions are thrown, and log stats before verification or via `try/finally`.
 - Log a compact run header with generated/restored state, saved-state paths when applicable, effective teacher/learner
   size, seed/divergence parameters, traversal mode, transport/profile, and resolved network configuration.
+- For generated benchmark states, verify and log that the actual generated teacher/learner sizes match the sizes implied
+  by the configured benchmark parameters. If they do not match, fail clearly or record the exact delta before timing.
 - Add bandwidth-delay-product diagnostics:
 
 ```text
@@ -81,8 +83,8 @@ inflightLimit / estimatedBdpBytes
 
 Done when:
 
-- A benchmark log is enough to identify the state, traversal, transport/profile, and whether the in-flight cap is near,
-  above, or below the configured bandwidth-delay product.
+- A benchmark log is enough to identify the state, confirm generated-state size versus configured parameters, traversal,
+  transport/profile, and whether the in-flight cap is near, above, or below the configured bandwidth-delay product.
 
 ### 5. Keep simulator parameter failures clear
 
@@ -93,6 +95,15 @@ Tasks:
 - Validate `MIN_PROGRESSIVE_READ_BYTES` against small length-prefixed reconnect messages at low bandwidth. If it shifts
   first-message visibility, reduce it, document the acceptable distortion, or make the coalescing target configurable by
   benchmark profile.
+- Revisit fixed 8 KiB network granularity in both transports:
+  - `SimulatedNetworkChannel.DEFAULT_RANGE_SIZE` controls simulated byte-range scheduling, progressive visibility,
+    allocation/range count, and in-flight-cap interaction.
+  - `ShapingOutputStream.MAX_CHUNK_BYTES` controls socket write pacing and park frequency for
+    `LOOPBACK_SOCKET + REALISTIC`.
+  - Do not assume the same replacement fits both. For socket shaping, consider a bandwidth-derived time quantum
+    such as 1-2 ms worth of bytes, clamped to a practical minimum/maximum and reported in diagnostics. For the
+    simulator, first verify whether changing range size alters intended progressive-arrival or in-flight-window
+    semantics.
 - Guard extreme latency, bandwidth, in-flight cap, and derived transmit-duration values.
 - Convert overflow or unsupported parameter combinations into `IllegalArgumentException` messages that name the bad
   benchmark parameter.
@@ -102,6 +113,8 @@ Tasks:
 Done when:
 
 - Bad benchmark parameters fail clearly and intentional simulator edge behavior is documented.
+- The fixed 8 KiB granularity choice is either retained with documented transport-specific rationale or replaced by an
+  auditable transport-specific quantum that does not distort the intended benchmark comparison.
 
 ### 6. Main-readiness cleanup
 
