@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.connectivity;
 
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -10,6 +12,8 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -20,6 +24,9 @@ import org.hiero.consensus.model.node.NodeId;
  * Creates, binds and connects server and client sockets
  */
 public interface SocketFactory {
+
+    static final Logger logger = LogManager.getLogger(SocketFactory.class);
+
     /** The IPv4 address to listen all interface: [0.0.0.0]. */
     byte[] ALL_INTERFACES = new byte[] {0, 0, 0, 0};
 
@@ -72,6 +79,11 @@ public interface SocketFactory {
         }
         final InetSocketAddress endpoint = new InetSocketAddress(networkEndpoint.hostname(), networkEndpoint.port());
         serverSocket.setReuseAddress(true);
+
+        logger.warn(SOCKET_EXCEPTIONS.getMarker(),
+                "Server socket receive buffer size: {}",
+                serverSocket.getReceiveBufferSize());
+
         serverSocket.bind(endpoint); // try to grab a port on this computer
         // do NOT do clientSocket.setSendBufferSize or clientSocket.setReceiveBufferSize
         // because it causes a major bug in certain situations
@@ -103,6 +115,12 @@ public interface SocketFactory {
             // set the IP_TOS option
             clientSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
+        logger.warn(SOCKET_EXCEPTIONS.getMarker(),
+                "Client socket send buffer size: {}",
+                clientSocket.getSendBufferSize());
+        logger.warn(SOCKET_EXCEPTIONS.getMarker(),
+                "Client socket receive buffer size: {}",
+                clientSocket.getReceiveBufferSize());
 
         clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
         clientSocket.setTcpNoDelay(socketConfig.tcpNoDelay());
