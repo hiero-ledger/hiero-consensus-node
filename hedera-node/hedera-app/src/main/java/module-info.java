@@ -36,10 +36,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.signature.impl;
     exports com.hedera.node.app.signature;
     exports com.hedera.node.app.state.listeners;
-    exports com.hedera.node.app.state.merkle to
-            com.hedera.node.app.test.fixtures,
-            com.hedera.node.test.clients,
-            com.hedera.state.validator;
     exports com.hedera.node.app.state.recordcache;
     exports com.hedera.node.app.state;
     exports com.hedera.node.app.store;
@@ -65,6 +61,10 @@ module com.hedera.node.app {
     exports com.hedera.node.app.workflows.standalone;
     exports com.hedera.node.app.workflows;
     exports com.hedera.node.app;
+    exports com.hedera.node.app.state.merkle to
+            com.hedera.node.app.test.fixtures,
+            com.hedera.node.test.clients,
+            com.hedera.state.validator;
 
     requires transitive com.hedera.cryptography.hints;
     requires transitive com.hedera.cryptography.wraps;
