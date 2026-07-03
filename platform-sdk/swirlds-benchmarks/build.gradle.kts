@@ -71,6 +71,50 @@ fun jmhParamProperty(name: String, defaultValue: String) =
         .listProperty<String>()
         .value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
 
+fun JMHTask.configureReconnectJvmArgs() {
+    jvmArgs.set(
+        listOf(
+            gossipConnectivityExport,
+            "-Xms24g",
+            "-Xmx24g",
+            "-XX:+AlwaysPreTouch",
+            "-Xlog:gc*:file=/Users/thenswan/Work/LimeChain/playground/hiero-consensus-node/platform-sdk/swirlds-benchmarks/data/reconnectbench-gc.log:time,uptime,level,tags",
+        )
+    )
+}
+
+fun JMHTask.configureReconnectParameters(
+    defaultTransport: String,
+    defaultProfile: String,
+) {
+    includes.set(listOf("ReconnectBench"))
+    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", defaultTransport))
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", defaultProfile))
+    benchmarkParameters.put(
+        "networkLatencyMicroseconds",
+        jmhParamProperty("networkLatencyMicroseconds", "75000"),
+    )
+    benchmarkParameters.put(
+        "networkBandwidthMegabitsPerSecond",
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
+    )
+    benchmarkParameters.put(
+        "networkInflightBytesLimit",
+        jmhParamProperty("networkInflightBytesLimit", "16777216"),
+    )
+    benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
+    benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.1"))
+    benchmarkParameters.put("teacherRemoveProbability", jmhParamProperty("teacherRemoveProbability", "0.0"))
+    benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.3"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "1000"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
+    benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
+    benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
+    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
+    benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+}
+
 tasks.named<Jar>("jmhJarWithMergedServiceFiles") {
     from(sourceSets.main.get().output) { include("com/swirlds/benchmark/reconnect/**") }
 }
@@ -98,56 +142,16 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
 }
 
 tasks.register<JMHTask>("jmhReconnect") {
-    includes.set(listOf("ReconnectBench"))
-    jvmArgs.set(
-        listOf(
-            "-Xms24g",
-            "-Xmx24g",
-            "-XX:+AlwaysPreTouch",
-            "-Xlog:gc*:file=/Users/thenswan/Work/LimeChain/playground/hiero-consensus-node/platform-sdk/swirlds-benchmarks/data/reconnectbench-gc.log:time,uptime,level,tags",
-        )
-    )
-    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", "SIMULATED"))
-    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
-    benchmarkParameters.put(
-        "networkLatencyMicroseconds",
-//        jmhParamProperty("networkLatencyMicroseconds", "270"),
-        jmhParamProperty("networkLatencyMicroseconds", "75000"),
-    )
-    benchmarkParameters.put(
-        "networkBandwidthMegabitsPerSecond",
-        jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
-    )
-    benchmarkParameters.put(
-        "networkInflightBytesLimit",
-//        jmhParamProperty("networkInflightBytesLimit", "134217728"),
-        jmhParamProperty("networkInflightBytesLimit", "16777216"),
-    )
-    benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
-    benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.1"))
-    benchmarkParameters.put("teacherRemoveProbability", jmhParamProperty("teacherRemoveProbability", "0.0"))
-    benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.3"))
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "1000"))
-    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
-    benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
-    benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
-    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
-    benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+    configureReconnectJvmArgs()
+    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "REALISTIC")
 }
 
 tasks.register<JMHTask>("jmhReconnectLoopbackSocket") {
-    includes.set(listOf("ReconnectBench"))
-
-    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "LOOPBACK"))
-    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", "LOOPBACK_SOCKET"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+    configureReconnectJvmArgs()
+    configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "LOOPBACK")
 }
 
 tasks.register<JMHTask>("jmhReconnectSimulated") {
-    includes.set(listOf("ReconnectBench"))
-
-    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "LOOPBACK"))
-    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", "SIMULATED"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+    configureReconnectJvmArgs()
+    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "LOOPBACK")
 }
