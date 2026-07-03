@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -10,7 +10,7 @@ import org.junit.jupiter.params.provider.Arguments;
 public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
 
     @Override
-    protected LongListDisk createLongList(long capacity, Configuration config) {
+    protected LongListDisk createLongList(long capacity, MerkleDbConfig config) {
         return new LongListDisk(capacity, config, fileSystemManager);
     }
 

@@ -261,7 +261,7 @@ public class ReconnectTest {
                         TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
-                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.SOCKET_TIMEOUT, Duration.ofSeconds(1))
                 .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, 2)
                 .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 
@@ -323,7 +323,7 @@ public class ReconnectTest {
                         TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
-                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.SOCKET_TIMEOUT, Duration.ofSeconds(1))
                 .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects)
                 .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 
@@ -380,7 +380,7 @@ public class ReconnectTest {
                         TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
-                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.SOCKET_TIMEOUT, Duration.ofSeconds(1))
                 .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects)
                 .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 

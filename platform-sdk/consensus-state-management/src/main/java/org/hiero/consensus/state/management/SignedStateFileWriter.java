@@ -1,0 +1,470 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.state.management;
+
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.executeAndRename;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.HASH_INFO_FILE_NAME;
+import static org.hiero.consensus.state.management.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
+
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.impl.DefaultPcesModule;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.management.persistence.SignedStateFileUtils;
+import org.hiero.consensus.state.saved.SavedStateMetadata;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
+
+/**
+ * Utility methods for writing a signed state to disk.
+ */
+public final class SignedStateFileWriter {
+
+    private static final Logger logger = LogManager.getLogger(SignedStateFileWriter.class);
+
+    private static final String SETTING_USED_FILENAME = "settingsUsed.txt";
+
+    private SignedStateFileWriter() {}
+
+    /**
+     * Write a file that contains information about the hash of the state. A useful nugget of information for when a
+     * human needs to decide what is contained within a signed state file. If the file already exists in the given
+     * directory then it is overwritten.
+     *
+     * @param directory the directory where the state is being written
+     * @param state     the state that is being written
+     */
+    public static void writeHashInfoFile(@NonNull final Path directory, @NonNull final VirtualMapState state)
+            throws IOException {
+        final String platformInfo = getInfoString(state);
+
+        logger.info(STATE_TO_DISK.getMarker(), """
+                Information for state written to disk:
+                {}""", platformInfo);
+
+        final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
+
+        final String hashInfo = Mnemonics.generateMnemonic(state.getHash());
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(hashInfoFile.toFile()))) {
+            // even though hash info template content is not required, it's there to preserve backwards compatibility of
+            // the file format
+            writer.write(String.format(PlatformStateUtils.HASH_INFO_TEMPLATE, hashInfo));
+        }
+    }
+
+    /**
+     * Write the signed state metadata file
+     *
+     * @param selfId      the id of the platform
+     * @param directory   the directory to write to
+     * @param signedState the signed state being written
+     */
+    private static void writeMetadataFile(
+            @Nullable final NodeId selfId, @NonNull final Path directory, @NonNull final SignedState signedState)
+            throws IOException {
+        requireNonNull(directory, "directory must not be null");
+        requireNonNull(signedState, "signedState must not be null");
+
+        final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
+
+        SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
+    }
+
+    /**
+     * Write the signature set file.
+     *
+     * @param directory   the directory to write to
+     * @param signedState the signature set file
+     */
+    public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
+            throws IOException {
+        final Path sigSetFile = directory.resolve(SIGNATURE_SET_FILE_NAME);
+        try (final FileOutputStream fos = new FileOutputStream(sigSetFile.toFile());
+                final WritableStreamingData out = new WritableStreamingData(fos)) {
+            signedState.getSigSet().serialize(out);
+        }
+    }
+
+    /**
+     * Write all files that belong in the signed state directory into a directory.
+     * <p>
+     * This includes signature files, hash info, metadata, roster, settings, PCES files,
+     * and the state snapshot itself.
+     * <p>
+     * <b>Reservation contract:</b> The caller must reserve the state before calling this method.
+     * This method takes ownership of the reservation and guarantees that it will be released
+     * before returning, whether the operation succeeds or fails.
+     * The reservation may be released <em>during</em> execution to unblock asynchronous
+     * snapshot creation, so callers must not use the reserved state after this call.
+     * <p>
+     * <b>Sync vs async snapshot:</b> The snapshot creation strategy depends on configuration
+     * ({@link StateConfig#saveStateAsync()}) and the state's save reason:
+     * <ul>
+     *   <li><b>Synchronous</b> (default for non-periodic snapshots, or when async is disabled):
+     *       the snapshot is created inline, and the reservation is released after the snapshot
+     *       is fully written.</li>
+     *   <li><b>Asynchronous</b> (periodic snapshots with async enabled): the snapshot is
+     *       deferred to the virtual pipeline's flush operation. The reservation is released
+     *       early to allow the pipeline to flush the map copy, and this method blocks until
+     *       the flush-triggered snapshot completes or a configurable timeout
+     *       ({@link StateConfig#asyncSnapshotTimeout()}) expires.</li>
+     * </ul>
+     * <p>
+     * <b>Snapshot before PCES copy:</b> PCES copying must happen only after the state snapshot has completed.
+     * The copy logic performs a best-effort filesystem scan and does not coordinate with the PCES writer.
+     * Recent PCES data may still be buffered or otherwise not yet visible to that scan. Keeping the snapshot
+     * write before the PCES scan provides the ordering and I/O activity needed in practice for recent PCES
+     * files to be discoverable. Moving the PCES scan earlier can produce a saved state with no copied PCES
+     * files. Do not reorder this unless PCES copying is changed to explicitly coordinate with, or sync
+     * with the PCES writer.
+     *
+     * @param configuration         the platform configuration
+     * @param fileSystemManager     the file system manager
+     * @param selfId                the id of the platform
+     * @param directory             the directory where all files should be placed
+     * @param reservedSignedState   the reserved state to be written. Must be reserved by the caller;
+     *                              this method takes ownership and will release the reservation
+     * @param stateLifecycleManager the state lifecycle manager
+     * @throws IOException if the snapshot creation fails, times out, or is interrupted
+     */
+    public static void writeSignedStateFilesToDirectory(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final ReservedSignedState reservedSignedState,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
+            throws IOException {
+        requireNonNull(directory);
+        requireNonNull(reservedSignedState);
+        requireNonNull(stateLifecycleManager);
+
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
+        final SignedState signedState = reservedSignedState.get();
+        final long pcesLowerBound = ancientThresholdOf(signedState.getState());
+        final long round = signedState.getRound();
+
+        Future<Void> snapshotFuture = null;
+        try {
+            writeSnapshotSupplementalFiles(selfId, directory, signedState, configuration);
+
+            if (stateConfig.saveStateAsync()
+                    && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
+                // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
+                // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
+                // cache are already in place, so the only thing needed is an actual data source snapshot.
+                // Sync method would be slower here, and it would block the VirtualPipeline until it is done, causing
+                // the backpressure.
+                // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
+                // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
+                snapshotFuture = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
+                // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
+                // because the copy becomes destroyed and thus can be flushed.
+                reservedSignedState.close();
+                // Block until the snapshot is created.
+                snapshotFuture.get(stateConfig.asyncSnapshotTimeout(), TimeUnit.SECONDS);
+            } else {
+                stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+            }
+
+            // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
+            // on disk and does not coordinate with the PCES writer; scanning before the snapshot has
+            // previously raced with PCES writes and found no files to copy.
+            copyPcesFiles(selfId, directory, configuration, fileSystemManager, pcesLowerBound, round);
+        } catch (final TimeoutException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Timed out waiting for async snapshot for round {} to {} after {} seconds",
+                    signedState.getRound(),
+                    directory,
+                    stateConfig.asyncSnapshotTimeout(),
+                    e);
+            if (snapshotFuture != null) {
+                snapshotFuture.cancel(true);
+            }
+            throw new IOException("Async snapshot timed out for round " + signedState.getRound(), e);
+        } catch (final ExecutionException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Async snapshot failed for round {} to {}: {}",
+                    signedState.getRound(),
+                    directory,
+                    e.getCause());
+            throw new IOException("Async snapshot failed for round " + signedState.getRound(), e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Interrupted while waiting for async snapshot for round {} to {}",
+                    signedState.getRound(),
+                    directory,
+                    e);
+            if (snapshotFuture != null) {
+                snapshotFuture.cancel(true);
+            }
+            throw new IOException("Async snapshot interrupted for round " + signedState.getRound(), e);
+        } catch (final Throwable e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Unexpected error when writing a snapshot for round {} to {}",
+                    signedState.getRound(),
+                    directory,
+                    e);
+            if (snapshotFuture != null) {
+                snapshotFuture.cancel(true);
+            }
+            throw new IOException("Snapshot creation failed for round " + signedState.getRound(), e);
+        } finally {
+            // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
+            // prevents double-close since ReservedSignedState can only be closed once.
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
+        }
+    }
+
+    /**
+     * Write supplemental files for a state snapshot.
+     *
+     * @param selfId        the id of the platform
+     * @param directory     the directory to write to
+     * @param signedState   the signed state being written
+     * @param configuration the platform configuration
+     */
+    private static void writeSnapshotSupplementalFiles(
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final SignedState signedState,
+            @NonNull final Configuration configuration)
+            throws IOException {
+        writeSignatureSetFile(directory, signedState);
+        writeHashInfoFile(directory, signedState.getState());
+        writeMetadataFile(selfId, directory, signedState);
+        writeConsensusSnapshotFile(directory, signedState);
+        final Roster currentRoster = signedState.getRoster();
+        writeRosterFile(directory, currentRoster);
+        writeSettingsUsed(directory, configuration);
+    }
+
+    /**
+     * Copy PCES files for a state snapshot.
+     *
+     * @param selfId        the id of the platform
+     * @param directory     the directory to write to
+     * @param configuration the platform configuration
+     * @param fileSystemManager the file system manager
+     * @param lowerBound    the lower bound of events that are non-ancient with respect to the saved state
+     * @param round         the round of the saved state
+     */
+    private static void copyPcesFiles(
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            final long lowerBound,
+            final long round) {
+        if (selfId == null) {
+            return;
+        }
+
+        // This is a temporary measure that allows us to move this functionality into the consensus module
+        // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
+        final PcesModule pcesModule = new DefaultPcesModule();
+        pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, fileSystemManager, directory, lowerBound, round);
+    }
+
+    /**
+     * Write the consensus snapshot file. This is a JSON file that contains a human-readable summary of the state of
+     * consensus at the time the signed state was created. It is useful for debugging and replaying PCES files on top of
+     * the state snapshot.
+     *
+     * @param directory   the directory to write to
+     * @param signedState the signed state being written
+     */
+    private static void writeConsensusSnapshotFile(
+            @NonNull final Path directory, @NonNull final SignedState signedState) {
+        final Path consensusSnapshotFile = directory.resolve(SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
+        final ConsensusSnapshot snapshot = PlatformStateUtils.consensusSnapshotOf(signedState.getState());
+        if (snapshot == null) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "No consensus snapshot found in state for round {}.",
+                    signedState.getRound());
+            return;
+        }
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(consensusSnapshotFile.toFile()))) {
+            writer.write(ConsensusSnapshot.JSON.toJSON(snapshot));
+        } catch (final IOException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Failed to write consensus snapshot file to disk at {}",
+                    consensusSnapshotFile,
+                    e);
+        }
+    }
+
+    /**
+     * Write the state's roster in human-readable form.
+     *
+     * @param directory the directory to write to
+     * @param roster    the roster to write
+     */
+    private static void writeRosterFile(@NonNull final Path directory, @NonNull final Roster roster)
+            throws IOException {
+        final Path rosterFile = directory.resolve(CURRENT_ROSTER_FILE_NAME);
+
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(rosterFile.toFile()))) {
+            writer.write(Roster.JSON.toJSON(roster));
+        }
+    }
+
+    /**
+     * Write all the settings to the file settingsUsed.txt, some of which might have been changed by settings.txt.
+     *
+     * @param directory the directory to write to
+     */
+    public static void writeSettingsUsed(@NonNull final Path directory, @NonNull final Configuration configuration) {
+        requireNonNull(directory);
+        requireNonNull(configuration);
+
+        try (final BufferedWriter writer = Files.newBufferedWriter(directory.resolve(SETTING_USED_FILENAME))) {
+            final StringBuilder stringBuilder = new StringBuilder();
+            generateSettingsUsed(stringBuilder, configuration);
+            writer.write(stringBuilder.toString());
+
+            writer.flush();
+        } catch (final IOException e) {
+            logger.error(EXCEPTION.getMarker(), "Error in writing to settingsUsed.txt", e);
+        }
+    }
+
+    /**
+     * Generate the settings used, some of which might have been changed by settings.txt.
+     *
+     * @param stringBuilder the string builder to write to
+     * @param configuration the configuration to use
+     */
+    private static void generateSettingsUsed(
+            @NonNull final StringBuilder stringBuilder, @NonNull final Configuration configuration) {
+        requireNonNull(stringBuilder);
+        requireNonNull(configuration);
+
+        stringBuilder.append("------------- Configuration Overrides -------------");
+        stringBuilder.append(System.lineSeparator());
+        stringBuilder.append(System.lineSeparator());
+
+        final Set<String> propertyNames =
+                configuration.getPropertyNames().collect(Collectors.toCollection(TreeSet::new));
+        for (final String propertyName : propertyNames) {
+            if (configuration.isListValue(propertyName)) {
+                final String value =
+                        Objects.requireNonNullElse(configuration.getValues(propertyName), List.of()).stream()
+                                .map(Object::toString)
+                                .collect(Collectors.joining(", "));
+                stringBuilder.append(String.format("%s, %s%n", propertyName, value));
+            } else {
+                stringBuilder.append(String.format("%s, %s%n", propertyName, configuration.getValue(propertyName)));
+            }
+        }
+    }
+
+    /**
+     * Writes a SignedState to a file. Also writes auxiliary files such as "settingsUsed.txt". This is the top level
+     * method called by the platform when it is ready to write a state.
+     *
+     * @param configuration       the platform configuration
+     * @param fileSystemManager   the file system manager
+     * @param selfId              the id of the platform
+     * @param savedStateDirectory the directory where the state will be stored
+     * @param stateToDiskReason   the reason the state is being written to disk
+     * @param reservedSignedState the state, which should be written to a directory
+     * @param stateLifecycleManager the state lifecycle manager
+     */
+    public static void writeSignedStateToDisk(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @Nullable final NodeId selfId,
+            @NonNull final Path savedStateDirectory,
+            @Nullable final StateToDiskReason stateToDiskReason,
+            @NonNull final ReservedSignedState reservedSignedState,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
+            throws IOException {
+
+        requireNonNull(reservedSignedState);
+        requireNonNull(savedStateDirectory);
+        requireNonNull(stateLifecycleManager);
+
+        final SignedState signedState = reservedSignedState.get();
+
+        try {
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    "Started writing round {} state to disk. Reason: {}, directory: {}",
+                    signedState.getRound(),
+                    stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason,
+                    savedStateDirectory);
+
+            executeAndRename(
+                    savedStateDirectory,
+                    fileSystemManager.resolveNewTemp(),
+                    directory -> writeSignedStateFilesToDirectory(
+                            configuration,
+                            fileSystemManager,
+                            selfId,
+                            directory,
+                            reservedSignedState,
+                            stateLifecycleManager));
+
+            logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
+                            signedState.getRound(),
+                            signedState.isFreezeState(),
+                            stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
+                            savedStateDirectory)
+                    .toString());
+        } catch (final Throwable e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Exception when writing the signed state for round {} to disk:",
+                    signedState.getRound(),
+                    e);
+            throw e;
+        }
+    }
+}

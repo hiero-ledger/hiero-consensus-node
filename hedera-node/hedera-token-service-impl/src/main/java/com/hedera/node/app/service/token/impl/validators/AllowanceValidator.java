@@ -155,4 +155,20 @@ public class AllowanceValidator {
                     NOT_ALIASED_ID);
         }
     }
+
+    /**
+     * Returns whether the given NFT allowance carries a (non-default) delegating spender. A delegated allowance may
+     * only sub-delegate individual serial numbers on the owner's behalf; it must never add or remove the owner's
+     * approveForAll grants. Both {@code ApproveAllowanceValidator} and the apply logic in
+     * {@code CryptoApproveAllowanceHandler} use this single definition of "is a delegated allowance" so the two
+     * cannot drift apart.
+     *
+     * @param allowance the nft allowance
+     * @return true if a non-default delegating spender is present
+     */
+    public static boolean isDelegatingSpenderPresent(@NonNull final NftAllowance allowance) {
+        requireNonNull(allowance, "allowance must not be null");
+        return allowance.hasDelegatingSpender()
+                && allowance.delegatingSpenderOrThrow().accountNumOrThrow() != 0;
+    }
 }

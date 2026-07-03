@@ -38,7 +38,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -559,14 +558,15 @@ class ProofControllerImplTest {
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
-        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
                 .willReturn(restarted);
 
         final var now = Instant.EPOCH.plusSeconds(1);
         subject.advanceConstruction(now, METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
 
-        verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
+        verify(writableHistoryStore)
+                .restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
@@ -604,8 +604,8 @@ class ProofControllerImplTest {
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(false)))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
-        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
                 .willReturn(restarted);
 
         final var now = Instant.EPOCH.plusSeconds(1);
@@ -613,7 +613,8 @@ class ProofControllerImplTest {
 
         verify(prover)
                 .advance(eq(now), eq(construction), eq(METADATA), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(false));
-        verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
+        verify(writableHistoryStore)
+                .restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
@@ -647,14 +648,15 @@ class ProofControllerImplTest {
                 .wrapsSigningState(WrapsSigningState.newBuilder().build())
                 .wrapsRetryCount(1)
                 .build();
-        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
                 .willReturn(restarted);
 
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
 
-        verify(writableHistoryStore).restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID));
+        verify(writableHistoryStore)
+                .restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
@@ -1195,8 +1197,8 @@ class ProofControllerImplTest {
         given(weights.sourceWeightThreshold()).willReturn(1L);
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(true)))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
-        given(weights.sourceNodeIds()).willReturn(Set.of(SELF_ID, OTHER_NODE_ID));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID, OTHER_NODE_ID)))
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
                 .willReturn(restarted);
 
         setField("targetMetadata", metadata);

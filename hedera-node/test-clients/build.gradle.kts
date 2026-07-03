@@ -205,9 +205,9 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to "block.stateproof.verification.enabled=true",
         "hapiTestToken" to
-            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
             "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
@@ -215,11 +215,11 @@ val prCheckPropOverrides =
         // cannot verify block proofs across a handoff — so keep it off the block node with
         // writerMode=FILE (and historyEnabled=false to match its original hints-only TSS surface).
         "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.historyEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "blockStream.writerMode=FILE,tss.historyEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestWrapsDownload" to
             "tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
@@ -230,7 +230,7 @@ val prCheckPropOverrides =
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=3s",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscRecordsSerial" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestSimpleFees" to

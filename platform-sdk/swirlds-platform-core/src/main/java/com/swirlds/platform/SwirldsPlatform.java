@@ -19,7 +19,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ConsensusModuleBuilder;
@@ -28,20 +27,10 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
 import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
-import com.swirlds.platform.state.signed.SignedStateMetrics;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.snapshot.SavedStateInfo;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -67,7 +56,9 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
@@ -103,15 +94,6 @@ public class SwirldsPlatform implements Platform {
      * The latest round to have reached consensus in the initial state
      */
     private final long startingRound;
-
-    /**
-     * Holds the latest state that is immutable. May be unhashed (in the future), may or may not have all required
-     * signatures. State is returned with a reservation.
-     * <p>
-     * NOTE: This is currently set when a state has finished hashing. In the future, this will be set at the moment a
-     * new state is created, before it is hashed.
-     */
-    private final SignedStateNexus latestImmutableStateNexus;
 
     /**
      * For passing notifications between the platform and the application.
@@ -163,17 +145,10 @@ public class SwirldsPlatform implements Platform {
 
         keysAndCerts = blocks.keysAndCerts();
 
-        final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
-
-        savedStateController = new DefaultSavedStateController(platformContext);
-
-        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(metrics);
-        final StateSignatureCollector stateSignatureCollector =
-                new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
+        savedStateController = blocks.savedStateController();
 
         this.platformComponents = blocks.platformComponents();
         this.platformCoordinator = blocks.platformCoordinator();
-        this.latestImmutableStateNexus = blocks.latestImmutableStateNexus();
 
         blocks.statusActionSubmitterReference().set(platformCoordinator);
 
@@ -214,14 +189,7 @@ public class SwirldsPlatform implements Platform {
                 selfId,
                 blocks.fallenBehindMonitor());
 
-        platformComponents.bind(
-                builder,
-                stateSignatureCollector,
-                eventWindowManager,
-                latestImmutableStateNexus,
-                latestCompleteStateNexus,
-                savedStateController,
-                appNotifier);
+        platformComponents.bind(builder, eventWindowManager, appNotifier);
 
         final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
                 ? Cryptography.NULL_HASH
@@ -246,7 +214,7 @@ public class SwirldsPlatform implements Platform {
 
         final boolean startedFromGenesis = initialState.isGenesisState();
 
-        latestImmutableStateNexus.setState(initialState.reserve("set latest immutable to initial state"));
+        blocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
 
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
@@ -256,9 +224,7 @@ public class SwirldsPlatform implements Platform {
             initialAncientThreshold = ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
-            platformCoordinator.sendStateToHashLogger(initialState);
-            platformCoordinator.injectSignatureCollectorState(
-                    initialState.reserve("loading initial state into sig collector"));
+            platformCoordinator.sendStateToStateManagement(initialState);
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
@@ -275,11 +241,6 @@ public class SwirldsPlatform implements Platform {
                     EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
             platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
-
-        blocks.getLatestCompleteStateReference()
-                .set(() -> latestCompleteStateNexus.getState("get latest complete state for reconnect"));
-
-        blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
 
         if (!initialState.isGenesisState()) {
             pcesReplayLowerBound = initialAncientThreshold;
@@ -408,18 +369,5 @@ public class SwirldsPlatform implements Platform {
     @NonNull
     public Roster getRoster() {
         return currentRoster;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    @NonNull
-    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
-        final ReservedSignedState wrapper = latestImmutableStateNexus.getState(reason);
-        return wrapper == null
-                ? AutoCloseableWrapper.empty()
-                : new AutoCloseableWrapper<>((T) wrapper.get().getState(), wrapper::close);
     }
 }
