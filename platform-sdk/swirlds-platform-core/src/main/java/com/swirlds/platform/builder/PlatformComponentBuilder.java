@@ -18,7 +18,6 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
-import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 
@@ -101,39 +100,6 @@ public class PlatformComponentBuilder {
         } finally {
             getMetricsProvider().start();
         }
-    }
-
-    /**
-     * Provide a state garbage collector in place of the platform's default state garbage collector.
-     *
-     * @param stateGarbageCollector the state garbage collector to use
-     * @return this builder
-     */
-    public PlatformComponentBuilder withStateGarbageCollector(
-            @NonNull final StateGarbageCollector stateGarbageCollector) {
-        throwIfAlreadyUsed();
-        if (this.stateGarbageCollector != null) {
-            throw new IllegalStateException("State garbage collector has already been set");
-        }
-        this.stateGarbageCollector = Objects.requireNonNull(stateGarbageCollector);
-        return this;
-    }
-
-    /**
-     * Build the state garbage collector if it has not yet been built. If one has been provided via
-     * {@link #withStateGarbageCollector(StateGarbageCollector)}, that garbage collector will be used. If this method is
-     * called more than once, only the first call will build the state garbage collector. Otherwise, the default garbage
-     * collector will be created and returned.
-     *
-     * @return the state garbage collector
-     */
-    @NonNull
-    public StateGarbageCollector buildStateGarbageCollector() {
-        if (stateGarbageCollector == null) {
-            stateGarbageCollector =
-                    new DefaultStateGarbageCollector(blocks.platformContext().getMetrics());
-        }
-        return stateGarbageCollector;
     }
 
     /**

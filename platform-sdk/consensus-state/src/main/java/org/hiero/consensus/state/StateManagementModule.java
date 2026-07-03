@@ -40,7 +40,9 @@ import org.hiero.consensus.state.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.sentinel.DefaultSignedStateSentinel;
 import org.hiero.consensus.state.sentinel.SignedStateSentinel;
+import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.state.signing.DefaultStateSignatureCollector;
 import org.hiero.consensus.state.signing.DefaultStateSigner;
@@ -66,7 +68,7 @@ public class StateManagementModule {
 
     private final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring;
 
-    private final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring;
+    private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
 
     private final OutputWire<ReservedSignedState> hashedStateOutputWire;
 
@@ -84,6 +86,7 @@ public class StateManagementModule {
      * @param swirldName the swirld name
      * @param stateLifecycleManager the state lifecycle manager
      * @param latestCompleteStateNexus the latest complete state nexus
+     * @param savedStateController the saved state controller
      */
     public StateManagementModule(
             @NonNull final WiringModel model,
@@ -120,7 +123,9 @@ public class StateManagementModule {
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION);
         this.latestCompleteStateNexusWiring =
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
-        this.signedStateSentinelWiring =
+        this.stateGarbageCollectorWiring =
+                new ComponentWiring<>(model, StateGarbageCollector.class, wiringConfig.stateGarbageCollector());
+        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
 
         // Eventually mark unhashed state for storage and forward to StateHasher
@@ -175,6 +180,8 @@ public class StateManagementModule {
                 .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
 
         // Setup heartbeat
+        model.buildHeartbeatWire(wiringConfig.stateGarbageCollectorHeartbeatPeriod())
+                .solderTo(stateGarbageCollectorWiring.getInputWire(StateGarbageCollector::heartbeat), OFFER);
         model.buildHeartbeatWire(wiringConfig.signedStateSentinelHeartbeatPeriod())
                 .solderTo(signedStateSentinelWiring.getInputWire(SignedStateSentinel::checkSignedStates), OFFER);
 
@@ -207,6 +214,8 @@ public class StateManagementModule {
         stateSnapshotManagerWiring.bind(stateSnapshotManager);
         savedStateControllerWiring.bind(savedStateController);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
+        final StateGarbageCollector garbageCollector = new DefaultStateGarbageCollector(metrics);
+        stateGarbageCollectorWiring.bind(garbageCollector);
         final SignedStateSentinel signedStateSentinel = new DefaultSignedStateSentinel(configuration);
         signedStateSentinelWiring.bind(signedStateSentinel);
     }
@@ -232,6 +241,17 @@ public class StateManagementModule {
     @NonNull
     public InputWire<ReservedSignedState> hashedStatesInputWire() {
         return stateDispatcher.getInputWire();
+    }
+
+    /**
+     * Get the input wire for registering states in the garbage collector
+     *
+     * @return the input wire for registering states
+     */
+    @InputWireLabel("hashed states")
+    @NonNull
+    public InputWire<ReservedSignedState> garbageCollectorRegistrationInputWire() {
+        return stateGarbageCollectorWiring.getInputWire(StateGarbageCollector::registerState);
     }
 
     /**

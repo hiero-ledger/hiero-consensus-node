@@ -25,7 +25,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateManagementModule;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
@@ -45,7 +44,6 @@ public record PlatformComponents(
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
-        ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
         ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {
 
     /**
@@ -63,7 +61,6 @@ public record PlatformComponents(
         eventWindowManagerWiring.bind(eventWindowManager);
         consensusEventStreamWiring.bind(builder::buildConsensusEventStream);
         notifierWiring.bind(notifier);
-        stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
     }
 
@@ -107,7 +104,6 @@ public record PlatformComponents(
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION),
-                new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector()),
                 new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor()));
     }
 }
