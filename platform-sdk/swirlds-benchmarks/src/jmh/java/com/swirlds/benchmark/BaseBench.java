@@ -20,6 +20,8 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
@@ -106,7 +108,9 @@ public abstract class BaseBench {
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(MetricsConfig.class)
-                .withConfigDataType(CryptoConfig.class);
+                .withConfigDataType(CryptoConfig.class)
+                .withConfigDataType(SocketConfig.class)
+                .withConfigDataType(GossipConfig.class);
         configuration = configurationBuilder.build();
 
         final StringBuilder settingsUsed = new StringBuilder();

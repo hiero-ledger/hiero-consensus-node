@@ -6,9 +6,19 @@ plugins {
     id("org.hiero.gradle.feature.benchmark")
 }
 
+val gossipConnectivityExport =
+    "--add-exports=org.hiero.consensus.gossip.impl/org.hiero.consensus.gossip.impl.network.connectivity=com.swirlds.benchmarks,ALL-UNNAMED"
+
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
-tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-static") }
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-static")
+    options.compilerArgs.add(gossipConnectivityExport)
+}
+
+tasks.withType<Test>().configureEach {
+    jvmArgs(gossipConnectivityExport)
+}
 
 jmhModuleInfo {
     requires("com.hedera.pbj.runtime")
@@ -36,8 +46,12 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
+    requires("com.swirlds.config.api")
+    requires("com.swirlds.config.extensions")
     requires("com.swirlds.metrics.api")
+    requires("org.hiero.consensus.gossip")
     requires("org.junit.jupiter.api")
+    runtimeOnly("com.swirlds.config.impl")
 }
 
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
@@ -83,10 +97,12 @@ tasks.register<JMHTask>("jmhReconnect") {
             "-Xlog:gc*:file=/Users/thenswan/Work/LimeChain/playground/hiero-consensus-node/platform-sdk/swirlds-benchmarks/data/reconnectbench-gc.log:time,uptime,level,tags",
         )
     )
+    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", "SIMULATED"))
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
-        jmhParamProperty("networkLatencyMicroseconds", "270"),
+//        jmhParamProperty("networkLatencyMicroseconds", "270"),
+        jmhParamProperty("networkLatencyMicroseconds", "75000"),
     )
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
@@ -94,17 +110,34 @@ tasks.register<JMHTask>("jmhReconnect") {
     )
     benchmarkParameters.put(
         "networkInflightBytesLimit",
-        jmhParamProperty("networkInflightBytesLimit", "33554432"),
+//        jmhParamProperty("networkInflightBytesLimit", "134217728"),
+        jmhParamProperty("networkInflightBytesLimit", "16777216"),
     )
     benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
-    benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.09"))
+    benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.1"))
     benchmarkParameters.put("teacherRemoveProbability", jmhParamProperty("teacherRemoveProbability", "0.0"))
-    benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.40"))
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "7409"))
+    benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.3"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "1000"))
     benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
     benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
     benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
     benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
     benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+}
+
+tasks.register<JMHTask>("jmhReconnectLoopbackSocket") {
+    includes.set(listOf("ReconnectBench"))
+
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "LOOPBACK"))
+    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", "LOOPBACK_SOCKET"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+}
+
+tasks.register<JMHTask>("jmhReconnectSimulated") {
+    includes.set(listOf("ReconnectBench"))
+
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "LOOPBACK"))
+    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", "SIMULATED"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
 }
