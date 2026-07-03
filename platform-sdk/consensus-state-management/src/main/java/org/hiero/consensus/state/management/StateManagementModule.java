@@ -2,6 +2,7 @@
 package org.hiero.consensus.state.management;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
@@ -36,6 +37,8 @@ import org.hiero.consensus.state.management.hashing.HashLogger;
 import org.hiero.consensus.state.management.hashing.StateHasher;
 import org.hiero.consensus.state.management.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
+import org.hiero.consensus.state.management.sentinel.DefaultSignedStateSentinel;
+import org.hiero.consensus.state.management.sentinel.SignedStateSentinel;
 import org.hiero.consensus.state.management.signing.DefaultStateSignatureCollector;
 import org.hiero.consensus.state.management.signing.DefaultStateSigner;
 import org.hiero.consensus.state.management.signing.SignedStateMetrics;
@@ -62,6 +65,8 @@ public class StateManagementModule {
     private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
 
     private final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring;
+
+    private final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring;
 
     private final OutputWire<ReservedSignedState> hashedStateOutputWire;
 
@@ -115,6 +120,8 @@ public class StateManagementModule {
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION);
         this.latestCompleteStateNexusWiring =
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
+        this.signedStateSentinelWiring =
+                new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
 
         // Eventually mark unhashed state for storage and forward to StateHasher
         savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
@@ -167,6 +174,10 @@ public class StateManagementModule {
                 })
                 .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
 
+        // Setup heartbeat
+        model.buildHeartbeatWire(wiringConfig.signedStateSentinelHeartbeatPeriod())
+                .solderTo(signedStateSentinelWiring.getInputWire(SignedStateSentinel::checkSignedStates), OFFER);
+
         // Force not soldered wires to be built
         stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
@@ -196,6 +207,8 @@ public class StateManagementModule {
         stateSnapshotManagerWiring.bind(stateSnapshotManager);
         savedStateControllerWiring.bind(savedStateController);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
+        final SignedStateSentinel signedStateSentinel = new DefaultSignedStateSentinel(configuration);
+        signedStateSentinelWiring.bind(signedStateSentinel);
     }
 
     /**

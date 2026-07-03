@@ -11,7 +11,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -169,12 +168,6 @@ public class PlatformWiring {
                 .buildHeartbeatWire(config.stateGarbageCollectorHeartbeatPeriod())
                 .solderTo(
                         components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::heartbeat), OFFER);
-        components
-                .model()
-                .buildHeartbeatWire(config.signedStateSentinelHeartbeatPeriod())
-                .solderTo(
-                        components.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates),
-                        OFFER);
 
         final OutputWire<ReservedSignedState> hashedStateOutputWire =
                 components.stateManagementModule().hashedStateOutputWire();

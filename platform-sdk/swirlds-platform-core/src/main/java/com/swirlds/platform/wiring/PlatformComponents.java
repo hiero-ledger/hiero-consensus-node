@@ -10,7 +10,6 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -47,7 +46,6 @@ public record PlatformComponents(
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
         ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
-        ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
         ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {
 
     /**
@@ -67,7 +65,6 @@ public record PlatformComponents(
         notifierWiring.bind(notifier);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
         platformMonitorWiring.bind(builder::buildPlatformMonitor);
-        signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
     }
 
     /**
@@ -111,7 +108,6 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector()),
-                new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel()),
                 new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor()));
     }
 }

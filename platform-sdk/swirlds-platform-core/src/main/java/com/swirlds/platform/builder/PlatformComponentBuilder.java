@@ -6,8 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.state.signed.DefaultSignedStateSentinel;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
@@ -48,7 +46,6 @@ public class PlatformComponentBuilder {
 
     private StateGarbageCollector stateGarbageCollector;
     private ConsensusEventStream consensusEventStream;
-    private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private StateSnapshotManager stateSnapshotManager;
 
@@ -211,38 +208,6 @@ public class PlatformComponentBuilder {
             platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
         }
         return platformMonitor;
-    }
-
-    /**
-     * Provide a signed state sentinel in place of the platform's default signed state sentinel.
-     *
-     * @param signedStateSentinel the signed state sentinel to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withSignedStateSentinel(@NonNull final SignedStateSentinel signedStateSentinel) {
-        throwIfAlreadyUsed();
-        if (this.signedStateSentinel != null) {
-            throw new IllegalStateException("Signed state sentinel has already been set");
-        }
-        this.signedStateSentinel = Objects.requireNonNull(signedStateSentinel);
-        return this;
-    }
-
-    /**
-     * Build the signed state sentinel if it has not yet been built. If one has been provided via
-     * {@link #withSignedStateSentinel(SignedStateSentinel)}, that sentinel will be used. If this method is called more
-     * than once, only the first call will build the signed state sentinel. Otherwise, the default sentinel will be
-     * created and returned.
-     *
-     * @return the signed state sentinel
-     */
-    @NonNull
-    public SignedStateSentinel buildSignedStateSentinel() {
-        if (signedStateSentinel == null) {
-            signedStateSentinel = new DefaultSignedStateSentinel(blocks.platformContext());
-        }
-        return signedStateSentinel;
     }
 
     /**

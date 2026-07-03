@@ -25,6 +25,7 @@ module org.hiero.consensus.state.management {
     requires transitive org.hiero.consensus.state;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
+    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;

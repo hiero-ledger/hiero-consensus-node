@@ -15,9 +15,6 @@ import java.time.Duration;
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
  *                                             collector
  * @param roundDurabilityBuffer                configuration for the round durability buffer scheduler
- * @param signedStateSentinel                  configuration for the signed state sentinel scheduler
- * @param signedStateSentinelHeartbeatPeriod   the frequency that heartbeats should be sent to the signed state
- *                                             sentinel
  * @param platformMonitor                      configuration for the platform monitor scheduler
  * @param transactionPool                      configuration for the transaction pool scheduler
  */
@@ -37,11 +34,6 @@ public record PlatformSchedulersConfig(
         TaskSchedulerConfiguration stateGarbageCollector,
 
         @ConfigProperty(defaultValue = "200ms") Duration stateGarbageCollectorHeartbeatPeriod,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration signedStateSentinel,
-
-        @ConfigProperty(defaultValue = "10s") Duration signedStateSentinelHeartbeatPeriod,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration roundDurabilityBuffer,

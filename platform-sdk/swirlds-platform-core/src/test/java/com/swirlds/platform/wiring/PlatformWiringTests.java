@@ -26,7 +26,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -119,7 +118,6 @@ class PlatformWiringTests {
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
-                .withSignedStateSentinel(mock(SignedStateSentinel.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
         platformComponents.bind(componentBuilder, mock(EventWindowManager.class), mock(AppNotifier.class));

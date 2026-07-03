@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.management.sentinel;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,10 +33,10 @@ public class DefaultSignedStateSentinel implements SignedStateSentinel {
     /**
      * Create an object that monitors signed state lifespans.
      *
-     * @param platformContext the current platform's context
+     * @param configuration the current platform's configuration
      */
-    public DefaultSignedStateSentinel(@NonNull final PlatformContext platformContext) {
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+    public DefaultSignedStateSentinel(@NonNull final Configuration configuration) {
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         maxSignedStateAge = stateConfig.suspiciousSignedStateAgeGap();
         final Duration rateLimitPeriod = stateConfig.signedStateAgeNotifyRateLimit();
         rateLimiter = new RateLimiter(Time.getCurrent(), rateLimitPeriod);
