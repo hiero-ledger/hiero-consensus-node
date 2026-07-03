@@ -171,10 +171,10 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
 * DefaultSignedStateValidator support code
   * `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
-  * `com.swirlds.platform.state.signed.SignedStateValidator`
+  * `org.hiero.consensus.reconnect.impl.SignedStateValidator`
   * `org.hiero.consensus.state.signed.SignedState`
   * `com.swirlds.platform.state.signed.SignedStateInfo`
-  * `com.swirlds.platform.state.signed.SignedStateValidationData`
+  * `org.hiero.consensus.reconnect.impl.SignedStateValidationData`
   * `org.hiero.consensus.iss.detection.internal.IssMetrics`
 * ReconnectStateLoader support code
   * `com.swirlds.platform.ReconnectStateLoader`

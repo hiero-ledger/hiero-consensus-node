@@ -26,12 +26,8 @@ module org.hiero.consensus.state {
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
-    requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
             StateConfigurationExtension;

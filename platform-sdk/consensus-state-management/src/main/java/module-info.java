@@ -31,8 +31,8 @@ module org.hiero.consensus.state.management {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
-    requires com.github.spotbugs.annotations;
     requires org.apache.logging.log4j;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
             StateManagementConfigurationExtension;

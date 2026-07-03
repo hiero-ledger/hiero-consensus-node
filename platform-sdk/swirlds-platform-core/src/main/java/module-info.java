@@ -80,14 +80,11 @@ module com.swirlds.platform.core {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
     requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires static transitive com.github.spotbugs.annotations;
 
     uses EventCreatorModule;
     uses EventIntakeModule;
