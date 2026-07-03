@@ -64,6 +64,9 @@ public class MerkleBenchmarkUtils {
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
         try (PairedStreams streams = new PairedStreams(transport, networkConfig, configuration)) {
+            streams.getSocketDiagnostics()
+                    .ifPresent(diagnostics -> logger.info("Socket transport diagnostics: {}", diagnostics));
+
             final LearningSynchronizer learner =
                     new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
             final TeachingSynchronizer teacher =

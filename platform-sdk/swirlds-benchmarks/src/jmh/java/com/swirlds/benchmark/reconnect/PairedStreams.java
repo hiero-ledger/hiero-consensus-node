@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
+import com.swirlds.benchmark.reconnect.network.LoopbackSocketTransport;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
 import com.swirlds.benchmark.reconnect.network.NetworkTransport;
+import com.swirlds.benchmark.reconnect.network.SocketTransportDiagnostics;
 import com.swirlds.benchmark.reconnect.network.SimulatedNetworkChannel;
 import com.swirlds.benchmark.reconnect.network.SimulatedNetworkStats;
 import com.swirlds.config.api.Configuration;
@@ -15,6 +17,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,8 +39,10 @@ public class PairedStreams implements AutoCloseable {
     private BufferedInputStream learnerInputBuffer;
     private DataInputStream learnerInput;
 
+    private final NetworkTransport transport;
     private final SimulatedNetworkChannel teacherToLearner;
     private final SimulatedNetworkChannel learnerToTeacher;
+    private final LoopbackSocketTransport socketTransport;
 
     public PairedStreams(
             @NonNull final NetworkTransport transport,
@@ -48,24 +53,35 @@ public class PairedStreams implements AutoCloseable {
         Objects.requireNonNull(networkConfig, "networkConfig must not be null");
         Objects.requireNonNull(configuration, "configuration must not be null");
 
-        if (transport != NetworkTransport.SIMULATED) {
-            throw new UnsupportedOperationException("Transport is not implemented yet: " + transport);
+        this.transport = transport;
+
+        if (transport == NetworkTransport.SIMULATED) {
+            socketTransport = null;
+            teacherToLearner = new SimulatedNetworkChannel(networkConfig);
+            learnerToTeacher = new SimulatedNetworkChannel(networkConfig);
+
+            teacherOutputBuffer = new BufferedOutputStream(teacherToLearner.outputStream());
+            teacherOutput = new DataOutputStream(teacherOutputBuffer);
+
+            teacherInputBuffer = new BufferedInputStream(learnerToTeacher.inputStream());
+            teacherInput = new DataInputStream(teacherInputBuffer);
+
+            learnerOutputBuffer = new BufferedOutputStream(learnerToTeacher.outputStream());
+            learnerOutput = new DataOutputStream(learnerOutputBuffer);
+
+            learnerInputBuffer = new BufferedInputStream(teacherToLearner.inputStream());
+            learnerInput = new DataInputStream(learnerInputBuffer);
+            return;
         }
 
-        teacherToLearner = new SimulatedNetworkChannel(networkConfig);
-        learnerToTeacher = new SimulatedNetworkChannel(networkConfig);
+        teacherToLearner = null;
+        learnerToTeacher = null;
+        socketTransport = new LoopbackSocketTransport(networkConfig, configuration);
 
-        teacherOutputBuffer = new BufferedOutputStream(teacherToLearner.outputStream());
-        teacherOutput = new DataOutputStream(teacherOutputBuffer);
-
-        teacherInputBuffer = new BufferedInputStream(learnerToTeacher.inputStream());
-        teacherInput = new DataInputStream(teacherInputBuffer);
-
-        learnerOutputBuffer = new BufferedOutputStream(learnerToTeacher.outputStream());
-        learnerOutput = new DataOutputStream(learnerOutputBuffer);
-
-        learnerInputBuffer = new BufferedInputStream(teacherToLearner.inputStream());
-        learnerInput = new DataInputStream(learnerInputBuffer);
+        teacherOutput = socketTransport.getTeacherOutput();
+        teacherInput = socketTransport.getTeacherInput();
+        learnerOutput = socketTransport.getLearnerOutput();
+        learnerInput = socketTransport.getLearnerInput();
     }
 
     public DataOutputStream getTeacherOutput() {
@@ -85,15 +101,32 @@ public class PairedStreams implements AutoCloseable {
     }
 
     public SimulatedNetworkStats getTeacherToLearnerStats() {
-        return teacherToLearner.snapshotStats();
+        return switch (transport) {
+            case SIMULATED -> teacherToLearner.snapshotStats();
+            case LOOPBACK_SOCKET -> socketTransport.getTeacherToLearnerStats();
+        };
     }
 
     public SimulatedNetworkStats getLearnerToTeacherStats() {
-        return learnerToTeacher.snapshotStats();
+        return switch (transport) {
+            case SIMULATED -> learnerToTeacher.snapshotStats();
+            case LOOPBACK_SOCKET -> socketTransport.getLearnerToTeacherStats();
+        };
+    }
+
+    public Optional<SocketTransportDiagnostics> getSocketDiagnostics() {
+        return transport == NetworkTransport.LOOPBACK_SOCKET
+                ? Optional.of(socketTransport.diagnostics())
+                : Optional.empty();
     }
 
     @Override
     public void close() throws IOException {
+        if (transport == NetworkTransport.LOOPBACK_SOCKET) {
+            socketTransport.close();
+            return;
+        }
+
         final List<Closeable> toClose = List.of(
                 teacherOutput,
                 teacherInput,
@@ -118,6 +151,10 @@ public class PairedStreams implements AutoCloseable {
      * reading/writing the channels.
      */
     public void disconnect() {
+        if (transport == NetworkTransport.LOOPBACK_SOCKET) {
+            socketTransport.disconnect();
+            return;
+        }
         teacherToLearner.disconnect();
         learnerToTeacher.disconnect();
     }
