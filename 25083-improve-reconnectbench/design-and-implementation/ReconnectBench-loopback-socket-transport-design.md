@@ -380,3 +380,15 @@ After implementation:
 
 Implementation work should continue on a normal branch created from `25083-improve-reconnectbench-synced`, not a
 worktree. The branch created for this design is `codex/25083-loopback-socket-transport`.
+
+## Implementation Status
+
+Implemented on `codex/25083-loopback-socket-transport`.
+
+Verification commands:
+
+```bash
+./gradlew :swirlds-benchmarks:test --tests com.swirlds.benchmark.reconnect.network.LoopbackSocketTransportTest --console=plain
+./gradlew :swirlds-benchmarks:test --tests com.swirlds.benchmark.reconnect.network.SimulatedNetworkChannelTest --console=plain
+./gradlew :swirlds-benchmarks:compileJmhJava --console=plain
+```

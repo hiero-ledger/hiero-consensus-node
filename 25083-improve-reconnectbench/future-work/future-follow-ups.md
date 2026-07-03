@@ -41,7 +41,7 @@ Future issue:
 
 ### 3. Loopback TCP transport validation
 
-Status: future validation option only.
+Status: revived as benchmark-only validation option on branch `codex/25083-loopback-socket-transport`.
 
 Why:
 
@@ -56,6 +56,14 @@ Future issue:
   future evidence points specifically to lower-level transport artifacts.
 - If revived, compare loopback TCP and `SimulatedNetworkChannel` on the same saved state and capture JFR evidence for
   thread parking, scheduling, and monitor behavior.
+
+Implementation note:
+
+- `ReconnectBench` now supports `NetworkTransport.SIMULATED` and `NetworkTransport.LOOPBACK_SOCKET`.
+- `NetworkProfile.LOOPBACK` keeps each transport at its loopback/no-shaping floor.
+- `NetworkProfile.REALISTIC` applies the configured latency/bandwidth model; for socket transport this is write-side
+  shaping only.
+- `networkInflightBytesLimit` remains simulator-only and is ignored by socket transport.
 
 ### 4. Teacher workload and multi-process harness
 
