@@ -23,14 +23,13 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
