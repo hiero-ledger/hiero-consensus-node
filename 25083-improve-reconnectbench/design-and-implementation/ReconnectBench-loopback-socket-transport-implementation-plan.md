@@ -21,6 +21,9 @@
 - Socket shaping is write-side only; do not add read-side pacing.
 - Keep this a lean MVP; do not extract a public transport interface or broad lifecycle refactor.
 - Gradle commands require sandbox escalation in this workspace.
+- Before implementation edits, inspect the dirty worktree and merge with existing local edits; do not blindly overwrite `platform-sdk/swirlds-benchmarks/build.gradle.kts` or an existing `LoopbackSocketTransportTest.java`.
+- Do not modify, stage, revert, or otherwise clean `platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/connectivity/SocketFactory.java`; it is intentionally outside the allowed edit scope and is only observed by the benchmark.
+- Raw transport A/B comparisons use matching profiles: `jmhReconnectSimulated` vs `jmhReconnectLoopbackSocket` for `NetworkProfile.LOOPBACK`, or both tasks with the same `-PnetworkProfile=REALISTIC` and matching latency/bandwidth properties for shaped comparisons.
 
 ---
 
@@ -41,7 +44,7 @@ Create:
 - `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransport.java`  
   Public final narrow helper used by `PairedStreams` and tests.
 - `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java`  
-  Unit tests for loopback socket helper behavior.
+  Unit tests for loopback socket helper behavior; update in place if the file already exists locally.
 
 Modify:
 
@@ -59,6 +62,46 @@ Modify:
   Switch internally between simulated channels and loopback socket helper.
 - `25083-improve-reconnectbench/future-work/future-follow-ups.md`  
   Mark loopback TCP validation as revived/implemented after code lands.
+
+---
+
+### Task 0: Dirty Worktree And Scope Preflight
+
+**Files:**
+- Inspect only: `platform-sdk/swirlds-benchmarks/build.gradle.kts`
+- Inspect only: `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java`
+- Inspect only: `platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/connectivity/SocketFactory.java`
+
+**Interfaces:**
+- Consumes: existing local edits from the current worktree.
+- Produces: implementation guardrails for Tasks 1-6.
+
+- [ ] **Step 1: Inspect current dirty state**
+
+Run:
+
+```bash
+git status --short
+git diff -- platform-sdk/swirlds-benchmarks/build.gradle.kts
+git diff -- platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/connectivity/SocketFactory.java
+sed -n '1,220p' platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java
+```
+
+Expected:
+
+- `SocketFactory.java` may be modified and must remain untouched by this implementation.
+- `build.gradle.kts` may already contain partial reconnect task wiring and must be merged, not overwritten.
+- `LoopbackSocketTransportTest.java` may already exist and must be updated in place, preserving useful coverage.
+
+- [ ] **Step 2: Preserve scope during every commit**
+
+Before each `git add`, run:
+
+```bash
+git status --short
+```
+
+Expected: staged files for code commits are only under `platform-sdk/swirlds-benchmarks/**`; staged docs are only under `25083-improve-reconnectbench/**`. `SocketFactory.java` remains unstaged.
 
 ---
 
@@ -261,7 +304,7 @@ git commit -m "feat: add reconnect network transport selection"
 
 - [ ] **Step 1: Add the failing loopback round-trip and diagnostics tests**
 
-Create or replace `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java` with tests for the helper:
+Update `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java` with tests for the helper. If the file already exists, preserve its useful coverage such as framing and disconnect behavior, then adapt it to the constructor/configuration introduced by this task instead of replacing the file wholesale:
 
 ```java
 // SPDX-License-Identifier: Apache-2.0
@@ -395,9 +438,18 @@ tasks.withType<JavaCompile>().configureEach {
 tasks.withType<Test>().configureEach {
     jvmArgs(gossipConnectivityExport)
 }
+
+testModuleInfo {
+    requires("com.swirlds.config.api")
+    requires("com.swirlds.config.extensions")
+    requires("com.swirlds.metrics.api")
+    requires("org.hiero.consensus.gossip")
+    requires("org.junit.jupiter.api")
+    runtimeOnly("com.swirlds.config.impl")
+}
 ```
 
-Replace the existing one-line `tasks.withType<JavaCompile>()` block instead of adding a duplicate one.
+Replace the existing one-line `tasks.withType<JavaCompile>()` block instead of adding a duplicate one. Merge the `testModuleInfo` block with the existing block; do not create a second `testModuleInfo` declaration.
 
 - [ ] **Step 4: Add main module dependencies**
 
@@ -413,6 +465,8 @@ module com.swirlds.benchmarks {
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.gossip.impl;
     requires org.hiero.consensus.model;
+
+    requires static com.github.spotbugs.annotations;
 }
 ```
 
@@ -1134,6 +1188,17 @@ git commit -m "feat: add loopback socket latency and bandwidth shaping"
 - Consumes: existing `jmhParamProperty`.
 - Produces: `jmhReconnect`, `jmhReconnectSimulated`, and `jmhReconnectLoopbackSocket` with consistent reconnect params.
 
+- [ ] **Step 0: Preserve existing local Gradle edits**
+
+Inspect the current reconnect task wiring before editing:
+
+```bash
+git diff -- platform-sdk/swirlds-benchmarks/build.gradle.kts
+sed -n '1,180p' platform-sdk/swirlds-benchmarks/build.gradle.kts
+```
+
+Expected: any existing local `networkTransport`, `jmhReconnectLoopbackSocket`, or `jmhReconnectSimulated` work is merged into the helper-based structure below; it is not discarded by replacing the whole file.
+
 - [ ] **Step 1: Refactor reconnect task parameter wiring**
 
 Add helper functions near `jmhParamProperty`:
@@ -1202,6 +1267,12 @@ tasks.register<JMHTask>("jmhReconnectSimulated") {
     configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "LOOPBACK")
 }
 ```
+
+Benchmark interpretation guardrail:
+
+- Use `jmhReconnectSimulated` and `jmhReconnectLoopbackSocket` as the raw loopback transport A/B pair.
+- Use matching `-PnetworkProfile=REALISTIC -PnetworkLatencyMicroseconds=<same value> -PnetworkBandwidthMegabitsPerSecond=<same value>` on both tasks for shaped transport A/B runs.
+- Treat `jmhReconnect` as the current simulated realistic-profile default, not as the raw loopback socket comparison baseline.
 
 - [ ] **Step 2: Compile JMH**
 
@@ -1302,6 +1373,7 @@ git commit -m "docs: record ReconnectBench loopback socket implementation"
   - Write-side-only shaping is covered by Task 4.
   - Lean MVP scope is enforced by the narrow helper layout and coarse tests in Tasks 2-4.
   - Gradle comparability is covered by Task 5.
+  - Dirty-worktree protection and production-code scope are covered by Task 0.
   - Task docs update is covered by Task 6.
 - Red-flag scan: no unresolved gap markers are intentionally present.
 - Type consistency:
