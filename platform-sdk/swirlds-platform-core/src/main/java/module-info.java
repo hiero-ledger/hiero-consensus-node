@@ -33,7 +33,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.system.state.notifications;

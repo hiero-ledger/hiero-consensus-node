@@ -153,7 +153,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.builder.PlatformBuilder`
   * `com.swirlds.platform.system.Platform`
   * `com.swirlds.platform.ReconnectStateLoader`
-  * `com.swirlds.platform.state.address.RosterMetrics`
+  * `org.hiero.consensus.roster.RosterMetrics`
   * `com.swirlds.platform.recovery.internal.EventStreamRoundIterator`
   * `com.swirlds.platform.recovery.internal.StreamedRound`
   * `com.swirlds.platform.uptime.UptimeTracker`

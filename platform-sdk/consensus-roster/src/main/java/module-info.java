@@ -9,6 +9,8 @@ module org.hiero.consensus.roster {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
+    requires transitive com.swirlds.metrics.api;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.metrics;
     requires static transitive com.github.spotbugs.annotations;
 }

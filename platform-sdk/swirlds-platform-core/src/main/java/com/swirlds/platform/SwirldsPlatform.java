@@ -3,7 +3,7 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
+import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
