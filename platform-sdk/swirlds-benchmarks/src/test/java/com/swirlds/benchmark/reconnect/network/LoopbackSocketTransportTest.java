@@ -60,7 +60,8 @@ class LoopbackSocketTransportTest {
 
     @Test
     void diagnosticsExposeEffectiveSocketSettings() throws Exception {
-        try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration())) {
+        final Configuration configuration = configuration();
+        try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration)) {
             final SocketTransportDiagnostics diagnostics = transport.diagnostics();
 
             assertEquals(NetworkTransport.LOOPBACK_SOCKET, diagnostics.transport());
@@ -68,6 +69,7 @@ class LoopbackSocketTransportTest {
             assertFalse(diagnostics.latencyShapingActive());
             assertFalse(diagnostics.bandwidthShapingActive());
             assertTrue(diagnostics.inflightBytesLimitIgnored());
+            assertEquals(configuration.getConfigData(SocketConfig.class).bufferSize(), diagnostics.streamBufferBytes());
             assertTrue(diagnostics.serverReceiveBufferBytes() > 0);
             assertTrue(diagnostics.clientSendBufferBytes() > 0);
             assertTrue(diagnostics.clientReceiveBufferBytes() > 0);

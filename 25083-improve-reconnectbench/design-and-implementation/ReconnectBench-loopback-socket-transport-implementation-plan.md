@@ -31,36 +31,36 @@
 
 Create:
 
-- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/NetworkTransport.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/NetworkTransport.java`
   Enum for `SIMULATED` vs `LOOPBACK_SOCKET`.
-- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/CountingInputStream.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/CountingInputStream.java`
   Package-private byte-counting input wrapper for socket stats.
-- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/CountingOutputStream.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/CountingOutputStream.java`
   Package-private byte-counting output wrapper for socket stats.
-- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/ShapingOutputStream.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/ShapingOutputStream.java`
   Package-private write-side latency/bandwidth shaping wrapper.
-- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/SocketTransportDiagnostics.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/SocketTransportDiagnostics.java`
   Public record for socket buffer/shaping diagnostics.
-- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransport.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransport.java`
   Public final narrow helper used by `PairedStreams` and tests.
-- `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java`  
+- `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/LoopbackSocketTransportTest.java`
   Unit tests for loopback socket helper behavior; update in place if the file already exists locally.
 
 Modify:
 
-- `platform-sdk/swirlds-benchmarks/build.gradle.kts`  
+- `platform-sdk/swirlds-benchmarks/build.gradle.kts`
   Add benchmark-side `--add-exports`, reconnect task wiring, and shared JMH params.
-- `platform-sdk/swirlds-benchmarks/src/main/java/module-info.java`  
+- `platform-sdk/swirlds-benchmarks/src/main/java/module-info.java`
   Add requires for config/gossip/model modules used by main-source socket helpers.
-- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/BaseBench.java`  
+- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/BaseBench.java`
   Register `SocketConfig` and `GossipConfig`.
-- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/ReconnectBench.java`  
+- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/ReconnectBench.java`
   Add `networkTransport`, logging, and call propagation.
-- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/reconnect/MerkleBenchmarkUtils.java`  
+- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/reconnect/MerkleBenchmarkUtils.java`
   Accept/pass `NetworkTransport`; log socket diagnostics.
-- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/reconnect/PairedStreams.java`  
+- `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/reconnect/PairedStreams.java`
   Switch internally between simulated channels and loopback socket helper.
-- `25083-improve-reconnectbench/future-work/future-follow-ups.md`  
+- `25083-improve-reconnectbench/future-work/future-follow-ups.md`
   Mark loopback TCP validation as revived/implemented after code lands.
 
 ---

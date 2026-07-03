@@ -81,6 +81,7 @@ public final class LoopbackSocketTransport implements AutoCloseable {
                 config.latencyNanos(),
                 config.bandwidthBytesPerSecond(),
                 true,
+                socketConfig.bufferSize(),
                 serverSocket.getReceiveBufferSize(),
                 teacherSocket.getSendBufferSize(),
                 teacherSocket.getReceiveBufferSize(),

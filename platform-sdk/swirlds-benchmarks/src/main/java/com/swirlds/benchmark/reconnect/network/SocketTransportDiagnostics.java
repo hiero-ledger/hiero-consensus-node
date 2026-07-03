@@ -9,6 +9,7 @@ public record SocketTransportDiagnostics(
         long configuredLatencyNanos,
         long configuredBandwidthBytesPerSecond,
         boolean inflightBytesLimitIgnored,
+        int streamBufferBytes,
         int serverReceiveBufferBytes,
         int clientSendBufferBytes,
         int clientReceiveBufferBytes,
