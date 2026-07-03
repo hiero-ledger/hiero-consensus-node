@@ -2,8 +2,10 @@
 package com.swirlds.benchmark.reconnect;
 
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
+import com.swirlds.benchmark.reconnect.network.NetworkTransport;
 import com.swirlds.benchmark.reconnect.network.SimulatedNetworkChannel;
 import com.swirlds.benchmark.reconnect.network.SimulatedNetworkStats;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -12,6 +14,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,7 +39,19 @@ public class PairedStreams implements AutoCloseable {
     private final SimulatedNetworkChannel teacherToLearner;
     private final SimulatedNetworkChannel learnerToTeacher;
 
-    public PairedStreams(@NonNull final NetworkSimulationConfig networkConfig) {
+    public PairedStreams(
+            @NonNull final NetworkTransport transport,
+            @NonNull final NetworkSimulationConfig networkConfig,
+            @NonNull final Configuration configuration)
+            throws IOException {
+        Objects.requireNonNull(transport, "transport must not be null");
+        Objects.requireNonNull(networkConfig, "networkConfig must not be null");
+        Objects.requireNonNull(configuration, "configuration must not be null");
+
+        if (transport != NetworkTransport.SIMULATED) {
+            throw new UnsupportedOperationException("Transport is not implemented yet: " + transport);
+        }
+
         teacherToLearner = new SimulatedNetworkChannel(networkConfig);
         learnerToTeacher = new SimulatedNetworkChannel(networkConfig);
 

@@ -9,6 +9,7 @@ import com.swirlds.benchmark.reconnect.ReconnectBenchmarkResult;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.benchmark.reconnect.network.NetworkProfile;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
+import com.swirlds.benchmark.reconnect.network.NetworkTransport;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -61,6 +62,9 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     @Param({"131072"})
     public int networkInflightBytesLimit;
+
+    @Param({"SIMULATED"})
+    public NetworkTransport networkTransport;
 
     private static final String TEACHER_MAP_NAME = "teacher";
     private VirtualMap teacherMap;
@@ -202,14 +206,15 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
         logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
-                "ReconnectBench network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
+                "ReconnectBench transport={}, network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
+                networkTransport,
                 networkConfig.profile(),
                 networkConfig.latencyNanos(),
                 networkConfig.bandwidthBytesPerSecond(),
                 networkConfig.inflightBytesLimit());
 
-        reconnectResult =
-                MerkleBenchmarkUtils.hashAndTestSynchronization(learnerMap, teacherMap, networkConfig, configuration);
+        reconnectResult = MerkleBenchmarkUtils.hashAndTestSynchronization(
+                learnerMap, teacherMap, networkConfig, networkTransport, configuration);
 
         logger.info("Reconnect stats: {}", reconnectResult.reconnectStats().format());
         logger.info("Network teacherToLearner: {}", reconnectResult.teacherToLearnerStats());

@@ -7,6 +7,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
+import com.swirlds.benchmark.reconnect.network.NetworkTransport;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
@@ -31,6 +32,7 @@ public class MerkleBenchmarkUtils {
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final NetworkSimulationConfig networkConfig,
+            final NetworkTransport transport,
             final Configuration configuration)
             throws Exception {
         printVirtualMap("Starting Tree", startingTree);
@@ -44,7 +46,7 @@ public class MerkleBenchmarkUtils {
             // calculate hash
             desiredTree.getHash();
         }
-        return testSynchronization(startingTree, desiredTree, networkConfig, configuration);
+        return testSynchronization(startingTree, desiredTree, networkConfig, transport, configuration);
     }
 
     /**
@@ -54,13 +56,14 @@ public class MerkleBenchmarkUtils {
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final NetworkSimulationConfig networkConfig,
+            final NetworkTransport transport,
             final Configuration configuration)
             throws Exception {
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (PairedStreams streams = new PairedStreams(networkConfig)) {
+        try (PairedStreams streams = new PairedStreams(transport, networkConfig, configuration)) {
             final LearningSynchronizer learner =
                     new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
             final TeachingSynchronizer teacher =
