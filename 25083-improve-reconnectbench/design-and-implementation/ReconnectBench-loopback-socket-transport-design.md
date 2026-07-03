@@ -51,6 +51,10 @@ Use the simpler `PairedStreams`-centric approach for this iteration.
 the code shape easy to compare with earlier `ReconnectBench` code and with the prior local `loopback a/b test` commit.
 A later cleanup may extract a transport interface if the mixed implementation becomes too busy.
 
+`PairedStreams` is the benchmark-facing object, but the socket implementation may use package-local helpers under
+`com.swirlds.benchmark.reconnect.network` so the socket behavior is unit-testable from `src/test`. This does not add a
+public transport abstraction to the benchmark flow: `MerkleBenchmarkUtils` should still deal with `PairedStreams`.
+
 ## Parameters
 
 Add a `NetworkTransport` enum in the benchmark network package:
@@ -90,6 +94,48 @@ networkInflightBytesLimit
 The selected transport chooses the wire implementation. The selected profile chooses whether the transport runs at its
 loopback floor or applies the realistic shaping settings.
 
+## API Propagation
+
+`ReconnectBench.reconnect()` should pass the selected transport through the existing reconnect utility path:
+
+```java
+MerkleBenchmarkUtils.hashAndTestSynchronization(
+        learnerMap,
+        teacherMap,
+        networkConfig,
+        networkTransport,
+        configuration);
+```
+
+`MerkleBenchmarkUtils` should pass the same values into `PairedStreams`:
+
+```java
+try (PairedStreams streams = new PairedStreams(networkTransport, networkConfig, configuration)) {
+    ...
+}
+```
+
+`PairedStreams` should keep the existing reconnect-facing accessors. It may add a diagnostics accessor for socket mode,
+but reconnect code should continue using only:
+
+```text
+getTeacherInput()
+getTeacherOutput()
+getLearnerInput()
+getLearnerOutput()
+disconnect()
+close()
+```
+
+The benchmark configuration loader must register the socket/gossip config records used by the socket path:
+
+```java
+.withConfigDataType(SocketConfig.class)
+.withConfigDataType(GossipConfig.class)
+```
+
+This lets `socket.*` settings in `settings.txt` affect the loopback socket transport.
+
 ## Behavior Matrix
 
 ```text
@@ -126,16 +172,23 @@ ignored for `LOOPBACK_SOCKET`, so benchmark output cannot be mistaken for simula
 For `LOOPBACK_SOCKET`, `PairedStreams` creates one bidirectional loopback TCP connection:
 
 1. Create an unbound `ServerSocket`.
-2. Configure and bind it with `SocketFactory.configureAndBind(...)`.
+2. Configure and bind it with `SocketFactory.configureAndBind(...)`, using:
+   - synthetic benchmark node ID `NodeId.of(0)`;
+   - the real `SocketConfig` from benchmark configuration;
+   - a benchmark-local empty `GossipConfig` with no interface bindings or endpoint overrides;
+   - port `0`.
 3. Create an unconnected client `Socket`.
-4. Configure and connect it with `SocketFactory.configureAndConnect(...)`.
+4. Configure and connect it with `SocketFactory.configureAndConnect(...)`, using host `127.0.0.1` and
+   `serverSocket.getLocalPort()`.
 5. Accept the server side.
-6. Wrap both directions in `BufferedInputStream` / `BufferedOutputStream` and
+6. Configure the accepted server-side socket for inbound behavior equivalent to production inbound handling:
+   `tcpNoDelay` and socket timeout from `SocketConfig`, but do not set accepted-socket send/receive buffers directly.
+7. Wrap both directions in `BufferedInputStream` / `BufferedOutputStream` and
    `DataInputStream` / `DataOutputStream`, matching the stream shape expected by the reconnect synchronizers.
 
 The benchmark should use the real `SocketConfig` from benchmark configuration for socket options and stream buffer
-sizes. The server bind should use a benchmark-local all-interfaces ephemeral port, then the client should connect via
-`127.0.0.1`. This avoids unrelated `gossip.interfaceBindings` settings accidentally redirecting a local validation run.
+sizes. The benchmark-local empty `GossipConfig` avoids unrelated `gossip.interfaceBindings` settings accidentally
+redirecting a local validation run, while still exercising the real `SocketFactory.configureAndBind(...)` code path.
 
 After socket configuration, the benchmark should log effective socket buffer diagnostics, including:
 
@@ -145,6 +198,25 @@ After socket configuration, the benchmark should log effective socket buffer dia
 - `tcpNoDelay` state where available.
 
 These diagnostics are central to comparing local `SocketFactory.java` experiments.
+
+## Source Set And Module Placement
+
+Place `NetworkTransport`, socket helper classes, shaping wrappers, counting streams, and socket diagnostics in
+`platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network`. This keeps them available to
+unit tests and to the JMH source set, matching the existing simulator support layout.
+
+`PairedStreams` remains in `src/jmh/java/com/swirlds/benchmark/reconnect`.
+
+The main benchmark module descriptor must require the modules used by the main-source socket helpers:
+
+```java
+requires com.swirlds.config.api;
+requires org.hiero.consensus.gossip;
+requires org.hiero.consensus.gossip.impl;
+requires org.hiero.consensus.model;
+```
+
+The JMH module already has the relevant gossip dependencies; keep it aligned with the main source set.
 
 ## Socket Shaping
 
@@ -158,9 +230,23 @@ For `LOOPBACK_SOCKET + REALISTIC`, benchmark-only stream wrappers apply:
 - one-way latency from `networkLatencyMicroseconds`;
 - bandwidth pacing from `networkBandwidthMegabitsPerSecond`.
 
-The wrappers should sit below the reconnect-facing buffered/data streams so reconnect code still sees the same stream
-types. Shaping should avoid sleeping once per reconnect message; it should work at byte-buffer or byte-range level so
-the benchmark measures transport behavior rather than scheduler noise from per-message sleeps.
+The wrappers should be write-side wrappers below the reconnect-facing buffered/data streams and above the raw socket
+output streams:
+
+```text
+DataOutputStream -> BufferedOutputStream -> socket shaping/counting OutputStream -> Socket.getOutputStream()
+```
+
+Do not add read-side pacing. Read-side pacing would let the kernel socket buffers absorb bytes earlier and could mask
+the `SocketFactory` buffer behavior this transport is meant to validate.
+
+Latency shaping should delay a written byte range before the first byte of that range enters the socket output stream.
+Bandwidth shaping should pace bytes into the socket output stream at the configured rate, splitting large writes into
+bounded chunks if necessary. The reconnect-facing `BufferedOutputStream` keeps this from sleeping once per reconnect
+message in the common path; shaping should operate on the buffered writes it receives.
+
+Byte counters should count bytes accepted by the transport wrapper for writing and bytes returned to the receiving
+side. Socket diagnostics should separately identify whether shaping was active.
 
 No socket shaping wrapper should impose `networkInflightBytesLimit`.
 
@@ -176,6 +262,30 @@ For socket transport:
 - simulator-specific counters such as max in-flight bytes, write ranges, capacity waits, empty-read waits, and arrival
   waits are `0` or otherwise documented as not applicable;
 - logs identify which stats are socket observations and which fields are simulator-only.
+
+Socket transport should expose a small diagnostics snapshot for logging and tests, for example
+`SocketTransportDiagnostics`, with fields such as:
+
+```text
+transport
+profile
+latencyShapingActive
+bandwidthShapingActive
+configuredLatencyNanos
+configuredBandwidthBytesPerSecond
+inflightBytesLimitIgnored
+serverReceiveBufferBytes
+clientSendBufferBytes
+clientReceiveBufferBytes
+acceptedSendBufferBytes
+acceptedReceiveBufferBytes
+clientTcpNoDelay
+acceptedTcpNoDelay
+```
+
+The diagnostics should distinguish Java stream buffer sizing (`SocketConfig.bufferSize()`) from actual socket
+send/receive buffer sizes. Tests may assert lower bounds or non-zero values, but must tolerate OS clamping and platform
+rounding.
 
 ## Gradle Tasks
 
@@ -202,6 +312,10 @@ All tasks should pass through the existing network parameters. `jmhReconnectLoop
   -PnetworkBandwidthMegabitsPerSecond=200
 ```
 
+For side-by-side comparison, `jmhReconnect`, `jmhReconnectSimulated`, and `jmhReconnectLoopbackSocket` should share the
+same reconnect benchmark parameter wiring for state size, divergence probabilities, seed, thread count, heap/JVM args,
+and result path unless a task deliberately overrides only `networkTransport` or the default `networkProfile`.
+
 ## Tests
 
 Unit tests should target the benchmark transport layer:
@@ -213,6 +327,9 @@ Unit tests should target the benchmark transport layer:
 - `LOOPBACK_SOCKET + REALISTIC` bandwidth shaping makes a sufficiently large transfer slower than `LOOPBACK`.
 - `LOOPBACK_SOCKET + REALISTIC` latency shaping delays first-byte visibility compared with `LOOPBACK`.
 - existing `SimulatedNetworkChannelTest` coverage remains valid for simulator behavior.
+
+Tests may target package-local socket helpers rather than `PairedStreams` directly if source-set boundaries make that
+cleaner. The benchmark-facing path should still route through `PairedStreams`.
 
 Verification should include:
 
