@@ -66,7 +66,6 @@ public class PrivilegesVerifier {
             case FREEZE -> checkFreeze(payerId);
             case SYSTEM_DELETE -> checkSystemDelete(payerId, txBody.systemDeleteOrThrow());
             case SYSTEM_UNDELETE -> checkSystemUndelete(payerId, txBody.systemUndeleteOrThrow());
-            case UNCHECKED_SUBMIT -> checkUncheckedSubmit(payerId);
 
             // Authorization privileges for file updates and appends
             case FILE_UPDATE ->
@@ -150,10 +149,6 @@ public class PrivilegesVerifier {
             return IMPERMISSIBLE;
         }
         return hasSystemUndeletePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
-    }
-
-    private SystemPrivilege checkUncheckedSubmit(@NonNull final AccountID accountID) {
-        return isSuperUser(accountID) ? AUTHORIZED : UNAUTHORIZED;
     }
 
     private SystemPrivilege checkFileChange(@NonNull final AccountID accountID, final long entityNum) {

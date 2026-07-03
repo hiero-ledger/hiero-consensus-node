@@ -18,7 +18,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Consumer;
 
@@ -103,7 +102,7 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @param sourceNodeIds the source node IDs whose WRAPS messages should be purged
      * @return the updated construction
      */
-    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull Set<Long> sourceNodeIds);
+    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull SortedSet<Long> sourceNodeIds);
 
     /**
      * Sets the ledger ID to the given bytes.
