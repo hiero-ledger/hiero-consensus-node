@@ -9,6 +9,7 @@ import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.time.Duration;
@@ -58,14 +59,14 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         learnerSocket.setTcpNoDelay(socketConfig.tcpNoDelay());
         learnerSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
 
-        teacherToLearnerWritten = new CountingOutputStream(teacherSocket.getOutputStream());
+        teacherToLearnerWritten = new CountingOutputStream(maybeShape(teacherSocket.getOutputStream(), config));
         teacherOutput = new DataOutputStream(
                 new BufferedOutputStream(teacherToLearnerWritten, socketConfig.bufferSize()));
         teacherToLearnerRead = new CountingInputStream(learnerSocket.getInputStream());
         learnerInput =
                 new DataInputStream(new BufferedInputStream(teacherToLearnerRead, socketConfig.bufferSize()));
 
-        learnerToTeacherWritten = new CountingOutputStream(learnerSocket.getOutputStream());
+        learnerToTeacherWritten = new CountingOutputStream(maybeShape(learnerSocket.getOutputStream(), config));
         learnerOutput = new DataOutputStream(
                 new BufferedOutputStream(learnerToTeacherWritten, socketConfig.bufferSize()));
         learnerToTeacherRead = new CountingInputStream(teacherSocket.getInputStream());
@@ -75,8 +76,8 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         diagnostics = new SocketTransportDiagnostics(
                 NetworkTransport.LOOPBACK_SOCKET,
                 config.profile(),
-                false,
-                false,
+                isLatencyShapingActive(config),
+                isBandwidthShapingActive(config),
                 config.latencyNanos(),
                 config.bandwidthBytesPerSecond(),
                 true,
@@ -136,6 +137,22 @@ public final class LoopbackSocketTransport implements AutoCloseable {
 
     private static GossipConfig emptyGossipConfig() {
         return new GossipConfig(List.of(), List.of(), 5, Duration.ofSeconds(60));
+    }
+
+    private static boolean isLatencyShapingActive(final NetworkSimulationConfig config) {
+        return config.profile() == NetworkProfile.REALISTIC && config.latencyNanos() > 0;
+    }
+
+    private static boolean isBandwidthShapingActive(final NetworkSimulationConfig config) {
+        return config.profile() == NetworkProfile.REALISTIC
+                && config.bandwidthBytesPerSecond() != Long.MAX_VALUE;
+    }
+
+    private static OutputStream maybeShape(final OutputStream out, final NetworkSimulationConfig config) {
+        if (config.profile() != NetworkProfile.REALISTIC) {
+            return out;
+        }
+        return new ShapingOutputStream(out, config.latencyNanos(), config.bandwidthBytesPerSecond());
     }
 
     private static void closeQuietly(final Closeable closeable) {

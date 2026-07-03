@@ -33,6 +33,12 @@ class LoopbackSocketTransportTest {
         return NetworkSimulationConfig.resolve(NetworkProfile.LOOPBACK, 0, 1, 1);
     }
 
+    private static NetworkSimulationConfig realisticConfig(
+            final long latencyMicroseconds, final long bandwidthMegabitsPerSecond) {
+        return NetworkSimulationConfig.resolve(
+                NetworkProfile.REALISTIC, latencyMicroseconds, bandwidthMegabitsPerSecond, 1);
+    }
+
     @Test
     void loopbackRoundTripsFramedBytesAndCountsThem() throws Exception {
         try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration())) {
@@ -98,6 +104,39 @@ class LoopbackSocketTransportTest {
             assertTrue(thrown.get() instanceof IOException, "reader should fail with an IOException");
         } finally {
             transport.close();
+        }
+    }
+
+    @Test
+    void realisticProfileDelaysFirstBytes() throws Exception {
+        try (LoopbackSocketTransport transport =
+                new LoopbackSocketTransport(realisticConfig(100_000, 1_000), configuration())) {
+            final long start = System.nanoTime();
+            transport.getTeacherOutput().writeInt(1234);
+            transport.getTeacherOutput().flush();
+            assertEquals(1234, transport.getLearnerInput().readInt());
+            final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertTrue(elapsedMillis >= 70, "latency shaping should delay visible bytes");
+            assertTrue(transport.diagnostics().latencyShapingActive());
+        }
+    }
+
+    @Test
+    void realisticProfilePacesLargeWrites() throws Exception {
+        final byte[] payload = new byte[64 * 1024];
+        try (LoopbackSocketTransport transport =
+                new LoopbackSocketTransport(realisticConfig(0, 1), configuration())) {
+            final long start = System.nanoTime();
+            transport.getTeacherOutput().writeInt(payload.length);
+            transport.getTeacherOutput().write(payload);
+            transport.getTeacherOutput().flush();
+            assertEquals(payload.length, transport.getLearnerInput().readInt());
+            transport.getLearnerInput().readFully(new byte[payload.length]);
+            final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertTrue(elapsedMillis >= 300, "bandwidth shaping should pace a 64 KiB transfer at 1 Mbps");
+            assertTrue(transport.diagnostics().bandwidthShapingActive());
         }
     }
 }
