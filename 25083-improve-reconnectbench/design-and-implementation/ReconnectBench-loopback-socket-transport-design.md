@@ -35,6 +35,27 @@ and `new Socket(...)` setup alone.
 - No production code changes.
 - No full benchmark execution requirement for unit tests.
 - No replacement of the current simulated network model.
+- No cleanup pass to make this a general-purpose transport framework.
+
+## Lean MVP Guardrails
+
+This work should stay small and practical. The benchmark needs to run the correct transport, shape it correctly when
+`NetworkProfile.REALISTIC` is selected, and log enough evidence to trust the run. It does not need an elegant final
+abstraction yet.
+
+Implementation should prefer:
+
+- one straightforward bidirectional loopback socket pair;
+- minimal package-local helpers where they keep `PairedStreams` readable;
+- coarse, stable tests that prove behavior without depending on exact scheduler timing;
+- diagnostics focused on socket buffer sizes, shaping active/inactive state, and byte counts.
+
+Defer:
+
+- extracting a public transport interface;
+- rich socket telemetry or JFR integration;
+- precise TCP/window modeling above the socket;
+- broad refactors of benchmark lifecycle or reconnect utility code.
 
 ## Design Choice
 
@@ -52,8 +73,9 @@ the code shape easy to compare with earlier `ReconnectBench` code and with the p
 A later cleanup may extract a transport interface if the mixed implementation becomes too busy.
 
 `PairedStreams` is the benchmark-facing object, but the socket implementation may use package-local helpers under
-`com.swirlds.benchmark.reconnect.network` so the socket behavior is unit-testable from `src/test`. This does not add a
-public transport abstraction to the benchmark flow: `MerkleBenchmarkUtils` should still deal with `PairedStreams`.
+`com.swirlds.benchmark.reconnect.network` so the socket behavior is unit-testable from `src/test`. Keep helpers narrow:
+they exist to avoid a bloated `PairedStreams`, not to create a polished transport subsystem. This does not add a public
+transport abstraction to the benchmark flow: `MerkleBenchmarkUtils` should still deal with `PairedStreams`.
 
 ## Parameters
 
@@ -241,9 +263,10 @@ Do not add read-side pacing. Read-side pacing would let the kernel socket buffer
 the `SocketFactory` buffer behavior this transport is meant to validate.
 
 Latency shaping should delay a written byte range before the first byte of that range enters the socket output stream.
-Bandwidth shaping should pace bytes into the socket output stream at the configured rate, splitting large writes into
-bounded chunks if necessary. The reconnect-facing `BufferedOutputStream` keeps this from sleeping once per reconnect
-message in the common path; shaping should operate on the buffered writes it receives.
+Bandwidth shaping should pace bytes into the socket output stream at the configured rate. It may split large writes into
+bounded chunks if needed for stable pacing, but it should avoid complex scheduling machinery. The reconnect-facing
+`BufferedOutputStream` keeps this from sleeping once per reconnect message in the common path; shaping should operate on
+the buffered writes it receives.
 
 Byte counters should count bytes accepted by the transport wrapper for writing and bytes returned to the receiving
 side. Socket diagnostics should separately identify whether shaping was active.
@@ -263,8 +286,8 @@ For socket transport:
   waits are `0` or otherwise documented as not applicable;
 - logs identify which stats are socket observations and which fields are simulator-only.
 
-Socket transport should expose a small diagnostics snapshot for logging and tests, for example
-`SocketTransportDiagnostics`, with fields such as:
+Socket transport should expose a small diagnostics snapshot for logging and tests. Keep this as small as possible while
+making benchmark runs auditable. A record such as `SocketTransportDiagnostics` is sufficient, with fields such as:
 
 ```text
 transport
@@ -330,6 +353,9 @@ Unit tests should target the benchmark transport layer:
 
 Tests may target package-local socket helpers rather than `PairedStreams` directly if source-set boundaries make that
 cleaner. The benchmark-facing path should still route through `PairedStreams`.
+
+Timing tests should use generous thresholds and small synthetic transfers. They should prove the shaping path is active
+and directionally correct, not assert exact wall-clock durations.
 
 Verification should include:
 
