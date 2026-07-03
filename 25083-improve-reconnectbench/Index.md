@@ -18,6 +18,7 @@ Last updated: 2026-07-03
 - [Traversal-Comparison MVP Design](design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md) - Current MVP design for comparing reconnect traversal modes with simulated network behavior.
 - [Traversal-Comparison MVP Implementation Plan](design-and-implementation/ReconnectBench-traversal-comparison-mvp-implementation-plan.md) - Archived step-by-step implementation plan for the already-executed traversal-comparison MVP.
 - [Loopback Socket Transport Design](design-and-implementation/ReconnectBench-loopback-socket-transport-design.md) - Approved design for adding `NetworkTransport`-selected simulated vs `SocketFactory`-configured loopback socket transports.
+- [Loopback Socket Transport Implementation Plan](design-and-implementation/ReconnectBench-loopback-socket-transport-implementation-plan.md) - Step-by-step execution plan for the benchmark-only loopback TCP transport validation work.
 
 ## Evidence And Calibration
 
