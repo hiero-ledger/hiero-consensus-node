@@ -20,8 +20,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.annotations.LiveConsensusNode;
 import com.hedera.node.app.fees.AppFeeCharging;
-import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -51,9 +51,8 @@ public class DispatchValidator {
 
     /**
      * True on every live consensus node (genesis/restart/reconnect), false only in the in-process standalone
-     * transaction executor. Derived from the presence of a {@link BlockRecordManager}: a live node always has one,
-     * while the standalone executor binds it null (see {@code StandaloneModule}). Unlike the genesis flag below, this
-     * does not depend on how the node booted.
+     * transaction executor. Supplied as a per-component constant (see {@link LiveConsensusNode}), so it does not
+     * depend on how the node booted or on incidental state such as whether a block record manager is present.
      */
     private final boolean liveConsensusNode;
 
@@ -67,7 +66,7 @@ public class DispatchValidator {
      * @param transactionChecker the transaction checker
      * @param feeCharging the fee-charging strategy
      * @param systemEntitiesCreatedFlag the genesis system-entities-created flag (present only on a genesis boot)
-     * @param blockRecordManager the block record manager; null only in the standalone transaction executor
+     * @param liveConsensusNode true on a live consensus node, false in the standalone transaction executor
      */
     @Inject
     public DispatchValidator(
@@ -75,12 +74,12 @@ public class DispatchValidator {
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final AppFeeCharging feeCharging,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
-            @Nullable final BlockRecordManager blockRecordManager) {
+            @LiveConsensusNode final boolean liveConsensusNode) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
-        this.liveConsensusNode = blockRecordManager != null;
+        this.liveConsensusNode = liveConsensusNode;
     }
 
     /**
