@@ -11,13 +11,22 @@ val gossipConnectivityExport =
 
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
-tasks.withType<JavaCompile>().configureEach {
+tasks.named<JavaCompile>("compileJava") {
+    options.compilerArgs.add("-Xlint:-static")
+    options.compilerArgs.add(gossipConnectivityExport)
+}
+
+tasks.named<JavaCompile>("compileTestJava") {
     options.compilerArgs.add("-Xlint:-static")
     options.compilerArgs.add(gossipConnectivityExport)
 }
 
 tasks.withType<Test>().configureEach {
     jvmArgs(gossipConnectivityExport)
+}
+
+tasks.withType<JMHTask>().configureEach {
+    jvmArgs.add(gossipConnectivityExport)
 }
 
 jmhModuleInfo {
@@ -50,6 +59,7 @@ testModuleInfo {
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.gossip")
+    requires("org.hiero.consensus.gossip.impl")
     requires("org.junit.jupiter.api")
     runtimeOnly("com.swirlds.config.impl")
 }
