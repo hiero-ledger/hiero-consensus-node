@@ -21,6 +21,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.AppFeeCharging;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -48,6 +49,14 @@ public class DispatchValidator {
     private final TransactionChecker transactionChecker;
     private final AppFeeCharging feeCharging;
 
+    /**
+     * True on every live consensus node (genesis/restart/reconnect), false only in the in-process standalone
+     * transaction executor. Derived from the presence of a {@link BlockRecordManager}: a live node always has one,
+     * while the standalone executor binds it null (see {@code StandaloneModule}). Unlike the genesis flag below, this
+     * does not depend on how the node booted.
+     */
+    private final boolean liveConsensusNode;
+
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
@@ -56,17 +65,22 @@ public class DispatchValidator {
      *
      * @param recordCache the record cache
      * @param transactionChecker the transaction checker
+     * @param feeCharging the fee-charging strategy
+     * @param systemEntitiesCreatedFlag the genesis system-entities-created flag (present only on a genesis boot)
+     * @param blockRecordManager the block record manager; null only in the standalone transaction executor
      */
     @Inject
     public DispatchValidator(
             @NonNull final HederaRecordCache recordCache,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final AppFeeCharging feeCharging,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
+            @Nullable final BlockRecordManager blockRecordManager) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.liveConsensusNode = blockRecordManager != null;
     }
 
     /**
@@ -86,10 +100,10 @@ public class DispatchValidator {
         // node's own account (gossiped node-submitted votes that the node pays for itself). Any other
         // payer means a node is charging a foreign account it never authorized; treat it as a node
         // due-diligence failure so the creator node is charged instead of the named payer. Genesis is
-        // already waived above. This applies only to a live consensus node (where the system-entities
-        // flag is present); the in-process standalone transaction executor has no gossip source and
-        // legitimately dispatches NODE-category transactions with a caller-chosen payer, so it is exempt.
-        if (systemEntitiesCreatedFlag != null && dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
+        // already waived above. This applies on every live consensus node regardless of how it booted
+        // (genesis/restart/reconnect); only the in-process standalone transaction executor is exempt,
+        // since it has no gossip source and legitimately dispatches NODE transactions with a chosen payer.
+        if (liveConsensusNode && dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
             return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_ACCOUNT_ID);
         }
         final var creatorError = creatorErrorIfKnown(dispatch);
@@ -139,9 +153,12 @@ public class DispatchValidator {
         final var config = dispatch.config();
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
-        return payerId.shardNum() == hederaConfig.shard()
-                && payerId.realmNum() == hederaConfig.realm()
-                && payerId.accountNumOrElse(0L) == accountsConfig.systemAdmin();
+        final var systemAdminId = AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(accountsConfig.systemAdmin())
+                .build();
+        return payerId.equals(systemAdminId);
     }
 
     /**

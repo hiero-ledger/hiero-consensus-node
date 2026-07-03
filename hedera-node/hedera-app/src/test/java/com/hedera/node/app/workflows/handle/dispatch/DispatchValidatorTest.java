@@ -41,6 +41,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
@@ -105,11 +106,18 @@ class DispatchValidatorTest {
     @Mock
     private ReadableAccountStore readableAccountStore;
 
+    @Mock
+    private BlockRecordManager blockRecordManager;
+
     private DispatchValidator subject;
 
     @BeforeEach
     void setUp() {
-        subject = new DispatchValidator(recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null);
+        // A live consensus node that booted from a restart/reconnect: system-entities flag is null (only a genesis
+        // boot has it) but the block record manager is present (only the standalone executor lacks one). This is the
+        // boot state where the NODE-payer guard must apply.
+        subject = new DispatchValidator(
+                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null, blockRecordManager);
     }
 
     @Test
@@ -203,11 +211,12 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void nodeCategoryForeignPayerAllowedWhenNoSystemEntitiesFlag() throws PreCheckException {
-        // The in-process standalone transaction executor supplies a null system-entities flag and
-        // legitimately dispatches NODE-category transactions (empty signature map) with a caller-chosen,
-        // non-node payer. The payer guard must not reject these; it applies only on a live consensus node
-        // (where the flag is present), so with a null flag the dispatch proceeds to a normal success.
+    void nodeCategoryForeignPayerAllowedInStandaloneExecutor() throws PreCheckException {
+        // The in-process standalone transaction executor legitimately dispatches NODE-category transactions
+        // (empty signature map) with a caller-chosen, non-node payer. It has no block record manager (null), which
+        // is how the guard recognizes it and stays exempt, so the dispatch proceeds to a normal success.
+        final var standaloneSubject = new DispatchValidator(
+                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null, null);
         givenCreatorInfo();
         givenNodeDispatch();
         givenNonDuplicate();
@@ -215,38 +224,55 @@ class DispatchValidatorTest {
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L));
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
-        // Config is only consulted by the payer guard, which is skipped when the flag is null; stub it
-        // leniently so that if the guard were (incorrectly) reached it would reject with a clean
-        // INVALID_PAYER_ACCOUNT_ID rather than a mock NPE — making this a faithful negative control.
-        lenient().when(dispatch.config()).thenReturn(HederaTestConfigBuilder.createConfig());
 
-        final var report = subject.validateFeeChargingScenario(dispatch);
+        final var report = standaloneSubject.validateFeeChargingScenario(dispatch);
 
         assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
     }
 
     @Test
-    void nodeCategoryForeignPayerRejectedOnLiveNode() {
-        // On a live consensus node (system-entities flag present), a NODE-category dispatch whose payer is
-        // neither the system admin account nor the creator node's own account is a node due-diligence failure.
-        final var liveNodeSubject = new DispatchValidator(
-                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), new AtomicBoolean(true));
+    void nodeCategoryForeignPayerRejectedOnRestartedNode() {
+        // Regression guard: a restarted/reconnected live node has a null system-entities flag but still has a block
+        // record manager. The NODE-payer guard must still fire (it is gated on being a live node, not on the genesis
+        // flag), so a foreign payer is a node due-diligence failure. Under the old flag-based gate this dispatch was
+        // wrongly allowed. The default subject is exactly this boot state (flag=null, block record manager present).
         givenCreatorInfo();
         givenNodeDispatch();
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
 
-        final var report = liveNodeSubject.validateFeeChargingScenario(dispatch);
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerRejectedOnGenesisBootedNode() {
+        // Companion to nodeCategoryForeignPayerRejectedOnRestartedNode. A node that booted at genesis and finished
+        // creating system entities holds a present, set flag (new AtomicBoolean(true)) — a real production state. The
+        // guard keys off the block record manager (present here), not the flag, so a foreign NODE payer is rejected
+        // just as on a restarted node. Together the two tests show the guard fires identically regardless of boot type.
+        final var genesisBootedNode = new DispatchValidator(
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                new AtomicBoolean(true),
+                blockRecordManager);
+        givenCreatorInfo();
+        givenNodeDispatch();
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        final var report = genesisBootedNode.validateFeeChargingScenario(dispatch);
 
         assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
     }
 
     @Test
     void nodeCategoryCreatorPayerAllowedOnLiveNode() throws PreCheckException {
-        // The creator node's own account is a legitimate NODE-category payer (gossiped node-submitted votes),
-        // so the guard permits it even on a live node.
-        final var liveNodeSubject = new DispatchValidator(
-                recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), new AtomicBoolean(true));
+        // The creator node's own account is a legitimate NODE-category payer (gossiped node-submitted votes), so the
+        // guard permits it on a live node. Uses the default subject (a live node: block record manager present), which
+        // is all the guard depends on; the genesis flag is irrelevant to this decision.
         givenCreatorInfo();
         givenNodeDispatch();
         givenNonDuplicate();
@@ -255,7 +281,7 @@ class DispatchValidatorTest {
         final var payerAccount = givenPayer(CREATOR_ACCOUNT_ID, payer -> payer.tinybarBalance(1L));
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
-        final var report = liveNodeSubject.validateFeeChargingScenario(dispatch);
+        final var report = subject.validateFeeChargingScenario(dispatch);
 
         assertEquals(newSuccess(CREATOR_ACCOUNT_ID, payerAccount), report);
     }
