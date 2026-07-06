@@ -117,8 +117,7 @@ public class CustomGasCharging {
         requireNonNull(transaction);
 
         final var payload = transaction.payload();
-        final var gasCharges =
-                gasCalculator.transactionGasRequirements(
+        final var gasCharges = gasCalculator.transactionGasRequirements(
                 (int) payload.length(),
                 HederaGasCalculator.payloadZeroBytes(payload),
                 transaction.isCreate(),
