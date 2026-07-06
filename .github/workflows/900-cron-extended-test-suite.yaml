@@ -158,11 +158,13 @@ jobs:
           RC_TAG: ${{ inputs.rc-tag || '' }}
           DEFAULT_BRANCH_NAME: "main"
         run: |
+          set +o pipefail
           # Check if the tag exists and if so grab its commit id
           echo "::group::Check for XTS Candidate Tag"
           if [[ -n "${RC_TAG}" ]]; then
             echo "::group::Use RC Tag"
             echo "Using RC Tag: ${RC_TAG}"
+            set +e
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
