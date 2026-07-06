@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -36,7 +37,6 @@ import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -471,10 +471,10 @@ public class ConsensusImpl implements Consensus {
         });
         // This value is normally updated when a round gets decided, but since we are starting from
         // a snapshot, we need to set it here.
-        rounds.setConsensusRelevantNGen(initJudges.getJudges().stream()
-                .map(EventImpl::getNGen)
+        rounds.setConsensusRelevantSeqNum(initJudges.getJudges().stream()
+                .map(EventImpl::getSequenceNumber)
                 .min(Long::compareTo)
-                .orElse(NonDeterministicGeneration.FIRST_GENERATION));
+                .orElse(UNASSIGNED_SEQUENCE_NUMBER));
         initJudges = null;
 
         return true;
@@ -1136,9 +1136,9 @@ public class ConsensusImpl implements Consensus {
         //
         // events older than all the judges in the latest decided round as well as consensus events
         // have a round of -infinity. this covers ancient events as well because the ancient
-        // generation will always be older than the latest decided round generation
+        // boundary will always be older than the latest decided round's oldest judge.
         //
-        if (rounds.isOlderThanDecidedRoundGeneration(x) || x.isConsensus()) {
+        if (rounds.isOlderThanDecidedRoundSeqNum(x) || x.isConsensus()) {
             x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
             return ConsensusConstants.ROUND_NEGATIVE_INFINITY;
         }
