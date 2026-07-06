@@ -34,7 +34,7 @@ Must not depend on:
 
 Accepted exceptions:
 - `requires transitive com.swirlds.state.api`, `com.swirlds.state.impl`, `com.swirlds.virtualmap` —
-otherwise permitted only in `consensus-state` and `consensus-state-management`. The handler applies
+otherwise permitted only in `consensus-state`. The handler applies
 transactions directly to the state's merkle tree and virtual map, so these types appear in this
 module's signatures. Accepted during modularization; resolves when the module moves to the execution
 layer.

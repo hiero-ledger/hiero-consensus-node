@@ -6,8 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.state.signed.DefaultSignedStateSentinel;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
@@ -18,9 +16,8 @@ import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.management.persistence.DefaultStateSnapshotManager;
-import org.hiero.consensus.state.management.persistence.StateSnapshotManager;
-import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
+import org.hiero.consensus.state.persistence.DefaultStateSnapshotManager;
+import org.hiero.consensus.state.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 
@@ -48,7 +45,6 @@ public class PlatformComponentBuilder {
 
     private StateGarbageCollector stateGarbageCollector;
     private ConsensusEventStream consensusEventStream;
-    private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private StateSnapshotManager stateSnapshotManager;
 
@@ -104,39 +100,6 @@ public class PlatformComponentBuilder {
         } finally {
             getMetricsProvider().start();
         }
-    }
-
-    /**
-     * Provide a state garbage collector in place of the platform's default state garbage collector.
-     *
-     * @param stateGarbageCollector the state garbage collector to use
-     * @return this builder
-     */
-    public PlatformComponentBuilder withStateGarbageCollector(
-            @NonNull final StateGarbageCollector stateGarbageCollector) {
-        throwIfAlreadyUsed();
-        if (this.stateGarbageCollector != null) {
-            throw new IllegalStateException("State garbage collector has already been set");
-        }
-        this.stateGarbageCollector = Objects.requireNonNull(stateGarbageCollector);
-        return this;
-    }
-
-    /**
-     * Build the state garbage collector if it has not yet been built. If one has been provided via
-     * {@link #withStateGarbageCollector(StateGarbageCollector)}, that garbage collector will be used. If this method is
-     * called more than once, only the first call will build the state garbage collector. Otherwise, the default garbage
-     * collector will be created and returned.
-     *
-     * @return the state garbage collector
-     */
-    @NonNull
-    public StateGarbageCollector buildStateGarbageCollector() {
-        if (stateGarbageCollector == null) {
-            stateGarbageCollector =
-                    new DefaultStateGarbageCollector(blocks.platformContext().getMetrics());
-        }
-        return stateGarbageCollector;
     }
 
     /**
@@ -211,38 +174,6 @@ public class PlatformComponentBuilder {
             platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
         }
         return platformMonitor;
-    }
-
-    /**
-     * Provide a signed state sentinel in place of the platform's default signed state sentinel.
-     *
-     * @param signedStateSentinel the signed state sentinel to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withSignedStateSentinel(@NonNull final SignedStateSentinel signedStateSentinel) {
-        throwIfAlreadyUsed();
-        if (this.signedStateSentinel != null) {
-            throw new IllegalStateException("Signed state sentinel has already been set");
-        }
-        this.signedStateSentinel = Objects.requireNonNull(signedStateSentinel);
-        return this;
-    }
-
-    /**
-     * Build the signed state sentinel if it has not yet been built. If one has been provided via
-     * {@link #withSignedStateSentinel(SignedStateSentinel)}, that sentinel will be used. If this method is called more
-     * than once, only the first call will build the signed state sentinel. Otherwise, the default sentinel will be
-     * created and returned.
-     *
-     * @return the signed state sentinel
-     */
-    @NonNull
-    public SignedStateSentinel buildSignedStateSentinel() {
-        if (signedStateSentinel == null) {
-            signedStateSentinel = new DefaultSignedStateSentinel(blocks.platformContext());
-        }
-        return signedStateSentinel;
     }
 
     /**

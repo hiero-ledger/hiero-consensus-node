@@ -29,7 +29,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
     exports com.swirlds.platform.reconnect;
-    exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state;
     exports com.swirlds.platform.system.state.notifications;
@@ -75,7 +74,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
-    requires transitive org.hiero.consensus.state.management;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
@@ -84,14 +82,11 @@ module com.swirlds.platform.core {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
     requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires static transitive com.github.spotbugs.annotations;
 
     uses EventCreatorModule;
     uses EventIntakeModule;

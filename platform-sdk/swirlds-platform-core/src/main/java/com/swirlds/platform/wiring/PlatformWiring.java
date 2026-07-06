@@ -11,7 +11,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -24,7 +23,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -161,20 +159,7 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .stateOutputWire()
-                .solderTo(components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
-
-        final var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-        components
-                .model()
-                .buildHeartbeatWire(config.stateGarbageCollectorHeartbeatPeriod())
-                .solderTo(
-                        components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::heartbeat), OFFER);
-        components
-                .model()
-                .buildHeartbeatWire(config.signedStateSentinelHeartbeatPeriod())
-                .solderTo(
-                        components.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates),
-                        OFFER);
+                .solderTo(components.stateManagementModule().garbageCollectorRegistrationInputWire());
 
         final OutputWire<ReservedSignedState> hashedStateOutputWire =
                 components.stateManagementModule().hashedStateOutputWire();

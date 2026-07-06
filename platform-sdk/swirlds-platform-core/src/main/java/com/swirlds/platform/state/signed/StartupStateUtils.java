@@ -4,7 +4,7 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
-import static org.hiero.consensus.state.management.SignedStateFileReader.readState;
+import static org.hiero.consensus.state.SignedStateFileReader.readState;
 import static org.hiero.consensus.state.signed.ReservedSignedState.createNullReservation;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -29,7 +29,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.ReservedSignedState;
