@@ -140,8 +140,6 @@ public class PcesReplayer {
         requireNonNull(eventIterator);
 
         final Instant start = time.now();
-        final Instant timestampBeforeReplay;
-        final long roundBeforeReplay;
         final PcesReplayProgress progressBeforeReplay = replayProgressSupplier.get();
 
         final RateLimiter rateLimiter = new RateLimiter(time, config.maxEventReplayFrequency());
