@@ -12,7 +12,7 @@ on:
         description: "[All] Solo version to install."
         required: true
         type: string
-        default: "latest"
+        default: "0.79.0"
       scenario:
         description: "Which Solo test scenario to run."
         required: true
@@ -42,7 +42,7 @@ on:
         type: string
         default: ""
       cutover-upgrade-075-version:
-        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.5."
+        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.6."
         required: false
         type: string
         default: ""
@@ -385,14 +385,18 @@ jobs:
           if command -v kind >/dev/null 2>&1; then kind --version; fi
           kubectl version --client=true
 
-      - name: Install xxd
+      - name: Install zstd
         run: |
           set -eo pipefail
-          if ! command -v xxd >/dev/null 2>&1; then
+          # zstd decompresses the .blk.zstd block files the cutover scenario pulls from the
+          # Block Node (Step 11 TSS-parameter seeding). There's no pre-installed substitute on
+          # the runner (no system zstd; the BN's zstd-jni isn't in the gradle cache), so install
+          # the small zstd package. (xxd was dropped — the script uses `od` for DER->hex.)
+          if ! command -v zstd >/dev/null 2>&1; then
             sudo apt-get update -y
-            sudo apt-get install -y xxd
+            sudo apt-get install -y zstd
           fi
-          xxd -v
+          zstd --version
 
       - name: Install grpcurl
         run: |
@@ -415,12 +419,12 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 150m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.5' }}" \
+              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
-            "${SCRIPT_PATH}" --nodes 4 | tee "${RUNNER_TEMP}/cutover-script.log"
+            "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}

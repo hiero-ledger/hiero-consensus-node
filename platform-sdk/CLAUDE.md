@@ -61,7 +61,7 @@ principles as `consensus-*` modules.
 - **Allowed in all modules:** `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
 - **Allowed in functional-api and functional-impl modules only (not supporting modules):** `swirlds-component-framework`
 - **Allowed in `consensus-platformstate`, `consensus-roster`, and `consensus-iss-detection` only:** `swirlds-state-api`, `swirlds-state-impl`
-- **Allowed in `consensus-state` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
+- **Allowed in `consensus-state`, `consensus-state-management`, and `consensus-transaction-handling` only:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Transitional — currently present in `consensus-gossip`, `consensus-gossip-impl`, and `consensus-reconnect-impl` but not permitted in the final architecture:** `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
 - **Prohibited everywhere — implementation modules; depend on the API instead:** `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
@@ -84,6 +84,8 @@ paired API and any supporting module. Must not depend on other impl modules:
 
 **Structural-transitional modules** — treated like impl modules (rule 3 applies); temporary, awaiting either a move to the execution layer or removal:
 - `consensus-state` — will move to the execution layer.
+- `consensus-state-management` — will move to the execution layer alongside the signed-state machinery it drives.
+- `consensus-transaction-handling` — will move to the execution layer.
 - `consensus-event-stream` — will be deleted once the consensus event stream is superseded by the block stream.
 - `consensus-iss-detection` — will move to the execution layer alongside the state machinery it validates.
 

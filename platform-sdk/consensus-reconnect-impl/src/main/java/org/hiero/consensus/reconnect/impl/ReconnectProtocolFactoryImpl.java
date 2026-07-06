@@ -49,7 +49,7 @@ public class ReconnectProtocolFactoryImpl implements ReconnectProtocolFactory {
                 threadManager,
                 reconnectStateTeacherThrottle,
                 latestCompleteState,
-                reconnectConfig.asyncStreamTimeout(),
+                reconnectConfig.socketTimeout(),
                 reconnectMetrics,
                 fallenBehindMonitor,
                 reservedSignedStateResultPromise,

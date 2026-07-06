@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-06-29
+last_reviewed: 2026-06-30
 ---
 
 # Hashgraph
@@ -78,7 +78,7 @@ state at runtime:
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
-  decided-fame status, plus `minNGen` and `minBirthRound` for the
+  decided-fame status, plus `minSeqNum` and `minBirthRound` for the
   judges.
 - The future-event buffer
   [`consensus-utility/.../FutureEventBuffer.java`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/FutureEventBuffer.java)
@@ -281,10 +281,16 @@ into the loaded state — is covered in
 > [`../../concepts/birth-round.md`](../../concepts/birth-round.md) for that
 > substitution. The
 > implementation also carries a few quantities that do not appear in
-> the paper — `NGen` (a locally-computed, non-deterministic generation
-> used only for picking a topological order and for
-> "higher in the hashgraph" comparisons; see `NonDeterministicGeneration`)
-> and the `DeGen`/`cGen` family used inside the algorithm. Conceptual
+> the paper — the orphan-buffer **event sequence number** (a
+> locally-computed, monotonic counter used for picking a topological
+> order and for "higher in the hashgraph" comparisons, e.g.
+> `consensusRelevantSeqNum` / `RoundElections.minSeqNum` and
+> `ConsensusRounds.isOlderThanDecidedRoundSeqNum`) and the `DeGen`/`cGen`
+> family used inside the algorithm. The sequence number replaced `NGen`
+> as the algorithm's ordering key (see
+> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md));
+> `NonDeterministicGeneration` lingers in this module only for the
+> not-yet-migrated `cGen` path. Conceptual
 > background lives in
 > [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
 > and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).

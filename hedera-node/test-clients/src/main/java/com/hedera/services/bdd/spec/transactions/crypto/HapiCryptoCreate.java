@@ -82,6 +82,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
     private boolean setEvmAddressAliasFromKey = false;
     private Optional<ShardID> shardId = Optional.empty();
     private Optional<RealmID> realmId = Optional.empty();
+    private Optional<ByteString> delegationAddress = Optional.empty();
 
     private List<Function<HapiSpec, HookCreationDetails>> hookFactories = List.of();
 
@@ -267,6 +268,11 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
         return evmAddress(ByteString.copyFrom(explicitFromHeadlong(evmAddress)));
     }
 
+    public HapiCryptoCreate delegationAddress(final ByteString delegationAddress) {
+        this.delegationAddress = Optional.of(delegationAddress);
+        return this;
+    }
+
     @Override
     protected HapiCryptoCreate self() {
         return this;
@@ -316,6 +322,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                             maxAutomaticTokenAssociations.ifPresent(b::setMaxAutomaticTokenAssociations);
                             shardId.ifPresent(b::setShardID);
                             realmId.ifPresent(b::setRealmID);
+                            delegationAddress.ifPresent(b::setDelegationAddress);
                             if (stakedAccountId.isPresent()) {
                                 // Calculate and assign the effective staked account ID
                                 AccountID effectiveStakedAcctId = TxnUtils.asId(stakedAccountId.get(), spec);

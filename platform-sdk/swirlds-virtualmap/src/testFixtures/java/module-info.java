@@ -8,7 +8,6 @@ open module com.swirlds.virtualmap.test.fixtures {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.consensus.reconnect;
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
