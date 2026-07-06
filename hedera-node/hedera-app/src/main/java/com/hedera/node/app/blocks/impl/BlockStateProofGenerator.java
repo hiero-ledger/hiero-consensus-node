@@ -47,6 +47,11 @@ public class BlockStateProofGenerator {
     public static final int BLOCK_CONTENTS_PATH_INDEX = 1;
 
     /**
+     * Index to the Merkle path containing the consensus timestamp leaf of the signed block
+     */
+    public static final int TIMESTAMP_PATH_INDEX = 0;
+
+    /**
      * Index to the final Merkle path representing the root hash of the signed block
      */
     public static final int FINAL_MERKLE_PATH_INDEX = 2;
@@ -97,7 +102,7 @@ public class BlockStateProofGenerator {
         // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
         MerklePath.Builder mp2 = MerklePath.newBuilder()
                 .hash(currentPendingBlock.previousBlockHash())
-                .nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+                .nextPathIndex(TIMESTAMP_PATH_INDEX);
 
         // Create a set of siblings for each indirect block, plus another set for the signed block
         final var totalSiblings =

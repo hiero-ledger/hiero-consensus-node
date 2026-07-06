@@ -7,6 +7,7 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.TIMESTAMP_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -374,7 +375,7 @@ class IndirectProofSequenceValidator {
         }
 
         // Set the complete collection of siblings for the earliest unsigned block
-        earliestBlockMp2.siblings(Arrays.stream(allSiblingHashes).toList()).nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+        earliestBlockMp2.siblings(Arrays.stream(allSiblingHashes).toList()).nextPathIndex(TIMESTAMP_PATH_INDEX);
 
         // Merkle Path 3: the root path (same for all proofs), and has no data specific to any block
         final var mp3 =
@@ -402,7 +403,7 @@ class IndirectProofSequenceValidator {
             final var currentUnsignedBlockStartingHash = expectedPreviousBlockRootHashes.get(currUnsignedBlock);
             newMp2.hash(currentUnsignedBlockStartingHash)
                     .siblings(currUnsignedBlockSiblings)
-                    .nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+                    .nextPathIndex(TIMESTAMP_PATH_INDEX);
 
             // Populate the map with the full merkle paths for this block number
             fullMerklePathsByBlockNum.put(currUnsignedBlock, new MerklePath[] {mp1, newMp2.build(), mp3});
@@ -497,9 +498,7 @@ class IndirectProofSequenceValidator {
         final var mp2 = paths.get(BLOCK_CONTENTS_PATH_INDEX);
         assertFalse(mp2.hasTimestampLeaf(), "Expected no leaf in block contents Merkle path");
         assertEquals(
-                FINAL_MERKLE_PATH_INDEX,
-                mp2.nextPathIndex(),
-                "Mismatch in next path index of block contents merkle path");
+                TIMESTAMP_PATH_INDEX, mp2.nextPathIndex(), "Mismatch in next path index of block contents merkle path");
 
         // Combine all the sibling hashes to compute the block contents hash
         final var allSiblings = mp2.siblings();
@@ -778,7 +777,7 @@ class IndirectProofSequenceValidator {
                                                             .isLeft(false)
                                                             .hash(BLOCK_10.siblings[2].siblingHash())
                                                             .build()))
-                                            .nextPathIndex(2)
+                                            .nextPathIndex(TIMESTAMP_PATH_INDEX)
                                             .build(),
                                     MerklePath.newBuilder().nextPathIndex(-1).build()))
                             .signedBlockProof(BLOCK_10.proof.signedBlockProof()))
@@ -895,7 +894,7 @@ class IndirectProofSequenceValidator {
                                                             .isLeft(false)
                                                             .hash(BLOCK_10.siblings[2].siblingHash())
                                                             .build()))
-                                            .nextPathIndex(2)
+                                            .nextPathIndex(TIMESTAMP_PATH_INDEX)
                                             .build(),
                                     MerklePath.newBuilder().nextPathIndex(-1).build()))
                             .signedBlockProof(BLOCK_10.proof.signedBlockProof()))
