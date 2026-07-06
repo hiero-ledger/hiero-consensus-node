@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.bonneville;
 
+import com.google.common.base.MoreObjects;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.BitSet;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.EVM;
-import org.hyperledger.besu.evm.code.CodeSection;
 
 // Bonneville Code object.  Immutable bare byte array.  Cached, hashed and
 // interned.  Cheap hash is used because the prior caching spends all its time
@@ -24,7 +22,7 @@ import org.hyperledger.besu.evm.code.CodeSection;
 // removing a CodeV2 at random - hot ones will just re-install.
 
 // spotless:off
-public class CodeV2 extends OutputStream implements Code {
+public class CodeV2 extends OutputStream {
 
     private static final ConcurrentHashMap<CodeV2, CodeV2> CODES = new ConcurrentHashMap<>();
 
@@ -32,7 +30,7 @@ public class CodeV2 extends OutputStream implements Code {
 
     public static final CodeV2 EMPTY = make(new byte[0]);
 
-    // EVM bytecodes.  This array is commonly shared and must be immutable
+    // EVM bytecodes. This array is commonly shared and must be immutable
     byte[] _codes;
     // Handles to avoid a copy
     int _off, _len;
@@ -130,7 +128,7 @@ public class CodeV2 extends OutputStream implements Code {
             if( op >= 0x60 && op < 0x80 ) i += op - 0x60 + 1; // Skip immediate bytes
         }
 
-        // TODO: Cache the expensive kekkac256 cache
+        // TODO: Cache the expensive keccak256 cache
     }
 
     // Must jump to a jump dest, opcode 91/0x5B
@@ -151,6 +149,11 @@ public class CodeV2 extends OutputStream implements Code {
 
     @Override public int hashCode() { return _hash; }
 
+    @Override public String toString() {
+        byte[] encoded = Base64.getEncoder().encode(_codes);
+        return MoreObjects.toStringHelper(this).add("bytes", new String(encoded, _off, _len)).toString();
+    }
+
     // --------------------------------------
     // Become an OutputStream, so PBJ Bytes can hand us the byte[] directly.
     @Override
@@ -166,47 +169,18 @@ public class CodeV2 extends OutputStream implements Code {
     @Override public void write(int i   ) { throw new TODO(); }
 
     // --------------------------------------
-    // CodeV2 objects not used if they are not also valid (check is made upon
-    // construction).  However, I am trying to avoid implementing all things
-    // about Code, and the MessageFrame.Builder constructor calls isValid, and
-    // if valid ALSO calls getCodeSection.  If not valid, it sets a PC of 0.
-    // Since the PC (and Code) objects are ignored here, the path of least
-    // resistance is to return False for a perfectly valid CodeV2.
-    @Override public boolean isValid() { return false; }
-
     // Called at least by CustomContractCreationProcessor for CODE_SUCCESS with
     // side-car support.  This usage can probably be removed with a rewriting
     // of CCCP (which is already on my TODO-list)
     private Bytes _bytes;
 
-    @Override public Bytes getBytes() {
+    public Bytes getBytes() {
         return _bytes == null ? (_bytes = Bytes.wrap(_codes,_off,_len)) : _bytes;
     }
 
     private Hash _kekhash;
-    @Override public Hash getCodeHash() {
+    public Hash getCodeHash() {
         return _kekhash == null ? (_kekhash = Hash.hash(getBytes())) : _kekhash;
     }
-
-    @Override public int getSize() { return _len; }
-
-    // --------------------------------------
-
-    @Override public boolean isJumpDestInvalid(int dst) {
-        // return !jumpValid(dst); // Obvious execution strat, but still hoping never called
-        throw new TODO();
-    }
-    @Override public int getDataSize() { throw new TODO(); }
-    @Override public int getDeclaredDataSize() { throw new TODO(); }
-    @Override public CodeSection getCodeSection(int section) { throw new TODO(); }
-    @Override public int getCodeSectionCount() { throw new TODO(); }
-    @Override public int getEofVersion() { throw new TODO(); }
-    @Override public int getSubcontainerCount() { throw new TODO(); }
-    @Override public Optional<Code> getSubContainer(int index, Bytes auxData, EVM evm) { throw new TODO(); }
-    @Override public Bytes getData(int offset, int length) { throw new TODO(); }
-    @Override public int readBigEndianI16(int startIndex) { throw new TODO(); }
-    @Override public int readBigEndianU16(int startIndex) { throw new TODO(); }
-    @Override public int readU8(int startIndex) { throw new TODO(); }
-    @Override public String prettyPrint() { throw new TODO(); }
 }
 // spotless:on

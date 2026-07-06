@@ -21,6 +21,7 @@ import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
@@ -77,7 +78,8 @@ class ContractOperationStreamBuilderTest {
                         List.of(new StorageAccesses(
                                 ContractID.DEFAULT,
                                 List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
-                        null));
+                        null),
+                null);
         given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
@@ -97,6 +99,7 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
                 null,
                 null,
                 null);
@@ -124,7 +127,8 @@ class ContractOperationStreamBuilderTest {
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(context.configuration()).willReturn(blocksOnlyConfig);
 
         subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
@@ -159,7 +163,8 @@ class ContractOperationStreamBuilderTest {
                         List.of(new StorageAccesses(
                                 ContractID.DEFAULT,
                                 List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
-                        null));
+                        null),
+                CodeDelegationResult.EMPTY);
         given(context.configuration()).willReturn(blocksOnlyConfig);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
