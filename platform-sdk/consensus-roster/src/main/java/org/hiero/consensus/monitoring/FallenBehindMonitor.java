@@ -18,6 +18,7 @@ import org.hiero.consensus.config.FallenBehindConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterLookup;
 
 /**
  * Detects when this node has fallen behind the network.
@@ -35,18 +36,18 @@ public class FallenBehindMonitor {
     private final Condition fallenBehindCondition = lock.newCondition();
     private final Condition gossipSyncPausedCondition = lock.newCondition();
 
-    /**
-     * the number of peers in the roster
-     */
-    private final int peersSize;
+    private final RosterLookup rosterLookup;
+
+    private final double fallenBehindWeightThreshold;
 
     /**
      * set of peers that reported this node has fallen behind
      */
+    @GuardedBy("lock")
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
     @GuardedBy("lock")
-    private final double fallenBehindThreshold;
+    private double fallenBehindLevel;
 
     @GuardedBy("lock")
     private boolean isBehind;
@@ -55,32 +56,45 @@ public class FallenBehindMonitor {
     private boolean pausedNotificationReceived;
 
     public FallenBehindMonitor(
-            @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
+            @NonNull final Roster roster,
+            @NonNull final Configuration config,
+            @NonNull final Metrics metrics,
+            final NodeId selfId) {
         this(
-                requireNonNull(roster).rosterEntries().size() - 1,
-                requireNonNull(config).getConfigData(FallenBehindConfig.class).fallenBehindThreshold());
+                roster,
+                requireNonNull(config).getConfigData(FallenBehindConfig.class).fallenBehindThreshold(),
+                selfId);
         requireNonNull(metrics)
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
                         .withDescription("has this node fallen behind?"));
         metrics.getOrCreate(new FunctionGauge.Config<>(
                         INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::reportedSize)
-                .withDescription("the number of nodes that have fallen behind")
+                .withDescription("the number of nodes that have reported we are falling behind")
                 .withUnit("count"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        INTERNAL_CATEGORY, "weightReportFallenBehind", Double.class, this::reportedWeight)
+                .withDescription("the weight fraction of nodes that have reported we are falling behind")
+                .withUnit("fraction"));
     }
 
-    public FallenBehindMonitor(final int peersSize, final double fallenBehindThreshold) {
-        this.peersSize = peersSize;
-        this.fallenBehindThreshold = fallenBehindThreshold;
+    public FallenBehindMonitor(@NonNull final Roster roster, final double fallenBehindThreshold, final NodeId selfId) {
+        this.rosterLookup = new RosterLookup(requireNonNull(roster));
+        this.fallenBehindWeightThreshold =
+                (rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId)) * fallenBehindThreshold;
     }
 
     private void checkAndNotify() {
-        boolean wasNotBehind = !isBehind;
-        // Fall behind if reports > threshold OR if all peers have reported (handles threshold = 1.0 edge case)
-        isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size()
-                || (peersSize > 0 && reportFallenBehind.size() == peersSize);
+        final boolean wasNotBehind = !isBehind;
+        // Fall behind if reports > threshold
+        isBehind = fallenBehindLevel > fallenBehindWeightThreshold;
         if (wasNotBehind && isBehind) {
             fallenBehindCondition.signalAll(); // notify waiting threads
+        }
+        if (reportFallenBehind.isEmpty()) {
+            // this shouldn't be normally needed, but we don't want to show things like 0.00000000000001
+            // fallen behind due to floating point issues
+            fallenBehindLevel = 0;
         }
     }
 
@@ -94,6 +108,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             if (reportFallenBehind.add(id)) {
+                fallenBehindLevel += rosterLookup.getWeight(id);
                 checkAndNotify();
             }
         } finally {
@@ -111,6 +126,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             reportFallenBehind.remove(id);
+            fallenBehindLevel -= rosterLookup.getWeight(id);
             checkAndNotify();
         } finally {
             lock.unlock();
@@ -155,6 +171,7 @@ public class FallenBehindMonitor {
         try {
             reportFallenBehind.clear();
             isBehind = false;
+            fallenBehindLevel = 0;
         } finally {
             lock.unlock();
         }
@@ -167,6 +184,18 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             return reportFallenBehind.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * @return the number of nodes that have told us we have fallen behind
+     */
+    public double reportedWeight() {
+        lock.lock();
+        try {
+            return fallenBehindLevel / rosterLookup.rosterTotalWeight();
         } finally {
             lock.unlock();
         }

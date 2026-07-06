@@ -6,19 +6,18 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.config;
     exports org.hiero.consensus.constructable;
     exports org.hiero.consensus.crypto;
-    exports org.hiero.consensus.event;
     exports org.hiero.consensus.event.validation;
+    exports org.hiero.consensus.event;
     exports org.hiero.consensus.exceptions;
-    exports org.hiero.consensus.io;
     exports org.hiero.consensus.io.counting;
-    exports org.hiero.consensus.monitoring;
+    exports org.hiero.consensus.io;
     exports org.hiero.consensus.node;
     exports org.hiero.consensus.orphan;
     exports org.hiero.consensus.round;
     exports org.hiero.consensus.scratchpad;
-    exports org.hiero.consensus.status;
     exports org.hiero.consensus.status.actions;
     exports org.hiero.consensus.status.logic;
+    exports org.hiero.consensus.status;
     exports org.hiero.consensus.system;
     exports org.hiero.consensus.transaction;
 

@@ -75,8 +75,8 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.stubbing.Answer;
 
 /**
- * Comprehensive unit-integration test for {@link ReconnectController}.
- * Tests focus on retry logic, promise lifecycle, state transitions, and error handling.
+ * Comprehensive unit-integration test for {@link ReconnectController}. Tests focus on retry logic, promise lifecycle,
+ * state transitions, and error handling.
  */
 class ReconnectControllerTest {
 
@@ -155,7 +155,7 @@ class ReconnectControllerTest {
         reconnectCoordinator = mock(ReconnectCoordinator.class);
 
         // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
-        fallenBehindMonitor = new FallenBehindMonitor(NUM_NODES - 1, 0.5);
+        fallenBehindMonitor = new FallenBehindMonitor(roster, 0.5, selfId);
 
         // Configure platformCoordinator.pauseGossip() to call fallenBehindMonitor.notifySyncProtocolPaused()
         doAnswer(inv -> {
@@ -211,6 +211,7 @@ class ReconnectControllerTest {
                 fallenBehindMonitor,
                 signedStateValidator);
     }
+
     /**
      * Helper method to create a ReconnectController instance
      */
@@ -231,8 +232,8 @@ class ReconnectControllerTest {
     }
 
     /**
-     * Test scenario runner that abstracts away all threading complexity.
-     * Use this to write readable tests that focus on the reconnect flow logic.
+     * Test scenario runner that abstracts away all threading complexity. Use this to write readable tests that focus on
+     * the reconnect flow logic.
      */
     private class ReconnectScenario {
         private final ReconnectController controller;
@@ -348,7 +349,7 @@ class ReconnectControllerTest {
             return this;
         }
 
-        /** Stop the controller gracefully*/
+        /** Stop the controller gracefully */
         void stop(final Duration timeout, final String failureMessage) {
             controller.stopReconnectLoop();
             interruptControllerThread();
@@ -376,8 +377,11 @@ class ReconnectControllerTest {
             controllerThread.interrupt();
         }
 
-        /** Wait for controller to finish (without stopping it first)
-         * @param timeout*/
+        /**
+         * Wait for controller to finish (without stopping it first)
+         *
+         * @param timeout
+         */
         void waitForFinish(final Duration timeout) {
             waitFor(() -> controllerRunnable.waitIsFinished(timeout), "Wait for finish timed out elapsed");
             waitFor(() -> parallelTasks.forEach(r -> r.waitIsFinished(timeout)), "Wait for finish timed out elapsed");
