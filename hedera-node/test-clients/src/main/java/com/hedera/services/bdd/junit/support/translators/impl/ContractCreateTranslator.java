@@ -127,7 +127,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                         final var contractNum = output.evmTransactionResultOrThrow()
                                 .contractIdOrThrow()
                                 .contractNumOrThrow();
-                        if (baseTranslator.entityCreatedThisUnit(contractNum)) {
+                        if (baseTranslator.entityCreatedThisUnit(ACCOUNT, contractNum)) {
                             // Consume the specific contract number from the created list;
                             // using nextCreatedNum(ACCOUNT) here would pop the lowest number
                             // which may belong to a different account created in the same unit
