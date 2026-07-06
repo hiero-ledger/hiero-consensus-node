@@ -11,6 +11,7 @@ import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -67,6 +68,8 @@ public class BlockStateProofGenerator {
      * @param remainingPendingBlocks stream of remaining pending blocks after the current one. This queue is
      *                               passed for <b>read-only</b> purposes; don't dequeue from it.
      * @return the constructed state proof
+     * @throws IllegalStateException if the pending blocks contain duplicate block numbers, or do not cover every
+     *                               block from the current pending block through the latest signed block
      */
     public static StateProof generateStateProof(
             @NonNull final PendingBlock currentPendingBlock,
@@ -81,11 +84,28 @@ public class BlockStateProofGenerator {
         final Map<Long, PendingBlock> allPendingBlocks = Streams.of(
                         Stream.of(currentPendingBlock), remainingPendingBlocks)
                 .flatMap(s -> s)
-                .collect(Collectors.toMap(PendingBlock::number, Function.identity()));
+                .collect(Collectors.toMap(PendingBlock::number, Function.identity(), (a, b) -> {
+                    throw new IllegalStateException(
+                            "Duplicate pending block #%d in the pending block queue".formatted(a.number()));
+                }));
 
-        final Map<Long, PendingBlock> indirectProofBlocks = allPendingBlocks.entrySet().stream()
-                .filter(e -> e.getKey() < latestSignedBlockNumber)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        // An indirect proof requires the sibling hashes of every block from the current pending block up to and
+        // including the signed block, so verify the pending blocks cover that entire range before constructing
+        // anything, failing fast with the offending block number instead of an uninformative NPE below
+        final long minBlockNum = currentPendingBlock.number();
+        if (latestSignedBlockNumber <= minBlockNum) {
+            throw new IllegalStateException(
+                    "Cannot construct an indirect proof for pending block #%d from signed block #%d"
+                            .formatted(minBlockNum, latestSignedBlockNumber));
+        }
+        for (long blockNum = minBlockNum + 1; blockNum <= latestSignedBlockNumber; blockNum++) {
+            if (!allPendingBlocks.containsKey(blockNum)) {
+                throw new IllegalStateException(
+                        "Cannot construct an indirect proof for pending block #%d from signed block #%d because pending block #%d is missing"
+                                .formatted(minBlockNum, latestSignedBlockNumber, blockNum));
+            }
+        }
+        final int numIndirectBlocks = (int) (latestSignedBlockNumber - minBlockNum);
 
         // Construct all merkle paths for each pending block between [currentPendingBlock.number(),
         // latestSignedBlockNumber - 1]
@@ -100,17 +120,26 @@ public class BlockStateProofGenerator {
                 .nextPathIndex(FINAL_MERKLE_PATH_INDEX);
 
         // Create a set of siblings for each indirect block, plus another set for the signed block
-        final var totalSiblings =
-                (indirectProofBlocks.size() * UNSIGNED_BLOCK_SIBLING_COUNT) + SIGNED_BLOCK_SIBLING_COUNT;
+        final var totalSiblings = (numIndirectBlocks * UNSIGNED_BLOCK_SIBLING_COUNT) + SIGNED_BLOCK_SIBLING_COUNT;
         final SiblingNode[] allSiblingHashes = new SiblingNode[totalSiblings];
-        final long minBlockNum = currentPendingBlock.number();
-        var currentBlockNum = minBlockNum;
-        for (int i = 0; i < indirectProofBlocks.size(); i++) {
+        for (int i = 0; i < numIndirectBlocks; i++) {
+            final long currentBlockNum = minBlockNum + i;
+            final var indirectBlock = allPendingBlocks.get(currentBlockNum);
             // Convert first four sibling hashes
-            final var blockSiblings = Arrays.stream(
-                            indirectProofBlocks.get(currentBlockNum).siblingHashes())
+            final var blockSiblings = Arrays.stream(indirectBlock.siblingHashes())
                     .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
                     .toList();
+            // The fixed array layout below reserves exactly NUM_SIBLINGS_PER_BLOCK slots (plus one for the
+            // timestamp) per pending block. Fail fast if the actual count drifts from that assumption, rather than
+            // silently overwriting a neighboring slot and emitting a proof that only remote verifiers can reject.
+            if (blockSiblings.size() != BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK) {
+                throw new IllegalStateException(
+                        "Pending block #%d produced %d sibling hashes but exactly %d were expected"
+                                .formatted(
+                                        currentBlockNum,
+                                        blockSiblings.size(),
+                                        BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+            }
             // Copy into the sibling hashes array
             final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
             for (int j = 0; j < blockSiblings.size(); j++) {
@@ -122,28 +151,36 @@ public class BlockStateProofGenerator {
             }
 
             // Convert this pending block's timestamp into a sibling hash
-            final var pbTsBytes = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(
-                    indirectProofBlocks.get(currentBlockNum).blockTimestamp()));
+            final var pbTsBytes = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(indirectBlock.blockTimestamp()));
             // Add to the sibling hashes array
             final var pendingBlockTimestampSiblingIndex = firstSiblingIndex + UNSIGNED_BLOCK_SIBLING_COUNT - 1;
             // Timestamp is always a left sibling
             allSiblingHashes[pendingBlockTimestampSiblingIndex] =
                     SiblingNode.newBuilder().isLeft(true).hash(pbTsBytes).build();
-
-            currentBlockNum++;
         }
 
         // Merkle Path 2 Continued: add sibling hashes for the signed block
         // Note: the timestamp for this (signed) block was provided in Merkle Path 1 above
         final var signedBlock = allPendingBlocks.get(latestSignedBlockNumber);
         final var signedBlockSiblings = signedBlock.siblingHashes();
-        final var signedBlockFirstSiblingIndex = indirectProofBlocks.size() * UNSIGNED_BLOCK_SIBLING_COUNT;
+        if (signedBlockSiblings.length != SIGNED_BLOCK_SIBLING_COUNT) {
+            throw new IllegalStateException("Signed block #%d produced %d sibling hashes but exactly %d were expected"
+                    .formatted(latestSignedBlockNumber, signedBlockSiblings.length, SIGNED_BLOCK_SIBLING_COUNT));
+        }
+        final var signedBlockFirstSiblingIndex = numIndirectBlocks * UNSIGNED_BLOCK_SIBLING_COUNT;
         for (int i = 0; i < signedBlockSiblings.length; i++) {
             final var blockSibling = signedBlockSiblings[i];
             allSiblingHashes[signedBlockFirstSiblingIndex + i] = SiblingNode.newBuilder()
                     .isLeft(blockSibling.isFirst())
                     .hash(blockSibling.siblingHash())
                     .build();
+        }
+        // Defense-in-depth: every slot must have been populated by the loops above. A null here would otherwise be
+        // streamed into the proof and surface only as a downstream PBJ serialization NPE or an invalid Merkle path.
+        if (Arrays.stream(allSiblingHashes).anyMatch(Objects::isNull)) {
+            throw new IllegalStateException(
+                    "Assembled sibling hash array for indirect proof of block #%d contains unpopulated entries"
+                            .formatted(currentPendingBlock.number()));
         }
         mp2.siblings(Arrays.stream(allSiblingHashes).toList());
 
