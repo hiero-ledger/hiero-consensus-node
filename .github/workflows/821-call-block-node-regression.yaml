@@ -97,6 +97,7 @@ jobs:
           setup-node: "true"
           node-version: "22"
           setup-go: "true"
+          go-version: "1.26.4"
           setup-jq: "true"
 
       # Get version for the checked out hiero-consensus-node
