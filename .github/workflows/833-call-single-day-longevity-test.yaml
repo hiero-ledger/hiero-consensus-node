@@ -86,7 +86,7 @@ jobs:
     name: Acquire Kubernetes Resources
     uses: ./.github/workflows/834-call-read-chewie-response.yaml
     with:
-      ref: ${{ inputs.ref }}
+      ref: ${{ github.ref }}
       test-asset: ${{ inputs.test-asset }}
       test-type: "sdlt"
     secrets:
