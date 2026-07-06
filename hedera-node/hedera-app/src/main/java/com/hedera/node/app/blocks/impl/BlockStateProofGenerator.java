@@ -34,11 +34,17 @@ public class BlockStateProofGenerator {
     public static final int SIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK;
 
     /**
-     * Each block's state proof consists of exactly three Merkle paths: the timestamp of the signed block,
+     * Each block's state proof consists of exactly four Merkle paths: the timestamp of the signed block,
      * previous block's hash + sibling hashes forming the path to the right sibling of the timestamp of the
-     * signed block, and a trivial final parent path for the signed block's root
+     * signed block, the single-child internal node at the same level as the timestamp, and a trivial
+     * final parent path for the signed block's root
      */
-    public static final int EXPECTED_MERKLE_PATH_COUNT = 3;
+    public static final int EXPECTED_MERKLE_PATH_COUNT = 4;
+
+    /**
+     * Index to the Merkle path containing the consensus timestamp leaf of the signed block
+     */
+    public static final int TIMESTAMP_PATH_INDEX = 0;
 
     /**
      * Index to the Merkle path containing hashes from the previous block's root to the right sibling of the
@@ -47,14 +53,14 @@ public class BlockStateProofGenerator {
     public static final int BLOCK_CONTENTS_PATH_INDEX = 1;
 
     /**
-     * Index to the Merkle path containing the consensus timestamp leaf of the signed block
+     * Index to the Merkle path of the single child internal node at the same level of the consensus timestamp
      */
-    public static final int TIMESTAMP_PATH_INDEX = 0;
+    public static final int INTERNAL_NODE_PATH_INDEX = 2;
 
     /**
      * Index to the final Merkle path representing the root hash of the signed block
      */
-    public static final int FINAL_MERKLE_PATH_INDEX = 2;
+    public static final int FINAL_MERKLE_PATH_INDEX = 3;
 
     /**
      * Index indicating the end of the merkle path chain
@@ -102,7 +108,7 @@ public class BlockStateProofGenerator {
         // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
         MerklePath.Builder mp2 = MerklePath.newBuilder()
                 .hash(currentPendingBlock.previousBlockHash())
-                .nextPathIndex(TIMESTAMP_PATH_INDEX);
+                .nextPathIndex(INTERNAL_NODE_PATH_INDEX);
 
         // Create a set of siblings for each indirect block, plus another set for the signed block
         final var totalSiblings =
@@ -152,11 +158,14 @@ public class BlockStateProofGenerator {
         }
         mp2.siblings(Arrays.stream(allSiblingHashes).toList());
 
-        // Merkle Path 3: the parent/block root path
-        final var mp3 = MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX);
+        // Merkle Path 3: single-child internal node; nextPathIndex points to its parent (mp4/root)
+        final var mp3 = MerklePath.newBuilder().nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+
+        // Merkle Path 4: the parent/block root path
+        final var mp4 = MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX);
 
         return StateProof.newBuilder()
-                .paths(mp1.build(), mp2.build(), mp3.build())
+                .paths(mp1.build(), mp2.build(), mp3.build(), mp4.build())
                 .signedBlockProof(TssSignedBlockProof.newBuilder().blockSignature(latestSignedBlockSignature))
                 .build();
     }

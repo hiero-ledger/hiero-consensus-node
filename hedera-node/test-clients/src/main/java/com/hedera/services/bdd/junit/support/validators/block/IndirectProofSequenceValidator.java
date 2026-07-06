@@ -6,8 +6,8 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CON
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.INTERNAL_NODE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT;
-import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.TIMESTAMP_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -375,14 +375,19 @@ class IndirectProofSequenceValidator {
         }
 
         // Set the complete collection of siblings for the earliest unsigned block
-        earliestBlockMp2.siblings(Arrays.stream(allSiblingHashes).toList()).nextPathIndex(TIMESTAMP_PATH_INDEX);
+        earliestBlockMp2.siblings(Arrays.stream(allSiblingHashes).toList()).nextPathIndex(INTERNAL_NODE_PATH_INDEX);
 
-        // Merkle Path 3: the root path (same for all proofs), and has no data specific to any block
-        final var mp3 =
+        // Merkle Path 3: explicit single-child internal node; nextPathIndex points to its parent (mp4/root)
+        final var mp3Sc =
+                MerklePath.newBuilder().nextPathIndex(FINAL_MERKLE_PATH_INDEX).build();
+
+        // Merkle Path 4: the terminal path (same for all proofs), and has no data specific to any block
+        final var mp4 =
                 MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX).build();
 
         // We now have all sibling hashes needed for the earliest unsigned block's proof. Set the value in the map
-        fullMerklePathsByBlockNum.put(firstUnsignedBlockNum, new MerklePath[] {mp1, earliestBlockMp2.build(), mp3});
+        fullMerklePathsByBlockNum.put(
+                firstUnsignedBlockNum, new MerklePath[] {mp1, earliestBlockMp2.build(), mp3Sc, mp4});
 
         // Populate each remaining unsigned block's proof with the subset of needed sibling hashes
         for (long currUnsignedBlock = firstUnsignedBlockNum + 1;
@@ -403,10 +408,10 @@ class IndirectProofSequenceValidator {
             final var currentUnsignedBlockStartingHash = expectedPreviousBlockRootHashes.get(currUnsignedBlock);
             newMp2.hash(currentUnsignedBlockStartingHash)
                     .siblings(currUnsignedBlockSiblings)
-                    .nextPathIndex(TIMESTAMP_PATH_INDEX);
+                    .nextPathIndex(INTERNAL_NODE_PATH_INDEX);
 
             // Populate the map with the full merkle paths for this block number
-            fullMerklePathsByBlockNum.put(currUnsignedBlock, new MerklePath[] {mp1, newMp2.build(), mp3});
+            fullMerklePathsByBlockNum.put(currUnsignedBlock, new MerklePath[] {mp1, newMp2.build(), mp3Sc, mp4});
         }
 
         return fullMerklePathsByBlockNum;
@@ -481,7 +486,7 @@ class IndirectProofSequenceValidator {
                 "Expected %s merkle paths in state proof, but found %s"
                         .formatted(EXPECTED_MERKLE_PATH_COUNT, paths.size()));
 
-        // Verify the first and last paths (timestamp path and final root path), they're easier to check
+        // Verify the timestamp path (mp1), single-child path (mp3), and terminal path (mp4)
         final var mp1 = paths.getFirst();
         assertTrue(
                 mp1.hasTimestampLeaf(),
@@ -490,15 +495,23 @@ class IndirectProofSequenceValidator {
         assertEquals(
                 FINAL_MERKLE_PATH_INDEX, mp1.nextPathIndex(), "Mismatch in next path index of timestamp merkle path");
 
-        final var mp3 = paths.getLast();
-        assertFalse(mp3.hasHash(), "Expected no previousBlockHash in parent root path");
-        assertFalse(mp3.hasTimestampLeaf(), "Expected no leaf in parent root path");
+        final var mp3Sc = paths.get(INTERNAL_NODE_PATH_INDEX);
+        assertFalse(mp3Sc.hasHash(), "Expected no hash in single-child internal node path");
+        assertFalse(mp3Sc.hasTimestampLeaf(), "Expected no leaf in single-child internal node path");
+        assertTrue(mp3Sc.siblings().isEmpty(), "Expected no siblings in single-child internal node path");
+        assertEquals(FINAL_MERKLE_PATH_INDEX, mp3Sc.nextPathIndex(), "Expected SC path to point to parent root path");
+
+        final var mp4 = paths.getLast();
+        assertFalse(mp4.hasHash(), "Expected no previousBlockHash in terminal root path");
+        assertFalse(mp4.hasTimestampLeaf(), "Expected no leaf in terminal root path");
 
         // Verify merkle path 2 and compute the block contents hash
         final var mp2 = paths.get(BLOCK_CONTENTS_PATH_INDEX);
         assertFalse(mp2.hasTimestampLeaf(), "Expected no leaf in block contents Merkle path");
         assertEquals(
-                TIMESTAMP_PATH_INDEX, mp2.nextPathIndex(), "Mismatch in next path index of block contents merkle path");
+                INTERNAL_NODE_PATH_INDEX,
+                mp2.nextPathIndex(),
+                "Mismatch in next path index of block contents merkle path");
 
         // Combine all the sibling hashes to compute the block contents hash
         final var allSiblings = mp2.siblings();
@@ -736,7 +749,7 @@ class IndirectProofSequenceValidator {
                     .blockStateProof(StateProof.newBuilder()
                             .paths(List.of(
                                     MerklePath.newBuilder()
-                                            .nextPathIndex(2)
+                                            .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
                                             .timestampLeaf(BLOCK_10.timestampBytes())
                                             .build(),
                                     MerklePath.newBuilder()
@@ -777,9 +790,14 @@ class IndirectProofSequenceValidator {
                                                             .isLeft(false)
                                                             .hash(BLOCK_10.siblings[2].siblingHash())
                                                             .build()))
-                                            .nextPathIndex(TIMESTAMP_PATH_INDEX)
+                                            .nextPathIndex(INTERNAL_NODE_PATH_INDEX)
                                             .build(),
-                                    MerklePath.newBuilder().nextPathIndex(-1).build()))
+                                    MerklePath.newBuilder()
+                                            .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
+                                            .build(),
+                                    MerklePath.newBuilder()
+                                            .nextPathIndex(FINAL_NEXT_PATH_INDEX)
+                                            .build()))
                             .signedBlockProof(BLOCK_10.proof.signedBlockProof()))
                     .build();
 
@@ -833,7 +851,7 @@ class IndirectProofSequenceValidator {
                     .blockStateProof(StateProof.newBuilder()
                             .paths(List.of(
                                     MerklePath.newBuilder()
-                                            .nextPathIndex(2)
+                                            .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
                                             .timestampLeaf(BLOCK_10.timestampBytes())
                                             .build(),
                                     MerklePath.newBuilder()
@@ -894,9 +912,14 @@ class IndirectProofSequenceValidator {
                                                             .isLeft(false)
                                                             .hash(BLOCK_10.siblings[2].siblingHash())
                                                             .build()))
-                                            .nextPathIndex(TIMESTAMP_PATH_INDEX)
+                                            .nextPathIndex(INTERNAL_NODE_PATH_INDEX)
                                             .build(),
-                                    MerklePath.newBuilder().nextPathIndex(-1).build()))
+                                    MerklePath.newBuilder()
+                                            .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
+                                            .build(),
+                                    MerklePath.newBuilder()
+                                            .nextPathIndex(FINAL_NEXT_PATH_INDEX)
+                                            .build()))
                             .signedBlockProof(BLOCK_10.proof.signedBlockProof()))
                     .build();
 

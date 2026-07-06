@@ -1,6 +1,6 @@
 {
   "paths": [{
-    "nextPathIndex": 2,
+    "nextPathIndex": 3,
     "timestampLeaf": "CLDF9soGEPDQgrgD"
   }, {
     "siblings": [{
@@ -37,7 +37,10 @@
     }, {
       "hash": "6YOxpdswmQwQoVLCZj8cHLWapR/HA+CFwZ/YbPwzK3JhKfCtReOjAqJCuAHmmAUX"
     }],
+    "nextPathIndex": 2,
     "hash": "ahOe8gN58oNlZ9ujl4qQPznwhcLb8lm3vpfBAawc9BWVgxhG9M/E9TEcg4IC8Q13"
+  }, {
+    "nextPathIndex": 3
   }, {
     "nextPathIndex": -1
   }],

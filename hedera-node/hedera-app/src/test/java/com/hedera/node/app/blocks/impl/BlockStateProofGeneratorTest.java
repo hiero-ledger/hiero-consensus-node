@@ -6,6 +6,7 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CON
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.INTERNAL_NODE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -133,14 +134,20 @@ class BlockStateProofGeneratorTest {
      * starting from the path whose {@code hash} matches {@code startHash}, and returns the
      * recomputed root hash of the signed block.
      *
-     * <p>The traversal rules per path are:
+     * <p>Each path's {@code nextPathIndex} is a <em>parent pointer</em>. The traversal moves up
+     * toward the root, and at each step checks for sibling paths — other unvisited paths whose
+     * {@code nextPathIndex} also points to the same parent. Any such sibling is incorporated
+     * into the running hash before moving up.
+     *
+     * <p>Per-path rules:
      * <ul>
-     *   <li>Timestamp leaf path: {@code hashInternalNode(hashLeaf(timestamp), current)}</li>
+     *   <li>Timestamp leaf: {@code hashInternalNode(hashLeaf(timestamp), current)}</li>
      *   <li>Sibling path: combine each sibling using {@code hashInternalNode}, applying
      *       {@code hashInternalNodeSingleChild} at every {@link BlockStateProofGenerator#UNSIGNED_BLOCK_SIBLING_COUNT}
-     *       boundary and once more after all siblings (accounts for single-child nodes in the
-     *       block Merkle tree).</li>
-     *   <li>Empty path (terminal): no-op.</li>
+     *       boundary.</li>
+     *   <li>Empty path with {@code nextPathIndex >= 0}: explicit single-child internal node —
+     *       {@code hashInternalNodeSingleChild(current)}.</li>
+     *   <li>Empty path with {@code nextPathIndex < 0}: terminal no-op, loop exits.</li>
      * </ul>
      */
     private Bytes traverseStateProof(final StateProof stateProof, final Bytes startHash) {
@@ -167,10 +174,13 @@ class BlockStateProofGeneratorTest {
                     .as("Cycle detected at path index %d", currentIndex)
                     .isTrue();
             final var path = paths.get(currentIndex);
+            final int nextIndex = path.nextPathIndex();
+
+            // Process the current path
             if (path.hasTimestampLeaf()) {
                 final var hashedTs = BlockImplUtils.hashLeaf(path.timestampLeafOrThrow());
                 current = BlockImplUtils.hashInternalNode(hashedTs, current);
-            } else {
+            } else if (!path.siblings().isEmpty()) {
                 var sibCounter = 0;
                 for (final SiblingNode sibling : path.siblings()) {
                     sibCounter++;
@@ -185,12 +195,26 @@ class BlockStateProofGeneratorTest {
                         current = BlockImplUtils.hashInternalNode(current, sibling.hash());
                     }
                 }
-                // Final single-child node after the signed block's siblings
-                if (!path.siblings().isEmpty()) {
-                    current = BlockImplUtils.hashInternalNodeSingleChild(current);
+            } else if (nextIndex >= 0) {
+                // Empty path with a valid next index: explicit single-child internal node step
+                current = BlockImplUtils.hashInternalNodeSingleChild(current);
+            }
+            // else: terminal empty path (nextPathIndex < 0) — no-op
+
+            // Incorporate any sibling paths that share the same parent (nextIndex).
+            // These are unvisited paths whose nextPathIndex == nextIndex.
+            for (int i = 0; i < paths.size(); i++) {
+                if (!visited.contains(i) && paths.get(i).nextPathIndex() == nextIndex) {
+                    visited.add(i);
+                    final var sibling = paths.get(i);
+                    if (sibling.hasTimestampLeaf()) {
+                        final var hashedTs = BlockImplUtils.hashLeaf(sibling.timestampLeafOrThrow());
+                        current = BlockImplUtils.hashInternalNode(hashedTs, current);
+                    }
                 }
             }
-            currentIndex = path.nextPathIndex();
+
+            currentIndex = nextIndex;
         }
 
         return current;
@@ -290,13 +314,15 @@ class BlockStateProofGeneratorTest {
         Assertions.assertThat(expectedIndirectProofs.size()).isEqualTo((int) (max - min) + 1);
         final var expectedSignedTs = EXPECTED_BLOCK_TIMESTAMPS.get(MAX_BLOCK_NUM);
 
-        // Merkle paths 1 and 3 are constant for all proofs, so pre-build them
+        // Merkle paths 1, 3, and 4 are constant for all proofs, so pre-build them
         final var expectedSignedTsBytes = Timestamp.PROTOBUF.toBytes(expectedSignedTs);
         final var expectedMp1 = MerklePath.newBuilder()
                 .timestampLeaf(expectedSignedTsBytes)
                 .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
                 .build();
         final var expectedMp3 =
+                MerklePath.newBuilder().nextPathIndex(FINAL_MERKLE_PATH_INDEX).build();
+        final var expectedMp4 =
                 MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX).build();
         final var expectedFinalBlockHash = EXPECTED_BLOCK_HASHES.get(MAX_BLOCK_NUM);
 
@@ -352,8 +378,10 @@ class BlockStateProofGeneratorTest {
             System.out.println("Verified merkle path two for block " + outerCurrentBlockNum
                     + " produces expected signed block hash " + expectedFinalBlockHash);
 
-            // Verify mp3
-            Assertions.assertThat(paths.getLast()).isEqualTo(expectedMp3);
+            // Verify mp3 (single-child internal node path)
+            Assertions.assertThat(paths.get(INTERNAL_NODE_PATH_INDEX)).isEqualTo(expectedMp3);
+            // Verify mp4 (terminal path)
+            Assertions.assertThat(paths.getLast()).isEqualTo(expectedMp4);
 
             System.out.println("Finished verifying loaded state proof file for block " + outerCurrentBlockNum);
         }
