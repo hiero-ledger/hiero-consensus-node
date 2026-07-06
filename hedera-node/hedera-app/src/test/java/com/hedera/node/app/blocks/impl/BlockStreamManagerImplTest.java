@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -58,6 +59,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -68,6 +70,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
@@ -84,6 +87,7 @@ import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -298,6 +302,66 @@ class BlockStreamManagerImplTest {
         assertSame(EPOCH, subject.lastTopLevelConsensusTime());
         subject.setLastTopLevelTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastTopLevelConsensusTime());
+    }
+
+    @Test
+    void recoversAllOnDiskPendingBlocksWhenNoneFail() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                streamingObs);
+
+        final var recovered = subject.recoverableSuffixOf(
+                List.of(onDiskPendingBlock(100L), onDiskPendingBlock(101L), onDiskPendingBlock(102L)));
+
+        assertEquals(
+                List.of(100L, 101L, 102L),
+                recovered.stream().map(PendingBlock::number).toList());
+    }
+
+    @Test
+    void recoversOnlyContiguousSuffixWhenAnOnDiskPendingBlockFailsToRecover() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                streamingObs);
+        // Block #101 fails to be re-created, so #100 must be discarded as well or the pending block queue would
+        // have a gap that breaks indirect proof generation; only the contiguous suffix [#102, #103] is provable
+        doNothing().when(aWriter).openBlock(anyLong());
+        doThrow(new IllegalStateException("disk failure")).when(aWriter).openBlock(101L);
+
+        final var recovered = subject.recoverableSuffixOf(List.of(
+                onDiskPendingBlock(100L),
+                onDiskPendingBlock(101L),
+                onDiskPendingBlock(102L),
+                onDiskPendingBlock(103L)));
+
+        assertEquals(
+                List.of(102L, 103L),
+                recovered.stream().map(PendingBlock::number).toList());
+        verify(aWriter, never()).openBlock(100L);
     }
 
     @Test
@@ -1890,6 +1954,19 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(roundNum);
         lenient().when(round.iterator()).thenReturn(new Arrays.Iterator<>(new ConsensusEvent[] {mockEvent}));
         lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
+    }
+
+    private static OnDiskPendingBlock onDiskPendingBlock(final long number) {
+        return new OnDiskPendingBlock(
+                List.of(),
+                PendingProof.newBuilder()
+                        .block(number)
+                        .blockHash(FAKE_RESTART_BLOCK_HASH)
+                        .previousBlockHash(NONZERO_PREV_BLOCK_HASH)
+                        .blockTimestamp(CONSENSUS_THEN)
+                        .build(),
+                Path.of(number + ".pnd.json"),
+                Path.of(number + ".pnd"));
     }
 
     private static Bytes leafHashOfItem(@NonNull final BlockItem item) {

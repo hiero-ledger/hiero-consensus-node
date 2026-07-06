@@ -81,6 +81,56 @@ class BlockStateProofGeneratorTest {
         }
     }
 
+    @Test
+    void gapInPendingBlocksThrowsNamingTheMissingBlock() {
+        final var current = fakePendingBlock(100L);
+        final var remaining = List.of(fakePendingBlock(102L), fakePendingBlock(103L));
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 103L, FINAL_SIGNATURE, Timestamp.DEFAULT, remaining.stream()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #101 is missing");
+    }
+
+    @Test
+    void missingSignedBlockThrowsNamingTheMissingBlock() {
+        final var current = fakePendingBlock(100L);
+        final var remaining = List.of(fakePendingBlock(101L));
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 102L, FINAL_SIGNATURE, Timestamp.DEFAULT, remaining.stream()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #102 is missing");
+    }
+
+    @Test
+    void signedBlockNotAfterCurrentBlockThrows() {
+        final var current = fakePendingBlock(100L);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 100L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.empty()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("#100");
+    }
+
+    @Test
+    void duplicatePendingBlockNumberThrows() {
+        final var current = fakePendingBlock(100L);
+        final var remaining = List.of(fakePendingBlock(101L), fakePendingBlock(101L));
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 101L, FINAL_SIGNATURE, Timestamp.DEFAULT, remaining.stream()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate pending block #101");
+    }
+
+    private static PendingBlock fakePendingBlock(final long number) {
+        return new PendingBlock(
+                number,
+                null,
+                Bytes.EMPTY,
+                Bytes.EMPTY,
+                BlockProof.newBuilder().block(number),
+                new NoOpTestWriter(),
+                Timestamp.DEFAULT);
+    }
+
     /**
      * Precondition-checking method that verifies the pending blocks on disk match expectations.
      * @param pendingBlocks the loaded pending blocks
