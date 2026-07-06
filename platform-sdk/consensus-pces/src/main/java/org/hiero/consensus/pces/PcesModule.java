@@ -19,7 +19,6 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
@@ -40,7 +39,7 @@ public interface PcesModule {
      * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
      * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
-     * @param latestImmutableStateSupplier a supplier of the latest immutable state
+     * @param replayProgressSupplier a supplier that returns the current replay progress
      * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
      * @param platformStatusFlusher a {@link Runnable} that triggers flushing of the platform status
      * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete
@@ -56,7 +55,7 @@ public interface PcesModule {
             @NonNull FileSystemManager fileSystemManager,
             long startingRound,
             @NonNull Runnable flushPrimaryPipeline,
-            @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull Runnable platformStatusFlusher,
             @NonNull Runnable signalEndOfPcesReplay,
