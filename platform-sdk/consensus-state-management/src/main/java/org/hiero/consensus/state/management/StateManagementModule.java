@@ -51,10 +51,9 @@ import org.hiero.consensus.state.signed.StateWithHashComplexity;
  */
 public class StateManagementModule {
 
-    private WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
+    private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
-    private final ComponentWiring<HashLogger, Void> hashLoggerWiring;
 
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
@@ -105,7 +104,8 @@ public class StateManagementModule {
                 StateHasher.class,
                 wiringConfig.stateHasher(),
                 data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1);
-        this.hashLoggerWiring = new ComponentWiring<>(model, HashLogger.class, wiringConfig.hashLogger());
+        final ComponentWiring<HashLogger, Void> hashLoggerWiring =
+                new ComponentWiring<>(model, HashLogger.class, wiringConfig.hashLogger());
         this.stateSignerWiring = new ComponentWiring<>(model, StateSigner.class, wiringConfig.stateSigner());
         this.stateSignatureCollectorWiring =
                 new ComponentWiring<>(model, StateSignatureCollector.class, wiringConfig.stateSignatureCollector());
@@ -213,7 +213,7 @@ public class StateManagementModule {
      * Get the input wire for hashed states for further processing
      * (used during initialization and reconnect).
      *
-     * @return the input wire for hashes states to log
+     * @return the input wire for hashed states
      */
     @InputWireLabel("hashed states")
     @NonNull
@@ -229,7 +229,7 @@ public class StateManagementModule {
     @InputWireLabel("preconsensus state signatures")
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
-            preconsensusSystemTranscationsInputWire() {
+            preconsensusSystemTransactionsInputWire() {
         return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePreconsensusSignatures);
     }
 

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.validators;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_DELEGATING_SPENDER;
@@ -193,8 +194,7 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
 
             // If a spender has been given approveForAll privileges, then it has the same privileges as owner of NFT.
             // But, the spender is not allowed to grant approveForAll privileges to anyone else.
-            if (allowance.hasDelegatingSpender()
-                    && allowance.delegatingSpenderOrThrow().accountNumOrThrow() != 0) {
+            if (isDelegatingSpenderPresent(allowance)) {
 
                 // validate delegating spender
                 getIfUsable(
@@ -216,6 +216,10 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
                 validateTrue(
                         effectiveOwner.approveForAllNftAllowances().contains(approveForAllKey),
                         DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL);
+                // A delegated allowance exists solely to sub-delegate specific serials on the owner's behalf; it must
+                // never modify the owner's approveForAll grants. With no serials it can accomplish nothing, so reject
+                // it rather than silently accepting a no-op (this was the shape of the approveForAll-revocation bug).
+                validateFalse(serialNums.isEmpty(), EMPTY_ALLOWANCES);
             }
 
             validateSerialNums(serialNums, tokenId, uniqueTokenStore);

@@ -4,11 +4,11 @@ import org.hiero.consensus.state.management.config.StateManagementConfigurationE
 
 module org.hiero.consensus.state.management {
     exports org.hiero.consensus.state.management.config;
+    exports org.hiero.consensus.state.management;
     exports org.hiero.consensus.state.management.persistence to
             com.swirlds.platform.core,
             org.hiero.consensus.reconnect.impl,
             org.hiero.consensus.pcli;
-    exports org.hiero.consensus.state.management;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -31,10 +31,6 @@ module org.hiero.consensus.state.management {
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
-    requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
 
     provides ConfigurationExtension with
