@@ -118,7 +118,7 @@ a dependency on it.
   |----------------------------------------------------------|----------------------------------------|--------------------|---------|
   | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done    |
   | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
-  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | pending |
+  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | done    |
   | Sync                                                     | `consensus-gossip-impl`                | #24843             | done    |
   | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | pending |
   | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending |
@@ -256,8 +256,10 @@ See **Decision** above.
   implementation followed: PR #24937 (2026-04-16) added the counter and renamed
   the consensus-side `sequence` to `consensusSequence`; PR #24991 (2026-04-30)
   migrated the tipset. Sync (#24843) migrated the send-list sort to the sequence
-  number. Consensus (#24844), `cGen` (#24883), tools (#24885), and the final
-  `nGen` removal (#24846) remain open at the time of writing.
+  number. Consensus (#24844) migrated the algorithm's ordering key
+  (`consensusRelevantSeqNum`, `RoundElections.minSeqNum`,
+  `isOlderThanDecidedRoundSeqNum`). `cGen` (#24883), tools (#24885), and the
+  final `nGen` removal (#24846) remain open at the time of writing.
 - This entry fulfills #25482 ("Create ADR for replacing nGen with sequence
   number"). It supersedes an earlier draft scoped to event creation only; the
   scope was broadened to the full `nGen` removal.
