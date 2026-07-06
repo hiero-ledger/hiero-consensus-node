@@ -132,8 +132,8 @@ Per-component `TaskSchedulerConfiguration` values that shape the platform wiring
 | TUN-044 | `platformSchedulers.branchReporter`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch reporter.                    |       | —         |
 
 **Retired.** TUN-024, TUN-025, TUN-029, TUN-033, TUN-034 moved out of this record to
-[`state.wiring.*` — StateManagementWiringConfig](#statemanagementwiring---statemanagementwiringconfig)
-(now TUN-192…TUN-196) when the state-management schedulers were extracted into `consensus-state-management`. IDs retired, not reused.
+[`state.wiring.*` — StateWiringConfig](#statewiring---statewiringconfig)
+(now TUN-192…TUN-196) when the state-management schedulers were extracted into `consensus-state`. IDs retired, not reused.
 
 ## `os.health.*` — OSHealthCheckConfig
 
@@ -262,9 +262,9 @@ Shares the `state.*` prefix with [StateCommonConfig](#state---statecommonconfig)
 | TUN-098 | `state.validateInitialState`          | boolean  | `true`  | If false, skip ISS validation on the state loaded from disk at startup (test-only).                                                           |       | —         |
 | TUN-099 | `state.periodicSnapshotsEnabled`      | boolean  | `true`  | Create periodic snapshots of the signed state.                                                                                                |       | —         |
 
-## `state.wiring.*` — StateManagementWiringConfig
+## `state.wiring.*` — StateWiringConfig
 
-Module: `consensus-state-management`. Source: [StateManagementWiringConfig.java](../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/config/StateManagementWiringConfig.java).
+Module: `consensus-state`. Source: [StateWiringConfig.java](../../consensus-state/src/main/java/org/hiero/consensus/state/config/StateWiringConfig.java).
 
 Per-component `TaskSchedulerConfiguration` values for the state-management pipeline. These schedulers were extracted from [PlatformSchedulersConfig](#platformschedulers---platformschedulersconfig) (retired TUN-024, TUN-025, TUN-029, TUN-033, TUN-034); defaults are unchanged.
 
