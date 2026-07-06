@@ -47,14 +47,14 @@ import picocli.CommandLine;
  *
  * <h2>Purpose</h2>
  * <p>When debugging or testing consensus behavior, it's often useful to take a specific section of
- * an existing event graph (e.g., events from a certain birth round or ngen onwards) and replay it in isolation.
+ * an existing event graph (e.g., events from a certain birth round or sequence number onwards) and replay it in isolation.
  * However, events in the middle of a graph have birth rounds and parent references that assume
  * the existence of earlier events. This tool extracts a slice of the graph and transforms it to
  * be self-contained and replayable from genesis.
  *
  * <h2>Transformations Applied</h2>
  * <ul>
- *   <li><b>Filtering:</b> Events are filtered by birth round or ngen (with the ability to determine individual values per creator) to extract only the portion of the
+ *   <li><b>Filtering:</b> Events are filtered by birth round or sequence number (with the ability to determine individual values per creator) to extract only the portion of the
  *       graph that is of interest.</li>
  *   <li><b>Birth round adjustment:</b> Birth rounds are modified (offset to start from 1) so the
  *       sliced graph appears to start from genesis.</li>
@@ -79,7 +79,7 @@ import picocli.CommandLine;
         name = "slice",
         mixinStandardHelpOptions = true,
         description = "Extract a section of an event graph from PCES files and transform it to be "
-                + "replayable from genesis. Events are filtered by birth round or ngen for each creator, birth rounds are "
+                + "replayable from genesis. Events are filtered by birth round or sequence number for each creator, birth rounds are "
                 + "adjusted, and all events are re-hashed and re-signed with newly generated keys.")
 @SubcommandOf(PcesCommand.class)
 public class PcesSliceCommand extends AbstractCommand {
@@ -107,11 +107,11 @@ public class PcesSliceCommand extends AbstractCommand {
     private List<String> nodeMinBirthRoundRaw = new ArrayList<>();
 
     @CommandLine.Option(
-            names = {"--node-min-ngen"},
+            names = {"--node-min-seq-num"},
             split = ",",
-            description = "Per-node minimum ngen filter. Format: nodeId:value,nodeId:value (e.g., 0:150,1:200). "
-                    + "Events from the specified node with lower ngen are excluded.")
-    private List<String> nodeMinNgenRaw = new ArrayList<>();
+            description = "Per-node minimum sequence number filter. Format: nodeId:value,nodeId:value (e.g., 0:150,1:200). "
+                    + "Events from the specified node with lower sequence number are excluded.")
+    private List<String> nodeMinSeqNumRaw = new ArrayList<>();
 
     @CommandLine.Parameters(index = "0", description = "The input directory containing PCES files to slice.")
     private void setInputDirectory(final Path inputDirectory) {
@@ -196,8 +196,8 @@ public class PcesSliceCommand extends AbstractCommand {
             final var parsed = parseNodeFilter(filter, "--node-min-birth-round");
             nodeMinBirthRound.put(parsed.nodeId, parsed.value);
         }
-        for (final String filter : nodeMinNgenRaw) {
-            final var parsed = parseNodeFilter(filter, "--node-min-ngen");
+        for (final String filter : nodeMinSeqNumRaw) {
+            final var parsed = parseNodeFilter(filter, "--node-min-seq-num");
             nodeMinSeqNum.put(parsed.nodeId, parsed.value);
         }
 
@@ -219,7 +219,7 @@ public class PcesSliceCommand extends AbstractCommand {
             nodeMinBirthRound.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
         }
         if (!nodeMinSeqNum.isEmpty()) {
-            System.out.println("Per-node min ngen filters:");
+            System.out.println("Per-node min sequence number filters:");
             nodeMinSeqNum.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
         }
 

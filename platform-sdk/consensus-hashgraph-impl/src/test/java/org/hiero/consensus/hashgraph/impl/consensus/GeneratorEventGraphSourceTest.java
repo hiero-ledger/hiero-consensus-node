@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -340,8 +340,8 @@ class GeneratorEventGraphSourceTest {
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("populateNgen sets ngen on generated events")
-    void populateNgenEnabled() {
+    @DisplayName("populateSequenceNumber sets sequence number on generated events")
+    void populateSequenceNumberEnabled() {
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
                 .seed(0L)
@@ -357,27 +357,20 @@ class GeneratorEventGraphSourceTest {
             assertTrue(event.getSequenceNumber() >= 1, "sequence number should be at least 1");
         }
 
-        // Verify that ngen actually advances beyond FIRST_GENERATION
-        final long maxNGen = events.stream()
-                .mapToLong(PlatformEvent::getSequenceNumber)
-                .max()
-                .orElse(0);
-        assertTrue(maxNGen > 1, "sequence number should advance beyond 1");
-
-        // Verify that sequence number actually advances beyond UNASSIGNED_SEQUENCE_NUMBER
+        // Verify that sequence number actually advances beyond SEQUENCE_NUMBER_UNDEFINED
         final long maxSeqNum = events.stream()
                 .mapToLong(PlatformEvent::getSequenceNumber)
                 .max()
                 .orElse(0);
         assertTrue(
-                maxSeqNum > UNASSIGNED_SEQUENCE_NUMBER,
-                "sequence number should advance beyond UNASSIGNED_SEQUENCE_NUMBER");
+                maxSeqNum > SEQUENCE_NUMBER_UNDEFINED,
+                "sequence number should advance beyond SEQUENCE_NUMBER_UNDEFINED");
     }
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("Events do not have ngen or sequence number set when populateNgen is disabled")
-    void populateNgenDisabled() {
+    @DisplayName("Events do not have sequence number set when populateSequenceNumber is disabled")
+    void populateSequenceNumberDisabled() {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
 

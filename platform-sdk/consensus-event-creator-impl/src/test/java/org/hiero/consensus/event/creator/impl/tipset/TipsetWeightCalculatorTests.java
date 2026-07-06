@@ -52,14 +52,14 @@ class TipsetWeightCalculatorTests {
      *
      * @param random the random instance to use
      * @param creator the creator of the event
-     * @param nGen    the non-deterministic generation of the event
+     * @param seqNum the sequence number of the event
      * @return the event
      */
     private static PlatformEvent newEvent(
-            @NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
+            @NonNull final Random random, @NonNull final NodeId creator, final long seqNum) {
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumber(nGen)
+                .setSequenceNumber(seqNum)
                 .setBirthRound(ROUND_FIRST)
                 .build();
     }
@@ -70,17 +70,17 @@ class TipsetWeightCalculatorTests {
      * The generation given to the events will be max(selfparent#generation, otherParents#generation) + 1.
      *
      * @param random the random instance to use
-     * @param nGen    the non-deterministic generation of the event
+     * @param seqNum the sequence number of the event
      * @param selfParent the self parent
      * @param otherParents all the other parents for the new event
      * @return the event
      */
     private static PlatformEvent newEvent(
             @NonNull final Random random,
-            final long nGen,
+            final long seqNum,
             @NonNull final PlatformEvent selfParent,
             @NonNull final List<PlatformEvent> otherParents) {
-        return newEvent(random, nGen, selfParent, otherParents, ROUND_FIRST);
+        return newEvent(random, seqNum, selfParent, otherParents, ROUND_FIRST);
     }
 
     /**
@@ -88,7 +88,7 @@ class TipsetWeightCalculatorTests {
      * The generation given to the events will be max(selfparent#generation, otherParents#generation) + 1.
      *
      * @param random the random instance to use
-     * @param nGen    the non-deterministic generation of the event
+     * @param seqNum the sequence number of the event
      * @param selfParent the self-parent
      * @param otherParents all the other parents for the new event
      * @param birthRound the birthRound to assign to the event
@@ -96,13 +96,13 @@ class TipsetWeightCalculatorTests {
      */
     private static PlatformEvent newEvent(
             @NonNull final Random random,
-            final long nGen,
+            final long seqNum,
             @NonNull final PlatformEvent selfParent,
             @NonNull final List<PlatformEvent> otherParents,
             final long birthRound) {
         return new TestingEventBuilder(random)
                 .setCreatorId(selfParent.getCreatorId())
-                .setSequenceNumber(nGen)
+                .setSequenceNumber(seqNum)
                 .setSelfParent(selfParent)
                 .setOtherParents(otherParents)
                 .setBirthRound(birthRound)

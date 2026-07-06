@@ -33,9 +33,9 @@ class ChildlessEventTrackerTests {
         // Add some events with no parents
         loadTrackerWithInitialEvents(random, tracker, numNodes);
 
-        // Increase generation. Each creator will create a new event with a higher
-        // non-deterministic generation and unknown parents. Only the new events should
-        // be tracked because they have a higher nGen.
+        // Increase the sequence number. Each creator will create a new event with a higher
+        // sequence number and unknown parents. Only the new events should
+        // be tracked because they have a higher sequence number.
         final List<PlatformEvent> batch2 = new ArrayList<>();
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
@@ -98,9 +98,9 @@ class ChildlessEventTrackerTests {
 
         final Collection<PlatformEvent> childlessEvents = new ArrayList<>(tracker.getChildlessEvents());
 
-        // Create events with a lower generation for all nodes. Each creator will create a new event,
-        // with a lower non-deterministic generation. None of these events should
-        // be tracked because they have a lower nGen.
+        // Create events with a lower sequence number for all nodes. Each creator will create a new event,
+        // with a lower sequence number. None of these events should
+        // be tracked because they have a lower sequence number.
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId parent1 = NodeId.of(nodeId);
             final PlatformEvent parentEvent1 =

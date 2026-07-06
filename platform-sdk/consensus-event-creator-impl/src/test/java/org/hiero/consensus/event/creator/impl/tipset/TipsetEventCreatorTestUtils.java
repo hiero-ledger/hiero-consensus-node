@@ -137,7 +137,7 @@ public class TipsetEventCreatorTestUtils {
      * <li>if it has a null self-parent, is only during genesis scenario</li>
      * <li>if it has a null other-parent, is only during genesis scenario</li>
      * <li> the event is contained in allEvents</li>
-     * <li> NGen should be max of parents plus one</li>
+     * <li> The sequence number should be max of parents plus one</li>
      * <li> Parent's birthround or generation is never higher than event's.</li>
      * <li> There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)</li>
      * <li> Except for genesis scenario, new event must have a positive advancement score.</li>
@@ -319,7 +319,7 @@ public class TipsetEventCreatorTestUtils {
     public static PlatformEvent createTestEventWithParent(
             @NonNull final Random random,
             @Nullable final NodeId creator,
-            final long nGen,
+            final long seqNum,
             final long birthRound,
             PlatformEvent otherParent) {
 
@@ -328,7 +328,7 @@ public class TipsetEventCreatorTestUtils {
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumber(nGen)
+                .setSequenceNumber(seqNum)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)

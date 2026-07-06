@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -9,7 +11,6 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A {@link HashgraphGuiSource} that wraps another source but caches the results until {@link #refresh()} is called
@@ -49,7 +50,7 @@ public class CachingGuiSource implements HashgraphGuiSource {
 
     @Override
     public boolean isReady() {
-        return events != null && roster != null && maxSequenceNumber != PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+        return events != null && roster != null && maxSequenceNumber != SEQUENCE_NUMBER_UNDEFINED;
     }
 
     /**

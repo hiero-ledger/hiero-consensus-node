@@ -243,50 +243,6 @@ class OrphanBufferTests {
     }
 
     @Test
-    @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
-    void topologicalOrderByNGen() {
-        final Metrics metrics = new NoOpMetrics();
-        final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
-
-        final List<PlatformEvent> emittedEvents = new ArrayList<>();
-        for (final PlatformEvent intakeEvent : intakeEvents) {
-            final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
-            assertValidSequenceNumber(unorphanedEvents);
-            emittedEvents.addAll(unorphanedEvents);
-        }
-
-        // The orphan buffer should be empty now, since the event window was never shifted and all events were sent.
-        assertThat(orphanBuffer.getCurrentOrphanCount()).isEqualTo(0);
-        assertThat(emittedEvents.size()).isEqualTo(intakeEvents.size());
-
-        // Verify that when nGen is assigned such that children always have higher values than parents by
-        // shuffling the list, then sorting by ngen and checking that parents are always before children.
-        Collections.shuffle(emittedEvents, random);
-        emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getSequenceNumber));
-
-        final Set<Hash> parentHashes = new HashSet<>();
-        for (final PlatformEvent event : emittedEvents) {
-            if (event.getAllParents().isEmpty()) {
-                parentHashes.add(event.getHash());
-            } else {
-                for (final EventDescriptorWrapper parentDescriptor : event.getAllParents()) {
-                    // In this test, the event window is never advanced, so no events are discarded as ancient.
-                    // Every event sent to the orphan buffer should have been returned, therefore an event's parents
-                    // should always be encountered before the child.
-                    assertThat(parentHashes)
-                            .withFailMessage(
-                                    "Parent event {} was not before the child, indicating that child {} does not have a higher sequence number.",
-                                    Mnemonics.generateMnemonic(parentDescriptor.hash()),
-                                    Mnemonics.generateMnemonic(event.getHash()))
-                            .contains(parentDescriptor.hash());
-                }
-                parentHashes.add(event.getHash());
-            }
-        }
-    }
-
-    @Test
     @DisplayName("Test that events sorted by sequence number result in a valid topological ordering")
     void topologicalOrderBySequenceNumber() {
         final Metrics metrics = new NoOpMetrics();
@@ -305,7 +261,7 @@ class OrphanBufferTests {
         assertThat(emittedEvents.size()).isEqualTo(intakeEvents.size());
 
         // Verify that when sequence number is assigned such that children always have higher values than parents by
-        // shuffling the list, then sorting by ngen and checking that parents are always before children.
+        // shuffling the list, then sorting by sequence number and checking that parents are always before children.
         Collections.shuffle(emittedEvents, random);
         emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getSequenceNumber));
 
@@ -367,9 +323,9 @@ class OrphanBufferTests {
         }
     }
 
-    @DisplayName("Verify the assignment of nGen for genesis events")
+    @DisplayName("Verify the assignment of the sequence number for genesis events")
     @Test
-    void testNGenValueForGenesisEvent() {
+    void testSequenceNumberValueForGenesisEvent() {
         final PlatformEvent genesisEvent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
 
@@ -381,13 +337,13 @@ class OrphanBufferTests {
                 .withFailMessage("One event was added, and one event should be returned.")
                 .isEqualTo(1);
         assertThat(unorphanedEvents.getFirst().getSequenceNumber())
-                .withFailMessage("nGen for genesis events should be the first generation possible.")
+                .withFailMessage("The sequence number for genesis events should be the first sequence number possible.")
                 .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER);
     }
 
-    @DisplayName("Verify the assignment of nGen for events with ancient parents")
+    @DisplayName("Verify the assignment of the sequence number for events with ancient parents")
     @Test
-    void testNGenValueWithAncientParents() {
+    void testSequenceNumberValueWithAncientParents() {
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
         final EventWindow eventWindow = EventWindowBuilder.builder()
@@ -424,13 +380,13 @@ class OrphanBufferTests {
                 .isEqualTo(1);
         assertThat(unorphanedEvents.getFirst().getSequenceNumber())
                 .withFailMessage(
-                        "nGen for events with unknown ancient parents should be the first generation possible.")
+                        "The sequence number for events with unknown ancient parents should be the first sequence number possible.")
                 .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER);
     }
 
-    @DisplayName("Verify the assignment of nGen for events one ancient and one non-ancient parent")
+    @DisplayName("Verify the assignment of the sequence number for events with one ancient and one non-ancient parent")
     @Test
-    void testNGenValueWithAncientAndNonAncientParents() {
+    void testSequenceNumberValueWithAncientAndNonAncientParents() {
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
         final EventWindow eventWindow = EventWindowBuilder.builder()
@@ -502,9 +458,9 @@ class OrphanBufferTests {
                 .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER + 1);
     }
 
-    @DisplayName("Verify the assignment of nGen for events non-ancient parents with different sequence numbers")
+    @DisplayName("Verify the assignment of the sequence number for events with non-ancient parents with different sequence numbers")
     @Test
-    void testNGenValueWithNonAncientParents() {
+    void testSequenceNumberValueWithNonAncientParents() {
         // Pick some values to use. These are arbitrary.
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;

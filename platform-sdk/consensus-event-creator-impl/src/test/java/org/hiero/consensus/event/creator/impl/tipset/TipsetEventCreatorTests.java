@@ -10,7 +10,7 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1148,7 +1148,7 @@ class TipsetEventCreatorTests {
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
         assertEquals(eventWithHighestSequenceNumber.getDescriptor(), newEvent.getSelfParent());
-        assertEquals(UNASSIGNED_SEQUENCE_NUMBER, newEvent.getSequenceNumber());
+        assertEquals(SEQUENCE_NUMBER_UNDEFINED, newEvent.getSequenceNumber());
     }
 
     /**
@@ -1180,7 +1180,7 @@ class TipsetEventCreatorTests {
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(UNASSIGNED_SEQUENCE_NUMBER, newEvent.getSequenceNumber());
+        assertEquals(SEQUENCE_NUMBER_UNDEFINED, newEvent.getSequenceNumber());
 
         // Create a self event with an sequence number value set and register it with the event creator. This can happen
         // if we are forced to reconnect and learn of an event we created a long time ago after we started creating
@@ -1195,7 +1195,7 @@ class TipsetEventCreatorTests {
         final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
-        assertEquals(UNASSIGNED_SEQUENCE_NUMBER, newEvent2.getSequenceNumber());
+        assertEquals(SEQUENCE_NUMBER_UNDEFINED, newEvent2.getSequenceNumber());
     }
 
     /**
