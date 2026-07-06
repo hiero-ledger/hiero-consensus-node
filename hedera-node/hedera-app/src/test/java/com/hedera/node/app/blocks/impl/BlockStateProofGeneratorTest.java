@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -130,94 +129,67 @@ class BlockStateProofGeneratorTest {
     }
 
     /**
-     * Traverses a {@link StateProof} by following {@link MerklePath#nextPathIndex()} links,
-     * starting from the path whose {@code hash} matches {@code startHash}, and returns the
-     * recomputed root hash of the signed block.
+     * Traverses a {@link StateProof} in depth-first order and returns the recomputed root hash.
      *
-     * <p>Each path's {@code nextPathIndex} is a <em>parent pointer</em>. The traversal moves up
-     * toward the root, and at each step checks for sibling paths — other unvisited paths whose
-     * {@code nextPathIndex} also points to the same parent. Any such sibling is incorporated
-     * into the running hash before moving up.
-     *
-     * <p>Per-path rules:
+     * <p>Paths are stored in DFS order so children always precede their parents. Each path's
+     * {@code nextPathIndex} is a parent pointer. A bottom-up scan computes each path's hash
+     * from its already-computed children:
      * <ul>
-     *   <li>Timestamp leaf: {@code hashInternalNode(hashLeaf(timestamp), current)}</li>
-     *   <li>Sibling path: combine each sibling using {@code hashInternalNode}, applying
-     *       {@code hashInternalNodeSingleChild} at every {@link BlockStateProofGenerator#UNSIGNED_BLOCK_SIBLING_COUNT}
-     *       boundary.</li>
-     *   <li>Empty path with {@code nextPathIndex >= 0}: explicit single-child internal node —
-     *       {@code hashInternalNodeSingleChild(current)}.</li>
-     *   <li>Empty path with {@code nextPathIndex < 0}: terminal no-op, loop exits.</li>
+     *   <li>Timestamp leaf: {@code hashLeaf(timestamp)}</li>
+     *   <li>Sibling path (has siblings): accumulate from {@code startHash}; left siblings are
+     *       block timestamps and require {@code hashInternalNodeSingleChild} before combining.</li>
+     *   <li>Internal node (no content): combine the children that point to this path —
+     *       one child → {@code hashInternalNodeSingleChild}; two children →
+     *       {@code hashInternalNode(timestampChild, otherChild)}.</li>
      * </ul>
+     * The terminal path (last in DFS order, {@code nextPathIndex < 0}) holds the root hash.
      */
     private Bytes traverseStateProof(final StateProof stateProof, final Bytes startHash) {
         final var paths = stateProof.paths();
+        final var pathHashes = new Bytes[paths.size()];
 
-        // Find the path whose hash field matches startHash — this is the entry point
-        int currentIndex = -1;
         for (int i = 0; i < paths.size(); i++) {
-            final var candidate = paths.get(i);
-            if (candidate.hasHash() && startHash.equals(candidate.hash())) {
-                currentIndex = i;
-                break;
-            }
-        }
-        Assertions.assertThat(currentIndex)
-                .as("No path with hash matching startHash found in state proof")
-                .isGreaterThanOrEqualTo(0);
-
-        var current = startHash;
-        final var visited = new HashSet<Integer>();
-
-        while (currentIndex >= 0) {
-            Assertions.assertThat(visited.add(currentIndex))
-                    .as("Cycle detected at path index %d", currentIndex)
-                    .isTrue();
-            final var path = paths.get(currentIndex);
-            final int nextIndex = path.nextPathIndex();
-
-            // Process the current path
+            final var path = paths.get(i);
             if (path.hasTimestampLeaf()) {
-                final var hashedTs = BlockImplUtils.hashLeaf(path.timestampLeafOrThrow());
-                current = BlockImplUtils.hashInternalNode(hashedTs, current);
+                pathHashes[i] = BlockImplUtils.hashLeaf(path.timestampLeafOrThrow());
             } else if (!path.siblings().isEmpty()) {
-                var sibCounter = 0;
+                Assertions.assertThat(path.hash())
+                        .as("Sibling path hash must equal startHash")
+                        .isEqualTo(startHash);
+                var current = startHash;
                 for (final SiblingNode sibling : path.siblings()) {
-                    sibCounter++;
-                    if (sibCounter == UNSIGNED_BLOCK_SIBLING_COUNT) {
-                        // Single-child internal node before each block's timestamp sibling
-                        current = BlockImplUtils.hashInternalNodeSingleChild(current);
-                    }
                     if (sibling.isLeft()) {
+                        current = BlockImplUtils.hashInternalNodeSingleChild(current);
                         current = BlockImplUtils.hashInternalNode(sibling.hash(), current);
-                        sibCounter = 0;
                     } else {
                         current = BlockImplUtils.hashInternalNode(current, sibling.hash());
                     }
                 }
-            } else if (nextIndex >= 0) {
-                // Empty path with a valid next index: explicit single-child internal node step
-                current = BlockImplUtils.hashInternalNodeSingleChild(current);
-            }
-            // else: terminal empty path (nextPathIndex < 0) — no-op
-
-            // Incorporate any sibling paths that share the same parent (nextIndex).
-            // These are unvisited paths whose nextPathIndex == nextIndex.
-            for (int i = 0; i < paths.size(); i++) {
-                if (!visited.contains(i) && paths.get(i).nextPathIndex() == nextIndex) {
-                    visited.add(i);
-                    final var sibling = paths.get(i);
-                    if (sibling.hasTimestampLeaf()) {
-                        final var hashedTs = BlockImplUtils.hashLeaf(sibling.timestampLeafOrThrow());
-                        current = BlockImplUtils.hashInternalNode(hashedTs, current);
+                pathHashes[i] = current;
+            } else {
+                // Internal node: combine children (paths with nextPathIndex == i).
+                // In DFS order, children always have lower indices than their parent.
+                Bytes timestampChildHash = null;
+                Bytes otherChildHash = null;
+                for (int j = 0; j < i; j++) {
+                    if (paths.get(j).nextPathIndex() == i) {
+                        if (paths.get(j).hasTimestampLeaf()) {
+                            timestampChildHash = pathHashes[j];
+                        } else {
+                            otherChildHash = pathHashes[j];
+                        }
                     }
                 }
+                if (timestampChildHash != null && otherChildHash != null) {
+                    pathHashes[i] = BlockImplUtils.hashInternalNode(timestampChildHash, otherChildHash);
+                } else if (otherChildHash != null) {
+                    pathHashes[i] = BlockImplUtils.hashInternalNodeSingleChild(otherChildHash);
+                }
             }
-
-            currentIndex = nextIndex;
         }
 
-        return current;
+        // The terminal path is last in DFS order and holds the root hash
+        return pathHashes[paths.size() - 1];
     }
 
     /**

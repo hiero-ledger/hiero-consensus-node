@@ -42,11 +42,6 @@ public class BlockStateProofGenerator {
     public static final int EXPECTED_MERKLE_PATH_COUNT = 4;
 
     /**
-     * Index to the Merkle path containing the consensus timestamp leaf of the signed block
-     */
-    public static final int TIMESTAMP_PATH_INDEX = 0;
-
-    /**
      * Index to the Merkle path containing hashes from the previous block's root to the right sibling of the
      * block's timestamp
      */
