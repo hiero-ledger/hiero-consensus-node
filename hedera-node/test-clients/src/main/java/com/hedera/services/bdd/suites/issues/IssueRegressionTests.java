@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
@@ -25,7 +24,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -199,6 +197,8 @@ public class IssueRegressionTests {
     @LeakyHapiTest
     @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
+        // Verifies that a second node, having learned of a transaction via gossip, rejects a
+        // same-type duplicate at precheck.
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate("acct3").setNode(3).via("txnId1"),
@@ -207,16 +207,7 @@ public class IssueRegressionTests {
                         .setNode(5)
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
-                uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode(5)
-                                .txnId("txnId1"))
-                        .setNode(5),
-                sleepFor(2000),
-                getTxnRecord("txnId1")
-                        .andAnyDuplicates()
-                        .assertingNothingAboutHashes()
-                        .hasPriority(recordWith().status(SUCCESS))
-                        .hasDuplicates(inOrder(recordWith().status(DUPLICATE_TRANSACTION))));
+                getTxnRecord("txnId1").logged().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest

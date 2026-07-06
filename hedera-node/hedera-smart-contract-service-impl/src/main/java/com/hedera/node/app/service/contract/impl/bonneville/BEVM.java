@@ -94,6 +94,13 @@ class BEVM {
         _mem = new Memory();
     }
 
+    // Test-only: bare instance for exercising the stack/arithmetic in isolation.
+    BEVM() {
+        _top = null;
+        _gasCalc = null;
+        _mem = null;
+    }
+
     // Setup for a new contract execution
     BEVM init(CodeV2 code, MessageFrame frame, Address parentContract) {
         // the BESU/Hedera Frame; hope someday to remove this
@@ -229,10 +236,14 @@ class BEVM {
         return push(x0, x1, x2, x3);
     }
 
-    private ExceptionalHaltReason push(BigInteger bi) {
+    // Sign-extend negatives into the high bytes; push() zero-fills otherwise.
+    ExceptionalHaltReason push(BigInteger bi) {
         var bytes = bi.toByteArray();
+        var out = new byte[32];
+        if( bi.signum() < 0 ) Arrays.fill(out, (byte) 0xFF);
         var len = Math.min(32, bytes.length);
-        return push(bytes, bytes.length - len, len);
+        System.arraycopy(bytes, bytes.length - len, out, 32 - len, len);
+        return push32(out);
     }
 
     // TODO, common case, optimize
@@ -649,7 +660,7 @@ class BEVM {
         return push(dividend.divide(divisor));
     }
 
-    private ExceptionalHaltReason sdiv() {
+    ExceptionalHaltReason sdiv() {
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
         // Divide by 0,1,2^n shortcuts
@@ -661,17 +672,18 @@ class BEVM {
             if( rhs0 == 1) return push(lhs0, lhs1, lhs2, lhs3);
         }
         int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
-        if( rbc0 + rbc1 + rbc2 + rbc3 == 1) {
+        // sar floors, SDIV truncates: only equal for non-negative dividend, positive power-of-two divisor.
+        if( rbc0 + rbc1 + rbc2 + rbc3 == 1 && lhs3 >= 0 && rhs3 >= 0) {
             int shf = shf(rbc0, rbc1, rbc2, rbc3, rhs0, rhs1, rhs2, rhs3);
             return sar(shf, lhs0, lhs1, lhs2, lhs3);
         }
         if( lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2 && lhs3 == rhs3)
             return push(1);
 
-        // BigInteger fallback
+        // Signed two's-complement decode of the 32-byte stack words.
         _sp += 2; // Re-push bytes
-        var dividend = new BigInteger((int) (lhs3 >> 63), popBytes().toArrayUnsafe());
-        var divisor  = new BigInteger((int) (rhs3 >> 63), popBytes().toArrayUnsafe());
+        var dividend = new BigInteger(popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(popBytes().toArrayUnsafe());
         return push(dividend.divide(divisor));
     }
 
@@ -701,16 +713,17 @@ class BEVM {
     }
 
     // Signed mod
-    private ExceptionalHaltReason smod() {
+    ExceptionalHaltReason smod() {
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        if( (lhs0 | lhs1 | lhs2 | lhs3) == 0) return push0();
-        if( lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2 && lhs3 == rhs3) return push(1);
-        // BigInteger fallback
+        if( (lhs0 | lhs1 | lhs2 | lhs3) == 0) return push0();      // a==0
+        if( (rhs0 | rhs1 | rhs2 | rhs3) == 0) return push0();      // b==0
+        if( lhs0 == rhs0 && lhs1 == rhs1 && lhs2 == rhs2 && lhs3 == rhs3) return push(0); // a%a
+        // Signed decode; remainder() keeps the dividend's sign (mod() does not).
         _sp += 2; // Re-push bytes
-        var dividend = new BigInteger((int) (lhs3 >> 63), popBytes().toArrayUnsafe());
-        var divisor  = new BigInteger((int) (rhs3 >> 63), popBytes().toArrayUnsafe());
-        return push(dividend.mod(divisor));
+        var dividend = new BigInteger(popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(popBytes().toArrayUnsafe());
+        return push(dividend.remainder(divisor));
     }
 
     private ExceptionalHaltReason addmod() {

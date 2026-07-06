@@ -17,10 +17,10 @@ import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMA
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.UPDATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.INT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;

@@ -8,13 +8,13 @@ import static com.hedera.node.app.hapi.fees.test.UsageUtils.A_USAGE_VECTOR;
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.NETWORK_RBH;
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.NUM_PAYER_KEYS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RECEIPT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_RECEIPT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.INT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.RECEIPT_STORAGE_TIME_SEC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.fees.test.TxnUtils;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
@@ -119,7 +119,7 @@ class SingletonEstimatorUtilsTest {
         // given:
         final TransactionBody txn = TransactionBody.newBuilder().setMemo(memo).build();
         // and:
-        final int expected = FeeBuilder.BASIC_TX_RECORD_SIZE + memo.length();
+        final int expected = FeeConstants.BASIC_TX_RECORD_SIZE + memo.length();
 
         // when:
         final int actual = ESTIMATOR_UTILS.baseRecordBytes(txn);
@@ -136,9 +136,9 @@ class SingletonEstimatorUtilsTest {
                 .setCryptoTransfer(CryptoTransferTransactionBody.newBuilder().setTransfers(transfers))
                 .build();
         // and:
-        final int expected = FeeBuilder.BASIC_TX_RECORD_SIZE
+        final int expected = FeeConstants.BASIC_TX_RECORD_SIZE
                 + memo.length()
-                + FeeBuilder.BASIC_ACCOUNT_AMT_SIZE * transfers.getAccountAmountsCount();
+                + FeeConstants.BASIC_ACCOUNT_AMT_SIZE * transfers.getAccountAmountsCount();
 
         // when:
         final int actual = ESTIMATOR_UTILS.baseRecordBytes(txn);

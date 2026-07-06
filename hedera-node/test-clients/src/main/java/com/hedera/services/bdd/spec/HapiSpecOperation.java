@@ -15,7 +15,7 @@ import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.UnknownFieldSet;
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
@@ -428,7 +428,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected MoreObjects.ToStringHelper toStringHelper() {
         final MoreObjects.ToStringHelper helper = MoreObjects.toStringHelper(this);
         if (txnSubmitted != null) {
-            helper.add("sigs", FeeBuilder.getSignatureCount(txnSubmitted));
+            helper.add("sigs", FeeConstants.getSignatureCount(txnSubmitted));
         }
         payer.ifPresent(a -> helper.add("payer", a));
         node.ifPresent(id -> helper.add("node", id));

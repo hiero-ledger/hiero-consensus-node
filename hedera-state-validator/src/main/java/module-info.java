@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.state.validator {
-    opens com.hedera.statevalidation to
-            info.picocli;
-
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.consensus.impl;
@@ -45,9 +42,13 @@ module com.hedera.state.validator {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.pcli;
     requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.state.management;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
     requires info.picocli;
     requires org.apache.logging.log4j;
+
+    opens com.hedera.statevalidation to
+            info.picocli;
 }
