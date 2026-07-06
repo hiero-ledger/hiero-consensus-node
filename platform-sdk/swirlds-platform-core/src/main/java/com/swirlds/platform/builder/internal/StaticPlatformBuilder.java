@@ -76,30 +76,6 @@ public final class StaticPlatformBuilder {
     }
 
     /**
-     * Setup static utilities. If running multiple platforms in the same JVM and this method is called more than once
-     * then this method becomes a no-op.
-     *
-     * @param configuration the configuration for this node
-     * @return true if this is the first time this method has been called, false otherwise
-     */
-    public static boolean doStaticSetup(@NonNull final Configuration configuration, @NonNull final Path settingsPath) {
-
-        if (staticSetupCompleted) {
-            // Only setup static utilities once
-            return false;
-        }
-        staticSetupCompleted = true;
-
-        BootstrapUtils.performHealthChecks(settingsPath, configuration);
-        writeSettingsUsed(configuration);
-
-        // Initialize JVMPauseDetectorThread, if enabled via settings
-        startJVMPauseDetectorThread(configuration);
-
-        return true;
-    }
-
-    /**
      * Get the static metrics provider.
      */
     @NonNull

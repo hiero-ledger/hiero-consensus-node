@@ -6,6 +6,7 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -72,13 +73,10 @@ public record PlatformComponents(
 
     /**
      * Creates a new instance of PlatformComponents.
-     *
-     * @param platformContext      the platform context
-     * @param model                the wiring model
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
             @NonNull final EventCreatorModule eventCreatorModule,
             @NonNull final EventIntakeModule eventIntakeModule,
             @NonNull final PcesModule pcesModule,
@@ -88,13 +86,12 @@ public record PlatformComponents(
             @NonNull final TransactionHandlingModule transactionHandlingModule,
             @NonNull final StateManagementModule stateManagementModule) {
 
-        Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
 
         final PlatformSchedulersConfig config =
-                platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
+                configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig =
-                platformContext.getConfiguration().getConfigData(EventStreamWiringConfig.class);
+                configuration.getConfigData(EventStreamWiringConfig.class);
 
         return new PlatformComponents(
                 model,

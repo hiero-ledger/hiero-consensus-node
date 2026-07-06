@@ -105,9 +105,6 @@ public final class PlatformBuilder {
     private GossipModule gossipModule;
     private long transactionOffsetNanos;
 
-    private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
-            (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
-
     /**
      * A RosterHistory that allows one to lookup a roster for a given round, or get the active/previous roster.
      */
@@ -124,10 +121,6 @@ public final class PlatformBuilder {
      */
     private KeysAndCerts keysAndCerts;
 
-    /**
-     * The path to the settings file (i.e. the file with the optional settings).
-     */
-    private final Path settingsPath = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
 
     /**
      * The wiring model to use for this platform.
@@ -483,19 +476,6 @@ public final class PlatformBuilder {
                 stateLifecycleManager);
     }
 
-    private IssDetectionModule createIssDetectionModule() {
-        return new IssDetectionModule(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                rosterHistory.getCurrentRoster(),
-                selfId,
-                platformContext.getFileSystemManager(),
-                initialState.get().getRound(),
-                latestFreezeRoundOf(initialState.get().getState()),
-                SystemExitUtils::handleFatalError);
-    }
 
     @NonNull
     private TransactionHandlingModule createTransactionHandlingModule(
@@ -555,122 +535,6 @@ public final class PlatformBuilder {
         throwIfAlreadyUsed();
         used = true;
 
-        if (executorFactory == null) {
-            executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
-        }
-
-        final boolean firstPlatform = doStaticSetup(configuration, settingsPath);
-
-        final Roster currentRoster = rosterHistory.getCurrentRoster();
-
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
-        final IntakeEventCounter intakeEventCounter;
-        if (syncConfig.waitForEventsInIntake()) {
-            intakeEventCounter = new DefaultIntakeEventCounter(currentRoster);
-        } else {
-            intakeEventCounter = new NoOpIntakeEventCounter();
-        }
-
-        if (model == null) {
-            final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
-
-            final int coreCount = Runtime.getRuntime().availableProcessors();
-            final int parallelism = (int)
-                    Math.max(1, wiringConfig.defaultPoolMultiplier() * coreCount + wiringConfig.defaultPoolConstant());
-            final ForkJoinPool defaultPool =
-                    platformContext.getExecutorFactory().createForkJoinPool(parallelism);
-            logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
-
-            model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .enableJvmAnchor()
-                    .withDefaultPool(defaultPool)
-                    .withWiringConfig(wiringConfig)
-                    .build();
-        }
-
-        if (secureRandomSupplier == null) {
-            secureRandomSupplier = () -> {
-                try {
-                    return SecureRandom.getInstanceStrong();
-                } catch (final NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-        }
-
-        final boolean eventPipelineMetricsEnabled = platformContext
-                .getConfiguration()
-                .getConfigData(PlatformMetricsConfig.class)
-                .eventPipelineMetricsEnabled();
-        final EventPipelineTracker pipelineTracker =
-                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
-                new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
-
-        if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);
-        }
-        if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = createModule(EventIntakeModule.class, configuration);
-        }
-        this.pcesModule = createModule(PcesModule.class, configuration);
-        if (this.hashgraphModule == null) {
-            this.hashgraphModule = createModule(HashgraphModule.class, configuration);
-        }
-        if (this.gossipModule == null) {
-            this.gossipModule = createModule(GossipModule.class, configuration);
-        }
-
-        final IssDetectionModule issDetectionModule = createIssDetectionModule();
-
-        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
-        final TransactionHandlingModule transactionHandlingModule =
-                createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
-
-        final LatestCompleteStateNexus latestCompleteStateNexus =
-                new DefaultLatestCompleteStateNexus(configuration, platformContext.getMetrics());
-        final Supplier<ReservedSignedState> latestCompleteStateSupplier =
-                () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
-        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final StateManagementModule stateManagementModule =
-                createStateManagementModule(latestCompleteStateNexus, savedStateController);
-
-        final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext,
-                model,
-                eventCreatorModule,
-                eventIntakeModule,
-                pcesModule,
-                hashgraphModule,
-                gossipModule,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateManagementModule);
-
-        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
-        statusActionSubmitterReference.set(platformCoordinator);
-
-        initializeEventCreatorModule();
-
-        // Register the event creation stage (self-only, step 1) and wire monitoring
-        // before intake initialization so step numbers are sequential.
-        if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("eventCreation", EventOrigin.RUNTIME);
-            eventCreatorModule
-                    .createdEventOutputWire()
-                    .solderForMonitoring(event -> pipelineTracker.recordEvent("eventCreation", event));
-        }
-
-        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        initializePcesModule(
-                platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
-        initializeHashgraphModule(pipelineTracker);
-        initializeGossipModule(
-                intakeEventCounter, latestCompleteStateSupplier, reservedSignedStateResultPromise, fallenBehindMonitor);
-
         PlatformWiring.wire(platformContext, execution, platformComponents, staleEventConsumer);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
@@ -691,7 +555,6 @@ public final class PlatformBuilder {
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 statusActionSubmitterReference,
                 stateLifecycleManager,
-                firstPlatform,
                 consensusStateEventHandler,
                 execution,
                 fallenBehindMonitor,
