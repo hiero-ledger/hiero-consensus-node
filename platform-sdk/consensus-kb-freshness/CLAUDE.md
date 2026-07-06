@@ -1,4 +1,4 @@
-# kb-freshness — module guide
+# consensus-kb-freshness — module guide
 
 Deterministic drift checker for the curated consensus-layer KB (`platform-sdk/docs/consensus-layer/`).
 This file covers what differs from repo defaults; see `README.md` for user-facing usage.
@@ -6,14 +6,15 @@ This file covers what differs from repo defaults; see `README.md` for user-facin
 ## Commands
 
 ```bash
-./gradlew :kb-freshness:build          # compile + javadoc + spotless + tests + checks
-./gradlew :kb-freshness:test           # unit + fixture tests
-./gradlew :kb-freshness:qualityGate    # compile + checks + auto-format (spotlessApply)
-./gradlew :kb-freshness:run --args="--kb platform-sdk/docs/consensus-layer --repo $(pwd) --out build/kb-freshness"
+./gradlew :consensus-kb-freshness:build          # compile + javadoc + spotless + tests + checks
+./gradlew :consensus-kb-freshness:test           # unit + fixture tests
+./gradlew :consensus-kb-freshness:qualityGate    # compile + checks + auto-format (spotlessApply)
+./gradlew :consensus-kb-freshness:run --args="--kb platform-sdk/docs/consensus-layer --repo $(pwd) --out build/kb-freshness"
 ```
 
 The application module also produces a standalone shadow jar (`org.hiero.gradle.feature.shadow`):
-`./gradlew :kb-freshness:assemble` → `build/libs/kb-freshness-*-all.jar`, runnable with `java -jar`.
+`./gradlew :consensus-kb-freshness:assemble` → `build/libs/consensus-kb-freshness-*-all.jar`, runnable
+with `java -jar`.
 
 ## Structure
 
@@ -54,4 +55,4 @@ The application module also produces a standalone shadow jar (`org.hiero.gradle.
 - **`components:`/`verification:` paths are platform-sdk-relative** (first segment = module dir); the
   extractor prefixes `platform-sdk/`. Markdown links resolve relative to the doc's directory.
 - **The skill is module-local**: it lives in this module's `.claude/skills/` and is discovered only
-  when Claude Code starts within `platform-sdk/kb-freshness/` (or a subdirectory).
+  when Claude Code starts within `platform-sdk/consensus-kb-freshness/` (or a subdirectory).

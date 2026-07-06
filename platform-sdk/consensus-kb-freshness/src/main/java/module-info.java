@@ -2,7 +2,7 @@
 // Deterministic freshness/drift checker for the curated consensus-layer knowledge base under
 // platform-sdk/docs/consensus-layer/. The engine never calls a model and performs no network I/O;
 // the same checkout in yields the same findings out.
-module com.hedera.kbfreshness {
+module org.hiero.consensus.kbfreshness {
     exports org.hiero.consensus.kbfreshness.cli;
 
     // javax.tools: obtain the system Java compiler for parse-only source analysis.

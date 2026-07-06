@@ -3,7 +3,7 @@
 # Symbols cited from sources OUTSIDE the hand-written platform-sdk tree cannot be authoritatively
 # resolved by the parse-only engine, so an unresolved citation to them is `unverifiable` (routed to
 # the quiet log) rather than `absent` (asserted). This file EXTENDS the built-in defaults; pass it
-# with `--allowlist platform-sdk/kb-freshness/allowlist.example.txt`.
+# with `--allowlist platform-sdk/consensus-kb-freshness/allowlist.example.txt`.
 #
 # Directives (one per line; blank lines and `#` comments ignored):
 #   path-contains:<s>   a path substring that marks a source as external (e.g. /build/generated/)

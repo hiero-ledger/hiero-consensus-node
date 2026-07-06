@@ -70,5 +70,5 @@ Show, in order:
 3. Your **`## Advisory (semantic)`** section (or "none" if nothing survived).
 
 If the user asks to triage or dismiss a finding, explain the baseline flow (see the module README):
-add the finding's `id` to `platform-sdk/kb-freshness/baseline/kb-freshness-baseline.tsv` with
+add the finding's `id` to `platform-sdk/consensus-kb-freshness/baseline/kb-freshness-baseline.tsv` with
 `accepted`/`dismissed`/`deferred`. Do not edit the baseline yourself unless asked.

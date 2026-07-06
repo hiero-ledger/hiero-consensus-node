@@ -20,9 +20,9 @@ repo="$dir"
 
 kb="${1:-platform-sdk/docs/consensus-layer}"
 out="${2:-$repo/build/kb-freshness}"
-baseline="${3:-platform-sdk/kb-freshness/baseline/kb-freshness-baseline.tsv}"
+baseline="${3:-platform-sdk/consensus-kb-freshness/baseline/kb-freshness-baseline.tsv}"
 
-"$repo/gradlew" -q -p "$repo" :kb-freshness:run \
+"$repo/gradlew" -q -p "$repo" :consensus-kb-freshness:run \
   --args="--kb $kb --repo $repo --out $out --baseline $baseline" >&2
 
 echo "$out"

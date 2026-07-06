@@ -6,7 +6,7 @@ plugins {
 
 description = "Consensus-layer knowledge-base freshness checker"
 
-application.mainClass = "com.hedera.kbfreshness.cli.Main"
+application.mainClass = "org.hiero.consensus.kbfreshness.cli.Main"
 
 testModuleInfo {
     requires("org.assertj.core")
