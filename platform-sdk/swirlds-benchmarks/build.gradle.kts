@@ -72,13 +72,14 @@ fun jmhParamProperty(name: String, defaultValue: String) =
         .value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
 
 fun JMHTask.configureReconnectJvmArgs() {
+    val gcLog = layout.buildDirectory.file("reconnectbench-gc.log").get().asFile
+    gcLog.parentFile.mkdirs()
     jvmArgs.set(
         listOf(
             gossipConnectivityExport,
-            "-Xms24g",
-            "-Xmx24g",
-            "-XX:+AlwaysPreTouch",
-            "-Xlog:gc*:file=/Users/thenswan/Work/LimeChain/playground/hiero-consensus-node/platform-sdk/swirlds-benchmarks/data/reconnectbench-gc.log:time,uptime,level,tags",
+            "-Xms2g",
+            "-Xmx8g",
+            "-Xlog:gc*:file=${gcLog.absolutePath}:time,uptime,level,tags",
         )
     )
 }
@@ -106,8 +107,8 @@ fun JMHTask.configureReconnectParameters(
     benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.1"))
     benchmarkParameters.put("teacherRemoveProbability", jmhParamProperty("teacherRemoveProbability", "0.0"))
     benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.3"))
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "1000"))
-    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "10"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100"))
     benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
     benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
     benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
