@@ -264,19 +264,30 @@ jobs:
           echo "inputs.nlg-test=${{ env.run_NLG_Test }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
+      - name: Checkout target CN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: target_consensus_node
+          ref: ${{ inputs.ref }}
+
       - name: Set hederahash sha value
         id: hederaHash
         run: |
-          hederahash="$(git rev-parse HEAD)"
+          hederahash="$(git -C target_consensus_node rev-parse HEAD)"
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew clean assemble
+        run: |
+          cd "${{ github.workspace }}"/target_consensus_node
+          ./gradlew clean assemble
+          cd "${{ github.workspace }}"
 
       - name: Build Validator
         run: |
+          cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew --no-daemon :hedera-state-validator:shadowJar
+          cd "${{ github.workspace }}"
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -329,7 +340,7 @@ jobs:
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
-          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
           # Update Init Containers values
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
@@ -456,7 +467,7 @@ jobs:
           set +x
           set +e
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
-            cp ${{ github.workspace }}/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
+            cp ${{ github.workspace }}/target_consensus_node/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
