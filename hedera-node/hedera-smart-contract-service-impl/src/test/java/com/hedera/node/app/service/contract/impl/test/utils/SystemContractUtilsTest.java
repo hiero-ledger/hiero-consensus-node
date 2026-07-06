@@ -92,7 +92,7 @@ class SystemContractUtilsTest {
                 .senderId(SENDER_ID)
                 .gasUsed(gasUsed)
                 .errorMessage(errorMessage)
-                .contractCallResult(tuweniToPbjBytes(fullResult.result().getOutput()))
+                .contractCallResult(tuweniToPbjBytes(fullResult.result().output()))
                 .contractID(contractID)
                 .build();
         final var actual = contractFunctionResultFailedFor(SENDER_ID, fullResult, errorMessage, contractID);
