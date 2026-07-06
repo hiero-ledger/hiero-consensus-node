@@ -27,6 +27,12 @@ import java.util.TreeSet;
  */
 public final class FindingAssembler {
 
+    /** Canonical deterministic ordering of findings: by entry key, kind, target, then id. */
+    public static final Comparator<Finding> ORDER = Comparator.comparing(Finding::entryKey)
+            .thenComparing(f -> f.kind().name())
+            .thenComparing(Finding::target)
+            .thenComparing(Finding::id);
+
     /** Extracts anchors from a KB document. */
     private final AnchorExtractor extractor;
 
@@ -55,10 +61,7 @@ public final class FindingAssembler {
         for (final KbDocument doc : docs) {
             all.addAll(assemble(doc));
         }
-        all.sort(Comparator.comparing(Finding::entryKey)
-                .thenComparing(f -> f.kind().name())
-                .thenComparing(Finding::target)
-                .thenComparing(Finding::id));
+        all.sort(ORDER);
         return all;
     }
 

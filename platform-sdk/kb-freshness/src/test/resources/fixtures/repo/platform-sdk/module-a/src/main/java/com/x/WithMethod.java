@@ -6,4 +6,6 @@ public class WithMethod {
     public void foo() {}
 
     public void bar() {}
+
+    public void baz(int a, String b) {}
 }

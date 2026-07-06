@@ -8,6 +8,7 @@ import com.hedera.kbfreshness.findings.Baseline;
 import com.hedera.kbfreshness.model.Lane;
 import com.hedera.kbfreshness.model.Triage;
 import com.hedera.kbfreshness.render.AutoFixRenderer;
+import com.hedera.kbfreshness.render.CoverageRenderer;
 import com.hedera.kbfreshness.render.FindingsJson;
 import com.hedera.kbfreshness.render.QuietLogRenderer;
 import com.hedera.kbfreshness.render.ReportRenderer;
@@ -162,6 +163,7 @@ public final class Main implements Callable<Integer> {
         write(outDir.resolve("report.md"), ReportRenderer.render(result, date));
         write(outDir.resolve("quiet-log.md"), QuietLogRenderer.render(result));
         write(outDir.resolve("auto-fix.md"), AutoFixRenderer.render(result));
+        write(outDir.resolve("coverage.md"), CoverageRenderer.render(result));
         write(outDir.resolve("worklist.md"), WorklistRenderer.renderMarkdown(result));
         write(outDir.resolve("worklist.json"), WorklistRenderer.renderJson(result));
 

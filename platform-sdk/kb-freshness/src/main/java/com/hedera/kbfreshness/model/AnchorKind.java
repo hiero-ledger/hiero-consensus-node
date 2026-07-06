@@ -4,7 +4,7 @@ package com.hedera.kbfreshness.model;
 /**
  * The kind of code reference an anchor makes. Also names the check ("resolver") applied to it, and
  * so is part of a finding's stable identity. Tiers follow the spec: Tier 0 = text/filesystem,
- * Tier 1 = symbol existence, Tier 2 = signature/value equality (added in a later changeset).
+ * Tier 1 = symbol existence, Tier 2 = signature/value equality.
  */
 public enum AnchorKind {
     // ---- Tier 0: text / filesystem existence ----
@@ -29,7 +29,13 @@ public enum AnchorKind {
     /** An enum constant, e.g. {@code EventOrigin.RUNTIME}. */
     ENUM_CONSTANT(1),
     /** A config key resolved against its {@code *Config} class. */
-    CONFIG_KEY(1);
+    CONFIG_KEY(1),
+
+    // ---- Tier 2: signature / value equality ----
+    /** A method cited with a parameter list, e.g. {@code Class.method(ParamType)}, checked for signature equality. */
+    METHOD_SIGNATURE(2),
+    /** A documented interface method compared against the interface's declared method set. */
+    INTERFACE_METHOD(2);
 
     /** The resolution tier of this kind (0 = text/filesystem, 1 = symbol, 2 = signature/value). */
     private final int tier;

@@ -7,12 +7,14 @@ import com.hedera.kbfreshness.extract.KbScanner;
 import com.hedera.kbfreshness.findings.Baseline;
 import com.hedera.kbfreshness.findings.BaselineJoin;
 import com.hedera.kbfreshness.findings.FindingAssembler;
+import com.hedera.kbfreshness.findings.InterfaceDiffAssembler;
 import com.hedera.kbfreshness.git.Git;
 import com.hedera.kbfreshness.model.Finding;
 import com.hedera.kbfreshness.resolve.AnchorResolver;
 import com.hedera.kbfreshness.resolve.SourceIndex;
 import com.hedera.kbfreshness.worklist.WorklistBuilder;
 import com.hedera.kbfreshness.worklist.WorklistEntry;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -47,7 +49,9 @@ public final class Engine {
         final AnchorResolver resolver =
                 new AnchorResolver(config.repoRoot(), config.kbRoot(), index, config.allowlist());
         final FindingAssembler assembler = new FindingAssembler(extractor, resolver);
-        final List<Finding> findings = assembler.assembleAll(docs);
+        final List<Finding> findings = new ArrayList<>(assembler.assembleAll(docs));
+        findings.addAll(new InterfaceDiffAssembler(index).assembleAll(docs));
+        findings.sort(FindingAssembler.ORDER);
 
         final Baseline baseline = Baseline.load(config.baselineFile());
         final BaselineJoin.Result join = BaselineJoin.join(findings, baseline, config.runDate());

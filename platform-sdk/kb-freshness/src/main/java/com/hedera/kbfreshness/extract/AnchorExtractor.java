@@ -41,6 +41,10 @@ public final class AnchorExtractor {
     private static final Pattern METHOD_LINK =
             Pattern.compile("^([A-Z][A-Za-z0-9_]*)(?:::|\\.)([a-z][A-Za-z0-9_]*)(?:\\(\\))?$");
 
+    /** Matches link text naming a method WITH a non-empty parameter list ({@code Class.method(Params)}), capturing class, method, and the parameter list. */
+    private static final Pattern METHOD_SIG_LINK =
+            Pattern.compile("^([A-Z][A-Za-z0-9_]*)(?:::|\\.)([a-z][A-Za-z0-9_]*)\\((.+)\\)$");
+
     /** Repository root (absolute, normalized), used to resolve and namespace cited paths. */
     private final Path repoRoot;
 
@@ -254,10 +258,29 @@ public final class AnchorExtractor {
             // File-existence check carries no line: a bare `File.java:NN` link is ambiguous (the KB
             // uses it for members too), so line-move detection is done only for named-method links.
             out.add(new Anchor(AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, url));
-            final String method = methodFromLinkText(linkText);
-            if (method != null && citedLine != Anchor.NO_LINE && lower.endsWith(".java")) {
-                out.add(new Anchor(
-                        AnchorKind.METHOD_REF, method, module, classNameOfPath(pathPart), fileLine, citedLine, url));
+            if (lower.endsWith(".java")) {
+                final String method = methodFromLinkText(linkText);
+                if (method != null && citedLine != Anchor.NO_LINE) {
+                    out.add(new Anchor(
+                            AnchorKind.METHOD_REF,
+                            method,
+                            module,
+                            classNameOfPath(pathPart),
+                            fileLine,
+                            citedLine,
+                            url));
+                }
+                final String signature = signatureFromLinkText(linkText);
+                if (signature != null) {
+                    out.add(new Anchor(
+                            AnchorKind.METHOD_SIGNATURE,
+                            signature,
+                            module,
+                            classNameOfPath(pathPart),
+                            fileLine,
+                            Anchor.NO_LINE,
+                            url));
+                }
             }
         } else if (isDirectoryLink(pathPart)) {
             final String repoRel = resolveRelative(docDir, pathPart);
@@ -280,6 +303,26 @@ public final class AnchorExtractor {
         }
         final Matcher m = METHOD_LINK.matcher(linkText.replace("`", "").strip());
         return m.matches() ? m.group(2) : null;
+    }
+
+    /**
+     * If a markdown link's text names a method with a non-empty parameter list
+     * ({@code Class.method(ParamTypes)}), returns the normalized signature target
+     * {@code method(paramTypes)} (whitespace removed); otherwise {@code null}. Drives Tier-2 signature
+     * equality.
+     *
+     * @param linkText the link's display text.
+     * @return the {@code method(paramTypes)} target, or {@code null} when the text is not a signature.
+     */
+    static String signatureFromLinkText(final String linkText) {
+        if (linkText == null) {
+            return null;
+        }
+        final Matcher m = METHOD_SIG_LINK.matcher(linkText.replace("`", "").strip());
+        if (!m.matches()) {
+            return null;
+        }
+        return m.group(2) + "(" + m.group(3).replaceAll("\\s+", " ").strip() + ")";
     }
 
     /**

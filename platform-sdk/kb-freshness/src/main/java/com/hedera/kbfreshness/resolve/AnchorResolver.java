@@ -87,8 +87,10 @@ public final class AnchorResolver {
             case SOURCE_PATH -> resolveSourcePath(a);
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
-            // Tier-1 symbol kinds not extracted in this version resolve as unverifiable if reached.
-            case CLASS, ENUM_CONSTANT, CONFIG_KEY ->
+            case METHOD_SIGNATURE -> resolveMethodSignature(a);
+            // Kinds resolved outside the per-anchor pipeline (INTERFACE_METHOD) or not extracted in
+            // this version resolve as unverifiable if reached here.
+            case CLASS, ENUM_CONSTANT, CONFIG_KEY, INTERFACE_METHOD ->
                 Resolution.finding(
                         Outcome.UNVERIFIABLE, Lane.QUIET_LOG, "symbol check", "not implemented in this version");
         };
@@ -304,7 +306,7 @@ public final class AnchorResolver {
                     q,
                     "Could not resolve type `" + className + "` in `" + resolvedPath + "`.");
         }
-        if (type.methodLines().containsKey(method)) {
+        if (type.hasMethod(method)) {
             return Resolution.ok(Outcome.PRESENT, q);
         }
         return Resolution.finding(
@@ -339,14 +341,14 @@ public final class AnchorResolver {
                     "Class `" + className + "` not indexed; line unverifiable.");
         }
         final TypeInfo type = index.parse(resolvedPath).types().get(className);
-        if (type == null || !type.methodLines().containsKey(method)) {
+        if (type == null || !type.hasMethod(method)) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
                     "Method `" + method + "` not declared in `" + resolvedPath + "` (may be inherited/overloaded).");
         }
-        final int line = type.methodLines().get(method);
+        final int line = type.firstLine(method).orElse(-1);
         if (a.citedLine() != Anchor.NO_LINE && line > 0 && line != a.citedLine()) {
             return Resolution.autoFix(
                     q,
@@ -355,6 +357,154 @@ public final class AnchorResolver {
                     line);
         }
         return Resolution.ok(Outcome.PRESENT, q);
+    }
+
+    /**
+     * Tier-2 signature equality for a {@code Class.method(paramTypes)} citation. Asserts only when the
+     * method name is declared on the resolved class but no overload's parameter types match the cited
+     * ones — a certain signature change. If the class or method cannot be resolved, or the cited
+     * parameters are not cleanly type-like, it stays quiet: precision over coverage.
+     *
+     * @param a the anchor to resolve; its target is {@code method(paramTypes)} and cited scope the class.
+     * @return present when an overload matches, an assert when the signature changed, otherwise unverifiable.
+     */
+    private Resolution resolveMethodSignature(final Anchor a) {
+        final String target = a.target();
+        final int lp = target.indexOf('(');
+        final String method = lp >= 0 ? target.substring(0, lp) : target;
+        final String paramStr = lp >= 0 && target.endsWith(")") ? target.substring(lp + 1, target.length() - 1) : "";
+        final String className = a.citedScope();
+        final String q = "method `" + className + "#" + method + "(" + paramStr + ")` signature matches";
+
+        final List<String> docParams = new ArrayList<>();
+        boolean clean = true;
+        for (final String piece : splitParams(paramStr)) {
+            final String type = dropParamName(piece);
+            if (type.isBlank()) {
+                clean = false;
+                break;
+            }
+            docParams.add(normalizeType(type));
+        }
+        if (!clean) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE, Lane.QUIET_LOG, q, "Cited parameter list is not cleanly type-like.");
+        }
+
+        String resolvedPath = null;
+        for (final String p : index.pathsForBasename(className + ".java")) {
+            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
+                resolvedPath = p;
+                break;
+            }
+        }
+        if (resolvedPath == null) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Class `" + className + "` not indexed; signature unverifiable.");
+        }
+        final TypeInfo type = index.parse(resolvedPath).types().get(className);
+        if (type == null) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE, Lane.QUIET_LOG, q, "Could not resolve type `" + className + "`.");
+        }
+        final List<JavaParsing.MethodSig> overloads = type.overloads(method);
+        if (overloads.isEmpty()) {
+            // Method name is absent entirely — could be inherited; leave existence to other anchors.
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Method `" + method + "` not declared in `" + resolvedPath + "` (may be inherited/overloaded).");
+        }
+        final List<String> actualSignatures = new ArrayList<>();
+        for (final JavaParsing.MethodSig sig : overloads) {
+            final List<String> actual =
+                    sig.paramTypes().stream().map(AnchorResolver::normalizeType).toList();
+            if (actual.equals(docParams)) {
+                return Resolution.ok(Outcome.PRESENT, q);
+            }
+            actualSignatures.add(method + "(" + String.join(", ", sig.paramTypes()) + ")");
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "Documented signature `" + method + "(" + paramStr + ")` has no matching overload in `" + className
+                        + "`; declared: " + String.join("; ", actualSignatures) + ".");
+    }
+
+    /**
+     * Splits a parameter list on top-level commas, ignoring commas nested in generics, arrays, or
+     * parentheses.
+     *
+     * @param paramStr the raw parameter list (without the surrounding parentheses).
+     * @return the trimmed parameter pieces, or an empty list when there are none.
+     */
+    static List<String> splitParams(final String paramStr) {
+        final List<String> parts = new ArrayList<>();
+        if (paramStr.isBlank()) {
+            return parts;
+        }
+        int depth = 0;
+        final StringBuilder cur = new StringBuilder();
+        for (int i = 0; i < paramStr.length(); i++) {
+            final char c = paramStr.charAt(i);
+            if (c == '<' || c == '(' || c == '[') {
+                depth++;
+            } else if (c == '>' || c == ')' || c == ']') {
+                depth--;
+            }
+            if (c == ',' && depth == 0) {
+                parts.add(cur.toString().strip());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
+        }
+        if (!cur.isEmpty()) {
+            parts.add(cur.toString().strip());
+        }
+        return parts;
+    }
+
+    /**
+     * Drops a trailing parameter name from a parameter piece, keeping just the type. A piece with a
+     * top-level space (e.g. {@code List<Foo> bar}) is treated as {@code type name}; a piece without one
+     * (e.g. {@code byte[]}) is the type itself.
+     *
+     * @param piece one parameter piece.
+     * @return the parameter's type portion.
+     */
+    static String dropParamName(final String piece) {
+        int depth = 0;
+        int lastSpace = -1;
+        for (int i = 0; i < piece.length(); i++) {
+            final char c = piece.charAt(i);
+            if (c == '<' || c == '(' || c == '[') {
+                depth++;
+            } else if (c == '>' || c == ')' || c == ']') {
+                depth--;
+            } else if (c == ' ' && depth == 0) {
+                lastSpace = i;
+            }
+        }
+        return (lastSpace >= 0 ? piece.substring(0, lastSpace) : piece).strip();
+    }
+
+    /**
+     * Normalizes a type for as-written comparison: removes whitespace and strips package qualifiers
+     * from every identifier (e.g. {@code java.util.List<com.x.Foo>} to {@code List<Foo>}), so a doc's
+     * simple names compare equal to source's possibly-qualified ones.
+     *
+     * @param type the type string.
+     * @return the normalized type.
+     */
+    static String normalizeType(final String type) {
+        final String noSpace = type.replaceAll("\\s+", "");
+        return noSpace.replaceAll("(?:[A-Za-z_$][A-Za-z0-9_$]*\\.)+([A-Za-z_$][A-Za-z0-9_$]*)", "$1");
     }
 
     // ---- Helpers ----

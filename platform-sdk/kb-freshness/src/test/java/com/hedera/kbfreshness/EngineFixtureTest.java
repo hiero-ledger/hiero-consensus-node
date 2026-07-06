@@ -100,6 +100,32 @@ class EngineFixtureTest {
     }
 
     @Test
+    void changedMethodSignatureIsAssertButMatchingSignatureIsNot() {
+        // baz(long) has no matching overload → assert; baz(int, String) matches → no finding.
+        final Finding changed = require(AnchorKind.METHOD_SIGNATURE, t -> t.equals("baz(long)"));
+        assertThat(changed.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(changed.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(byKind(AnchorKind.METHOD_SIGNATURE, t -> t.equals("baz(int, String)")))
+                .isEmpty();
+    }
+
+    @Test
+    void interfaceMethodRemovedIsAssertAndPresentMethodIsNot() {
+        final Finding removed = require(AnchorKind.INTERFACE_METHOD, t -> t.equals("removed"));
+        assertThat(removed.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(removed.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(byKind(AnchorKind.INTERFACE_METHOD, t -> t.equals("present")))
+                .isEmpty();
+    }
+
+    @Test
+    void undocumentedInterfaceMethodIsCoverageGapNotDrift() {
+        final Finding coverage = require(AnchorKind.INTERFACE_METHOD, t -> t.equals("extra"));
+        assertThat(coverage.lane()).isEqualTo(Lane.COVERAGE_GAP);
+        assertThat(coverage.lane()).isNotEqualTo(Lane.ASSERT);
+    }
+
+    @Test
     void repeatedDeadSymbolCollapsesToOneFindingWithAllOccurrences() {
         final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("GhostFile.java"));
         assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
