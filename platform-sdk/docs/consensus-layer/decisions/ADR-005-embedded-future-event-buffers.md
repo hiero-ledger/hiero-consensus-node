@@ -107,12 +107,17 @@ with no special fixed-point iteration.
 ### Positive
 
 - **Keeps the flush simple and correct.** `PlatformCoordinator
-  .flushIntakePipeline()` stays a fixed, linear sequence of `flush()` calls.
+  .flushPrimaryPipeline()` stays a fixed, linear sequence of `flush()` calls.
   No fixed-point iteration over a buffer/hashgraph loop is needed to guarantee
   every event has advanced as far as it can.
-- **No feedback edge in the wiring graph.** The consensus-progress loop is an
-  implementation detail internal to `DefaultConsensusEngine.addEvent(...)`,
-  invisible to the wiring topology and to the flush logic.
+- **Adds no feedback edge from the future-event buffer.** Embedding keeps the
+  consensus-advance → window-advance → release loop internal to
+  `DefaultConsensusEngine.addEvent(...)`, invisible to the wiring topology and
+  the flush logic. A separate event-window edge into the orphan buffer
+  (`DefaultOrphanBuffer.setEventWindow`) does exist independently of this
+  decision, but it is inert during PCES replay (RUL-002). A standalone
+  future-event buffer would have added a *second* such edge — one that *is*
+  active during replay and would break the single ordered flush.
 - **Logic stays reusable without being centralized.** The holding mechanism is
   still written once in `FutureEventBuffer`; only its *placement* is
   distributed.
@@ -153,7 +158,7 @@ as the event window advances.
 - It creates a feedback loop in the event pipeline: consensus progress
   advances the event window, which makes the standalone buffer release more
   events, which can drive more consensus progress.
-- `flushIntakePipeline()` would have to become significantly more complex —
+- `flushPrimaryPipeline()` would have to become significantly more complex —
   iterating the buffer/hashgraph pair to a fixed point — to keep its guarantee
   that no event is left stranded mid-pipeline after PCES replay. That
   complexity is exactly what threatens the no-branching guarantee in
@@ -185,6 +190,6 @@ See **Decision** above.
   the `FutureEventBuffer`; releases events to the creator on
   `setEventWindow(...)`.
 - `swirlds-platform-core/.../PlatformCoordinator.java` —
-  `flushIntakePipeline()`, the ordered flush this decision keeps simple.
+  `flushPrimaryPipeline()`, the ordered flush this decision keeps simple.
 - RUL-002 — the flush-ordering
   rule whose single-pass guarantee depends on this decision.

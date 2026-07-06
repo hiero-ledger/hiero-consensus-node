@@ -260,8 +260,7 @@ See **Decision** above.
   migrated the tipset. Sync (#24843) migrated the send-list sort to the sequence
   number. Consensus (#24844) migrated the algorithm's ordering key
   (`consensusRelevantSeqNum`, `RoundElections.minSeqNum`,
-  `isOlderThanDecidedRoundSeqNum`), and `cGen` (#24883) migrated
-  `LocalConsensusGeneration.assignCGen`'s initial sort. Tools (#24885) and the
+  `isOlderThanDecidedRoundSeqNum`). `cGen` (#24883), tools (#24885), and the
   final `nGen` removal (#24846) remain open at the time of writing.
 - This entry fulfills #25482 ("Create ADR for replacing nGen with sequence
   number"). It supersedes an earlier draft scoped to event creation only; the

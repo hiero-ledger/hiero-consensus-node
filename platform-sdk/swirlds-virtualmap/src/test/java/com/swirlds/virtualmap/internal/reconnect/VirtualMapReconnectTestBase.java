@@ -8,8 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -31,8 +33,6 @@ import java.util.stream.Stream;
 import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
-import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,13 +68,11 @@ public abstract class VirtualMapReconnectTestBase {
     protected BrokenBuilder teacherBuilder;
     protected BrokenBuilder learnerBuilder;
 
-    protected final ReconnectConfig reconnectConfig = ConfigurationBuilder.create()
+    protected final Configuration configuration = ConfigurationBuilder.create()
             .autoDiscoverExtensions()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
-            .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "5s")
-            .withValue(ReconnectConfig_.MAX_ACK_DELAY, "1000ms")
-            .build()
-            .getConfigData(ReconnectConfig.class);
+            .withValue(VirtualMapSyncConfig_.ASYNC_STREAM_TIMEOUT, "5s")
+            .build();
 
     protected abstract VirtualDataSourceBuilder createBuilder();
 
@@ -118,8 +116,7 @@ public abstract class VirtualMapReconnectTestBase {
             try {
                 for (int i = 0; i < attempts; i++) {
                     try {
-                        final var node =
-                                ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
+                        final var node = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
                         node.release();
                         assertEquals(attempts - 1, i, "We should only succeed on the last try");
                         assertTrue(learnerMap.isHashed(), "Learner map must be hashed");

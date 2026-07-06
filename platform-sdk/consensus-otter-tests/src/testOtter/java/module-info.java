@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 open module org.hiero.otter.test {
-    requires com.swirlds.platform.core;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.hashgraph;

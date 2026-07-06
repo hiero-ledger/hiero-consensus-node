@@ -8,7 +8,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
@@ -17,7 +16,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -27,6 +25,8 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 
@@ -49,11 +49,6 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  *                                               into gossip event storage, per peer
  * @param secureRandomSupplier                   a source of secure random number generator instances
  * @param freezeChecker                          a predicate that determines if a timestamp is in the freeze period
- * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
- *                                               argument is a string explaining why we are getting this state (for
- *                                               debugging). Return value may be null (implementation detail of
- *                                               underlying data source), this indirection can be removed once states
- *                                               are passed within the wiring framework
  * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is
  *                                               written
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
@@ -61,9 +56,6 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  *                                               platform status management is handled by the wiring framework
  * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
  *                                               reconnect
- * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
- *                                               this is exposed here due to reconnect, can be removed once reconnect is
- *                                               made compatible with the wiring framework
  * @param firstPlatform                          if this is the first platform being built (there is static setup that
  *                                               needs to be done, long term plan is to stop using static variables)
  * @param execution                              the instance of the execution layer, which allows consensus to interact
@@ -75,6 +67,7 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  * @param latestImmutableStateNexus              a nexus for accessing the latest immutable state
  * @param transactionOffsetNanos                 nanoseconds to add to the first transaction's timestamp in an event,
  *                                               computed by the execution layer from its configuration
+ * @param savedStateController                   the controller for saving states to disk
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -90,12 +83,10 @@ public record PlatformBuildingBlocks(
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull Supplier<SecureRandom> secureRandomSupplier,
         @NonNull FreezePeriodChecker freezeChecker,
-        @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull String consensusEventStreamName,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
         @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-        @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
@@ -103,7 +94,8 @@ public record PlatformBuildingBlocks(
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull PlatformCoordinator platformCoordinator,
         @NonNull SignedStateNexus latestImmutableStateNexus,
-        long transactionOffsetNanos) {
+        long transactionOffsetNanos,
+        @NonNull SavedStateController savedStateController) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -118,17 +110,16 @@ public record PlatformBuildingBlocks(
         requireNonNull(intakeEventCounter);
         requireNonNull(secureRandomSupplier);
         requireNonNull(freezeChecker);
-        requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(consensusEventStreamName);
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
         requireNonNull(stateLifecycleManager);
-        requireNonNull(getLatestCompleteStateReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(execution);
         requireNonNull(fallenBehindMonitor);
         requireNonNull(reservedSignedStateResultPromise);
         requireNonNull(platformCoordinator);
         requireNonNull(latestImmutableStateNexus);
+        requireNonNull(savedStateController);
     }
 }

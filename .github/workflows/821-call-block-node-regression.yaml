@@ -194,7 +194,7 @@ jobs:
 
       - name: Setup PNPM
         run: |
-          npm install -g pnpm
+          npm install -g pnpm@10.11.0
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
@@ -235,7 +235,12 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hiero-ledger/solo@latest
+        run: |
+          if [[ -z "${{ inputs.solo-version }}" ]]; then
+            echo "ERROR: solo-version input must be set to a specific version tag (e.g. v0.44.0)"
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -393,9 +398,13 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          GRPCURL_VERSION="v1.8.7"
+          GRPCURL_FILE="grpcurl_1.8.7_linux_x86_64.tar.gz"
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/${GRPCURL_FILE}" -o grpcurl.tar.gz
+          curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/${GRPCURL_VERSION}/grpcurl_1.8.7_checksums.txt" -o grpcurl_checksums.txt
+          grep "${GRPCURL_FILE}" grpcurl_checksums.txt | sha256sum --check
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          rm grpcurl.tar.gz grpcurl_checksums.txt
 
       - name: Install jq
         run: |
