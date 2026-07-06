@@ -81,6 +81,80 @@ class BlockStateProofGeneratorTest {
         }
     }
 
+    @Test
+    void throwsOnDuplicatePendingBlockNumber() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var duplicate = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(duplicate)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate pending block #0");
+    }
+
+    @Test
+    void throwsWhenSignedBlockIsNotAfterCurrentPendingBlock() {
+        final var current = pendingBlock(5L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // The signed block number equals the current pending block number, so there is no indirect range to prove
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 5L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.empty()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot construct an indirect proof for pending block #5 from signed block #5");
+    }
+
+    @Test
+    void throwsWhenPendingBlocksDoNotCoverEntireRange() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // Blocks #1 and #2 between the current (#0) and signed (#3) blocks are absent from the queue
+        final var signed = pendingBlock(3L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 3L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #1 is missing");
+    }
+
+    @Test
+    void throwsWhenIndirectBlockHasUnexpectedSiblingCount() {
+        // The current (indirect) block has one too few sibling hashes for the fixed array layout
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK - 1);
+        final var signed = pendingBlock(1L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Pending block #0 produced 2 sibling hashes but exactly 3 were expected");
+    }
+
+    @Test
+    void throwsWhenSignedBlockHasUnexpectedSiblingCount() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // The signed block has one too many sibling hashes for the fixed array layout
+        final var signed = pendingBlock(1L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Signed block #1 produced 4 sibling hashes but exactly 3 were expected");
+    }
+
+    /**
+     * Builds a minimal {@link PendingBlock} with the given number and sibling-hash count. Each sibling hash reuses
+     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, a valid SHA-384-length value, so that hash
+     * conversion succeeds and only the guard under test can fail.
+     */
+    private static PendingBlock pendingBlock(final long number, final int siblingCount) {
+        final var siblings = new MerkleSiblingHash[siblingCount];
+        for (int i = 0; i < siblingCount; i++) {
+            siblings[i] = new MerkleSiblingHash(false, HASH_OF_ZERO);
+        }
+        return new PendingBlock(
+                number,
+                null,
+                HASH_OF_ZERO,
+                HASH_OF_ZERO,
+                BlockProof.newBuilder().block(number),
+                new NoOpTestWriter(),
+                Timestamp.DEFAULT,
+                siblings);
+    }
+
     /**
      * Precondition-checking method that verifies the pending blocks on disk match expectations.
      * @param pendingBlocks the loaded pending blocks
