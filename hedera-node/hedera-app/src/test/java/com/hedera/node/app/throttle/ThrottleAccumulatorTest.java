@@ -1408,6 +1408,57 @@ public class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void unparseableEthereumTransactionIsChargedToEthBucketNotCryptoCreate(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        // throttles-sans-creation.json defines an ETHEREUM_TRANSACTION bucket but no CRYPTO_CREATE bucket
+        final var defs = getThrottleDefs("bootstrap/throttles-sans-creation.json");
+
+        given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
+        // Empty (unparseable) ethereumData makes getImplicitCreationsCount return the
+        // UNKNOWN_NUM_IMPLICIT_CREATIONS sentinel (-1).
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .ethereumTransaction(ethTxnBody)
+                        .build());
+
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        // VLN-247: the -1 sentinel is treated as zero implicit creations and charged against the
+        // ETHEREUM_TRANSACTION bucket (which has capacity), never the missing CRYPTO_CREATE bucket.
+        // Before the fix the -1 routed to the null CRYPTO_CREATE manager and this returned true.
+        assertFalse(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesContractCallWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
