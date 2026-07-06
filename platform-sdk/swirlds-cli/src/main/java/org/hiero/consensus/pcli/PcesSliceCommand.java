@@ -109,8 +109,9 @@ public class PcesSliceCommand extends AbstractCommand {
     @CommandLine.Option(
             names = {"--node-min-seq-num"},
             split = ",",
-            description = "Per-node minimum sequence number filter. Format: nodeId:value,nodeId:value (e.g., 0:150,1:200). "
-                    + "Events from the specified node with lower sequence number are excluded.")
+            description =
+                    "Per-node minimum sequence number filter. Format: nodeId:value,nodeId:value (e.g., 0:150,1:200). "
+                            + "Events from the specified node with lower sequence number are excluded.")
     private List<String> nodeMinSeqNumRaw = new ArrayList<>();
 
     @CommandLine.Parameters(index = "0", description = "The input directory containing PCES files to slice.")

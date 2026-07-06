@@ -56,8 +56,6 @@ import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -87,6 +85,8 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.state.management.SignedStateFileReader;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization

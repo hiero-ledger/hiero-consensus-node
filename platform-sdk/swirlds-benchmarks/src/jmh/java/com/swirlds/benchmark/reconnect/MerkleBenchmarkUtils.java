@@ -15,7 +15,6 @@ import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A utility class to support benchmarks for reconnect.
@@ -67,8 +66,6 @@ public class MerkleBenchmarkUtils {
             final double delayNetworkFuzzRangePercent,
             final Configuration configuration)
             throws Exception {
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
         try (final PairedStreams streams = new PairedStreams()) {
@@ -76,11 +73,11 @@ public class MerkleBenchmarkUtils {
             final TeachingSynchronizer teacher;
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
-                learner = new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
-                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), reconnectConfig);
+                learner = new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
+                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), configuration);
             } else {
                 learner = new BenchmarkSlowLearningSynchronizer(
-                        reconnectConfig,
+                        configuration,
                         metrics,
                         randomSeed,
                         delayStorageMicroseconds,
@@ -89,7 +86,7 @@ public class MerkleBenchmarkUtils {
                         delayNetworkFuzzRangePercent);
                 teacher = new BenchmarkSlowTeachingSynchronizer(
                         desiredTree,
-                        reconnectConfig,
+                        configuration,
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,

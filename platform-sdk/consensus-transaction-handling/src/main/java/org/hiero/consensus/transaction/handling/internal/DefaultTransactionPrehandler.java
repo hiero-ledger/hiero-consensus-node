@@ -13,12 +13,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 
@@ -26,12 +26,15 @@ import org.hiero.consensus.transaction.handling.TransactionCallbacks;
  * Default implementation of the {@link TransactionPrehandler} interface
  */
 public class DefaultTransactionPrehandler implements TransactionPrehandler {
+
     private static final Logger logger = LogManager.getLogger(DefaultTransactionPrehandler.class);
+
+    private static final String RESERVATION_LABEL = "transaction prehandle";
 
     /**
      * A source to get the latest immutable state
      */
-    private final Supplier<ReservedSignedState> latestStateSupplier;
+    private final SignedStateNexus signedStateNexus;
 
     /**
      * Average time spent in to prehandle each individual transaction (in microseconds)
@@ -47,17 +50,17 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
      *
      * @param metrics the metrics system
      * @param time the time source
-     * @param latestStateSupplier provides access to the latest immutable state, may return null (implementation detail
+     * @param signedStateNexus provides access to the latest immutable state, may return null (implementation detail
      *                            of locking mechanism within the supplier)
      * @param transactionCallbacks the consensus state event handler
      */
     public DefaultTransactionPrehandler(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
+            @NonNull final SignedStateNexus signedStateNexus,
             @NonNull final TransactionCallbacks transactionCallbacks) {
         this.time = requireNonNull(time);
-        this.latestStateSupplier = requireNonNull(latestStateSupplier);
+        this.signedStateNexus = requireNonNull(signedStateNexus);
 
         preHandleTime = new AverageTimeStat(
                 metrics,
@@ -81,9 +84,9 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
 
         ReservedSignedState latestImmutableState = null;
         try {
-            latestImmutableState = latestStateSupplier.get();
+            latestImmutableState = signedStateNexus.getState(RESERVATION_LABEL);
             while (latestImmutableState == null) {
-                latestImmutableState = latestStateSupplier.get();
+                latestImmutableState = signedStateNexus.getState(RESERVATION_LABEL);
             }
 
             try {

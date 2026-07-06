@@ -265,7 +265,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         // reconnect happening
-        VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
+        VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
 
         assertEquals(DOG, afterMap.get(D_KEY, TestValueCodec.INSTANCE), "After sync, should have D_KEY available");
         assertNull(afterMap.get(C_KEY, TestValueCodec.INSTANCE), "After sync, should not have C_KEY anymore");
@@ -306,7 +306,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         final VirtualMap afterLearnerMap =
-                ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
+                ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
 
         final VirtualMap afterCopy = afterLearnerMap.copy();
 

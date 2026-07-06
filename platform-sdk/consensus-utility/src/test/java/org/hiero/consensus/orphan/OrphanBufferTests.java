@@ -458,7 +458,8 @@ class OrphanBufferTests {
                 .isEqualTo(EventConstants.FIRST_SEQUENCE_NUMBER + 1);
     }
 
-    @DisplayName("Verify the assignment of the sequence number for events with non-ancient parents with different sequence numbers")
+    @DisplayName(
+            "Verify the assignment of the sequence number for events with non-ancient parents with different sequence numbers")
     @Test
     void testSequenceNumberValueWithNonAncientParents() {
         // Pick some values to use. These are arbitrary.

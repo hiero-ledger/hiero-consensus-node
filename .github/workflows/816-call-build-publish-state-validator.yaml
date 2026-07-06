@@ -71,13 +71,13 @@ jobs:
 
       - name: Build State Validator Uber shadowJar
         run: |
-          ./gradlew --no-daemon --stacktrace :hedera-state-validator:shadowJar
+          ./gradlew --stacktrace :hedera-state-validator:shadowJar
 
       - name: Determine version and artifact
         id: version-and-artifact
         run: |
           set -euo pipefail
-          FULL_VER=$(./gradlew --no-daemon :hedera-state-validator:properties | grep '^version:' | cut -d ' ' -f2)
+          FULL_VER=$(./gradlew showVersion -q)
           # Remove -SNAPSHOT suffix if present
           VER_WITHOUT_SNAPSHOT=${FULL_VER%-SNAPSHOT}
           # Extract major.minor (first two segments)

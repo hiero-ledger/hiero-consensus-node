@@ -22,8 +22,7 @@ class ReconnectStateTeacherThrottleTest {
     private ReconnectConfig buildSettings(final String minimumTimeBetweenReconnects) {
         final Configuration config = new TestConfigBuilder()
                 .withValue(ReconnectConfig_.ACTIVE, "true")
-                .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "0ms") // Not needed in Test
-                .withValue(ReconnectConfig_.ASYNC_OUTPUT_STREAM_FLUSH, "0ms") // Not needed in Test
+                .withValue(ReconnectConfig_.SOCKET_TIMEOUT, "0ms") // Not needed in Test
                 .withValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, minimumTimeBetweenReconnects)
                 .getOrCreateConfig();
 

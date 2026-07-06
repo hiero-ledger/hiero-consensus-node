@@ -114,15 +114,15 @@ a dependency on it.
   changes, so the sensitive consumers (consensus, sync) move one at a time with
   their own testing rather than in one large switch:
 
-  |                          Stage                           |                 Scope                  |      Tracking      |  State  |
-  |----------------------------------------------------------|----------------------------------------|--------------------|---------|
-  | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done    |
-  | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
-  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | done    |
-  | Sync                                                     | `consensus-gossip-impl`                | #24843             | done    |
-  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | done    |
-  | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | done    |
-  | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | done    |
+  |                          Stage                           |                 Scope                  |      Tracking      | State |
+  |----------------------------------------------------------|----------------------------------------|--------------------|-------|
+  | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done  |
+  | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done  |
+  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | done  |
+  | Sync                                                     | `consensus-gossip-impl`                | #24843             | done  |
+  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | done  |
+  | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | done  |
+  | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | done  |
 
   The final stage (#24846) deleted `assignNGen`, the `nGen` field, its
   accessors, and `NonDeterministicGeneration.java`, completing the removal.
