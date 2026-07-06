@@ -158,7 +158,6 @@ jobs:
           RC_TAG: ${{ inputs.rc-tag || '' }}
           DEFAULT_BRANCH_NAME: "main"
         run: |
-          set +o pipefail
           # Check if the tag exists and if so grab its commit id
           echo "::group::Check for XTS Candidate Tag"
           if [[ -n "${RC_TAG}" ]]; then
@@ -211,8 +210,10 @@ jobs:
 
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
+            set +e
             LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
             LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
+            set -e
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
               echo "::debug::Using latest xts-pass tag"
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
@@ -230,13 +231,16 @@ jobs:
 
           echo "::group::Check if XTS COMMIT is on default branch"
           # Determine which branch the commit belongs to
+          set +e
           XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          set -e
           echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
 
           XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
           COMMIT_ON_DEFAULT_BRANCH=0
 
           # Check if the commit on the default branch
+          set +e
           if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
             echo "::debug::Commit ${XTS_COMMIT} found on main branch."
           else
@@ -248,6 +252,7 @@ jobs:
               | sed 's/~.*//'
             )"
           fi
+          set -e
 
           # Print branch debug info
           echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
