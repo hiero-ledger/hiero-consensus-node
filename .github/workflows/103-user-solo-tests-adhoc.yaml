@@ -130,8 +130,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -318,8 +320,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -412,6 +416,7 @@ jobs:
         env:
           CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
           KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
+          UPGRADE_075_VERSION: ${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
@@ -419,7 +424,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 150m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}" \
+              UPGRADE_075_VERSION="${UPGRADE_075_VERSION}" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
@@ -506,8 +511,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -551,6 +558,9 @@ jobs:
         run: ${GRADLE_EXEC} assemble
 
       - name: Run 0.75 -> 0.76 TSS Upgrade Scenario
+        env:
+          DEPLOY_RELEASE_TAG: ${{ inputs.tss-starting-tag || 'v0.75.0-rc.6' }}
+          UPGRADE_TAG: ${{ inputs.tss-upgrade-tag }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-075-to-076-tss.sh"
@@ -558,8 +568,8 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.tss-starting-tag || 'v0.75.0-rc.6' }}" \
-              UPGRADE_TAG="${{ inputs.tss-upgrade-tag }}" \
+              DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG}" \
+              UPGRADE_TAG="${UPGRADE_TAG}" \
             "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/075-to-076-tss-script.log"
 
       - name: Collect Diagnostics On Failure
@@ -634,8 +644,10 @@ jobs:
           node-version: "20.18.0"
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
