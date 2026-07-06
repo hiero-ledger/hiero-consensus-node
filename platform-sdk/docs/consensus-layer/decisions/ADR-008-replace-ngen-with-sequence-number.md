@@ -120,7 +120,7 @@ a dependency on it.
   | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
   | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | done    |
   | Sync                                                     | `consensus-gossip-impl`                | #24843             | done    |
-  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | pending |
+  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | done    |
   | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending |
   | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | pending |
 
@@ -227,8 +227,10 @@ See **Decision** above.
 - `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
   `ChildlessEventTracker.java` — the first consumer migrated (#24991).
 - `consensus-hashgraph-impl/.../consensus/` — `ConsensusImpl`, `ConsensusRounds`,
-  `RoundElections`, `ConsensusSorter`, `LocalConsensusGeneration`: the consensus
-  and `cGen` consumers still on `nGen` (#24844, #24883).
+  `RoundElections` (consensus algorithm, #24844) and
+  `LocalConsensusGeneration.assignCGen` (the `cGen` initial topological sort, #24883)
+  migrated off `nGen` to the sequence number; `ConsensusSorter` orders by the resulting
+  `cGen`, never `nGen`.
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
   `sequenceNumber` (#24843).
 - `consensus-gui/.../hashgraph/util/PictureMetadata.java`,
