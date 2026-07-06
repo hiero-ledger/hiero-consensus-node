@@ -287,7 +287,9 @@ jobs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
-    timeout-minutes: 180
+    # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
+    # needs extra headroom, so both the step and job budgets are widened below.
+    timeout-minutes: 210
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
@@ -416,7 +418,7 @@ jobs:
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
-          timeout --signal=SIGINT --kill-after=5m 150m \
+          timeout --signal=SIGINT --kill-after=5m 175m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}" \
@@ -424,6 +426,7 @@ jobs:
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
+              ENABLE_TCK_TESTS="true" \
             "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
