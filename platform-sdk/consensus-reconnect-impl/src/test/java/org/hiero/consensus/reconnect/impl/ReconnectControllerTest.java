@@ -103,6 +103,8 @@ class ReconnectControllerTest {
     @TempDir
     Path tempDir;
 
+    private NodeId[] nodeIds;
+
     @AfterAll
     static void tearDownClass() {
         MerkleDbTestUtils.assertAllDatabasesClosed();
@@ -119,7 +121,10 @@ class ReconnectControllerTest {
                         (l, i) -> WeightGenerators.balancedNodeWeights(NUM_NODES, WEIGHT_PER_NODE * NUM_NODES))
                 .build();
 
-        selfId = NodeId.of(0);
+        nodeIds = roster.rosterEntries().stream()
+                .map(it -> NodeId.of(it.nodeId()))
+                .toArray(NodeId[]::new);
+        selfId = nodeIds[0];
 
         // Create a configuration with reconnect enabled
         configuration = new TestConfigBuilder()
@@ -436,7 +441,7 @@ class ReconnectControllerTest {
             }
         };
         scenario.start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .parallelRun(peer, peer, peer, peer)
                 .waitForReconnectToReceiveState()
@@ -451,7 +456,7 @@ class ReconnectControllerTest {
 
         new ReconnectControllerTest.ReconnectScenario(createController())
                 .start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .provideState()
                 .waitForReconnectToReceiveState()
@@ -471,7 +476,7 @@ class ReconnectControllerTest {
     void testPromiseCleanupAfterConsumption() throws InterruptedException {
         new ReconnectScenario(createController())
                 .start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .provideState()
                 .syncRun(() -> {
@@ -499,7 +504,7 @@ class ReconnectControllerTest {
 
         new ReconnectScenario(createController())
                 .start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .syncRun(() -> {
                     try {
@@ -532,7 +537,7 @@ class ReconnectControllerTest {
     void testProvidingAnExceptionCausesRetry() throws InterruptedException {
         new ReconnectScenario(createController())
                 .start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .provideException(new RuntimeException("simulated exception"))
                 .waitForReconnectToRequestState()
@@ -546,7 +551,7 @@ class ReconnectControllerTest {
     void testFallenBehindMonitorReset() throws InterruptedException {
         new ReconnectScenario(createController())
                 .start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .provideState()
                 .waitForReconnectToReceiveState()
@@ -588,7 +593,7 @@ class ReconnectControllerTest {
 
         new ReconnectScenario(createController())
                 .start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .provideState()
                 .waitForReconnectToReceiveState()
@@ -624,7 +629,7 @@ class ReconnectControllerTest {
 
         final var scenario = new ReconnectScenario(controller);
         scenario.start()
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .provideState()
                 .waitForReconnectToReceiveState()
@@ -656,7 +661,7 @@ class ReconnectControllerTest {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
         new ReconnectScenario(controller)
                 .startWithExitCapture(capturedExitCode)
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .syncRun(() -> {
                     try {
@@ -700,7 +705,7 @@ class ReconnectControllerTest {
                     // make the time move forward for the window to elapse
                     fakeTime.tick(Duration.ofSeconds(2));
                 })
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .wait(1000)
                 .waitForFinish(LONG_TIMEOUT);
 
@@ -727,7 +732,7 @@ class ReconnectControllerTest {
 
         new ReconnectScenario(controller)
                 .startWithExitCapture(capturedExitCode)
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
@@ -749,7 +754,7 @@ class ReconnectControllerTest {
         new ReconnectScenario(createController())
                 .startWithExitCapture(capturedExitCode)
                 // Start controller
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
@@ -769,7 +774,7 @@ class ReconnectControllerTest {
         final ReconnectController controller = createController();
         final var scenario = new ReconnectScenario(controller);
         scenario.startWithExitCapture(capturedExitCode)
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .syncRun(scenario::interruptControllerThread)
                 .waitForFinish(LONG_TIMEOUT);
@@ -794,7 +799,7 @@ class ReconnectControllerTest {
         scenario
                 // Start controller
                 .startWithExitCapture(systemExitCalled)
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
                 .waitForReconnectToRequestState()
                 .syncRun(() -> {
                     controller.stopReconnectLoop();
