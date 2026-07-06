@@ -42,15 +42,15 @@ Key options (`--help` for all): `--kb` (required), `--repo`, `--out`, `--baselin
 
 The run writes to `--out` (default `build/kb-freshness/`):
 
-| File | What it is |
-|---|---|
-| `report.md` | **The drift report.** New drift (the signal), carried drift, resolved. Act on this. |
-| `findings.json` | Machine-readable finding set; stable ids; byte-identical across runs. |
-| `quiet-log.md` | `unverifiable` checks (generated/external symbols). **Not** drift. |
-| `auto-fix.md` | Proposed line-reference corrections (a symbol resolves but its cited line moved). Suggestions only. |
-| `coverage.md` | Undocumented code (coverage lane). **Not** drift. |
-| `worklist.md` / `worklist.json` | Topics whose anchored source changed since `last_reviewed` — the semantic pass's input. |
-| `baseline.proposed.tsv` | The baseline the current run would write back. |
+|              File               |                                             What it is                                              |
+|---------------------------------|-----------------------------------------------------------------------------------------------------|
+| `report.md`                     | **The drift report.** New drift (the signal), carried drift, resolved. Act on this.                 |
+| `findings.json`                 | Machine-readable finding set; stable ids; byte-identical across runs.                               |
+| `quiet-log.md`                  | `unverifiable` checks (generated/external symbols). **Not** drift.                                  |
+| `auto-fix.md`                   | Proposed line-reference corrections (a symbol resolves but its cited line moved). Suggestions only. |
+| `coverage.md`                   | Undocumented code (coverage lane). **Not** drift.                                                   |
+| `worklist.md` / `worklist.json` | Topics whose anchored source changed since `last_reviewed` — the semantic pass's input.             |
+| `baseline.proposed.tsv`         | The baseline the current run would write back.                                                      |
 
 A report finding reads e.g. **GONE** (the cited class/file is absent) or **MOVED** (it exists, but in
 a different module than cited — a package/path move). Each carries the exact question asked, one-look
@@ -69,10 +69,13 @@ The baseline (`baseline/kb-freshness-baseline.tsv`) is a human-owned, version-co
 
 1. Find the finding's `id` in `report.md` (or `findings.json`).
 2. Add a row to `baseline/kb-freshness-baseline.tsv`:
+
    ```
    <id><TAB>dismissed<TAB>2026-07-06<TAB>false positive: <reason>
    ```
+
    (`accepted` and `deferred` are the other dispositions.)
+
 3. Re-run: the finding is suppressed from the report.
 
 Because a finding's identity is keyed on **what the KB says** (entry + target + check — never line
