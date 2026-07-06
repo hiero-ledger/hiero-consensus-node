@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -50,12 +49,22 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LockFreeStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
+/**
+ * A factory class for creating no-op instances of various consensus modules.
+ */
 public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link EventCreatorModule}.
@@ -275,6 +284,7 @@ public class ConsensusNoOpModules {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code TransactionHandlingModule}
      */
     @NonNull
@@ -284,8 +294,7 @@ public class ConsensusNoOpModules {
             @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
-                new AtomicReference<>();
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
@@ -298,12 +307,57 @@ public class ConsensusNoOpModules {
                 configuration,
                 metrics,
                 time,
-                latestImmutableStateProviderReference,
+                latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
                 statusActionSubmitterReference,
                 appVersion,
                 selfId,
                 transactionOffsetNanos);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link StateManagementModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @param fileSystemManager the file system manager
+     * @return an initialized no-op instance of {@code StateManagementModule}
+     */
+    @NonNull
+    public static StateManagementModule createNoOpStateManagementModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final KeysAndCerts keysAndCerts;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(selfId);
+        } catch (final Exception e) {
+            throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
+        }
+        final String mainClassName = "mainClassName";
+        final String swirldName = "swirldName";
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(configuration, metrics);
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+
+        return new StateManagementModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                keysAndCerts,
+                mainClassName,
+                selfId,
+                swirldName,
+                stateLifecycleManager,
+                latestCompleteStateNexus,
+                savedStateController);
     }
 }

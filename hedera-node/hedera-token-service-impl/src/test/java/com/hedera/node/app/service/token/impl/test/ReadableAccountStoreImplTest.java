@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
@@ -275,6 +276,64 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
 
         //noinspection DataFlowIssue
         Assertions.assertThatThrownBy(() -> subject.contains(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void getContractByIdReturnsNullForPlainEoa() {
+        final var plainEoa =
+                Account.newBuilder().accountId(id).smartContract(false).build();
+        readableAccounts =
+                emptyReadableAccountStateBuilder().value(id, plainEoa).build();
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+
+        final var contractId = ContractID.newBuilder()
+                .shardNum(id.shardNum())
+                .realmNum(id.realmNum())
+                .contractNum(id.accountNumOrThrow())
+                .build();
+
+        assertThat(subject.getContractById(contractId)).isNull();
+    }
+
+    @Test
+    void getContractByIdReturnsSmartContract() {
+        final var smartContract =
+                Account.newBuilder().accountId(id).smartContract(true).build();
+        readableAccounts =
+                emptyReadableAccountStateBuilder().value(id, smartContract).build();
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+
+        final var contractId = ContractID.newBuilder()
+                .shardNum(id.shardNum())
+                .realmNum(id.realmNum())
+                .contractNum(id.accountNumOrThrow())
+                .build();
+
+        assertThat(subject.getContractById(contractId)).isEqualTo(smartContract);
+    }
+
+    @Test
+    void getContractByIdReturnsDelegatedEoa() {
+        final var delegationTarget = Bytes.fromHex("00000000000000000000000000000000000000bb");
+        final var delegatedEoa = Account.newBuilder()
+                .accountId(id)
+                .smartContract(false)
+                .delegationAddress(delegationTarget)
+                .build();
+        readableAccounts =
+                emptyReadableAccountStateBuilder().value(id, delegatedEoa).build();
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+
+        final var contractId = ContractID.newBuilder()
+                .shardNum(id.shardNum())
+                .realmNum(id.realmNum())
+                .contractNum(id.accountNumOrThrow())
+                .build();
+
+        assertThat(subject.getContractById(contractId)).isEqualTo(delegatedEoa);
     }
 
     @Test

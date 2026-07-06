@@ -6,7 +6,6 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -20,6 +19,7 @@ import java.util.List;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.schemas.V0540RosterBaseSchema;
 
 /**
  * This class is used to initialize the state of test applications. It allows to register the necessary

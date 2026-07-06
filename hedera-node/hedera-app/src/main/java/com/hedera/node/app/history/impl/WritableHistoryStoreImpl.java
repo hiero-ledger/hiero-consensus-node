@@ -39,7 +39,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -181,7 +180,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public HistoryProofConstruction restartWrapsSigning(
-            final long constructionId, @NonNull final Set<Long> sourceNodeIds) {
+            final long constructionId, @NonNull final SortedSet<Long> sourceNodeIds) {
         requireNonNull(sourceNodeIds);
         sourceNodeIds.forEach(nodeId -> wrapsMessageHistories.remove(new ConstructionNodeId(constructionId, nodeId)));
         return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(

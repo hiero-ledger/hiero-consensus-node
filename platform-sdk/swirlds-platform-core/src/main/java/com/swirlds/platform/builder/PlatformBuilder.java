@@ -25,8 +25,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.nexus.LockFreeStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -43,7 +41,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,6 +66,13 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LockFreeStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
@@ -456,7 +460,7 @@ public final class PlatformBuilder {
 
     private void initializeGossipModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
+            @NonNull final Supplier<ReservedSignedState> latestCompleteStateSupplier,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         if (this.gossipModule == null) {
@@ -473,7 +477,7 @@ public final class PlatformBuilder {
                 selfId,
                 softwareVersion,
                 intakeEventCounter,
-                () -> getLatestCompleteStateReference.get().get(),
+                latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 stateLifecycleManager);
@@ -495,20 +499,39 @@ public final class PlatformBuilder {
 
     @NonNull
     private TransactionHandlingModule createTransactionHandlingModule(
-            @NonNull final AtomicReference<Function<String, ReservedSignedState>> latestCompleteStateReference,
+            @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
         return new TransactionHandlingModule(
                 model,
                 platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                latestCompleteStateReference,
+                latestImmutableStateNexus,
                 consensusStateEventHandler,
                 stateLifecycleManager,
                 statusActionSubmitterReference,
                 softwareVersion,
                 selfId,
                 transactionOffsetNanos);
+    }
+
+    @NonNull
+    private StateManagementModule createStateManagementModule(
+            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
+            @NonNull final SavedStateController savedStateController) {
+        return new StateManagementModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getFileSystemManager(),
+                keysAndCerts,
+                appName,
+                selfId,
+                swirldName,
+                stateLifecycleManager,
+                latestCompleteStateNexus,
+                savedStateController);
     }
 
     /**
@@ -581,9 +604,6 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<Supplier<ReservedSignedState>> latestCompleteStateReference = new AtomicReference<>();
-        final AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference =
-                new AtomicReference<>();
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
@@ -605,8 +625,18 @@ public final class PlatformBuilder {
         }
 
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
+
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final TransactionHandlingModule transactionHandlingModule =
-                createTransactionHandlingModule(latestImmutableStateProviderReference, statusActionSubmitterReference);
+                createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
+
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(configuration, platformContext.getMetrics());
+        final Supplier<ReservedSignedState> latestCompleteStateSupplier =
+                () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+        final StateManagementModule stateManagementModule =
+                createStateManagementModule(latestCompleteStateNexus, savedStateController);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -617,11 +647,11 @@ public final class PlatformBuilder {
                 hashgraphModule,
                 gossipModule,
                 issDetectionModule,
-                transactionHandlingModule);
+                transactionHandlingModule,
+                stateManagementModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         statusActionSubmitterReference.set(platformCoordinator);
-        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
 
         initializeEventCreatorModule();
 
@@ -639,10 +669,7 @@ public final class PlatformBuilder {
                 platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
         initializeGossipModule(
-                intakeEventCounter,
-                latestCompleteStateReference,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor);
+                intakeEventCounter, latestCompleteStateSupplier, reservedSignedStateResultPromise, fallenBehindMonitor);
 
         PlatformWiring.wire(platformContext, execution, platformComponents, staleEventConsumer);
 
@@ -660,12 +687,10 @@ public final class PlatformBuilder {
                 intakeEventCounter,
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                latestImmutableStateProviderReference,
                 consensusEventStreamName,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 statusActionSubmitterReference,
                 stateLifecycleManager,
-                latestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
@@ -673,7 +698,8 @@ public final class PlatformBuilder {
                 reservedSignedStateResultPromise,
                 platformCoordinator,
                 latestImmutableStateNexus,
-                transactionOffsetNanos);
+                transactionOffsetNanos,
+                savedStateController);
 
         return new PlatformComponentBuilder(buildingBlocks);
     }
