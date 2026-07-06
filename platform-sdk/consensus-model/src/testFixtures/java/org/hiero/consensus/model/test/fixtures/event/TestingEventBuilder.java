@@ -24,7 +24,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -145,6 +144,8 @@ public class TestingEventBuilder {
 
     private long sequenceNumberOverride = SEQUENCE_NUMBER_UNDEFINED;
 
+    private boolean assignSequenceNumber = false;
+
     private static final AtomicLong sequenceNumber = new AtomicLong(SEQUENCE_NUMBER_UNDEFINED + 1);
 
     /**
@@ -171,24 +172,27 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Set the sequence number to use. If not set, default to {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}
-     *
-     * @param sequenceNumber the sequenceNumber
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder setSequenceNumber(final long sequenceNumber) {
-        this.sequenceNumberOverride = sequenceNumber;
-        return this;
-    }
-
-    /**
-     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified
+     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified.  This
+     *      value overrides any value set with {@link #setEnableSequenceNumberAssignment(boolean)}
      *
      * @param sequenceNumberOverride sequence number to use for the next generated event
      * @return this instance
      */
     public @NonNull TestingEventBuilder setSequenceNumberOverride(final long sequenceNumberOverride) {
         this.sequenceNumberOverride = sequenceNumberOverride;
+        this.assignSequenceNumber = true;
+        return this;
+    }
+
+    /**
+     * If set to true, this builder will assign a sequence number to the events it creates. Otherwise, it will not.
+     *
+     * @param assignSequenceNumber true if sequence numbers should be assigned, false otherwise
+     * @return this instance
+     */
+    @NonNull
+    public TestingEventBuilder setEnableSequenceNumberAssignment(final boolean assignSequenceNumber) {
+        this.assignSequenceNumber = assignSequenceNumber;
         return this;
     }
 
@@ -405,6 +409,7 @@ public class TestingEventBuilder {
 
     /**
      * Set a custom origin for the event.
+     *
      * @param origin the origin of the event
      * @return this instance
      */
@@ -543,10 +548,12 @@ public class TestingEventBuilder {
 
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
-        if (sequenceNumberOverride > SEQUENCE_NUMBER_UNDEFINED) {
-            platformEvent.setSequenceNumber(sequenceNumberOverride);
-        } else {
-            platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
+        if (assignSequenceNumber) {
+            if (sequenceNumberOverride > SEQUENCE_NUMBER_UNDEFINED) {
+                platformEvent.setSequenceNumber(sequenceNumberOverride);
+            } else {
+                platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
+            }
         }
 
         if (consensusTimestamp != null || consensusOrder != null) {

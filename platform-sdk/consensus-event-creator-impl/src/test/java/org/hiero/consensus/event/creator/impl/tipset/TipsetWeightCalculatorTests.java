@@ -59,7 +59,7 @@ class TipsetWeightCalculatorTests {
             @NonNull final Random random, @NonNull final NodeId creator, final long seqNum) {
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumber(seqNum)
+                .setSequenceNumberOverride(seqNum)
                 .setBirthRound(ROUND_FIRST)
                 .build();
     }
@@ -102,7 +102,7 @@ class TipsetWeightCalculatorTests {
             final long birthRound) {
         return new TestingEventBuilder(random)
                 .setCreatorId(selfParent.getCreatorId())
-                .setSequenceNumber(seqNum)
+                .setSequenceNumberOverride(seqNum)
                 .setSelfParent(selfParent)
                 .setOtherParents(otherParents)
                 .setBirthRound(birthRound)
@@ -190,7 +190,7 @@ class TipsetWeightCalculatorTests {
             }
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(creator)
-                    .setSequenceNumber(seqNum)
+                    .setSequenceNumberOverride(seqNum)
                     .setSelfParent(selfParent)
                     .setOtherParents(otherParents)
                     .build();

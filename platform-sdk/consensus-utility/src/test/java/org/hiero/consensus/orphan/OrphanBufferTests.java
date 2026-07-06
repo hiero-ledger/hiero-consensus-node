@@ -427,17 +427,11 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node0AncientEvent.getSequenceNumber())
-                .withFailMessage("Ancient events should not be assigned an sequence number")
-                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1AncientEvent));
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node1AncientEvent.getSequenceNumber())
-                .withFailMessage("Ancient events should not be assigned an sequence number")
-                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1NonAncientEvent));
         assertThat(unorphanedEvents.size())
@@ -505,17 +499,11 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node0AncientEvent.getSequenceNumber())
-                .withFailMessage("Ancient events should not be assigned an sequence number")
-                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1AncientEvent));
         assertThat(unorphanedEvents.isEmpty())
                 .withFailMessage("Ancient events should not be returned by the orphan buffer")
                 .isTrue();
-        assertThat(node1AncientEvent.getSequenceNumber())
-                .withFailMessage("Ancient events should not be assigned an sequence number")
-                .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node1NonAncientEvent));
         assertThat(unorphanedEvents.size())

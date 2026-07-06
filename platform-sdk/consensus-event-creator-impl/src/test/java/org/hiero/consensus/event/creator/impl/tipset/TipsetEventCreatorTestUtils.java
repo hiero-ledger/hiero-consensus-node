@@ -309,7 +309,7 @@ public class TipsetEventCreatorTestUtils {
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumber(seqNum)
+                .setSequenceNumberOverride(seqNum)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .build();
@@ -328,7 +328,7 @@ public class TipsetEventCreatorTestUtils {
 
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
-                .setSequenceNumber(seqNum)
+                .setSequenceNumberOverride(seqNum)
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)
