@@ -116,25 +116,23 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
-
-//        final var payload = transaction.payload();
-//        final var gasCharges =
-//                gasCalculator.transactionGasRequirements(
-//                (int) payload.length(),
-//                HederaGasCalculator.payloadZeroBytes(payload),
-//                transaction.isCreate(),
-//                transaction.accessLists(),
-//                transaction.codeDelegations());
-        final var gasCharges = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate(), 0L);
+        final var payload = transaction.payload();
+        final var gasCharges =
+                gasCalculator.transactionGasRequirements(
+                (int) payload.length(),
+                HederaGasCalculator.payloadZeroBytes(payload),
+                transaction.isCreate(),
+                transaction.accessLists(),
+                transaction.codeDelegations());
         if (context.isStaticCall()) {
-            return new GasCharges(gasCharges, 0L);
+            return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
         validateTrue(transaction.gasLimit() >= gasCharges.minimumGasUsed(), INSUFFICIENT_GAS);
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
             if (!context.shouldChargeGasFees()) {
                 sender.incrementNonce();
-                return new GasCharges(gasCharges, 0L);
+                return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
             }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
             return new GasCharges(gasCharges.intrinsicGas(), gasCharges.minimumGasUsed(), allowanceUsed);
@@ -143,7 +141,7 @@ public class CustomGasCharging {
                 chargeWithOnlySender(sender, context, worldUpdater, transaction);
                 return gasCharges;
             }
-            return new GasCharges(gasCharges, 0L);
+            return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
     }
 

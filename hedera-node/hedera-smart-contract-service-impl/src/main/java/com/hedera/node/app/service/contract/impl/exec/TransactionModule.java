@@ -57,7 +57,6 @@ import java.time.Instant;
 import java.util.Map;
 import org.hiero.hapi.fees.FeeScheduleUtils;
 import org.hiero.hapi.support.fees.Extra;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
 public interface TransactionModule {
