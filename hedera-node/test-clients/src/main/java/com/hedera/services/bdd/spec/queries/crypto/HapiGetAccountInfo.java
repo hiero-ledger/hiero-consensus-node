@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.queries.crypto;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.rethrowSummaryError;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
@@ -10,7 +11,9 @@ import static com.hederahashgraph.api.proto.java.CryptoGetInfoResponse.AccountIn
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.KeyList;
@@ -38,6 +41,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
 
 /**
@@ -72,6 +76,7 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
     Optional<Integer> alreadyUsedAutomaticAssociations = Optional.empty();
     private Optional<Consumer<AccountID>> idObserver = Optional.empty();
     private Optional<Consumer<Long>> ethereumNonceObserver = Optional.empty();
+    private Optional<Address> delegationAddress = Optional.empty();
 
     @Nullable
     private Consumer<Key> keyObserver = null;
@@ -207,6 +212,16 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         return this;
     }
 
+    public HapiGetAccountInfo hasDelegationAddress(Address address) {
+        this.delegationAddress = Optional.of(address);
+        return this;
+    }
+
+    public HapiGetAccountInfo hasNoDelegation() {
+        this.delegationAddress = Optional.of(ZERO_ADDRESS);
+        return this;
+    }
+
     @Override
     protected HapiGetAccountInfo self() {
         return this;
@@ -286,6 +301,16 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         if (registryEntry.isPresent()) {
             spec.registry().saveAccountInfo(registryEntry.get(), actualInfo);
         }
+        final var actualDelegationAddress = actualInfo.getDelegationAddress();
+        delegationAddress.ifPresent(address -> {
+            if (ZERO_ADDRESS.equals(address)) {
+                assertTrue(actualDelegationAddress.isEmpty());
+            } else {
+                assertEquals(
+                        address.value(),
+                        Bytes.wrap(actualDelegationAddress.toByteArray()).toBigInteger());
+            }
+        });
     }
 
     @Override

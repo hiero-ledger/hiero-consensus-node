@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
@@ -19,6 +20,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.annotations.LiveConsensusNode;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -28,6 +30,8 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,6 +49,13 @@ public class DispatchValidator {
     private final TransactionChecker transactionChecker;
     private final AppFeeCharging feeCharging;
 
+    /**
+     * True on every live consensus node (genesis/restart/reconnect), false only in the in-process standalone
+     * transaction executor. Supplied as a per-component constant (see {@link LiveConsensusNode}), so it does not
+     * depend on how the node booted or on incidental state such as whether a block record manager is present.
+     */
+    private final boolean liveConsensusNode;
+
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
@@ -53,17 +64,22 @@ public class DispatchValidator {
      *
      * @param recordCache the record cache
      * @param transactionChecker the transaction checker
+     * @param feeCharging the fee-charging strategy
+     * @param systemEntitiesCreatedFlag the genesis system-entities-created flag (present only on a genesis boot)
+     * @param liveConsensusNode true on a live consensus node, false in the standalone transaction executor
      */
     @Inject
     public DispatchValidator(
             @NonNull final HederaRecordCache recordCache,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final AppFeeCharging feeCharging,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
+            @LiveConsensusNode final boolean liveConsensusNode) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.liveConsensusNode = liveConsensusNode;
     }
 
     /**
@@ -77,6 +93,17 @@ public class DispatchValidator {
     public FeeCharging.Validation validateFeeChargingScenario(@NonNull final Dispatch dispatch) {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             return newGenesisWaiver(dispatch.creatorInfo().accountId());
+        }
+        // A NODE-category dispatch skips payer-signature verification below, so its payer MUST be
+        // node-controlled: the system admin account (synthetic system transactions) or the creator
+        // node's own account (gossiped node-submitted votes that the node pays for itself). Any other
+        // payer means a node is charging a foreign account it never authorized; treat it as a node
+        // due-diligence failure so the creator node is charged instead of the named payer. Genesis is
+        // already waived above. This applies on every live consensus node regardless of how it booted
+        // (genesis/restart/reconnect); only the in-process standalone transaction executor is exempt,
+        // since it has no gossip source and legitimately dispatches NODE transactions with a chosen payer.
+        if (liveConsensusNode && dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
+            return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_ACCOUNT_ID);
         }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
@@ -106,6 +133,31 @@ public class DispatchValidator {
                 case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
             };
         }
+    }
+
+    /**
+     * Returns whether the given dispatch's payer is permitted for a NODE-category transaction, which skips
+     * payer-signature verification. Only two payers are node-controlled and therefore legitimate: the configured
+     * system admin account (used by synthetically dispatched system transactions such as node fee payments) and
+     * the creator node's own account (used by gossiped node-submitted votes the node pays for itself).
+     *
+     * @param dispatch the dispatch
+     * @return true if the payer is the system admin account or the creator node's own account
+     */
+    private boolean payerIsNodeControlled(@NonNull final Dispatch dispatch) {
+        final var payerId = dispatch.payerId();
+        if (payerId.equals(dispatch.creatorInfo().accountId())) {
+            return true;
+        }
+        final var config = dispatch.config();
+        final var hederaConfig = config.getConfigData(HederaConfig.class);
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        final var systemAdminId = AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(accountsConfig.systemAdmin())
+                .build();
+        return payerId.equals(systemAdminId);
     }
 
     /**
