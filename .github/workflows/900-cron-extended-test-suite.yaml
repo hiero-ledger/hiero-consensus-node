@@ -347,6 +347,8 @@ jobs:
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
+      bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
