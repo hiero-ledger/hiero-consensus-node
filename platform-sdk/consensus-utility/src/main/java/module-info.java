@@ -11,6 +11,7 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.exceptions;
     exports org.hiero.consensus.io.counting;
     exports org.hiero.consensus.io;
+    exports org.hiero.consensus.monitoring;
     exports org.hiero.consensus.node;
     exports org.hiero.consensus.orphan;
     exports org.hiero.consensus.round;
@@ -30,6 +31,7 @@ module org.hiero.consensus.utility {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.roster;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.consensus.metrics;

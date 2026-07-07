@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto.test;
+package org.hiero.consensus.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,7 +14,6 @@ import java.util.Random;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyType;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -25,7 +24,7 @@ class KeysAndCertsTest {
     private static final byte[] DATA_ARRAY = {1, 2, 3};
     private static final Bytes DATA_BYTES = Bytes.wrap(DATA_ARRAY);
     private static final PublicKey WRONG_KEY =
-            PreGeneratedPublicKeys.getPublicKey(KeyType.RSA, 0).getPublicKey();
+            org.hiero.base.crypto.test.fixtures.PreGeneratedPublicKeys.getPublicKey(KeyType.RSA, 0).getPublicKey();
 
     private void testSignVerify(final PlatformSigner signer, final PublicKey publicKey) {
         final Signature signature = signer.sign(DATA_ARRAY);

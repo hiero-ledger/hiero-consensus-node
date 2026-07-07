@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto.test;
+package org.hiero.base.crypto.test.fixtures;
 
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
