@@ -25,37 +25,33 @@ import org.hiero.base.crypto.Hash;
 public class BlockStateProofGenerator {
 
     /**
-     * The unsigned block sibling count includes the pending/unsigned block's timestamp
+     * Each intermediate block contributes: its Merkle siblings, a null-hash sentinel for the
+     * single-child internal node wrap, and its timestamp leaf hash
      */
-    public static final int UNSIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1;
+    public static final int UNSIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 2;
     /**
-     * The signed block sibling count doesn't include the signed block's timestamp
+     * The signed block contributes: its Merkle siblings and a null-hash sentinel for the
+     * single-child internal node wrap (the timestamp lives in Merkle Path 1, not here)
      */
-    public static final int SIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK;
+    public static final int SIGNED_BLOCK_SIBLING_COUNT = BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1;
 
     /**
-     * Each block's state proof consists of exactly four Merkle paths: the timestamp of the signed block,
-     * previous block's hash + sibling hashes forming the path to the right sibling of the timestamp of the
-     * signed block, the single-child internal node at the same level as the timestamp, and a trivial
+     * Each block's state proof consists of exactly three Merkle paths: the timestamp of the signed block,
+     * the block root hash + sibling hashes forming the path to the single-child internal node at the same
+     * level as the signed block's timestamp (encoded as a null-hash SiblingNode sentinel), and a trivial
      * final parent path for the signed block's root
      */
-    public static final int EXPECTED_MERKLE_PATH_COUNT = 4;
+    public static final int EXPECTED_MERKLE_PATH_COUNT = 3;
 
     /**
-     * Index to the Merkle path containing hashes from the previous block's root to the right sibling of the
-     * block's timestamp
+     * Index to the Merkle path containing the block root hash and sibling hashes up through the signed block
      */
     public static final int BLOCK_CONTENTS_PATH_INDEX = 1;
 
     /**
-     * Index to the Merkle path of the single child internal node at the same level of the consensus timestamp
-     */
-    public static final int SINGLE_CHILD_NODE_PATH_INDEX = 2;
-
-    /**
      * Index to the final Merkle path representing the root hash of the signed block
      */
-    public static final int ROOT_HASH_MERKLE_PATH_INDEX = 3;
+    public static final int ROOT_HASH_MERKLE_PATH_INDEX = 2;
 
     /**
      * Index indicating the end of the merkle path chain
@@ -100,18 +96,21 @@ public class BlockStateProofGenerator {
         final var tsBytes = Timestamp.PROTOBUF.toBytes(latestSignedBlockTimestamp);
         final var mp1 = MerklePath.newBuilder().timestampLeaf(tsBytes).nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
 
-        // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
+        // Merkle Path 2: starting from the block-to-prove's root hash, enumerate sibling hashes for all
+        // subsequent blocks up through the signed block. A null-hash SiblingNode sentinel at the end encodes
+        // the single-child internal node wrapping (depth2Node2) for the signed block.
         MerklePath.Builder mp2 = MerklePath.newBuilder()
-                .hash(currentPendingBlock.previousBlockHash())
-                .nextPathIndex(SINGLE_CHILD_NODE_PATH_INDEX);
+                .hash(currentPendingBlock.blockHash())
+                .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
 
-        // Create a set of siblings for each indirect block, plus another set for the signed block
+        // Skip the current block's own siblings (we start from its root hash) and create siblings for each
+        // subsequent indirect block, plus the signed block's siblings and null-hash sentinel
         final var totalSiblings =
-                (indirectProofBlocks.size() * UNSIGNED_BLOCK_SIBLING_COUNT) + SIGNED_BLOCK_SIBLING_COUNT;
+                ((indirectProofBlocks.size() - 1) * UNSIGNED_BLOCK_SIBLING_COUNT) + SIGNED_BLOCK_SIBLING_COUNT;
         final SiblingNode[] allSiblingHashes = new SiblingNode[totalSiblings];
         final long minBlockNum = currentPendingBlock.number();
-        var currentBlockNum = minBlockNum;
-        for (int i = 0; i < indirectProofBlocks.size(); i++) {
+        var currentBlockNum = minBlockNum + 1;
+        for (int i = 0; i < indirectProofBlocks.size() - 1; i++) {
             // Convert first four sibling hashes
             final var blockSiblings = Arrays.stream(
                             indirectProofBlocks.get(currentBlockNum).siblingHashes())
@@ -127,23 +126,25 @@ public class BlockStateProofGenerator {
                         .build();
             }
 
-            // Convert this pending block's timestamp into a sibling hash
+            // Null-hash sentinel: signals hashInternalNodeSingleChild before combining with timestamp
+            allSiblingHashes[firstSiblingIndex + blockSiblings.size()] =
+                    SiblingNode.newBuilder().build();
+
+            // Timestamp is always a left sibling and comes after the sentinel
             final var pbTsBytes = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(
                     indirectProofBlocks.get(currentBlockNum).blockTimestamp()));
-            // Add to the sibling hashes array
             final var pendingBlockTimestampSiblingIndex = firstSiblingIndex + UNSIGNED_BLOCK_SIBLING_COUNT - 1;
-            // Timestamp is always a left sibling
             allSiblingHashes[pendingBlockTimestampSiblingIndex] =
                     SiblingNode.newBuilder().isLeft(true).hash(pbTsBytes).build();
 
             currentBlockNum++;
         }
 
-        // Merkle Path 2 Continued: add sibling hashes for the signed block
-        // Note: the timestamp for this (signed) block was provided in Merkle Path 1 above
+        // Merkle Path 2 Continued: add sibling hashes for the signed block, then a null-hash sentinel
+        // to represent the single-child internal node wrapping (depth2Node2). The timestamp is in mp1.
         final var signedBlock = allPendingBlocks.get(latestSignedBlockNumber);
         final var signedBlockSiblings = signedBlock.siblingHashes();
-        final var signedBlockFirstSiblingIndex = indirectProofBlocks.size() * UNSIGNED_BLOCK_SIBLING_COUNT;
+        final var signedBlockFirstSiblingIndex = (indirectProofBlocks.size() - 1) * UNSIGNED_BLOCK_SIBLING_COUNT;
         for (int i = 0; i < signedBlockSiblings.length; i++) {
             final var blockSibling = signedBlockSiblings[i];
             allSiblingHashes[signedBlockFirstSiblingIndex + i] = SiblingNode.newBuilder()
@@ -151,16 +152,16 @@ public class BlockStateProofGenerator {
                     .hash(blockSibling.siblingHash())
                     .build();
         }
+        // Null-hash sentinel: signals hashInternalNodeSingleChild during verification
+        allSiblingHashes[signedBlockFirstSiblingIndex + signedBlockSiblings.length] =
+                SiblingNode.newBuilder().build();
         mp2.siblings(Arrays.stream(allSiblingHashes).toList());
 
-        // Merkle Path 3: single-child internal node; nextPathIndex points to its parent (mp4/root)
-        final var mp3 = MerklePath.newBuilder().nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
-
-        // Merkle Path 4: the parent/block root path
-        final var mp4 = MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX);
+        // Merkle Path 3: the parent/block root path
+        final var mp3 = MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX);
 
         return StateProof.newBuilder()
-                .paths(mp1.build(), mp2.build(), mp3.build(), mp4.build())
+                .paths(mp1.build(), mp2.build(), mp3.build())
                 .signedBlockProof(TssSignedBlockProof.newBuilder().blockSignature(latestSignedBlockSignature))
                 .build();
     }
