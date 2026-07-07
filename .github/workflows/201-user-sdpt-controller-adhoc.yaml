@@ -18,6 +18,7 @@ on:
         description: "Performance test on machine: AdHoc5, 6, 7, AdHocSD8, 9"
         type: choice
         options:
+          - MDLT3
           - MQPT10
           - MQPT11
           - MQPT12
