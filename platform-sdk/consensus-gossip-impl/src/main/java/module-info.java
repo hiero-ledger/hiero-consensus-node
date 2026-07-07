@@ -40,13 +40,13 @@ module org.hiero.consensus.gossip.impl {
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.apache.logging.log4j;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.roster;
     requires static transitive com.github.spotbugs.annotations;
 
     uses ReconnectProtocolFactory;
