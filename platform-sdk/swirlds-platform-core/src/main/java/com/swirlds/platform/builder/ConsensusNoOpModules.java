@@ -48,6 +48,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.management.SavedStateController;
 import org.hiero.consensus.state.management.StateManagementModule;
@@ -144,7 +145,7 @@ public class ConsensusNoOpModules {
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
         final Runnable flushPrimaryPipeline = () -> {};
-        final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
+        final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
         final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
         final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
@@ -162,7 +163,7 @@ public class ConsensusNoOpModules {
                 fileSystemManager,
                 startingRound,
                 flushPrimaryPipeline,
-                latestImmutableStateSupplier,
+                replayProgressSupplier,
                 statusActionConsumer,
                 platformStatusFlusher,
                 signalEndOfPcesReplay,
