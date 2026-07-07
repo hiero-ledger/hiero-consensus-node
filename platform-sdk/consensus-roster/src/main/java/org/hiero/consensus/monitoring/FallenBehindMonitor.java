@@ -125,8 +125,9 @@ public class FallenBehindMonitor {
     void clear(@NonNull final NodeId id) {
         lock.lock();
         try {
-            reportFallenBehind.remove(id);
-            fallenBehindLevel -= rosterLookup.getWeight(id);
+            if (reportFallenBehind.remove(id)) {
+                fallenBehindLevel -= rosterLookup.getWeight(id);
+            }
             checkAndNotify();
         } finally {
             lock.unlock();

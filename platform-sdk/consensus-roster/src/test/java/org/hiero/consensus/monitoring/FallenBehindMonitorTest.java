@@ -80,6 +80,43 @@ class FallenBehindMonitorTest {
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
+
+    @Test
+    void multipleRemovalsShouldBeNoOp() {
+        assertFallenBehind(false, 0, "default should be none report fallen behind");
+
+        // node 1 reports fallen behind
+        monitor.report(nodeIds[1]);
+        assertFallenBehind(false, 1, "one node only reported fallen behind");
+
+        // if the same node reports again, nothing should change
+        monitor.report(nodeIds[1]);
+        assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
+
+        monitor.report(nodeIds[2]);
+        monitor.report(nodeIds[3]);
+        monitor.report(nodeIds[4]);
+        monitor.report(nodeIds[5]);
+        assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
+
+        monitor.report(nodeIds[6]);
+        assertFallenBehind(true, 6, "we should be fallen behind");
+
+
+        monitor.report(nodeIds[7]);
+        monitor.report(nodeIds[8]);
+        assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
+
+
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        assertFallenBehind(true, 7, "Multiple removals of single node shouldn't recover the situation");
+    }
+
     @Test
     void testRemoveFallenBehind() {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
