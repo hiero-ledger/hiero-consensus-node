@@ -186,12 +186,16 @@ public class FallenBehindMonitor {
     }
 
     /**
-     * @return the number of nodes that have told us we have fallen behind
+     * @return the weight fraction of nodes that have told us we have fallen behind
      */
     public double reportedWeight() {
+        final long totalWeight = rosterLookup.rosterTotalWeight();
+        if (totalWeight == 0) {
+            return 0;
+        }
         lock.lock();
         try {
-            return fallenBehindLevel / rosterLookup.rosterTotalWeight();
+            return fallenBehindLevel / (double) totalWeight;
         } finally {
             lock.unlock();
         }
