@@ -70,11 +70,11 @@ public class FallenBehindMonitor {
                         .withDescription("has this node fallen behind?"));
         metrics.getOrCreate(new FunctionGauge.Config<>(
                         INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::reportedSize)
-                .withDescription("the number of nodes that have reported we are falling behind")
+                .withDescription("the number of nodes that have reported we are behind")
                 .withUnit("count"));
         metrics.getOrCreate(new FunctionGauge.Config<>(
                         INTERNAL_CATEGORY, "weightReportFallenBehind", Double.class, this::reportedWeight)
-                .withDescription("the weight fraction of nodes that have reported we are falling behind")
+                .withDescription("the fraction of node weight that has reported we are behind")
                 .withUnit("fraction"));
     }
 
