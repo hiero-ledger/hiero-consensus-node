@@ -610,7 +610,7 @@ public final class PlatformBuilder {
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
+                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics(), selfId);
 
         if (this.eventCreatorModule == null) {
             this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);
