@@ -172,8 +172,8 @@ public class TestingEventBuilder {
     }
 
     /**
-     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified.  This
-     *      value overrides any value set with {@link #setEnableSequenceNumberAssignment(boolean)}
+     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified.
+     * This value overrides any value set with {@link #setEnableSequenceNumberAssignment(boolean)}
      *
      * @param sequenceNumberOverride sequence number to use for the next generated event
      * @return this instance
@@ -186,6 +186,7 @@ public class TestingEventBuilder {
 
     /**
      * If set to true, this builder will assign a sequence number to the events it creates. Otherwise, it will not.
+     * Defaults to false.
      *
      * @param assignSequenceNumber true if sequence numbers should be assigned, false otherwise
      * @return this instance
