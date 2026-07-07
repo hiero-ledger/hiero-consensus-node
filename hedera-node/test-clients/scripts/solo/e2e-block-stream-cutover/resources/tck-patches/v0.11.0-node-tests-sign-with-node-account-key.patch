@@ -1,0 +1,174 @@
+Workaround for hiero-sdk-tck v0.11.0 node-service tests on multi-node networks.
+NodeCreateHandler.preHandle requires the node account's key to sign (INVALID_SIGNATURE
+otherwise), and account 0.0.4 is a genesis node account on multi-node deployments
+(ACCOUNT_IS_LINKED_TO_A_NODE). This patch makes the tests sign with their fixture
+account's key and use that account instead of the hardcoded 0.0.4.
+Candidate for an upstream hiero-sdk-tck fix; drop once released.
+
+diff --git a/src/tests/node-service/test-node-create-transaction.ts b/src/tests/node-service/test-node-create-transaction.ts
+index c59c3d3..23084c7 100644
+--- a/src/tests/node-service/test-node-create-transaction.ts
++++ b/src/tests/node-service/test-node-create-transaction.ts
+@@ -76,10 +76,10 @@ describe("NodeCreateTransaction", function () {
+ 
+   describe("Account ID", function () {
+     it("(#1) Creates a node with valid account ID", async function () {
+-      const { accountKey } = await createTestAccount(this);
++      const { accountKey, accountId } = await createTestAccount(this);
+ 
+       const response = await JSONRPCRequest(this, "createNode", {
+-        accountId: validAccountId,
++        accountId,
+         ...createNodeRequiredFields,
+         adminKey: accountKey,
+         commonTransactionParams: {
+@@ -1143,7 +1143,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#2) Creates a node with valid ECDSAsecp256k1 public key as admin key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const ecdsaPrivateKey = await generateEcdsaSecp256k1PrivateKey(this);
+       const ecdsaPublicKey = await generateEcdsaSecp256k1PublicKey(
+         this,
+@@ -1155,7 +1155,7 @@ describe("NodeCreateTransaction", function () {
+         ...createNodeRequiredFields,
+         adminKey: ecdsaPublicKey,
+         commonTransactionParams: {
+-          signers: [ecdsaPrivateKey],
++          signers: [ecdsaPrivateKey, nodeAccountKey],
+         },
+       });
+ 
+@@ -1163,7 +1163,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#3) Creates a node with valid ED25519 private key as admin key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const ed25519PrivateKey = await generateEd25519PrivateKey(this);
+ 
+       const response = await JSONRPCRequest(this, "createNode", {
+@@ -1171,7 +1171,7 @@ describe("NodeCreateTransaction", function () {
+         ...createNodeRequiredFields,
+         adminKey: ed25519PrivateKey,
+         commonTransactionParams: {
+-          signers: [ed25519PrivateKey],
++          signers: [ed25519PrivateKey, nodeAccountKey],
+         },
+       });
+ 
+@@ -1179,7 +1179,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#4) Creates a node with valid ECDSAsecp256k1 private key as admin key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const ecdsaPrivateKey = await generateEcdsaSecp256k1PrivateKey(this);
+ 
+       const response = await JSONRPCRequest(this, "createNode", {
+@@ -1187,7 +1187,7 @@ describe("NodeCreateTransaction", function () {
+         ...createNodeRequiredFields,
+         adminKey: ecdsaPrivateKey,
+         commonTransactionParams: {
+-          signers: [ecdsaPrivateKey],
++          signers: [ecdsaPrivateKey, nodeAccountKey],
+         },
+       });
+ 
+@@ -1195,7 +1195,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#5) Creates a node with valid KeyList of ED25519 and ECDSAsecp256k1 keys as admin key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const keyList = await generateKeyList(this, fourKeysKeyListParams);
+ 
+       const response = await JSONRPCRequest(this, "createNode", {
+@@ -1208,6 +1208,7 @@ describe("NodeCreateTransaction", function () {
+             keyList.privateKeys[1],
+             keyList.privateKeys[2],
+             keyList.privateKeys[3],
++            nodeAccountKey,
+           ],
+         },
+       });
+@@ -1216,7 +1217,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#6) Creates a node with valid nested KeyList (three levels) as admin key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const nestedKeyList = await generateKeyList(
+         this,
+         twoLevelsNestedKeyListParams,
+@@ -1234,6 +1235,7 @@ describe("NodeCreateTransaction", function () {
+             nestedKeyList.privateKeys[3],
+             nestedKeyList.privateKeys[4],
+             nestedKeyList.privateKeys[5],
++            nodeAccountKey,
+           ],
+         },
+       });
+@@ -1242,7 +1244,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#7) Creates a node with valid ThresholdKey of ED25519 and ECDSAsecp256k1 keys as admin key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const thresholdKey = await generateKeyList(this, twoThresholdKeyParams);
+ 
+       const response = await JSONRPCRequest(this, "createNode", {
+@@ -1302,7 +1304,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#10) Fails with valid admin key without signing with the new key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const ed25519PrivateKey = await generateEd25519PrivateKey(this);
+ 
+       try {
+@@ -1321,7 +1323,7 @@ describe("NodeCreateTransaction", function () {
+     });
+ 
+     it("(#11) Fails with valid public key as admin key and signs with incorrect private key", async function () {
+-      const { accountId } = await createTestAccount(this);
++      const { accountId, accountKey: nodeAccountKey } = await createTestAccount(this);
+       const ed25519PrivateKey = await generateEd25519PrivateKey(this);
+       const ed25519PublicKey = await generateEd25519PublicKey(
+         this,
+@@ -1335,7 +1337,7 @@ describe("NodeCreateTransaction", function () {
+           ...createNodeRequiredFields,
+           adminKey: ed25519PublicKey,
+           commonTransactionParams: {
+-            signers: [incorrectPrivateKey], // Using incorrect private key
++            signers: [incorrectPrivateKey, nodeAccountKey], // Using incorrect private key
+           },
+         });
+       } catch (err: any) {
+diff --git a/src/tests/node-service/test-node-delete-transaction.ts b/src/tests/node-service/test-node-delete-transaction.ts
+index f19e50e..b36afd1 100644
+--- a/src/tests/node-service/test-node-delete-transaction.ts
++++ b/src/tests/node-service/test-node-delete-transaction.ts
+@@ -67,7 +67,7 @@ describe("NodeDeleteTransaction", function () {
+       gossipCaCertificate: validGossipCertDER,
+       adminKey: adminKey,
+       commonTransactionParams: {
+-        signers: [adminKey],
++        signers: [adminKey, accountKey],
+       },
+     };
+ 
+diff --git a/src/tests/node-service/test-node-update-transaction.ts b/src/tests/node-service/test-node-update-transaction.ts
+index fa05fc8..5190d38 100644
+--- a/src/tests/node-service/test-node-update-transaction.ts
++++ b/src/tests/node-service/test-node-update-transaction.ts
+@@ -60,7 +60,7 @@ describe("NodeUpdateTransaction", function () {
+       gossipCaCertificate: validGossipCertDER,
+       adminKey: adminKey,
+       commonTransactionParams: {
+-        signers: [adminKey],
++        signers: [adminKey, accountKey],
+       },
+     };
+ 
