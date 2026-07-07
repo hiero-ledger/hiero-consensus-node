@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import org.gradle.kotlin.dsl.get
-
 plugins {
     id("org.hiero.gradle.module.application")
-    id("org.hiero.gradle.feature.shadow")
+    id("org.gradlex.java-module-packaging")
 }
 
 description = "Hedera Execution YahCli Tool"
@@ -16,53 +13,24 @@ mainModuleInfo {
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
+    requires("org.apache.commons.lang3")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
-    requires("org.apache.commons.lang3")
+
     opensTo("org.junit.platform.commons")
 }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
-tasks.compileJava { dependsOn(":test-clients:assemble") }
-
-val yahCliJar =
-    tasks.register<ShadowJar>("yahCliJar") {
-        archiveClassifier = "shadow"
-        configurations = listOf(project.configurations["runtimeClasspath"])
-
-        manifest {
-            attributes(
-                "Main-Class" to "com.hedera.services.yahcli.Yahcli",
-                // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
-                // restricted-method warning for callers in the unnamed module of this JAR.
-                "Enable-Native-Access" to "ALL-UNNAMED",
-            )
-        }
-
-        // Strip log4j2 configs contributed by transitive deps so they do not shadow
-        // yahcli's own config or mislead operators inspecting the jar. yahcli's own
-        // log config uses a distinct filename (src/main/resources/log4j2-yahcli.xml,
-        // pinned via src/main/resources/log4j2.component.properties), so this
-        // exclude does not affect it.
-        exclude("log4j2.xml", "log4j2-test-client.xml", "log4j2-JRS.xml", "regression-log4j2.xml")
-
-        // Include all classes and resources from the main source set
-        from(sourceSets["main"].output)
-    }
+application.mainClass = "com.hedera.services.yahcli.Yahcli"
 
 tasks.register<Copy>("copyYahCli") {
     group = "copy"
-    from(yahCliJar)
+    from(tasks.fatModuleJar)
     into(project.projectDir)
     rename { "yahcli.jar" }
-
-    dependsOn(yahCliJar)
-    mustRunAfter(tasks.jar, yahCliJar, tasks.javadoc)
 }
-
-tasks.named("compileTestJava") { mustRunAfter(tasks.named("copyYahCli")) }
 
 tasks.test {
     // Keep default `test` fast and deterministic; subprocess HAPI-style suites run under
@@ -103,9 +71,3 @@ tasks.register<Test>("testSubprocess") {
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
 }
-
-// Disable `shadowJar` so it doesn't conflict with `yahCliJar`
-tasks.named("shadowJar") { enabled = false }
-
-// Disable unneeded tasks
-tasks.matching { it.group == "distribution" }.configureEach { enabled = false }

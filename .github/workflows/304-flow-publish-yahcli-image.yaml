@@ -91,11 +91,11 @@ jobs:
           fi
 
       - name: Build Yahcli Shadow JAR
-        run: ./gradlew :yahcli:yahCliJar
+        run: ./gradlew :yahcli:fatModuleJar
 
       - name: Stage Yahcli Assets
         run: |
-          SHADOW_JAR="$(ls -1 hedera-node/yahcli/build/libs/*-shadow.jar 2>/dev/null | head -n1)"
+          SHADOW_JAR="$(ls -1 hedera-node/yahcli/build/libs/*-all.jar 2>/dev/null | head -n1)"
           if [[ -z "${SHADOW_JAR}" ]]; then
             echo "::error::Yahcli shadow JAR not found in hedera-node/yahcli/build/libs/"
             exit 1
