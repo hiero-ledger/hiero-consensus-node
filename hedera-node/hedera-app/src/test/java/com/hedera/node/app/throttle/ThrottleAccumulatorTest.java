@@ -1451,9 +1451,6 @@ public class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
 
         // then
-        // VLN-247: the -1 sentinel is treated as zero implicit creations and charged against the
-        // ETHEREUM_TRANSACTION bucket (which has capacity), never the missing CRYPTO_CREATE bucket.
-        // Before the fix the -1 routed to the null CRYPTO_CREATE manager and this returned true.
         assertFalse(ans);
     }
 
