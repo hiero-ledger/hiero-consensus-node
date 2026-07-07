@@ -12,12 +12,13 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.jctools.queues.MpscArrayQueue;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
@@ -28,7 +29,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * <p>
  * A background thread continuously dequeues messages from an internal bounded buffer and writes
  * length-prefixed frames to the underlying {@link DataOutputStream}. Producers enqueue messages with
- * {@link #sendAsync(byte[])} (which spin-waits up to {@code timeout} when the buffer is full) and signal
+ * {@link #sendAsync(byte[])} (which blocks up to {@code timeout} when the buffer is full) and signal
  * end-of-stream by calling {@link #done()}. After {@link #done()}, the background thread drains any
  * remaining queued messages, writes a {@code -1} termination marker, flushes, and exits.
  * </p>
@@ -36,14 +37,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * <p>
  * This object is thread safe. Multiple producers may call {@link #sendAsync(byte[])} in parallel and
  * messages enqueued by a single producer are written to the stream in submission order. Ordering
- * across producers is not guaranteed beyond what the underlying multi-producer/single-consumer queue
- * provides.
- * </p>
- *
- * <p>
- * The internal buffer is a lock-free {@link MpscArrayQueue}: the producer threads calling
- * {@link #sendAsync(byte[])} are the multiple producers, and the single background writer thread is the
- * only consumer. This invariant (exactly one poller) must be preserved or the queue corrupts silently.
+ * across producers is not guaranteed beyond what the underlying {@link BlockingQueue} provides.
  * </p>
  *
  * <p>
@@ -77,11 +71,8 @@ public class AsyncOutputStream {
 
     private final DataOutputStream outputStream;
 
-    /**
-     * Bounded lock-free multi-producer/single-consumer buffer providing backpressure for
-     * {@link #sendAsync(byte[])}. Only the single background writer thread may poll it.
-     */
-    private final MpscArrayQueue<byte[]> outputQueue;
+    /** Bounded buffer providing backpressure for {@link #sendAsync(byte[])}. */
+    private final BlockingQueue<byte[]> outputQueue;
 
     /** Maximum time the background thread waits for a new message before flushing buffered data. */
     private final Duration flushInterval;
@@ -146,8 +137,7 @@ public class AsyncOutputStream {
             throw new IllegalArgumentException("timeout must be positive");
         }
 
-        // Capacity is rounded up to a power of two by MpscArrayQueue.
-        this.outputQueue = new MpscArrayQueue<>(bufferSize);
+        this.outputQueue = new LinkedBlockingQueue<>(bufferSize);
         this.flushInterval = flushInterval;
         this.timeoutNanos = timeout.toNanos();
     }
@@ -188,10 +178,10 @@ public class AsyncOutputStream {
     /**
      * Send a pre-serialized message asynchronously. Messages from a single producer are written to
      * the underlying stream in submission order; ordering across producers is not guaranteed. When
-     * the internal buffer is full this call spin-waits for up to {@code timeout} and then throws.
+     * the internal buffer is full this call blocks for up to {@code timeout} and then throws.
      *
      * @param messageBytes the serialized message bytes
-     * @throws InterruptedException           if the caller is interrupted while spin-waiting to enqueue
+     * @throws InterruptedException           if the caller is interrupted while waiting to enqueue
      * @throws IllegalStateException          if the stream is not in {@link Status#RUNNING}
      * @throws MerkleSynchronizationException if the enqueue timed out because the buffer stayed full
      */
@@ -199,20 +189,9 @@ public class AsyncOutputStream {
         if (status.get() != Status.RUNNING) {
             throw new IllegalStateException("Stream is not running: " + status);
         }
-        // MpscArrayQueue is bounded and non-blocking: offer() returns false immediately when full.
-        // Spin-wait for room, preserving the back-pressure that the bounded queue provides (producers
-        // wait for the single drain thread to catch up). Honor interrupts (so an aborting reconnect can
-        // unblock a producer) and a deadline derived from the configured timeout (so a genuinely stuck
-        // reconnect still fails).
-        final long deadlineNanos = System.nanoTime() + timeoutNanos;
-        while (!outputQueue.offer(messageBytes)) {
-            if (Thread.interrupted()) {
-                throw new InterruptedException("Interrupted while waiting to send data");
-            }
-            if (System.nanoTime() > deadlineNanos) {
-                throw new MerkleSynchronizationException("Timed out waiting to send data");
-            }
-            Thread.onSpinWait();
+        final boolean success = outputQueue.offer(messageBytes, timeoutNanos, TimeUnit.NANOSECONDS);
+        if (!success) {
+            throw new MerkleSynchronizationException("Timed out waiting to send data");
         }
     }
 
