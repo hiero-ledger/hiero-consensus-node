@@ -22,7 +22,9 @@ The `hapiTestCrypto` PR check runs all three phases in order:
 | 3     | `hapiTestCryptoSerial`   | `testSubprocess`           | Serial crypto tests   |
 
 - `testSubprocessConcurrent` excludes `SERIAL` tests except `CONCURRENT_SUBPROCESS_VALIDATION`
-- Parallel execution uses fixed parallelism strategy with 4 concurrent threads
+- Parallel execution uses JUnit Jupiter's `fixed` parallelism strategy. The thread count is derived
+  from `hapi.spec.network.size`: **3 threads when network size ≤ 3, otherwise 2** (see the
+  `testParallelism` calculation in `testSubprocessConcurrent` in `build.gradle.kts`).
 
 ## Validation for Subprocess Concurrent
 

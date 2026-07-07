@@ -29,13 +29,11 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
-import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -219,16 +217,19 @@ public enum TransactionExecutors {
                 customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
         final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
-        executor.initializer().initialize(state, StreamMode.BOTH);
+        final var streamMode = executor.configProvider()
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
+        executor.initializer().initialize(state, streamMode);
         final var exchangeRateManager = executor.exchangeRateManager();
         return (transactionBody, consensusNow, tracers) -> {
             final var dispatch = executor.standaloneDispatchFactory().newDispatch(state, transactionBody, consensusNow);
             tracerBinding.runWhere(
                     List.of(tracers), () -> executor.dispatchProcessor().processDispatch(dispatch));
-            final var recordSource = dispatch.stack()
+            return dispatch.stack()
                     .buildHandleOutput(consensusNow, exchangeRateManager.exchangeRates())
-                    .recordSourceOrThrow();
-            return ((LegacyListRecordSource) recordSource).precomputedRecords();
+                    .singleTransactionRecords();
         };
     }
 

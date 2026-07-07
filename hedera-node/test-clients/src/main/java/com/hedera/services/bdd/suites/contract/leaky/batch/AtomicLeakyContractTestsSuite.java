@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.leaky.batch;
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -31,7 +32,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
@@ -44,15 +44,14 @@ import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidatio
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -112,7 +111,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -218,7 +217,7 @@ public class AtomicLeakyContractTestsSuite {
                         .payingWith(ACCOUNT),
                 uploadInitCode(ERC_20_CONTRACT),
                 contractCreate(ERC_20_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCall(
                                                 ERC_20_CONTRACT,
@@ -262,7 +261,7 @@ public class AtomicLeakyContractTestsSuite {
                 balanceSnapshot("accountSnapshot", ACCOUNT),
                 reduceFeeFor(
                         HederaFunctionality.ContractCall, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCall(
                                                 ERC_20_CONTRACT,
@@ -289,7 +288,7 @@ public class AtomicLeakyContractTestsSuite {
                                         .gasUsed(4_000_000))));
     }
 
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @EmbeddedHapiTest({MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> payerCannotOverSendValue() {
         final var payerBalance = 666 * ONE_HBAR;
         final var overdraftAmount = payerBalance + ONE_HBAR;
@@ -304,15 +303,16 @@ public class AtomicLeakyContractTestsSuite {
                         .sending(overdraftAmount)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 usableTxnIdNamed(uncheckedCC).payerId(overAmbitiousPayer),
-                uncheckedSubmit(atomicBatch(contractCall(
-                                                PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
-                                        .txnId(uncheckedCC)
-                                        .payingWith(overAmbitiousPayer)
-                                        .sending(overdraftAmount)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))
-                        .payingWith(GENESIS),
-                sleepFor(1_000),
+                atomicBatch(contractCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
+                                .txnId(uncheckedCC)
+                                .payingWith(overAmbitiousPayer)
+                                .sending(overdraftAmount)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasAnyStatusAtAll())
+                        .payingWith(BATCH_OPERATOR)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll()
+                        .deferStatusResolution(),
                 getReceipt(uncheckedCC)
                         .hasRetryAnswerOnlyPrecheck(RECEIPT_NOT_FOUND)
                         .setRetryLimit(300) // 3s
@@ -330,7 +330,7 @@ public class AtomicLeakyContractTestsSuite {
                 contractCreate(TRANSFERRING_CONTRACT).balance(10_000L),
                 cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(sender).savingSnapshot(ACCOUNT_INFO).payingWith(GENESIS),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var transferCall = atomicBatch(
                                     contractCall(TRANSFERRING_CONTRACT, TRANSFER_TO_CALLER, BigInteger.valueOf(10))
                                             .payingWith(sender)
@@ -376,7 +376,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .via(CALL_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CALL_TX).saveTxnRecordToRegistry(CALL_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -459,7 +459,7 @@ public class AtomicLeakyContractTestsSuite {
                 getAccountInfo(DEFAULT_CONTRACT_SENDER)
                         .savingSnapshot(ACCOUNT_INFO)
                         .payingWith(GENESIS),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var transferCall = atomicBatch(
                                     contractCall(TRANSFERRING_CONTRACT, TRANSFER_TO_CALLER, BigInteger.ZERO)
                                             .payingWith(DEFAULT_CONTRACT_SENDER)
@@ -504,9 +504,9 @@ public class AtomicLeakyContractTestsSuite {
         BiConsumer<TransactionRecord, Logger> resultSizeFormatter = (rcd, txnLog) -> {
             final var result = rcd.getContractCallResult();
             txnLog.info(
-                    "Contract call result FeeBuilder size = {}, fee = {}, result is"
+                    "Contract call result FeeConstants size = {}, fee = {}, result is"
                             + " [self-reported size = {}, '{}']",
-                    () -> FeeBuilder.getContractFunctionSize(result),
+                    () -> FeeConstants.getContractFunctionSize(result),
                     rcd::getTransactionFee,
                     result.getContractCallResult()::size,
                     result::getContractCallResult);
@@ -575,7 +575,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .via(CREATE_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CREATE_TX).saveTxnRecordToRegistry(CREATE_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -599,7 +599,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .via(CREATE_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CREATE_TX).saveTxnRecordToRegistry(CREATE_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -639,7 +639,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .via(call)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var parentNum = spec.registry().getContractId(contract);
 
                     final var expectedParentContractAddress = asHeadlongAddress(asSolidityAddress(parentNum))
@@ -652,16 +652,22 @@ public class AtomicLeakyContractTestsSuite {
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
                     childNum.set(parentNum.getContractNum() + 1L);
-                    expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
+                    expectedChildAddress.set(ByteString.copyFrom(
+                            expectedChildContractAddress.getBytes().toArray()));
                     grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
                     final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
-                            .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
-                                    .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedGrandChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(spec, parentContractInfo, childContractInfo, grandChildContractInfo);
@@ -697,7 +703,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .via("permHoldTx")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord("tempHoldTx")
                             .saveTxnRecordToRegistry("tempHoldTxRec")
                             .logged();
@@ -750,7 +756,7 @@ public class AtomicLeakyContractTestsSuite {
                     final var lastChildResult = records.getLast().getContractCreateResult();
                     evmAddressOfChildContract.set(lastChildResult.getEvmAddress());
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var keyBytes = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var address = asHeadlongAddress(recoverAddressFromPubKey(keyBytes));
@@ -804,7 +810,7 @@ public class AtomicLeakyContractTestsSuite {
                                             .evmAddress(evmAddress)
                                             .balance(depositAmount)));
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var getTxnRecord =
                             getTxnRecord(payTxn).andAllChildRecords().logged();
                     allRunFor(spec, getTxnRecord);
@@ -856,7 +862,7 @@ public class AtomicLeakyContractTestsSuite {
                 uploadInitCode(LAZY_CREATE_CONTRACT),
                 contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(2_000_000),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged(),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -901,7 +907,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .via("txn")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     HapiGetTxnRecord op = getTxnRecord("txn")
                             .logged()
                             .hasPriority(recordWith()
@@ -941,7 +947,7 @@ public class AtomicLeakyContractTestsSuite {
                                 // 2
                                 ByteString.copyFromUtf8("B"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> {
+                doingContextual(_ -> {
                     zCivilianMirrorAddr.set(asHexedSolidityAddress(
                             AccountID.newBuilder().setAccountNum(666_666_666L).build()));
                     zTokenMirrorAddr.set(asHexedSolidityAddress(
@@ -1008,7 +1014,7 @@ public class AtomicLeakyContractTestsSuite {
                         .logged()
                         .gas(1_000_000)
                         .has(resultWith().contractCallResult(hexedAddress(aCivilianMirrorAddr.get())))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 "MISSING_SPENDER",
@@ -1063,7 +1069,7 @@ public class AtomicLeakyContractTestsSuite {
                                 ByteString.copyFromUtf8("B"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
                 cryptoTransfer(movingUnique(NF_TOKEN, 1L, 2L).between(SOME_ERC_721_SCENARIOS, A_CIVILIAN)),
-                withOpContext((spec, opLog) -> zTokenMirrorAddr.set(asHexedSolidityAddress(
+                doingContextual(_ -> zTokenMirrorAddr.set(asHexedSolidityAddress(
                         TokenID.newBuilder().setTokenNum(666_666L).build()))),
                 sourcing(() -> atomicBatch(contractCall(
                                         SOME_ERC_721_SCENARIOS,
@@ -1146,7 +1152,7 @@ public class AtomicLeakyContractTestsSuite {
                                 // 2
                                 ByteString.copyFromUtf8("B"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> {
+                doingContextual(_ -> {
                     zCivilianMirrorAddr.set(asHexedSolidityAddress(
                             AccountID.newBuilder().setAccountNum(666_666_666L).build()));
                     zTokenMirrorAddr.set(asHexedSolidityAddress(
@@ -1194,7 +1200,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 "TREASURY_OWNER",
@@ -1225,13 +1231,14 @@ public class AtomicLeakyContractTestsSuite {
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 100000001L))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(ethereumCallWithFunctionAbi(
                                                 false,
@@ -1256,7 +1263,8 @@ public class AtomicLeakyContractTestsSuite {
 
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 100000001L))),
                 atomicBatch(contractCallWithFunctionAbi("invalid", function)
                                 .hasKnownStatus(INVALID_CONTRACT_ID)
                                 .batchKey(BATCH_OPERATOR))

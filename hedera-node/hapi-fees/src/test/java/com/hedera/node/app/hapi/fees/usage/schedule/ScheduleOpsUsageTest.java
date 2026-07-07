@@ -4,12 +4,12 @@ package com.hedera.node.app.hapi.fees.usage.schedule;
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.A_USAGES_MATRIX;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.schedule.entities.ScheduleEntitySizes.SCHEDULE_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RICH_INSTANT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.KEY_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_RICH_INSTANT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_TX_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BOOL_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.KEY_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
 import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -54,9 +54,9 @@ class ScheduleOpsUsageTest {
     private final SigUsage sigUsage = new SigUsage(numSigs, sigSize, numPayerKeys);
 
     private final Key adminKey = KeyUtils.A_COMPLEX_KEY;
-    private final ScheduleID id = IdUtils.asSchedule("0.0.1");
+    private final ScheduleID id = IdUtils.asSchedule(1L);
     private final String memo = "This is just a memo?";
-    private final AccountID payer = IdUtils.asAccount("0.0.2");
+    private final AccountID payer = IdUtils.asAccount(2L);
     private final SchedulableTransactionBody scheduledTxn = SchedulableTransactionBody.newBuilder()
             .setTransactionFee(1_234_567L)
             .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(payer))

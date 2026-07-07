@@ -6,10 +6,10 @@ import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.conv
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.convertToNftMap;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.convertToTokenMap;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.countSerials;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.CRYPTO_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.CRYPTO_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.TOKEN_ALLOWANCE_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.fees.test.IdUtils;
@@ -28,17 +28,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CryptoApproveAllowanceMetaTest {
-    private final AccountID proxy = asAccount("0.0.1234");
+    private final AccountID proxy = asAccount(1234L);
     private final CryptoAllowance cryptoAllowances =
             CryptoAllowance.newBuilder().setSpender(proxy).setAmount(10L).build();
     private final TokenAllowance tokenAllowances = TokenAllowance.newBuilder()
             .setSpender(proxy)
             .setAmount(10L)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .build();
     private final NftAllowance nftAllowances = NftAllowance.newBuilder()
             .setSpender(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L, 2L, 3L))
             .build();
     private Map<Long, Long> cryptoAllowancesMap = new HashMap<>();

@@ -9,26 +9,23 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.event.branching.BranchDetector;
-import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
@@ -82,35 +79,25 @@ public class ReconnectCoordinator {
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
         // be handled.
-        components.transactionHandlerWiring().startSquelching();
-        components.transactionHandlerWiring().flush();
+        components.transactionHandlingModule().startSquelching();
+        components.transactionHandlingModule().flush();
 
         // Phase 2: flush
         // All cycles have been broken via squelching, so now it's time to flush everything out of the system.
-        platformCoordinator.flushIntakePipeline();
-        components.stateHasherWiring().flush();
-        components.stateSignatureCollectorWiring().flush();
-        components.transactionHandlerWiring().flush();
-        components.branchDetectorWiring().flush();
-        components.branchReporterWiring().flush();
+        platformCoordinator.flushPrimaryPipeline();
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         components.hashgraphModule().stopSquelching();
         components.eventCreatorModule().stopSquelching();
-        components.transactionHandlerWiring().stopSquelching();
+        components.transactionHandlingModule().stopSquelching();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
         components.gossipModule().clearInputWire().inject(NoInput.getInstance());
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::clear)
-                .inject(NoInput.getInstance());
+        components.stateManagementModule().clearInputWire().inject(NoInput.getInstance());
         components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
-        components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
-        components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }
 
     /**
@@ -148,21 +135,22 @@ public class ReconnectCoordinator {
         platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
         components
-                .latestImmutableStateNexusWiring()
-                .getInputWire(SignedStateNexus::setState)
+                .transactionHandlingModule()
+                .latestImmutableStateInputWire()
                 .put(signedState.reserve("set latest immutable to reconnect state"));
-        platformCoordinator.sendStateToHashLogger(signedState);
-        // this will send the state to the signature collector which will send it to be written to disk.
+        // this will log the state and send it to the signature collector which will send it to be written to disk.
         // in the future, we might not send it to the collector because it already has all the signatures
         // if this is the case, we must make sure to send it to the writer directly
-        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+        platformCoordinator.sendStateToStateManagement(signedState);
 
         final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
         platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
+        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         this.injectRosterHistory(rosterHistory);
 
         final int roundsNonAncient =
@@ -173,16 +161,6 @@ public class ReconnectCoordinator {
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
         platformCoordinator.updateRunningHash(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
-    }
-
-    /**
-     * @see StateSignatureCollector#addReservedState
-     */
-    private void putSignatureCollectorState(@NonNull final ReservedSignedState reserve) {
-        components
-                .stateSignatureCollectorWiring()
-                .getInputWire(StateSignatureCollector::addReservedState)
-                .put(reserve);
     }
 
     /**

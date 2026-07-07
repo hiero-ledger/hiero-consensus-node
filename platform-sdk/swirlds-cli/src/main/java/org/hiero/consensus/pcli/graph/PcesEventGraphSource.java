@@ -20,7 +20,8 @@ import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
  */
 public class PcesEventGraphSource implements EventGraphSource {
 
-    private final PcesMultiFileIterator eventIterator;
+    private final PcesFileTracker pcesFileTracker;
+    private PcesMultiFileIterator eventIterator;
 
     /**
      * Creates a source that reads raw events from PCES files at the given location.
@@ -30,7 +31,7 @@ public class PcesEventGraphSource implements EventGraphSource {
      */
     public PcesEventGraphSource(@NonNull final Path pcesLocation, @NonNull final PlatformContext context) {
         try {
-            final PcesFileTracker pcesFileTracker = PcesFileReader.readFilesFromDisk(
+            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
                     context.getConfiguration(), context.getRecycleBin(), pcesLocation, 0, false);
             this.eventIterator = pcesFileTracker.getEventIterator(0, 0);
         } catch (final IOException e) {
@@ -61,5 +62,10 @@ public class PcesEventGraphSource implements EventGraphSource {
         } catch (final IOException e) {
             throw new UncheckedIOException("Error checking for next event in PCES files", e);
         }
+    }
+
+    @Override
+    public void reset() {
+        this.eventIterator = pcesFileTracker.getEventIterator(0, 0);
     }
 }

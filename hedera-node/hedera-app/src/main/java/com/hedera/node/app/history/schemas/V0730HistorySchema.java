@@ -86,7 +86,9 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
                 hashState.put(ProtoBytes.DEFAULT);
             }
 
-            // If a configured hash exists, unconditionally accept as valid and put in state
+            // Only put() when the configured hash actually differs from state. A no-op put of the
+            // same value is captured by the boundary state-change listener as a spurious change,
+            // which diverges numPrecedingStateChangesItems on replay -> SELF_ISS.
             final var configuredHash =
                     ctx.appConfig().getConfigData(TssConfig.class).wrapsProvingKeyHash();
             if (!isBlank(configuredHash)) {
@@ -94,15 +96,16 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
                 final var existingHash = currentProtoBytes != null ? currentProtoBytes.value() : Bytes.EMPTY;
                 if (Bytes.EMPTY.equals(existingHash)) {
                     log.info("Persisted first WRAPS proving key hash {} to state", newHash);
+                    hashState.put(ProtoBytes.newBuilder().value(newHash).build());
                 } else if (!existingHash.equals(newHash)) {
                     log.info(
                             "Overwriting previous WRAPS proving key hash {} with new pending hash {}",
                             existingHash,
                             newHash);
+                    hashState.put(ProtoBytes.newBuilder().value(newHash).build());
                 } else {
                     log.info("Pending WRAPS proving key hash {} matches proving key in state", newHash);
                 }
-                hashState.put(ProtoBytes.newBuilder().value(newHash).build());
             }
         }
     }

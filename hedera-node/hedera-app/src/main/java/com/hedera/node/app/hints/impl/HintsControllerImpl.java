@@ -139,7 +139,12 @@ public class HintsControllerImpl implements HintsController {
         this.configurationSupplier = requireNonNull(configuration);
 
         final var crsState = hintsStore.getCrsState();
-        if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
+        // Also rebuild finalCrsFuture when the persisted stage is WAITING_FOR_ADOPTING_FINAL_CRS:
+        // a restart in that stage would otherwise leave finalCrsFuture null, so
+        // validateWeightOfContributions() would see weight 0 once contributionEndTime elapses and
+        // erroneously call restartFromFirstNode(), writing a state change that did not occur on the
+        // original run -> SELF_ISS on the rebuilt node.
+        if (crsState.stage() == GATHERING_CONTRIBUTIONS || crsState.stage() == WAITING_FOR_ADOPTING_FINAL_CRS) {
             final var crsPublications = hintsStore.getOrderedCrsPublications(weights.sourceNodeIds());
             crsPublications.forEach((nodeId, publication) -> {
                 if (publication != null) {

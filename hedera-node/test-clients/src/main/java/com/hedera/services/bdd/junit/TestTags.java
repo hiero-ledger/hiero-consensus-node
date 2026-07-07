@@ -17,6 +17,14 @@ public class TestTags {
     public static final String UPGRADE = "UPGRADE";
     public static final String ISS = "ISS";
     public static final String BLOCK_NODE = "BLOCK_NODE";
+    public static final String BLOCK_NODE_SIM = "BLOCK_NODE_SIM";
+    /**
+     * Tags a test that needs a real multi-node subprocess network started at genesis (e.g. to
+     * complete a TSS ceremony), but no block nodes. Carried by the {@code @GenesisSubProcessTest}
+     * annotation and routed through the block-node XTS job.
+     */
+    public static final String GENESIS_SUBPROCESS = "GENESIS_SUBPROCESS";
+
     public static final String SIMPLE_FEES = "SIMPLE_FEES";
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
+import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
@@ -16,7 +18,6 @@ import org.hiero.base.structures.SequentialRingBuffer;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.round.RoundCalculationUtils;
@@ -41,11 +42,11 @@ public class ConsensusRounds {
     /** the current threshold below which all events are ancient */
     private long ancientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
     /**
-     * The minimum non-deterministic generation of all the judges in the latest decided round. events with a lower
-     * non-deterministic generation than this do not affect any consensus calculations and do not have their metadata
-     * recalculated.
+     * The minimum sequence number (assigned by the orphan buffer) of all the judges in the latest decided round.
+     * Events with a lower sequence number than this (before this event topologically) do not affect any consensus
+     * calculations and do not have their metadata recalculated.
      */
-    private long consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
+    private long consensusRelevantSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
 
     /** Constructs an empty object */
     public ConsensusRounds(@NonNull final ConsensusConfig config, @NonNull final Roster roster) {
@@ -62,7 +63,7 @@ public class ConsensusRounds {
         maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
         roundElections.reset();
         updateAncientThreshold();
-        consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
+        consensusRelevantSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
     }
 
     /**
@@ -110,23 +111,23 @@ public class ConsensusRounds {
     }
 
     /**
-     * Checks if the event is older than the round generation of the latest decided round. If no round has been decided
-     * yet, returns false.
+     * Checks if the event is older than the round sequence number of the latest decided round. If no round has been
+     * decided yet, returns false.
      *
      * @param event the event to check
      * @return true if its older
      */
-    public boolean isOlderThanDecidedRoundGeneration(@NonNull final EventImpl event) {
-        return consensusRelevantNGen > event.getNGen();
+    public boolean isOlderThanDecidedRoundSeqNum(@NonNull final EventImpl event) {
+        return consensusRelevantSeqNum > event.getSequenceNumber();
     }
 
     /**
-     * Setter for the {@link #consensusRelevantNGen} field. This is used when loading consensus from a snapshot.
+     * Setter for the {@link #consensusRelevantSeqNum} field. This is used when loading consensus from a snapshot.
      *
-     * @param consensusRelevantNGen the value to set
+     * @param consensusRelevantSeqNum the value to set
      */
-    public void setConsensusRelevantNGen(final long consensusRelevantNGen) {
-        this.consensusRelevantNGen = consensusRelevantNGen;
+    public void setConsensusRelevantSeqNum(final long consensusRelevantSeqNum) {
+        this.consensusRelevantSeqNum = consensusRelevantSeqNum;
     }
 
     /**
@@ -141,7 +142,7 @@ public class ConsensusRounds {
      */
     public void currentElectionDecided() {
         minimumJudgeStorage.add(roundElections.getRound(), roundElections.createMinimumJudgeInfo());
-        consensusRelevantNGen = roundElections.getMinNGen();
+        consensusRelevantSeqNum = roundElections.getMinSeqNum();
         roundElections.startNextElection();
         // Delete the oldest rounds with round number which is expired
         minimumJudgeStorage.removeOlderThan(getFameDecidedBelow() - config.roundsExpired());

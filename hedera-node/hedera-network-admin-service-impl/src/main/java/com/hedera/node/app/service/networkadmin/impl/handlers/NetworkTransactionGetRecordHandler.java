@@ -5,12 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_HEADER;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEADER;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_RECORD_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_MATRICES_CONST;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.STATE_PROOF_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -18,13 +12,9 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
-import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
 import com.hedera.hapi.node.transaction.TransactionGetRecordResponse;
-import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -136,46 +126,6 @@ public class NetworkTransactionGetRecordHandler extends PaidQueryHandler {
         }
 
         return Response.newBuilder().transactionGetRecord(responseBuilder).build();
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final RecordCache recordCache = queryContext.recordCache();
-        final TransactionGetRecordQuery op = queryContext.query().transactionGetRecordOrThrow();
-
-        // fees are the same for all records for a given response type,
-        // so we calculate them once and multiply by the number of records found
-
-        // calculate per-record fees
-        final ResponseType responseType = op.headerOrThrow().responseType();
-        final int stateProofSize =
-                responseType == ResponseType.ANSWER_STATE_PROOF || responseType == ResponseType.COST_ANSWER_STATE_PROOF
-                        ? STATE_PROOF_SIZE
-                        : 0;
-        final FeeComponents feeMatricesForTxNode = FeeComponents.newBuilder()
-                .setConstant(FEE_MATRICES_CONST)
-                .setBpt(BASIC_QUERY_HEADER + BASIC_TX_ID_SIZE)
-                .setBpr(BASIC_QUERY_RES_HEADER + BASIC_TX_RECORD_SIZE + stateProofSize)
-                .build();
-        final FeeData perRecordFeeData = FeeData.newBuilder()
-                .setNetworkdata(FeeComponents.getDefaultInstance())
-                .setNodedata(feeMatricesForTxNode)
-                .setServicedata(FeeComponents.getDefaultInstance())
-                .build();
-
-        int recordCount = 1;
-        if (op.includeDuplicates() || op.includeChildRecords()) {
-            final var history = recordCache.getHistory(op.transactionIDOrThrow());
-            if (history != null) {
-                recordCount += op.includeDuplicates() ? history.duplicateCount() : 0;
-                recordCount += op.includeChildRecords() ? history.childRecords().size() : 0;
-            }
-        }
-
-        // multiply node fees to include duplicate and/or child records
-        final FeeData feeData = multiplierOfUsages(perRecordFeeData, recordCount);
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> feeData);
     }
 
     private static FeeData multiplierOfUsages(final FeeData feeData, final int multiplier) {

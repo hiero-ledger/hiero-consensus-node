@@ -4,11 +4,13 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.successResultOfZeroValueTraceable;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.txSuccessResultOfZeroValueTraceable;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static java.util.Objects.requireNonNull;
@@ -26,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -114,12 +117,18 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
             final var txResult = txSuccessResultOfZeroValueTraceable(
                     gasRequirement, randomNum, frame.getRemainingGas(), frame.getInputData(), senderId);
 
-            updater.enhancement()
+            // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
+            final var streamMode =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
+
+            final var streamBuilder = updater.enhancement()
                     .systemOperations()
-                    .dispatch(synthBody(), key -> Decision.INVALID, senderId, ContractCallStreamBuilder.class)
-                    .contractCallResult(data)
-                    .entropyBytes(tuweniToPbjBytes(randomNum))
-                    .evmCallTransactionResult(txResult);
+                    .dispatch(synthBody(), key -> Decision.INVALID, senderId, ContractCallStreamBuilder.class);
+
+            if (streamMode != BLOCKS) {
+                streamBuilder.contractCallResult(data);
+            }
+            streamBuilder.entropyBytes(tuweniToPbjBytes(randomNum)).evmCallTransactionResult(txResult);
         }
     }
 
@@ -150,11 +159,18 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                     .contractId(contractID)
                     .senderId(senderId)
                     .build();
-            updater.enhancement()
+            // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
+            final var streamMode =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
+
+            final var streamBuilder = updater.enhancement()
                     .systemOperations()
-                    .externalizePreemptedDispatch(synthBody(), toPbj(responseCode), UTIL_PRNG)
-                    .contractCallResult(contractResult)
-                    .evmCallTransactionResult(txResult);
+                    .externalizePreemptedDispatch(synthBody(), toPbj(responseCode), UTIL_PRNG);
+
+            if (streamMode != BLOCKS) {
+                streamBuilder.contractCallResult(contractResult);
+            }
+            streamBuilder.evmCallTransactionResult(txResult);
         }
     }
 

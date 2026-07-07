@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -26,6 +27,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -202,6 +204,22 @@ public interface HederaNativeOperations {
     ResponseCodeEnum createHollowAccount(@NonNull Bytes evmAddress);
 
     /**
+     * Creates a new account with the given EVM address and key. The implementation of this call should
+     * consume a new entity number for the created new account.
+     * <p>
+     * If this fails due to some non-EVM resource constraint (for example, insufficient preceding child
+     * records), returns the corresponding failure code, and {@link ResponseCodeEnum#OK} otherwise.
+     * The dispatch options will be set to immediately save the state.
+     *
+     * @param evmAddress the EVM address of the new account
+     * @param key the key of the new account
+     * @param delegationAddress the address to delegate the created account to
+     * @return the result of the creation
+     */
+    ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress);
+
+    /**
      * Finalizes an existing hollow account with the given address as a contract by setting
      * {@code isContract=true}, {@code key=Key{contractID=...}}, and {@code nonce=1}.
      *
@@ -273,4 +291,25 @@ public interface HederaNativeOperations {
      * @return the {@link Configuration}
      */
     Configuration configuration();
+
+    /**
+     * Returns the ledger id to use when encoding system contract responses. By default this is the configured ledger
+     * id; implementations may override it with an externalized ledger id from state when one is available so that EVM
+     * precompiles agree with the {@code ledgerId} returned by GRPC query responses.
+     *
+     * @return the ledger id to surface
+     */
+    @NonNull
+    default Bytes ledgerId() {
+        return configuration().getConfigData(LedgerConfig.class).id();
+    }
+
+    /**
+     * Creates a new child record builder for the given functionality.
+     * @param recordBuilderClass the class of the record builder to create
+     * @param functionality the Hedera functionality for which the record builder is created
+     *
+     * @return The new record builder
+     */
+    <T> T createNewChildRecordBuilder(@NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
 }

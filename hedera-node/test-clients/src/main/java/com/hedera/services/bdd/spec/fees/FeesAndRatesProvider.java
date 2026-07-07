@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.fees;
 
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_DIVISOR_FACTOR;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
@@ -51,8 +51,8 @@ public class FeesAndRatesProvider {
 
     private static final int NUM_DOWNLOAD_ATTEMPTS = 10;
 
-    private static final BigDecimal USD_DIVISOR = BigDecimal.valueOf(100L);
-    private static final BigDecimal HBAR_DIVISOR = BigDecimal.valueOf(100_000_000L);
+    public static final BigDecimal USD_DIVISOR = BigDecimal.valueOf(100L);
+    public static final BigDecimal HBAR_DIVISOR = BigDecimal.valueOf(100_000_000L);
 
     private final TxnFactory txns;
     private final KeyFactory keys;

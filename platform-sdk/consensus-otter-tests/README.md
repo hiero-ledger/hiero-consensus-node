@@ -73,3 +73,14 @@ platform-sdk/consensus-otter-tests/
 | [🐢 Turtle Environment](docs/turtle-environment.md)           | Simulated testing guide         |
 | [🐳 Container Environment](docs/container-environment.md)     | Docker-based testing            |
 | [💾 Generating Saved States](docs/generating-saved-states.md) | Creating initial network states |
+
+## Architecture
+
+For the module map and event flow these tests reproduce, see the
+[architecture overview](../docs/consensus-layer/architecture/overview.md).
+
+## Dependency Rules
+
+As tooling, may depend on any consensus-layer module including impl modules. Keep impl
+dependencies confined to test sources.
+- `swirlds-common`, `swirlds-platform-core` must not be added — legacy, being eliminated

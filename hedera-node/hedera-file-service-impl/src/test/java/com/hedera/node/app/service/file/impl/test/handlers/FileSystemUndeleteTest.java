@@ -10,32 +10,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.handlers.FileSystemUndeleteHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -54,7 +47,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -76,9 +68,6 @@ class FileSystemUndeleteTest extends FileTestBase {
     @Mock
     private Instant instant;
 
-    @Mock
-    private FileFeeBuilder usageEstimator;
-
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected TransactionDispatcher mockDispatcher;
 
@@ -99,7 +88,7 @@ class FileSystemUndeleteTest extends FileTestBase {
     @BeforeEach
     void setUp() {
         mockStore = mock(ReadableFileStoreImpl.class);
-        subject = new FileSystemUndeleteHandler(usageEstimator);
+        subject = new FileSystemUndeleteHandler();
 
         writableFileState = writableFileStateWithOneKey();
         given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
@@ -129,23 +118,6 @@ class FileSystemUndeleteTest extends FileTestBase {
         given(context.body()).willReturn(newFileUnDeleteTxn());
 
         assertThatCode(() -> subject.pureChecks(context)).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("calculateFees method invocations")
-    void testCalculateFeesInvocations() {
-        FeeContext feeContext = mock(FeeContext.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-
-        subject.calculateFees(feeContext);
-
-        InOrder inOrder = inOrder(feeContext, feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeContext).body();
-        inOrder.verify(feeCalculatorFactory).feeCalculator(SubType.DEFAULT);
-        inOrder.verify(feeCalculator).legacyCalculate(any());
     }
 
     @Test

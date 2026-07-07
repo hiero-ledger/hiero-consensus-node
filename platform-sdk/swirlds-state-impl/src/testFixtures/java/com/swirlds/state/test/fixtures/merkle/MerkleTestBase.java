@@ -11,7 +11,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -66,7 +65,6 @@ public class MerkleTestBase extends StateTestBase {
     protected final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(PathsConfig.class)
             .withConfigDataType(CryptoConfig.class)
             .build();

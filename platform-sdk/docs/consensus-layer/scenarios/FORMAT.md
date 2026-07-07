@@ -16,6 +16,7 @@ structure only; allowed values for the `symptoms` field live in the top-level
 
 ```yaml
 ---
+type: scenario
 id: SCN-NNN
 title: Short descriptive title — what happens in this scenario
 symptoms: [SYM-NNN]                   # observable signature; IDs from symptoms.md
@@ -43,7 +44,9 @@ Field discipline:
   empty and say so in the body — do not invent a symptom to fill the field.
 - **`kind`** — the triage axis: what sort of scenario this is. Independent of
   `verification`. A remembered production incident is `historical-incident` even if
-  nothing now confirms it.
+  nothing now confirms it. Note: `kind` here (triage axis: `historical-incident |
+  near-miss | edge-case-probe | hypothetical`) is distinct from the document-level
+  `type: scenario` key; both fields coexist in every SCN file.
 - **`verification`** — the trust axis, independent of `kind`. `observed` (seen in a
   real incident or run), `test-reproduced` (a durable test drives it; that test belongs
   in `related.tests`), or `reasoned-only` (inferred from code/invariants, not verified).
@@ -130,6 +133,7 @@ split at creation.
 
 ```markdown
 ---
+type: scenario
 id: SCN-NNN
 title: ...
 symptoms: [SYM-NNN]

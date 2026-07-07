@@ -1,55 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: Snyk Monitor"
-
+name: "Deprecated: ZXF: Snyk Monitor"
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
-  extract-jdk-version:
-    name: Extract Java Version
-    uses: ./.github/workflows/802-extract-jdk-version.yaml
-    with:
-      ref: ${{ github.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  snyk:
-    name: Snyk Monitor
-    needs:
-      - extract-jdk-version
-    runs-on: hl-cn-snyk-check-lin
-
+  print-deprecated:
+    name: Print Deprecated Warning
+    runs-on: hl-cn-default-lin-sm
     steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-fetch-depth: 1
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
-          setup-java: "true"
-          java-distribution: "temurin"
-          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-          setup-gradle: "true"
-          setup-node: "true"
-          node-version: "20"
-
-      - name: Compile
-        run: ./gradlew assemble
-
-      - name: Setup Snyk
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: npm install -g snyk
-
-      - name: Run Snyk Monitor
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk monitor --subProject=aggregation --configuration-matching=mainRuntimeClasspath --policy-path=.snyk --trust-policies --org=hiero-consensus-node
+      - name: Print Deprecation Warning
+        run: |
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

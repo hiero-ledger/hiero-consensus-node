@@ -1,3 +1,5 @@
+# SOLO_ENABLE_OVERWRITE=true
+
 contracts.chainId=298
 ledger.id=0x03
 entities.unlimitedAutoAssociationsEnabled=true

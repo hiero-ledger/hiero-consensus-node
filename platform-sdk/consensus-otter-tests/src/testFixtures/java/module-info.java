@@ -4,7 +4,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base.test.fixtures;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
@@ -29,6 +28,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.common.test.fixtures;
+    requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;
@@ -37,6 +37,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
@@ -69,7 +70,6 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.app to
-            org.hiero.otter.test.performance,
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             org.hiero.otter.test,

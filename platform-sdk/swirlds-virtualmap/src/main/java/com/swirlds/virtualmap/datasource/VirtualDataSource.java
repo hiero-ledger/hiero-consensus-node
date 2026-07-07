@@ -174,9 +174,7 @@ public interface VirtualDataSource {
     long getLastLeafPath();
 
     /**
-     * Returns the height of hash chunks stored in this data source. If the data
-     * source is empty, the value from {@link com.swirlds.virtualmap.config.VirtualMapConfig}
-     * is returned.
+     * Returns the height of hash chunks stored in this data source.
      */
     int getHashChunkHeight();
 }

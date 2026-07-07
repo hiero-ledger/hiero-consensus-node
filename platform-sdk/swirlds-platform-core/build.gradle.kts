@@ -48,10 +48,9 @@ testModuleInfo {
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.concurrent.test.fixtures")
-    requires("org.hiero.consensus.event.stream.test.fixtures")
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.hiero.consensus.state.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
@@ -70,5 +69,6 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.state.impl")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.state.test.fixtures")
     requires("org.junit.jupiter.api")
 }

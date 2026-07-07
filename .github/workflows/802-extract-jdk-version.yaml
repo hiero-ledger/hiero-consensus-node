@@ -1,51 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "802: [CALL] Extract JDK Version"
-
+name: "Deprecated: 802: [CALL] Extract JDK Version"
 on:
-  workflow_call:
-    inputs:
-      ref:
-        description: "The git ref to read gradle/toolchain-versions.properties from (branch, tag, or commit SHA)."
-        type: string
-        default: "main"
-    secrets:
-      github-token:
-        required: true
-        description: "GitHub Authorization Token for the workflow"
-    outputs:
-      jdk-version:
-        value: ${{ jobs.extract-jdk-version.outputs.jdk-version }}
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
-jobs:
-  extract-jdk-version:
-    name: Extract JDK Version
-    runs-on: hl-cn-default-lin-sm
-    outputs:
-      jdk-version: ${{ steps.get-jdk-version.outputs.jdk-version }}
-    steps:
-      - name: Initialize Job
-        uses: PandasWhoCode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
-        with:
-          checkout: "true"
-          checkout-token: "${{ secrets.github-token }}"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
+permissions:
+  contents: read
 
-      - name: Get JDK Version
-        id: get-jdk-version
+jobs:
+  print-deprecated:
+    name: Print Deprecated Warning
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Print Deprecation Warning
         run: |
-          echo "::group::Extract JDK Version from Gradle Properties"
-          JDK_VERSION="$(grep -E '^jdk=' "${GITHUB_WORKSPACE}/gradle/toolchain-versions.properties" | head -n 1 | cut -d'=' -f2- | tr -d '[:space:]')"
-          if [[ -z "${JDK_VERSION}" ]]; then
-            echo "::error::Failed to parse 'jdk' from ${GITHUB_WORKSPACE}/gradle/toolchain-versions.properties"
-            exit 1
-          fi
-          echo "jdk-version=${JDK_VERSION}" | tee "${GITHUB_OUTPUT}"
-          echo "::endgroup::"
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

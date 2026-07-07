@@ -15,7 +15,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -25,14 +24,13 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.ChildFeeContext;
+import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -249,6 +247,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return config;
     }
 
+    @NonNull
+    @Override
+    public Bytes ledgerId() {
+        final var historyStore = storeFactory.readableStore(ReadableHistoryStore.class);
+        if (historyStore != null) {
+            final var externalizedLedgerId = historyStore.getLedgerId();
+            if (externalizedLedgerId != null) {
+                return externalizedLedgerId;
+            }
+        }
+        return HandleContext.super.ledgerId();
+    }
+
     @Nullable
     @Override
     public Authorizer authorizer() {
@@ -274,7 +285,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
         requireNonNull(syntheticPayerId);
-        return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO);
+        return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO, null);
     }
 
     @Override
@@ -304,29 +315,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return resourcePriceCalculator;
     }
 
-    @NonNull
-    private FeeCalculator createFeeCalculator(@NonNull final SubType subType) {
-        return feeManager.createFeeCalculator(
-                ensureTxnId(txnInfo.txBody()),
-                payerKey,
-                txnInfo.functionality(),
-                numTxnSignatures(),
-                SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap()),
-                consensusNow,
-                subType,
-                false,
-                storeFactory.asReadOnly());
-    }
-
     @Override
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return feeManager.getSimpleFeeCalculator();
-    }
-
-    @NonNull
-    @Override
-    public FeeCalculatorFactory feeCalculatorFactory() {
-        return this::createFeeCalculator;
     }
 
     @NonNull
@@ -416,7 +407,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody txBody,
             @NonNull final AccountID syntheticPayerId,
-            @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel) {
+            @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel,
+            @Nullable final SignatureMap overrideSignatureMap) {
         final var bodyToDispatch = ensureTxnId(txBody);
         var function = HederaFunctionality.NONE;
         try {
@@ -428,7 +420,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
+        final var chargeForSigVerification = shouldChargeForSigVerification(txBody);
+        // When an override is provided, use its size unconditionally so that externally-supplied
+        // signatures (e.g. from a system-contract parameter) are reflected in the fee.
+        final var effectiveSignatureMap = overrideSignatureMap != null ? overrideSignatureMap : txnInfo.signatureMap();
+        final var signatureMapSize = (overrideSignatureMap != null || chargeForSigVerification)
+                ? SignatureMap.PROTOBUF.measureRecord(effectiveSignatureMap)
+                : 0;
         return dispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,
@@ -438,8 +436,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 authorizer,
                 storeFactory.asReadOnly(),
                 consensusNow,
-                shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0,
+                chargeForSigVerification ? verifier : null,
+                signatureMapSize,
                 function));
     }
 

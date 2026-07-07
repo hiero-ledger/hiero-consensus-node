@@ -49,14 +49,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
@@ -220,8 +220,7 @@ public class ContractCallSuite {
         final var firstCreation = "firstCreation";
         final var secondCreation = "secondCreation";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(
-                        sidecarIdValidator(createContract, firstCreation, secondCreation)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, firstCreation, secondCreation)),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
@@ -251,7 +250,7 @@ public class ContractCallSuite {
         final var altbn128Call = "altbn128Call";
         final var htsCall = "htsCall";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, altbn128Call, htsCall)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 tokenCreate("someToken").exposingAddressTo(someTokenAddress::set),
@@ -280,7 +279,7 @@ public class ContractCallSuite {
         final var createContract = "createContract";
         final var callTransaction = "callTransaction";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTransaction)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 contractCall(contract, "testCallFoo", randomHeadlongAddress(), BigInteger.valueOf(500_000L))
@@ -298,7 +297,7 @@ public class ContractCallSuite {
         final var account = "1";
         return hapiTest(
                 uploadInitCode(TEST_CONTRACT),
-                withOpContext((spec, log) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(TEST_CONTRACT, numAsHeadlongAddress(spec, 2), BigInteger.ONE)
                                 .balance(ONE_HBAR))),
@@ -549,7 +548,7 @@ public class ContractCallSuite {
                         .balance(10_000L)
                         .payingWith(ACCOUNT),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
 
@@ -594,7 +593,7 @@ public class ContractCallSuite {
         return hapiTest(
                 sourcing(() -> createLargeFile(DEFAULT_PAYER, WHITELISTER, literalInitcodeFor("Whitelister"))),
                 sourcing(() -> createLargeFile(DEFAULT_PAYER, CREATOR, literalInitcodeFor("Creator"))),
-                withOpContext((spec, op) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(WHITELISTER).payingWith(DEFAULT_PAYER).gas(GAS_TO_OFFER),
                         contractCreate(CREATOR)
@@ -602,7 +601,7 @@ public class ContractCallSuite {
                                 .gas(GAS_TO_OFFER)
                                 .via(creationTxn))),
                 captureChildCreate2MetaFor(1, 0, "setup", creationTxn, childMirror, childEip1014),
-                withOpContext((spec, op) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(WHITELISTER, "addToWhitelist", asHeadlongAddress(childEip1014.get()))
                                 .payingWith(DEFAULT_PAYER),
@@ -638,14 +637,14 @@ public class ContractCallSuite {
         return hapiTest(
                 cryptoCreate("Treasury"),
                 sourcing(() -> createLargeFile(DEFAULT_PAYER, ASSOCIATOR, literalInitcodeFor("Associator"))),
-                withOpContext((spec, op) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(ASSOCIATOR)
                                 .payingWith(DEFAULT_PAYER)
                                 .bytecode(ASSOCIATOR)
                                 .gas(GAS_TO_OFFER)
                                 .via(creationTxn))),
-                withOpContext((spec, op) -> {
+                doingContextual(spec -> {
                     allRunFor(
                             spec,
                             captureChildCreate2MetaFor(1, 0, "setup", creationTxn, childMirror, childEip1014),
@@ -692,7 +691,7 @@ public class ContractCallSuite {
         final AtomicReference<String> jurisdictionMirror = new AtomicReference<>();
         return hapiTest(
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
-                withOpContext((spec, opLog) -> defaultPayerMirror.set((unhex(
+                doingContextual(spec -> defaultPayerMirror.set((unhex(
                         spec.registry().getAccountInfo(DEFAULT_CONTRACT_SENDER).getContractAccountID())))),
                 uploadInitCode(addressBook, jurisdictions),
                 // refusingEthConversion because the minters contract has placeholders that the
@@ -770,7 +769,7 @@ public class ContractCallSuite {
         return hapiTest(
                 uploadInitCode(rateAware),
                 contractCreate(rateAware, BigInteger.valueOf(minPriceToAccessGatedMethod)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var rates = spec.ratesProvider().rates();
                     minValueToAccessGatedMethodAtCurrentRate.set(minPriceToAccessGatedMethod
                             * TINY_PARTS_PER_WHOLE
@@ -842,7 +841,7 @@ public class ContractCallSuite {
                                 contractAlternatives, "canGetMetadataViaHTS", nftAddr.get(), BigInteger.valueOf(1))
                         .via(viaHtsNftInfo)
                         .gas(1_000_000)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var getErcResult = getTxnRecord(viaErc721TokenURI);
                     final var getHtsResult = getTxnRecord(viaHtsNftInfo);
                     CustomSpecAssert.allRunFor(spec, getErcResult, getHtsResult);
@@ -935,7 +934,7 @@ public class ContractCallSuite {
                 newKeyNamed(supplyKey),
                 newKeyNamed(ercUserKey).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, ercUserKey, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final AtomicReference<AccountID> ercUserId = new AtomicReference<>();
                     final var lookup = getAliasedAccountInfo(ercUserKey)
                             .logged()
@@ -1034,7 +1033,7 @@ public class ContractCallSuite {
                                 ercOperatorAddress.get())
                         .exposingTypedResultsTo(results -> LOG.info("Is operator? {}", results[0]))
                         .exposingRawResultsTo(erc721IsOperatorOutput::set)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     LOG.info("Explicit secret is {}", CommonUtils.hex(secretOutput.get()));
                     LOG.info("Explicit PRNG seed is {}", CommonUtils.hex(prngOutput.get()));
                     LOG.info("Explicit equiv tinycents is {}", CommonUtils.hex(tinycentEquivOutput.get()));
@@ -1373,7 +1372,7 @@ public class ContractCallSuite {
         return hapiTest(
                 uploadInitCode(PAY_RECEIVABLE_CONTRACT),
                 contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     for (int i = 0; i < 10; i++) {
                         final var subOp1 = balanceSnapshot("payerBefore", PAY_RECEIVABLE_CONTRACT);
                         final var subOp2 = contractCall(
@@ -1499,7 +1498,7 @@ public class ContractCallSuite {
         return hapiTest(
                 uploadInitCode(SIMPLE_STORAGE_CONTRACT),
                 cryptoCreate(civilian).balance(ONE_MILLION_HBARS).payingWith(GENESIS),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore0", civilian);
                     final var subop2 = contractCreate(SIMPLE_STORAGE_CONTRACT)
                             .balance(0)
@@ -1514,7 +1513,7 @@ public class ContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore0", -delta));
                     allRunFor(spec, subop3);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore1", civilian);
                     final var subop2 = contractCreate(SIMPLE_STORAGE_CONTRACT)
                             .balance(100_000_000_000L)
@@ -1530,7 +1529,7 @@ public class ContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore1", -delta));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore2", civilian);
                     final var subop2 = contractCreate(SIMPLE_STORAGE_CONTRACT)
                             .balance(0L)
@@ -1546,7 +1545,7 @@ public class ContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore2", -delta));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore3", civilian);
                     final var subop2 = contractCall(SIMPLE_STORAGE_CONTRACT, "set", BigInteger.valueOf(999_999L))
                             .payingWith(civilian)
@@ -1563,7 +1562,7 @@ public class ContractCallSuite {
                             getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore3", -delta));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore4", civilian);
                     final var subop2 = contractCall(SIMPLE_STORAGE_CONTRACT, "set", BigInteger.valueOf(999_999L))
                             .payingWith(civilian)
@@ -1575,7 +1574,7 @@ public class ContractCallSuite {
                     final var subop4 = getAccountBalance(civilian).hasTinyBars(changeFromSnapshot("balanceBefore4", 0));
                     allRunFor(spec, subop4);
                 }),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop1 = balanceSnapshot("balanceBefore5", civilian);
                     final var subop2 = contractCall(SIMPLE_STORAGE_CONTRACT, "get")
                             .payingWith(civilian)
@@ -1609,7 +1608,7 @@ public class ContractCallSuite {
                 contractCreate(contract),
                 getContractInfo(contract)
                         .exposingEvmAddress(cb -> tokenCreateContractAddress.set(asHeadlongAddress(cb))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var subop1 = contractCall(contract, DEPOSIT, BigInteger.valueOf(1_000L))
                             .payingWith(PAYER)
                             .gas(300_000L)
@@ -1659,7 +1658,7 @@ public class ContractCallSuite {
                 getAccountInfo(RECEIVABLE_SIG_REQ_ACCOUNT).savingSnapshot(RECEIVABLE_SIG_REQ_ACCOUNT_INFO),
                 uploadInitCode(TRANSFERRING_CONTRACT),
                 contractCreate(TRANSFERRING_CONTRACT).gas(1_000_000L).balance(5000L),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountAddress = spec.registry()
                             .getAccountInfo(RECEIVABLE_SIG_REQ_ACCOUNT_INFO)
                             .getContractAccountID();
@@ -1682,7 +1681,7 @@ public class ContractCallSuite {
                 contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
                         .gas(300_000L)
                         .via(CALL_TX),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CALL_TX).saveTxnRecordToRegistry(CALL_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -1704,7 +1703,7 @@ public class ContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT).saveToRegistry(CONTRACT_FROM),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
                     final var transferCall = contractCall(
@@ -1799,7 +1798,7 @@ public class ContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT).saveToRegistry(CONTRACT_FROM),
                 getContractInfo(TRANSFERRING_CONTRACT + to).saveToRegistry("contract_to"),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var cto = asSolidityAddress(
                             spec.registry().getContractInfo("contract_to").getContractID());
                     var transferCall = contractCall(
@@ -1820,7 +1819,7 @@ public class ContractCallSuite {
         final var ACC = "acc";
         final var RECEIVER_KEY = "receiverKey";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator("createContract", "noSigCall", "sigCall")),
                 newKeyNamed(RECEIVER_KEY),
                 cryptoCreate(ACC)
                         .balance(5 * ONE_HUNDRED_HBARS)
@@ -1832,7 +1831,7 @@ public class ContractCallSuite {
                         .payingWith(ACC)
                         .balance(ONE_HUNDRED_HBARS)
                         .via("createContract"),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var acc = spec.registry().getAccountInfo(ACC_INFO).getContractAccountID();
                     final var withoutReceiverSignature = contractCall(
                                     TRANSFERRING_CONTRACT,
@@ -1882,7 +1881,7 @@ public class ContractCallSuite {
                         .balance(10)
                         .adminKey(KEY_LIST)
                         .refusingEthConversion(),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var acc = spec.registry().getAccountInfo(ACC_INFO).getContractAccountID();
                     final var assertionWithOnlyOneKey = contractCall(
                                     TRANSFERRING_CONTRACT,
@@ -1916,7 +1915,7 @@ public class ContractCallSuite {
                 uploadInitCode(TRANSFERRING_CONTRACT),
                 contractCreate(TRANSFERRING_CONTRACT).balance(10_000L).payingWith(ACCOUNT),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
                     var transferCall = contractCall(
@@ -1947,7 +1946,7 @@ public class ContractCallSuite {
                 getAccountInfo(RECEIVER_1).savingSnapshot(RECEIVER_1_INFO),
                 getAccountInfo(RECEIVER_2).savingSnapshot(RECEIVER_2_INFO),
                 getAccountInfo(RECEIVER_3).savingSnapshot(RECEIVER_3_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiver1Addr =
                             spec.registry().getAccountInfo(RECEIVER_1_INFO).getContractAccountID();
                     var receiver2Addr =
@@ -1986,7 +1985,7 @@ public class ContractCallSuite {
                         .balance(10_000L)
                         .payingWith(ACCOUNT),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
 
@@ -2026,7 +2025,7 @@ public class ContractCallSuite {
                 contractCustomCreate(NESTED_TRANSFER_CONTRACT, "2")
                         .balance(10_000L)
                         .payingWith(ACCOUNT),
-                withOpContext((spec, log) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(
                                         NESTED_TRANSFERRING_CONTRACT,
@@ -2052,7 +2051,7 @@ public class ContractCallSuite {
     @HapiTest
     final Stream<DynamicTest> sendHbarsToCallerFromDifferentAddresses() {
         return hapiTest(
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     final var keyCreation = newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE);
                     if (!spec.isUsingEthCalls()) {
                         final var sender = "sender";
@@ -2098,7 +2097,7 @@ public class ContractCallSuite {
                             transfer2,
                             saveSnapshot);
                 }),
-                withOpContext((spec, log) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCreate(
                                         NESTED_TRANSFERRING_CONTRACT,
@@ -2161,7 +2160,7 @@ public class ContractCallSuite {
                 getAccountInfo(RECEIVER_1).savingSnapshot(RECEIVER_1_INFO),
                 getAccountInfo(RECEIVER_2).savingSnapshot(RECEIVER_2_INFO),
                 getAccountInfo(RECEIVER_3).savingSnapshot(RECEIVER_3_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiver1Addr =
                             spec.registry().getAccountInfo(RECEIVER_1_INFO).getContractAccountID();
                     var receiver2Addr =
@@ -2211,7 +2210,7 @@ public class ContractCallSuite {
                         .payingWith(ACCOUNT)
                         .refusingEthConversion(),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
                     var transferCall = contractCall(
@@ -2245,7 +2244,7 @@ public class ContractCallSuite {
                 // Adding refusingEthConversion() due to fee differences
                 contractCreate(TRANSFERRING_CONTRACT).balance(10_000L).refusingEthConversion(),
                 getAccountInfo(RECEIVER).savingSnapshot(RECEIVER_INFO),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var receiverAddr =
                             spec.registry().getAccountInfo(RECEIVER_INFO).getContractAccountID();
 
@@ -2263,7 +2262,7 @@ public class ContractCallSuite {
 
                     allRunFor(spec, transferCall, saveContractInfo);
                 }),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var contractBalanceAfterCall =
                             spec.registry().getContractInfo(CONTRACT_FROM).getBalance();
 
@@ -2304,7 +2303,7 @@ public class ContractCallSuite {
                 contractCreate(contract).via(txn).hasKnownStatus(SUCCESS),
                 contractCall(contract, "callSomebody").via(txn),
                 getTxnRecord(txn).logged(),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var op = getTxnRecord(txn);
                     allRunFor(spec, op);
                     final var record = op.getResponseRecord();
@@ -2365,7 +2364,7 @@ public class ContractCallSuite {
         final var createContract = "createContract";
         final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
                 contractCreate(contract).via(createContract),
                 contractCall(
@@ -2384,7 +2383,7 @@ public class ContractCallSuite {
         final var createContract = "createContract";
         final var callTxn = "callTxn";
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator(createContract, callTxn)),
                 uploadInitCode(contract),
                 contractCreate(contract).gas(400_000L).via(createContract),
                 contractCall(contract, "callRequested", nonExtantEvmAddress, new byte[0], BigInteger.valueOf(88_888L))
@@ -2393,13 +2392,13 @@ public class ContractCallSuite {
 
     @HapiTest
     final Stream<DynamicTest> failsWithLessThanIntrinsicGas() {
-        final String randomContract = "0.0.1051";
         final String functionName = "name";
         final String contractName = "ERC721ABI";
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                withOpContext((spec, opLog) -> spec.registry().saveContractId(CONTRACT, asContract(randomContract))),
-                withOpContext((spec, ctxLog) -> allRunFor(
+                doingContextual(spec ->
+                        spec.registry().saveContractId(CONTRACT, asContract(spec.shard(), spec.realm(), 1051L))),
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(CONTRACT, getABIFor(FUNCTION, functionName, contractName))
                                 .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
@@ -2427,14 +2426,14 @@ public class ContractCallSuite {
                 cryptoCreate(payer).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract).via(contractCreateTx).gas(1_000_000L),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCall(contract, deployParentContractFn)
                                 .payingWith(payer)
                                 .via(deployContractTx)
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(SUCCESS))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     /* 1. Retrieves sorted list of all contracts deployed in the constructor (parent contracts) */
                     final var opCreateTxRecord = getTxnRecord(contractCreateTx);
                     allRunFor(spec, opCreateTxRecord);
@@ -2516,7 +2515,7 @@ public class ContractCallSuite {
                 cryptoCreate(PAYER).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
                 contractCreate(contract).via(contractCreateTxn).gas(1_000_000L),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var opContractTxnRecord = getTxnRecord(contractCreateTxn);
 
                     allRunFor(spec, opContractTxnRecord);
@@ -2557,7 +2556,7 @@ public class ContractCallSuite {
         return hapiTest(
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 uploadInitCode(NESTED_LAZY_CREATE_VIA_CONSTRUCTOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -2593,7 +2592,7 @@ public class ContractCallSuite {
         final var contract = "zeroIdContract";
 
         return contractIdResultsInPrecheckFail(
-                contract, spec -> ContractID.newBuilder().setContractNum(0).build());
+                contract, _ -> ContractID.newBuilder().setContractNum(0).build());
     }
 
     @HapiTest
@@ -2614,8 +2613,8 @@ public class ContractCallSuite {
         final var ERC_721_ABI = "ERC721ABI";
 
         return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId(contractName, contractId.apply(spec))),
-                withOpContext((spec, ctxLog) -> allRunFor(
+                doingContextual(spec -> spec.registry().saveContractId(contractName, contractId.apply(spec))),
+                doingContextual(spec -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(contractName, getABIFor(FUNCTION, NAME, ERC_721_ABI))
                                 .notTryingAsHexedliteral()

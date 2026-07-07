@@ -17,6 +17,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_K
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
@@ -42,7 +43,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasAdminKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -81,7 +82,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasFeeScheduleKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -120,7 +121,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasSupplyKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -159,7 +160,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasWipeKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -198,7 +199,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasPauseKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -237,7 +238,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasFreezeKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -276,7 +277,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasKycKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override
@@ -320,7 +321,7 @@ public enum TokenKey {
 
         @Override
         public boolean isPresentInitially(Token originalToken) {
-            return originalToken.hasMetadataKey();
+            return !isEmpty(getFromToken(originalToken));
         }
 
         @Override

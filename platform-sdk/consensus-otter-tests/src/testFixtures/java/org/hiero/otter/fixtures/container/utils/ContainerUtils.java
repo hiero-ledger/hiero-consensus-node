@@ -8,13 +8,13 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallbackTemplate;
 import com.github.dockerjava.api.command.ExecCreateCmdResponse;
 import com.github.dockerjava.api.model.Frame;
-import com.swirlds.common.config.StateCommonConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.commons.lang3.exception.UncheckedInterruptedException;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.testcontainers.DockerClientFactory;
@@ -33,28 +33,27 @@ public class ContainerUtils {
      *
      * @param container the container to copy the saved state to
      * @param selfId the node ID of the container
-     * @param stateCommonConfig stateCommonConfig
+     * @param pathsConfig pathsConfig
      * @param savedStateDirectory the path to the saved state directory on the host filesystem
      * @throws UncheckedIOException if an I/O error occurs while copying the saved state
      */
     public static void copySavedStateToContainer(
             @NonNull final GenericContainer<?> container,
             @NonNull final NodeId selfId,
-            @NonNull final StateCommonConfig stateCommonConfig,
+            @NonNull final PathsConfig pathsConfig,
             @NonNull final Path savedStateDirectory) {
         requireNonNull(container, "container must not be null");
         requireNonNull(selfId, "selfId must not be null");
-        requireNonNull(stateCommonConfig, "stateCommonConfig must not be null");
+        requireNonNull(pathsConfig, "pathsConfig must not be null");
         requireNonNull(savedStateDirectory, "savedStateDirectory must not be null");
         try {
             final Path tempDir = Files.createTempDirectory("state-");
             OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, tempDir);
 
-            final Path dockerPath = Path.of(CONTAINER_APP_WORKING_DIR).resolve(stateCommonConfig.savedStateDirectory());
+            final Path dockerPath = Path.of(CONTAINER_APP_WORKING_DIR).resolve(pathsConfig.savedStateDir());
 
             container.copyFileToContainer(
-                    MountableFile.forHostPath(tempDir.resolve(stateCommonConfig.savedStateDirectory())),
-                    dockerPath.toString());
+                    MountableFile.forHostPath(tempDir.resolve(pathsConfig.savedStateDir())), dockerPath.toString());
             final DockerClient client = DockerClientFactory.instance().client();
             final ExecCreateCmdResponse exec = client.execCreateCmd(container.getContainerId())
                     .withUser("root")

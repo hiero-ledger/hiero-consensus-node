@@ -18,13 +18,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.RETURNS_SELF;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.google.protobuf.ByteString;
@@ -36,6 +35,7 @@ import com.hedera.hapi.node.consensus.ConsensusMessageChunkInfo;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.CustomFeeLimit;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -47,10 +47,6 @@ import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessage
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
@@ -357,39 +353,6 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     }
 
     @Test
-    void calculateFeesHappyPath() {
-        givenValidTopic();
-        final var chunkTxnId =
-                TransactionID.newBuilder().accountID(anotherPayer).build();
-        final var txn = newSubmitMessageTxnWithChunksAndPayer(topicEntityNum, 1, 2, chunkTxnId);
-        final var feeCtx = mock(FeeContext.class);
-        readableStore = mock(ReadableTopicStore.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addNetworkRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-        readableStore = mock(ReadableTopicStore.class);
-        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        given(readableStore.getTopic(topicId))
-                .willReturn(Topic.newBuilder()
-                        .runningHash(Bytes.wrap(new byte[48]))
-                        .sequenceNumber(1L)
-                        .build());
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(28);
-        verify(feeCalc).addNetworkRamByteSeconds(10080);
-    }
-
-    @Test
     @DisplayName("Handle submit to topic with custom fee works as expected")
     void handleWorksAsExpectedWithCustomFee() {
         givenValidTopic();
@@ -409,6 +372,43 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         assertNotEquals(
                 initialTopic.runningHash().toString(),
                 expectedTopic.runningHash().toString());
+    }
+
+    @Test
+    @DisplayName("assessCustomFee keeps two identical fees as separate entries")
+    void assessCustomFeeKeepsDuplicateFees() {
+        final var fee = FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(anotherPayer)
+                .build();
+
+        final var bodies = customFeeAssessor.assessCustomFee(List.of(fee, fee), payerId);
+
+        assertEquals(2, bodies.size());
+    }
+
+    @Test
+    @DisplayName("Two identical topic custom fees are charged twice, not collapsed")
+    void identicalTopicCustomFeesAreChargedTwice() {
+        final var dupFee = FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(anotherPayer)
+                .build();
+        givenTopicWithCustomFees(List.of(dupFee, dupFee));
+
+        given(handleContext.body()).willReturn(newSubmitMessageTxnWithHbarMaxFee(2));
+        given(handleContext.consensusNow()).willReturn(consensusTimestamp);
+        // hbar-only fees: payer + dispatch + not-fee-exempt (no token treasury lookup needed)
+        given(handleContext.payer()).willReturn(payerId);
+        given(handleContext.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(SUCCESS);
+        given(handleContext.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(any(Key.class), any())).willReturn(signatureVerification);
+        given(signatureVerification.passed()).willReturn(false);
+
+        subject.handle(handleContext);
+
+        verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
     }
 
     @Test
@@ -500,6 +500,34 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
                 .consensusSubmitMessage(submitMessageBuilder.build())
                 .maxCustomFees(maxCustomFees)
                 .build();
+    }
+
+    private TransactionBody newSubmitMessageTxnWithHbarMaxFee(final long hbarLimit) {
+        final var txnId = TransactionID.newBuilder().accountID(payerId).build();
+        final var maxCustomFees = List.of(CustomFeeLimit.newBuilder()
+                .accountId(payerId)
+                .fees(List.of(FixedFee.newBuilder().amount(hbarLimit).build()))
+                .build());
+        final var submitMessageBuilder = ConsensusSubmitMessageTransactionBody.newBuilder()
+                .topicID(TopicID.newBuilder().topicNum(topicEntityNum).build())
+                .message(Bytes.wrap("duplicate-fee-message"));
+        return TransactionBody.newBuilder()
+                .transactionID(txnId)
+                .consensusSubmitMessage(submitMessageBuilder.build())
+                .maxCustomFees(maxCustomFees)
+                .build();
+    }
+
+    private void givenTopicWithCustomFees(final List<FixedCustomFee> fees) {
+        topic = topic.copyBuilder().customFees(fees).build();
+        writableTopicState = writableTopicStateWithOneKey();
+        readableTopicState = readableTopicState();
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
+        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+        given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
     }
 
     private TransactionBody newDefaultSubmitMessageTxn() {

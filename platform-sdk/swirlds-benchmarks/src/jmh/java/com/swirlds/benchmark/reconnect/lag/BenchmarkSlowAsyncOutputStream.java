@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect.lag;
 
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Random;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.jspecify.annotations.NonNull;
 
 /**
@@ -29,24 +28,26 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * Create a new benchmark slow async output stream.
      *
      * @param out the underlying output stream
-     * @param workGroup the work group managing this stream's thread
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
      * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
      * @param delayNetworkMicroseconds base network delay in microseconds
      * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
-     * @param reconnectConfig the reconnect configuration
+     * @param syncConfig the sync configuration
      */
     public BenchmarkSlowAsyncOutputStream(
             @NonNull final DataOutputStream out,
-            @NonNull final StandardWorkGroup workGroup,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            @NonNull final ReconnectConfig reconnectConfig) {
-        super(out, workGroup, reconnectConfig);
+            @NonNull final VirtualMapSyncConfig syncConfig) {
+        super(
+                out,
+                syncConfig.asyncStreamBufferSize(),
+                syncConfig.asyncOutputStreamFlush(),
+                syncConfig.asyncStreamTimeout());
 
         // Note that we use randomSeed and -randomSeed for the two fuzzers
         // to ensure that they don't end up returning the exact same
@@ -65,7 +66,7 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * simulating slow disk reads.
      */
     @Override
-    public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
+    public void sendAsync(@NonNull final byte @NonNull [] messageBytes) throws InterruptedException {
         sleepMicros(delayStorageMicrosecondsFuzzer.next());
         super.sendAsync(messageBytes);
     }
@@ -77,7 +78,7 @@ public class BenchmarkSlowAsyncOutputStream extends AsyncOutputStream {
      * simulating slow network I/O.
      */
     @Override
-    protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
+    protected void writeMessage(@NonNull final byte @NonNull [] messageBytes) throws IOException {
         sleepMicros(delayNetworkMicrosecondsFuzzer.next());
         super.writeMessage(messageBytes);
     }

@@ -13,7 +13,6 @@ mainModuleInfo {
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
-    runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.helidon.webclient.http2")
@@ -38,6 +37,7 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.hiero.consensus.state.test.fixtures")
     requires("com.esaulpaugh.headlong")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")

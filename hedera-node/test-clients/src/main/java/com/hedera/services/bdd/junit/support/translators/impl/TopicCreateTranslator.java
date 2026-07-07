@@ -54,7 +54,7 @@ public class TopicCreateTranslator implements BlockTransactionPartsTranslator {
                                         .mapUpdateOrThrow()
                                         .keyOrThrow()
                                         .topicIdKeyOrThrow();
-                                if (baseTranslator.entityCreatedThisUnit(topicId.topicNum())) {
+                                if (baseTranslator.entityCreatedThisUnit(TOPIC, topicId.topicNum())) {
                                     baseTranslator.consumeCreatedNum(TOPIC, topicId.topicNum());
                                     receiptBuilder.topicID(topicId);
                                     iter.remove();

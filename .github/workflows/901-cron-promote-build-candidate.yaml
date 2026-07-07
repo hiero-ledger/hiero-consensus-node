@@ -1,0 +1,377 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "901: [CRON] CITR Promote Build"
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs Promote Build Candidate at 0100 hours UTC Tuesday to Saturday
+    # (8:00 PM CDT Monday to Friday)
+    - cron: "0 1 * * 2-6"
+
+permissions:
+  actions: write
+  contents: write
+  statuses: write
+  id-token: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  XTS_PASS_GREP_PATTERN: "xts-pass-[0-9]*"
+  PROMOTED_GREP_PATTERN: "build-.{5}"
+
+jobs:
+  determine-build-candidate:
+    name: Fetch Latest Build Candidate
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
+      build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
+      promote-build-candidate: ${{ steps.find-build-candidates.outputs.promote-build-candidate }}
+      promote-candidate-message: ${{ steps.find-build-candidates.outputs.promote-candidate-message }}
+      promote-date: ${{ steps.find-build-candidates.outputs.promote-date }}
+    if: ${{ github.event.repository.private == false }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "main"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+
+      - name: Find Build Candidates
+        id: find-build-candidates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
+          BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
+        run: |
+          PROMOTE_MSG="Found build candidate for promotion."
+          PROMOTE_CANDIDATE="true"
+          CANDIDATE_TAG="$(git tag --list --sort=-version:refname "${TAG_PATTERN}" | head --lines 1)"
+          if [[ -n "${CANDIDATE_TAG}" ]]; then
+            set +e
+            CANDIDATE_COMMIT=$(git rev-list --max-count 1 ${CANDIDATE_TAG})
+            BUILD_PROMOTED_TAGGED=$(git tag --contains "${CANDIDATE_COMMIT}" | grep -E "${BUILD_PROMO_PATTERN}")
+            set -e
+
+            # Use -n; if the BUILD_PROMOTED_TAGGED flag is not empty than the commit has been tagged.
+            if [[ -n "${BUILD_PROMOTED_TAGGED}" ]]; then
+              # Successful. No new commit to tag.
+              PROMOTE_MSG="Candidate commit has already been promoted with tag(s): ${BUILD_PROMOTED_TAGGED}."
+              PROMOTE_CANDIDATE="false"
+            fi
+
+            # Verify the commit is on main and continue
+            if git branch --contains "${CANDIDATE_COMMIT}" | grep --quiet main >/dev/null 2>&1; then
+              git push --delete origin $(git tag --list "${TAG_PATTERN}")
+              git tag --delete $(git tag --list "${TAG_PATTERN}")
+              echo "build-candidate-exists=true" >> "${GITHUB_OUTPUT}"
+              echo "build-candidate-commit=${CANDIDATE_COMMIT}" >> "${GITHUB_OUTPUT}"
+              echo "### Build Candidate Found" >>  "${GITHUB_STEP_SUMMARY}"
+              echo "build-candidate-commit=${CANDIDATE_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
+              echo "build-candidate-tag=${CANDIDATE_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+            else
+              # Candidate commit is not on main. No promotion.
+              PROMOTE_MSG="Candidate commit ${CANDIDATE_COMMIT} is not on main branch."
+              PROMOTE_CANDIDATE="false"
+            fi
+          else
+            # cancel the run if no candidate tag found
+            PROMOTE_MSG="No build candidate tags found matching pattern: ${TAG_PATTERN}."
+            PROMOTE_CANDIDATE="false"
+          fi
+
+          echo "promote-build-candidate=${PROMOTE_CANDIDATE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "promote-candidate-message=${PROMOTE_MSG}" | tee -a "${GITHUB_OUTPUT}"
+
+          DATE=$(date +"%Y-%m-%d (%Z)")
+          echo "promote-date=${DATE}" >> "${GITHUB_OUTPUT}"
+
+          echo "### Promotion Decision" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${PROMOTE_MSG}" >> "${GITHUB_STEP_SUMMARY}"
+
+  promote-build-candidate:
+    name: Promote Build Candidate
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - determine-build-candidate
+    outputs:
+      build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
+    if: ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'true' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Tagged Code
+        id: checkout-tagged-code
+        if: ${{ needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.determine-build-candidate.outputs.build-candidate-commit }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Tag Build Candidate
+        id: tag-build-candidate
+        env:
+          BUILD_INDEX: ${{ vars.XTS_BUILD_PROMOTION_INDEX }}
+        run: |
+          BUILD_TAG="$(printf "build-%05d" "${BUILD_INDEX}")"
+          git tag --annotate ${BUILD_TAG} --message "chore: tagging commit for build promotion"
+          git push --set-upstream origin --tags
+
+          PREV_BUILD_TAG=$(printf "build-%05d" $((10#${BUILD_INDEX} - 1)))
+
+          COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${PREV_BUILD_TAG}..${BUILD_TAG}")"
+
+          echo "build-candidate-tag=${BUILD_TAG}" >> "${GITHUB_OUTPUT}"
+
+          echo "### Build Promotion Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "build-tag=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Increment Build Promotion Index
+        uses: step-security/increment@c8068e32a29fc594c6822148a136488be4cf706c # v2.15.1
+        id: increment
+        with:
+          name: "XTS_BUILD_PROMOTION_INDEX"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Preview Next Build
+        env:
+          NEXT_BUILD_ID: ${{ steps.increment.outputs.value }}
+        run: |
+          NEXT_BUILD_TAG="$(printf "build-%05d" "${NEXT_BUILD_ID}")"
+          echo "### Preview Next Build Tag" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Next build tag is: ${NEXT_BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - promote-build-candidate
+    if: ${{ needs.promote-build-candidate.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: "Trigger 221: [DISP] CITR SDPT Controller"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/221-disp-sdpt-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: "Trigger 222: [DISP] CITR SDLT Controller"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/222-disp-sdlt-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: "Trigger 223: [DISP] CITR SDCT Controller"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/223-disp-sdct-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "build-tag": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
+  report-promotion:
+    name: Report Build Promotion
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - determine-build-candidate
+      - promote-build-candidate
+    if: ${{ needs.promote-build-candidate.result == 'success' &&
+      needs.determine-build-candidate.outputs.promote-build-candidate == 'true' &&
+      needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          BUILD_CANDIDATE_TAG: ${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
+          BUILD_CANDIDATE_COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}
+          PROMOTED_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
+          PROMOTE_DATE: ${{ needs.determine-build-candidate.outputs.promote-date }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-build-promotion-success.json.tpl -o slack_payload.json
+
+      - name: Report Promoted Build (slack citr-build-promotion-reports)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+  report-no-promotion:
+    name: Report No Build Promotion
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - determine-build-candidate
+    if: ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'false' }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          PROMOTE_CANDIDATE_MESSAGE: ${{ needs.determine-build-candidate.outputs.promote-candidate-message }}
+          PROMOTE_DATE: ${{ needs.determine-build-candidate.outputs.promote-date }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-build-promotion-none.json.tpl -o slack_payload.json
+
+      - name: Report No Promotion (slack citr-build-promotion-reports)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report No Promotion (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+  report-failure:
+    name: Report Build Promotion failure
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - determine-build-candidate
+      - promote-build-candidate
+      - deploy-ci-trigger
+      - report-promotion
+    if:
+      ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'true' &&
+      (needs.determine-build-candidate.result != 'success' ||
+      needs.promote-build-candidate.result != 'success' ||
+      needs.deploy-ci-trigger.result != 'success' ||
+      needs.report-promotion.result != 'success') && !cancelled() && always() }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          summary="The Promote Build Candidate job failed"
+          if [[ -n "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}" ]]; then
+            summary="The Promote Build Candidate job failed (${{ needs.promote-build-candidate.outputs.build-candidate-tag }})."
+          fi
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Determine Build Candidate: ${{ needs.determine-build-candidate.result }}"
+            echo "- Promote Build Candidate: ${{ needs.promote-build-candidate.result }}"
+            echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
+            echo "- Report Promotion: ${{ needs.report-promotion.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.determine-build-candidate.outputs.build-candidate-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Report Failure (Rootly)
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "false"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          PROMOTE_DATE: ${{ needs.determine-build-candidate.outputs.promote-date }}
+          DETERMINE_RESULT: ${{ needs.determine-build-candidate.result }}
+          PROMOTE_RESULT: ${{ needs.promote-build-candidate.result }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-build-promotion-failure.json.tpl -o slack_payload.json
+
+      - name: Report failure (slack citr-build-promotion-reports)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

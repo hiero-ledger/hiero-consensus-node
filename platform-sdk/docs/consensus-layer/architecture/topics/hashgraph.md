@@ -1,9 +1,8 @@
 ---
-
+type: architecture-topic
 title: Hashgraph
-kind: architecture-topic
-last_reviewed: TBD
-------------------
+last_reviewed: 2026-06-30
+---
 
 # Hashgraph
 
@@ -79,7 +78,7 @@ state at runtime:
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
-  decided-fame status, plus `minNGen` and `minBirthRound` for the
+  decided-fame status, plus `minSeqNum` and `minBirthRound` for the
   judges.
 - The future-event buffer
   [`consensus-utility/.../FutureEventBuffer.java`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/FutureEventBuffer.java)
@@ -114,7 +113,7 @@ is wired against those.
   linked into the DAG that have not yet reached consensus.
 - `staleEventOutputWire(): OutputWire<PlatformEvent>` — events that
   aged past the ancient threshold without reaching consensus
-  (see [`../concepts/stale-events.md`](../concepts/stale-events.md)).
+  (see [`../../concepts/stale-events.md`](../../concepts/stale-events.md)).
 
 `ConsensusRound`
 ([`consensus-model/.../ConsensusRound.java`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/hashgraph/ConsensusRound.java))
@@ -159,7 +158,7 @@ buffered future events and emit several decided rounds.
 5. If consensus advanced, `linker.setEventWindow(round.getEventWindow())`
    shifts the non-ancient window and returns the events that became
    ancient; non-consensus ancients are reported as stale (see
-   [`../concepts/stale-events.md`](../concepts/stale-events.md)).
+   [`../../concepts/stale-events.md`](../../concepts/stale-events.md)).
 6. `futureEventBuffer.updateEventWindow(eventWindow)` releases any
    future events whose birth round is now eligible; they are appended
    to the work queue and each is fed back into step 3
@@ -177,7 +176,7 @@ that this event strongly sees (weighted by roster) and increments to
 decided ancient threshold are marked `ROUND_NEGATIVE_INFINITY` and
 skipped. The current code drives ancient-ness from birth round, not
 generation; for the conceptual background see
-[`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md).
+[`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff
 its round is greater than `ROUND_NEGATIVE_INFINITY` and its round
@@ -191,7 +190,7 @@ of weight among intermediates that all see the same canonical witness.
 during the round-creation walk. Both rest on
 `lastSee(x, m)` (line 956), the most recent ancestor of `x` by
 member `m`, memoized per event. Conceptual background:
-[`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md).
+[`../../concepts/strongly-seeing.md`](../../concepts/strongly-seeing.md).
 
 **Fame voting.** When a witness is added to round `r + d`, it votes
 on every undecided witness in earlier rounds via
@@ -203,8 +202,8 @@ strongly sees. When `isCoinRound(d)` returns true (line 613), the
 counting vote falls back to a coin-bit derived from the voter's
 `EventCore.coin` field (via `ConsensusUtils.coin`). Fame is decided
 when a super-majority is reached on either side. See
-[`../concepts/voting.md`](../concepts/voting.md) and
-[`../concepts/coin-rounds.md`](../concepts/coin-rounds.md).
+[`../../concepts/voting.md`](../../concepts/voting.md) and
+[`../../concepts/coin-rounds.md`](../../concepts/coin-rounds.md).
 
 **Judges and round-decided.** When `RoundElections.isDecided()` is
 true and the engine is no longer waiting for init judges,
@@ -243,36 +242,63 @@ judge IDs).
 restart or reconnect, `Consensus.waitingForInitJudges()` returns
 `true` until the linker has supplied enough events to reconstruct the
 snapshot's judges (handled by `InitJudges`). While that flag is set,
-`DefaultConsensusEngine.addEvent` returns an empty output — the
+`ConsensusImpl.addEvent` short-circuits to an empty result
+(`ConsensusImpl.java:290-293`) and `DefaultConsensusEngine.addEvent`
+returns an empty output (`DefaultConsensusEngine.java:148-153`) — the
 just-added event is not yet classified as pre-consensus, because it
-might already have been part of a previously decided round. The
-flag is checked both before and after `consensus.addEvent`; the
-post-add check is the transition point out of waiting. When the last
-init judge arrives, the engine flushes any consensus events the
-just-decided rounds produced and the queued pre-consensus events
-into the output. Usually no rounds are decided in that same call,
-but a major roster change can produce some — in which case those
-consensus events are also reported as pre-consensus events so the
-downstream view of pre-consensus output stays complete.
+might already have been part of a previously decided round. The engine
+samples the flag both before and after `consensus.addEvent`
+(`waitingForJudgesBeforeAdd` / `waitingForJudgesAfterAdd`,
+`DefaultConsensusEngine.java:140-144`); the post-add check is the
+transition point out of waiting. When the last init judge arrives,
+`ConsensusImpl.checkInitJudges`
+(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
+neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
+under the `nonConsensusNonAncient` predicate) and marks each
+`setConsensus(true)` while deliberately leaving `roundReceived` unset:
+those events already reached consensus in the run that produced the
+loaded snapshot, so they are flagged decided solely to stop the
+algorithm from re-deciding them, and are never emitted as a consensus
+round. The engine then flushes the queued pre-consensus events into the
+output (`consensus.getPreConsensusEvents()`,
+`DefaultConsensusEngine.java:168-172`). Usually the call that finds the
+last judge decides no *new* rounds — `ConsensusImpl.addEvent` routes
+through `recalculateAndVote` (`ConsensusImpl.java:295-297`), consensus
+simply resumes, and later events decide the next round. If that
+recalculation does decide a round immediately, the engine *also* places
+the round's events on the pre-consensus output
+(`DefaultConsensusEngine.java:163-166`), because the gate suppressed
+them earlier and every accepted event must still appear on the
+pre-consensus stream exactly once. Why this gate exists at the
+restart/replay boundary — not re-handling transactions already baked
+into the loaded state — is covered in
+[`../topics/restart-and-pces.md`](../topics/restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
 
 > **Note on the paper.** Round, witness, strongly-seeing, fame, and
 > judge mean the same thing in the paper and in the code. The notable
-> divergence is the ancient/expired horizon: the paper uses the
-> deterministic generation (max parent generation + 1) to define
-> ancient-ness, and the current code uses `birthRound` instead. The
+> divergence is the ancient/expired horizon — the paper uses an event's
+> deterministic generation where the current code uses `birthRound`; see
+> [`../../concepts/birth-round.md`](../../concepts/birth-round.md) for that
+> substitution. The
 > implementation also carries a few quantities that do not appear in
-> the paper — `NGen` (a locally-computed, non-deterministic generation
-> used only for picking a topological order and for "higher in the
-> hashgraph" comparisons; see `NonDeterministicGeneration`) and the
-> `DeGen`/`cGen` family used inside the algorithm. Conceptual
+> the paper — the orphan-buffer **event sequence number** (a
+> locally-computed, monotonic counter used for picking a topological
+> order and for "higher in the hashgraph" comparisons, e.g.
+> `consensusRelevantSeqNum` / `RoundElections.minSeqNum` and
+> `ConsensusRounds.isOlderThanDecidedRoundSeqNum`) and the `DeGen`/`cGen`
+> family used inside the algorithm. The sequence number replaced `NGen`
+> as the algorithm's ordering key (see
+> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md));
+> `NonDeterministicGeneration` lingers in this module only for the
+> not-yet-migrated `cGen` path. Conceptual
 > background lives in
-> [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
-> and [`../concepts/birth-round.md`](../concepts/birth-round.md).
+> [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
+> and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).
 
 ## Birth-round filtering
 
 Birth round controls what enters the DAG and what stays in it (see
-[`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
+[`../../concepts/event-lifecycle.md`](../../concepts/event-lifecycle.md)
 for the admitted → ancient → expired staircase that this section
 gates).
 
@@ -295,32 +321,44 @@ clears `parentHashMap` for evicted descriptors, calls `EventImpl.clear`
 on each, and returns the list of events that just became ancient.
 `DefaultConsensusEngine.addEvent` reports any of those that did not
 reach consensus on the stale-events output (see
-[`../concepts/stale-events.md`](../concepts/stale-events.md)).
+[`../../concepts/stale-events.md`](../../concepts/stale-events.md)).
 Conceptual background:
-[`../concepts/birth-round.md`](../concepts/birth-round.md).
+[`../../concepts/birth-round.md`](../../concepts/birth-round.md).
 
 ## Cross-references
 
 **Concepts.**
 
-- [`../concepts/hashgraph-dag.md`](../concepts/hashgraph-dag.md)
-- [`../concepts/rounds-and-witnesses.md`](../concepts/rounds-and-witnesses.md)
-- [`../concepts/strongly-seeing.md`](../concepts/strongly-seeing.md)
-- [`../concepts/voting.md`](../concepts/voting.md)
-- [`../concepts/coin-rounds.md`](../concepts/coin-rounds.md)
-- [`../concepts/judges.md`](../concepts/judges.md)
-- [`../concepts/birth-round.md`](../concepts/birth-round.md)
-- [`../concepts/event-lifecycle.md`](../concepts/event-lifecycle.md)
-- [`../concepts/stale-events.md`](../concepts/stale-events.md)
+- [`../../concepts/hashgraph-dag.md`](../../concepts/hashgraph-dag.md)
+- [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
+- [`../../concepts/strongly-seeing.md`](../../concepts/strongly-seeing.md)
+- [`../../concepts/voting.md`](../../concepts/voting.md)
+- [`../../concepts/coin-rounds.md`](../../concepts/coin-rounds.md)
+- [`../../concepts/judges.md`](../../concepts/judges.md)
+- [`../../concepts/birth-round.md`](../../concepts/birth-round.md)
+- [`../../concepts/event-lifecycle.md`](../../concepts/event-lifecycle.md)
+- [`../../concepts/stale-events.md`](../../concepts/stale-events.md)
 
-**Invariants.** [TBD: INV-NNN once
-[`../invariants.md`](../invariants.md) catalog populates.]
+**Invariants.** The consensus algorithm this module runs is where most of
+the layer's invariants are established:
+
+- INV-001 — voting round is monotonic along ancestry.
+- INV-002 — consensus order is agreed by all nodes.
+- INV-003 — consensus timestamp is agreed by all nodes.
+- INV-004 — a stale event is never ordered on any node.
+- INV-005 — every honest event eventually reaches consensus or becomes stale.
+- INV-006 — every round eventually has at least one judge.
+- INV-007 — all deciders of a round agree on its judge set.
+- INV-008 — consensus, once reached, is permanent.
+- INV-009 — a decided election never flips.
+- INV-012 — the minimum non-ancient round never decreases (the ancient boundary only moves forward).
+- INV-014 — consensus order is a strict total order with unique, gap-free ranks.
 
 **Decisions.** [TBD: ADR-NNN once
-[`../decisions/`](../decisions/) catalog populates.]
+[`../../decisions/`](../../decisions/) catalog populates.]
 
 **Scenarios.** [TBD: SCN-NNN once
-[`../scenarios/`](../scenarios/) catalog populates.]
+[`../../scenarios/`](../../scenarios/) catalog populates.]
 
 **Sibling topics.**
 
@@ -336,13 +374,9 @@ Conceptual background:
 
 ## Future state
 
-> **Future state.** The proposal envisions a single Consensus public
-> API on which Execution calls `nextRound(roster)` to pull each round,
-> giving natural backpressure; today rounds flow over the wired
-> `consensusRoundOutputWire` and the boundary is split across
-> `ExecutionLayer` and `ConsensusStateEventHandler` in
-> `swirlds-platform-core`. The proposal also introduces a separate
-> Sheriff module that aggregates misbehavior reports; it is not present
-> in the current `consensus-hashgraph` module or anywhere else in the
-> code, and a reader looking for it inside the hashgraph topic will
-> not find it.
+> **Future state.** Two proposal items touch this topic: the
+> `nextRound(roster)` pull that would replace today's wired
+> `consensusRoundOutputWire`, and the Sheriff module (absent from
+> `consensus-hashgraph`, so a reader will not find it here). Both are
+> described once, for the whole layer, in the
+> [overview's Future state](../overview.md#future-state).

@@ -36,7 +36,6 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
-import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
@@ -255,7 +254,7 @@ public class OtterApp implements ConsensusStateEventHandler {
                     .map(state::getReadableStates)
                     .allMatch(ReadableStates::isEmpty);
             if (stateNotInitialized) {
-                OtterStateInitializer.initOtterAppState((VirtualMapStateImpl) state, appServices);
+                OtterStateUtils.initOtterAppStateStructure((VirtualMapStateImpl) state, appServices);
             }
         }
 

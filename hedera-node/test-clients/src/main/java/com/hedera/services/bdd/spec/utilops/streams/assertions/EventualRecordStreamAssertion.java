@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
+import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
+import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
@@ -15,6 +20,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A {@link com.hedera.services.bdd.spec.utilops.UtilOp} that registers itself with {@link
@@ -22,6 +29,13 @@ import java.util.function.Function;
  * factory with each new {@link RecordStreamItem}.
  */
 public class EventualRecordStreamAssertion extends AbstractEventualStreamAssertion {
+    private static final Logger log = LogManager.getLogger(EventualRecordStreamAssertion.class);
+
+    private final RoleFreeBlockUnitSplit blockSplitter = new RoleFreeBlockUnitSplit();
+
+    @Nullable
+    private BlockTransactionalUnitTranslator blockTranslator;
+
     /**
      * The factory for the assertion to be tested.
      */
@@ -124,6 +138,9 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
     @Override
     protected boolean submitOp(final HapiSpec spec) throws Throwable {
         assertion = requireNonNull(assertionFactory.apply(spec));
+        final long shard = spec.setup().shard();
+        final long realm = spec.setup().realm();
+        blockTranslator = new BlockTransactionalUnitTranslator(shard, realm);
         unsubscribe = STREAM_FILE_ACCESS.subscribe(recordStreamLocFor(spec), new StreamDataListener() {
             @Override
             public boolean replayExistingFiles() {
@@ -144,6 +161,32 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
                     } catch (final AssertionError | RuntimeException e) {
                         result.fail(e.getMessage());
                     }
+                }
+            }
+
+            @Override
+            public void onNewBlock(@NonNull final Block block) {
+                requireNonNull(block);
+                try {
+                    final var units = blockSplitter.split(block);
+                    for (final var unit : units) {
+                        final var records = blockTranslator.translate(unit.withBatchTransactionParts());
+                        for (final var record : records) {
+                            final var item = toRecordStreamItem(record);
+                            if (assertion.isApplicableTo(item)) {
+                                if (assertion.test(item)) {
+                                    result.pass();
+                                    if (stopAfterFirstSuccess) {
+                                        unsubscribe.run();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (final AssertionError e) {
+                    result.fail(e.getMessage());
+                } catch (final Exception e) {
+                    log.warn("Failed to translate block to record stream items", e);
                 }
             }
 
@@ -176,6 +219,13 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
     @Override
     public String toString() {
         return "EventuallyRecordStream{" + assertionDescription() + "}";
+    }
+
+    private static RecordStreamItem toRecordStreamItem(@NonNull final SingleTransactionRecord record) {
+        return RecordStreamItem.newBuilder()
+                .setTransaction(fromPbj(record.transaction()))
+                .setRecord(fromPbj(record.transactionRecord()))
+                .build();
     }
 
     /**

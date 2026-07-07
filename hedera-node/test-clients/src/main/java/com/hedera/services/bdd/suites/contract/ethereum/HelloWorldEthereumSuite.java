@@ -73,6 +73,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDI
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -167,6 +168,7 @@ public class HelloWorldEthereumSuite {
                         .sending(50 * ONE_HBAR)
                         .maxGasAllowance(ONE_HBAR * 10)
                         .gasLimit(5_000_000L)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .via("creationActivatingAdminKeyViaEthTxSig")),
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
@@ -177,7 +179,7 @@ public class HelloWorldEthereumSuite {
                                 createdIds -> assertFalse(createdIds.isEmpty(), "Top-level sig map creation failed")),
                 getTxnRecord("creationActivatingAdminKeyViaEthTxSig")
                         .exposingTokenCreationsTo(
-                                createdIds -> assertFalse(createdIds.isEmpty(), "EthTx sig creation failed")));
+                                createdIds -> assertTrue(createdIds.isEmpty(), "EthTx sig creation failed")));
     }
 
     @HapiTest

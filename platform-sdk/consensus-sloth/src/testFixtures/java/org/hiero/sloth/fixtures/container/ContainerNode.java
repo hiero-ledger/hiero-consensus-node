@@ -18,7 +18,6 @@ import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
-import com.swirlds.common.config.StateCommonConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -39,6 +38,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -192,9 +192,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         log.info("Starting node {}...", selfId);
 
         if (savedStateDirectory != null) {
-            final StateCommonConfig stateCommonConfig =
-                    configuration().current().getConfigData(StateCommonConfig.class);
-            ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
+            final PathsConfig pathsConfig = configuration().current().getConfigData(PathsConfig.class);
+            ContainerUtils.copySavedStateToContainer(container, selfId, pathsConfig, savedStateDirectory);
         }
 
         final InitRequest initRequest = InitRequest.newBuilder()
@@ -450,8 +449,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void downloadStateFiles() {
-        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
-        final Path stateDirectory = stateConfig.savedStateDirectory().resolve(SlothApp.APP_NAME);
+        final PathsConfig pathsConfig = nodeConfiguration.current().getConfigData(PathsConfig.class);
+        final Path stateDirectory = pathsConfig.savedStateDir().resolve(SlothApp.APP_NAME);
         copyFolderFromContainer(stateDirectory.toString());
     }
 

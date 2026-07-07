@@ -27,7 +27,7 @@ import org.hiero.base.crypto.Hash;
 @SuppressWarnings("rawtypes")
 public final class RecordAccessor {
 
-    private final VirtualMapMetadata state;
+    private final VirtualMapMetadata metadata;
     private final int hashChunkHeight;
     private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
@@ -35,8 +35,8 @@ public final class RecordAccessor {
     /**
      * Create a new {@link RecordAccessor}.
      *
-     * @param state
-     * 		The state. Cannot be null.
+     * @param metadata
+     * 		The metadata. Cannot be null.
      * @param hashChunkHeight
      *      Hash chunk height
      * @param cache
@@ -45,22 +45,38 @@ public final class RecordAccessor {
      * 		The data source. Can be null.
      */
     public RecordAccessor(
-            @NonNull final VirtualMapMetadata state,
+            @NonNull final VirtualMapMetadata metadata,
             final int hashChunkHeight,
             @NonNull final VirtualNodeCache cache,
             @NonNull final VirtualDataSource dataSource) {
-        this.state = Objects.requireNonNull(state);
+        this.metadata = Objects.requireNonNull(metadata);
         this.hashChunkHeight = hashChunkHeight;
         this.cache = Objects.requireNonNull(cache);
         this.dataSource = dataSource;
+    }
+
+    public VirtualMapMetadata getMetadata() {
+        return metadata;
     }
 
     public int getHashChunkHeight() {
         return this.hashChunkHeight;
     }
 
+    /**
+     * Determines if a given path refers to a leaf
+     *
+     * @param path the virtual path
+     * @return {@code true} if the path is within the leaf range
+     */
+    public boolean isLeaf(final long path) {
+        return (path >= metadata.getFirstLeafPath())
+                && (path <= metadata.getLastLeafPath())
+                && (metadata.getFirstLeafPath() > 0);
+    }
+
     public Hash rootHash() {
-        final long size = state.getSize();
+        final long size = metadata.getSize();
         if (size == 0) {
             return null;
         }
@@ -73,7 +89,7 @@ public final class RecordAccessor {
             }
         }
         assert rootChunk != null;
-        return rootChunk.chunkRootHash(state.getFirstLeafPath(), state.getLastLeafPath());
+        return rootChunk.chunkRootHash(metadata.getFirstLeafPath(), metadata.getLastLeafPath());
     }
 
     /**
@@ -90,14 +106,17 @@ public final class RecordAccessor {
      */
     @Nullable
     public Hash findHash(final long path) {
-        assert path > 0;
-        if ((path <= 0) || (path > state.getLastLeafPath())) {
+        assert path >= 0;
+        if ((path < 0) || (path > metadata.getLastLeafPath())) {
             return null;
+        }
+        if (path == ROOT_PATH) {
+            return rootHash();
         }
         final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
         if (hashChunk != null) {
-            return hashChunk.calcHash(path, state.getFirstLeafPath(), state.getLastLeafPath());
+            return hashChunk.calcHash(path, metadata.getFirstLeafPath(), metadata.getLastLeafPath());
         }
         try {
             hashChunk = dataSource.loadHashChunk(chunkId);
@@ -115,7 +134,7 @@ public final class RecordAccessor {
      */
     public VirtualHashChunk findHashChunk(final long chunkPath) {
         assert chunkPath >= 0;
-        if ((chunkPath < 0) || (chunkPath > state.getLastLeafPath())) {
+        if ((chunkPath < 0) || (chunkPath > metadata.getLastLeafPath())) {
             return null;
         }
         final long chunkId = VirtualHashChunk.chunkPathToChunkId(chunkPath, hashChunkHeight);
@@ -181,7 +200,7 @@ public final class RecordAccessor {
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
 
-        if (path < state.getFirstLeafPath() || path > state.getLastLeafPath()) {
+        if (path < metadata.getFirstLeafPath() || path > metadata.getLastLeafPath()) {
             return null;
         }
 

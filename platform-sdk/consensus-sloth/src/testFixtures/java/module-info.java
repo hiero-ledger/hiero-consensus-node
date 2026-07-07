@@ -3,7 +3,6 @@ module org.hiero.sloth.fixtures {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
@@ -24,6 +23,7 @@ module org.hiero.sloth.fixtures {
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
+    requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
     requires org.hiero.base.utility;

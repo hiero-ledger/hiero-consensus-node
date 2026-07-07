@@ -19,6 +19,7 @@ import static org.junit.platform.commons.support.AnnotationSupport.isAnnotated;
 
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
@@ -163,6 +164,21 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // Set both the thread-local and the static shared network reference
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
+            } else if (isAnnotated(method, GenesisSubProcessTest.class)) {
+                logger.info("GenesisSubProcessTest annotation found on method: " + method.getName());
+                final var annotation = method.getAnnotation(GenesisSubProcessTest.class);
+                final SubProcessNetwork targetNetwork =
+                        (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
+                for (final GenesisSubProcessTest.SubProcessNodeConfig nodeConfig : annotation.subProcessNodeConfigs()) {
+                    if (nodeConfig.applicationPropertiesOverrides().length > 0) {
+                        targetNetwork
+                                .getApplicationPropertyOverrides()
+                                .put(nodeConfig.nodeId(), Arrays.asList(nodeConfig.applicationPropertiesOverrides()));
+                    }
+                }
+                targetNetwork.start();
+                SHARED_NETWORK.set(targetNetwork);
+                HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else {
                 ensureEmbeddedNetwork(extensionContext);
                 HapiSpec.TARGET_NETWORK.set(SHARED_NETWORK.get());
@@ -186,7 +202,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     @Override
     public void afterEach(@NonNull final ExtensionContext extensionContext) {
         hapiTestMethodOf(extensionContext).ifPresent(method -> {
-            if (isAnnotated(method, HapiBlockNode.class)) {
+            if (isAnnotated(method, HapiBlockNode.class) || isAnnotated(method, GenesisSubProcessTest.class)) {
                 // If a per-method network exists, run validation and terminate it
                 try {
                     // Skip validation if the network was never started

@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "855: [CALL] Extract CITR Vars"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The git ref to read .github/workflows/support/citr/.citr-env from (branch, tag, or commit SHA)."
+        type: string
+        default: ""
+    secrets:
+      github-token:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
+    outputs:
+      adhoc-solo-version:
+        value: ${{ jobs.extract-citr-vars.outputs.adhoc-solo-version }}
+      adhoc-xts-solo-version:
+        value: ${{ jobs.extract-citr-vars.outputs.adhoc-xts-solo-version }}
+      citr-mirror-node-version:
+        value: ${{ jobs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      citr-solo-version:
+        value: ${{ jobs.extract-citr-vars.outputs.citr-solo-version }}
+      mqpt-cluster:
+        value: ${{ jobs.extract-citr-vars.outputs.mqpt-cluster }}
+      tck-version:
+        value: ${{ jobs.extract-citr-vars.outputs.tck-version }}
+      js-sdk-version:
+        value: ${{ jobs.extract-citr-vars.outputs.js-sdk-version }}
+      bn-release-version:
+        value: ${{ jobs.extract-citr-vars.outputs.block-node-version }}
+      bn-mirror-node-version:
+        value: ${{ jobs.extract-citr-vars.outputs.bn-mirror-node-version }}
+      json-rpc-relay-version:
+        value: ${{ jobs.extract-citr-vars.outputs.json-rpc-relay-version }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  extract-citr-vars:
+    name: Extract CITR Variables
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      adhoc-solo-version: ${{ steps.get-citr-vars.outputs.adhoc-solo-version }}
+      adhoc-xts-solo-version: ${{ steps.get-citr-vars.outputs.adhoc-xts-solo-version }}
+      citr-mirror-node-version: ${{ steps.get-citr-vars.outputs.citr-mirror-node-version }}
+      citr-solo-version: ${{ steps.get-citr-vars.outputs.citr-solo-version }}
+      mqpt-cluster: ${{ steps.get-citr-vars.outputs.mqpt-cluster }}
+      tck-version: ${{ steps.get-citr-vars.outputs.tck-version }}
+      js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
+      block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
+      bn-mirror-node-version: ${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}
+      json-rpc-relay-version: ${{ steps.get-citr-vars.outputs.json-rpc-relay-version }}
+    steps:
+      - name: Initialize Job
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.github-token }}"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+
+      - name: Get CITR Vars
+        id: get-citr-vars
+        run: |
+          echo "::group::Extract CITR variables from .citr-env"
+
+          # Ensure the environment file is present
+          ENV_FILE=".github/workflows/support/citr/.citr-env"
+          if [[ ! -f "${ENV_FILE}" ]]; then
+            echo "::error::CITR environment file not found at ${ENV_FILE}"
+            exit 1
+          fi
+
+          # Read the environment file and set outputs for each variable
+          while IFS='=' read -r key value; do
+            # Skip empty lines and comments (lines starting with #)
+            [[ -z "${key}" || "${key}" == \#* ]] && continue
+
+            # Write the key-value pair to GITHUB_OUTPUT for GitHub Actions to recognize
+            echo "${key}=${value}" | tee -a "${GITHUB_OUTPUT}"
+          done < "${ENV_FILE}"
+          echo "::endgroup::"
+
+          # Define the expected keys to check (aligns with the outputs defined in the workflow_call)
+          echo "::group::Verify expected CITR variables"
+          EXPECTED_KEYS=(
+            "adhoc-solo-version"
+            "adhoc-xts-solo-version"
+            "citr-mirror-node-version"
+            "citr-solo-version"
+            "mqpt-cluster"
+            "tck-version"
+            "js-sdk-version"
+            "block-node-version"
+            "bn-mirror-node-version"
+            "json-rpc-relay-version"
+          )
+
+          # Loop through expected keys and check if they are set in GITHUB_OUTPUT
+          for key in "${EXPECTED_KEYS[@]}"; do
+            value=$(grep "^${key}=" "${GITHUB_OUTPUT}" | cut -d'=' -f2-)
+
+            # If the value is empty or not set, log a warning and assign an empty string
+            if [[ -z "${value}" ]]; then
+              echo "::warning::CITR variable '${key}' is missing or empty, defaulting to empty string"
+              echo "${key}=" | tee -a "${GITHUB_OUTPUT}"
+            else
+              echo "  OK: ${key}=${value}"
+            fi
+          done
+          echo "::endgroup::"

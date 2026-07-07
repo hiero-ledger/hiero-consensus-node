@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.integration.hip1195;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -150,8 +149,7 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(STATIC_CALL_HOOK.getInfo());
         testLifecycle.doAdhoc(TOKEN_REDIRECT_HOOK.getInfo());
 
-        testLifecycle.doAdhoc(withOpContext(
-                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))));
     }
 
     @HapiTest

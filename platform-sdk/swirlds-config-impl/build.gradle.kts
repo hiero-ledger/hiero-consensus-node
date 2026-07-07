@@ -9,7 +9,7 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.hiero.consensus.concurrent")
-    requires("com.swirlds.common")
+    requires("org.hiero.consensus.utility")
     runtimeOnly("com.swirlds.platform.core")
 
     exportsTo("com.swirlds.config.extensions")

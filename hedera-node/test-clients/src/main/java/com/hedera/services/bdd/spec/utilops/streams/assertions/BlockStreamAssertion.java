@@ -12,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * <p>Typical implementations will be stateful, and will be constructed with their "parent" {@link HapiSpec}.
  */
 @FunctionalInterface
-public interface BlockStreamAssertion {
+public interface BlockStreamAssertion extends StreamAssertion {
     /**
      * Updates the assertion's state based on a relevant {@link Block}, throwing an {@link AssertionError} if a
      * failure state is reached; or returning true if the assertion has reached a success state.

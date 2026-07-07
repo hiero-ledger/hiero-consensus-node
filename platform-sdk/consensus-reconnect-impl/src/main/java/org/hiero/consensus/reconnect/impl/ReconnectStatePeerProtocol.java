@@ -83,7 +83,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
     private final Configuration configuration;
     private final Metrics metrics;
-    private final Time time;
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
@@ -121,7 +120,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
-        this.time = requireNonNull(time);
         this.threadManager = requireNonNull(threadManager);
         this.peerId = requireNonNull(peerId);
         this.teacherThrottle = requireNonNull(teacherThrottle);
@@ -360,7 +358,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             try {
                 teacher = new ReconnectStateTeacher(
                         configuration,
-                        time,
                         threadManager,
                         connection,
                         reconnectSocketTimeout,

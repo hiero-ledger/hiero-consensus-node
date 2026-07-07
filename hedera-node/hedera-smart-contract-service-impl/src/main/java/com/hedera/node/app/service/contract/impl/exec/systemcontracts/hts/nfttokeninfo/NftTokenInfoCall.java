@@ -21,7 +21,6 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbstractNonRevertibleTokenViewCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -79,8 +78,9 @@ public class NftTokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         }
 
         final var nonNullNft = nft != null ? nft : Nft.DEFAULT;
-        final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
-        final var ledgerId = Bytes.wrap(ledgerConfig.id().toByteArray()).toString();
+        final var ledgerId = Bytes.wrap(
+                        enhancement.nativeOperations().ledgerId().toByteArray())
+                .toString();
 
         return function.getName().equals(NON_FUNGIBLE_TOKEN_INFO.methodName())
                         && function.getOutputs().equals(NON_FUNGIBLE_TOKEN_INFO.getOutputs())

@@ -149,9 +149,9 @@ class BaseTranslatorConsumeCreatedNumTest {
         translator.prepareForUnit(unit2);
 
         // 200 was created this unit
-        assertTrue(translator.entityCreatedThisUnit(200L));
+        assertTrue(translator.entityCreatedThisUnit(ACCOUNT, 200L));
         // 50 was not created this unit (below previous highest)
-        assertFalse(translator.entityCreatedThisUnit(50L));
+        assertFalse(translator.entityCreatedThisUnit(ACCOUNT, 50L));
     }
 
     // --- Helper methods to construct minimal BlockTransactionalUnit instances ---

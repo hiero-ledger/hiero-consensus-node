@@ -10,8 +10,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -30,10 +28,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -43,7 +37,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -102,26 +95,6 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(pureChecksContext.body()).willReturn(newDeleteTxn());
 
         assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("check that fees are 1 for delete node trx")
-    void testCalculateFeesInvocations() throws IOException {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-
-        given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
     }
 
     @Test

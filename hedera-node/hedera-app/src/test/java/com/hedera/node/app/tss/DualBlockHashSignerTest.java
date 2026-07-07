@@ -85,6 +85,14 @@ class DualBlockHashSignerTest {
     }
 
     @Test
+    void delegatesBlockStartNotificationsToSuccinctSignatureDelegate() {
+        subject.onBlockStarted(123L);
+
+        verify(succinctSignatureDelegate).onBlockStarted(123L);
+        verifyNoInteractions(rsaContext, submissions);
+    }
+
+    @Test
     void listOfPartialSignaturesThrowsIfRsaContextIsNotReady() {
         given(rsaContext.isReady()).willReturn(false);
 

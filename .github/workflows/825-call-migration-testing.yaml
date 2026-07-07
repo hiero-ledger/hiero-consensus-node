@@ -1,0 +1,210 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "825: [CALL] Migration Testing"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job:"
+        required: false
+        type: string
+      solo-version:
+        description: "The version of solo to install (if not specified, latest will be used):"
+        required: false
+        type: string
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+    secrets:
+      access-token:
+        description: "GitHub Access Token with write permissions to the repository."
+        required: true
+      slack-detailed-report-webhook:
+        description: "Slack Webhook URL for Detailed Test Reporting."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.migration-testing.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  checks: write
+  contents: read
+  actions: write
+  statuses: write
+  id-token: write
+
+jobs:
+  migration-testing:
+    timeout-minutes: 60
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hl-cn-migration-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{secrets.GITHUB_TOKEN}}"
+          setup-java: "true"
+          java-distribution: "temurin"
+          java-version: "${{ inputs.java-version }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "22"
+
+      # Build the local hedera-node artifacts (hedera-node/data) that step 3
+      # of the migration script stages onto each consensus node via
+      # `solo consensus network upgrade --local-build-path`.
+      - name: Build hiero-consensus-node
+        run: ionice -c 2 -n 2 nice -n 19 ./gradlew assemble
+
+      # Install solo. The script also looks for solo in $HOME/.npm-global/bin
+      # as a fallback (for non-sudo macOS dev setups), but on the CI runner we
+      # let `npm install -g` go to the system prefix.
+      #
+      # Migration testing requires solo >= 0.73.0 — older versions have a
+      # --local-build-path bug that leaves baseline jars alongside local ones,
+      # causing schema-migration NoSuchMethodError at node startup. Honor the
+      # caller's version if it meets the minimum, otherwise floor it.
+      - name: Install Solo
+        env:
+          REQUESTED: ${{ inputs.solo-version || 'latest' }}
+          MIN_VERSION: "0.73.0"
+        run: |
+          if [[ "${REQUESTED}" == "latest" ]] || \
+             [[ "$(printf '%s\n' "${REQUESTED#v}" "${MIN_VERSION}" | sort -V | tail -1)" == "${REQUESTED#v}" ]]; then
+            RESOLVED="${REQUESTED}"
+          else
+            echo "Solo version ${REQUESTED} is below required minimum ${MIN_VERSION}; using ${MIN_VERSION}"
+            RESOLVED="${MIN_VERSION}"
+          fi
+          npm install -g "@hashgraph/solo@${RESOLVED}"
+
+      # Install kind without creating a cluster; the migration script invokes
+      # `kind create cluster -n solo-migration` itself.
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      # Steps 1-4 + 4a are all in this driver:
+      #   1) Version detection (version.txt -> previous-minor tag)
+      #   2) Solo 3-node + Mirror Node (with --pinger) deployment at prev_tag
+      #   3) `solo consensus network upgrade --local-build-path` to local
+      #   4) CryptoCreate via @hashgraph/sdk + mirror REST poll
+      #   4a) Mirror importer log scan for ERROR-level entries
+      - name: Run migration test
+        id: run-migration-tests
+        env:
+          KEEP_NETWORK: "true" # keep kind alive so post-run log collection can reach it
+        run: ./hedera-node/test-clients/scripts/solo/migration-testing/solo-migration-test.sh
+
+      # Collect logs:
+      #   1) Mirror Node importer log (full, since this is what step 4a checks).
+      #   2) All consensus node + Solo logs via `solo deployment diagnostics`.
+      #      Unset KUBERNETES_SERVICE_HOST so solo's k8s client doesn't auto-use
+      #      the ARC pod's SA token (which kind rejects with 403); forces it to
+      #      read ~/.kube/config like kubectl does.
+      - name: Collect CN + Mirror Node Logs
+        if: always()
+        run: |
+          kubectl --context kind-solo-migration logs -n solo -l "app.kubernetes.io/component=importer,app.kubernetes.io/instance=mirror-1" \
+            --all-containers --since=24h --timestamps --prefix --tail=-1 > mirror-importer.log || true
+
+          env -u KUBERNETES_SERVICE_HOST solo deployment diagnostics all -d solo-migration --dev -q || true
+          LOG_FOLDER="${HOME}/.solo/logs/solo"
+          echo "CN_LOG_FOLDER=${LOG_FOLDER}" >> "${GITHUB_ENV}"
+          ls -lR "${LOG_FOLDER}" || true
+
+      - name: Upload Mirror Importer Log
+        if: always()
+        id: upload_mn_logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mn-log
+          path: mirror-importer.log
+
+      - name: Upload CN Logs
+        if: always()
+        id: upload_cn_logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cn-logs
+          path: ${{ env.CN_LOG_FOLDER }}/*.zip
+
+      - name: Add Logs to Summary
+        if: always()
+        run: |
+          {
+            echo "### 📜 Logs"
+            echo ""
+            echo "Artifacts:"
+            echo "- [Mirror Node importer log](${{ steps.upload_mn_logs.outputs.artifact-url }})"
+            echo "- [Consensus Node logs](${{ steps.upload_cn_logs.outputs.artifact-url }})"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Stop solo + delete cluster
+        if: ${{ always() }}
+        run: |
+          kind delete cluster -n solo-migration || true
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-migration-tests.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: ${{ steps.prepare-runner.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
+
+  report-migration-testing-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hl-cn-migration-lin-sm
+    needs: migration-testing
+    if: ${{ always() }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{secrets.GITHUB_TOKEN}}"
+          setup-gomplate: "true"
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          STATUS: ${{ needs.migration-testing.result }}
+          STATUS_COLOR: ${{ needs.migration-testing.result == 'success' && '#00FF00' || (needs.migration-testing.result == 'cancelled' && '#555555' || '#FF0000') }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-migration-testing-detailed.json.tpl -o slack_payload.json
+
+      - name: Report Status to Detailed Test Reports Channel
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.slack-detailed-report-webhook }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

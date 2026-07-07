@@ -43,9 +43,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
+@Execution(ExecutionMode.SAME_THREAD)
 class AtomicBatchTokenAirdropTest {
 
     private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";

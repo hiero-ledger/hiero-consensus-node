@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
-
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
@@ -20,15 +17,11 @@ import com.hedera.hapi.node.scheduled.ScheduleInfo;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.schedule.ExtantScheduleContext;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
@@ -40,19 +33,14 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ScheduleGetInfoHandler extends PaidQueryHandler {
-    private final ScheduleOpsUsage legacyUsage;
 
     /**
      * Constructor is used by the Dagger dependency injection framework to provide the necessary dependencies
      * to the handler.
      * The handler is responsible for handling the {@link HederaFunctionality#SCHEDULE_GET_INFO} query.
-     *
-     * @param legacyUsage the legacy usage
      */
     @Inject
-    public ScheduleGetInfoHandler(ScheduleOpsUsage legacyUsage) {
-        this.legacyUsage = legacyUsage;
-    }
+    public ScheduleGetInfoHandler() {}
 
     @Override
     public QueryHeader extractHeader(@NonNull final Query query) {
@@ -66,22 +54,6 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
         Objects.requireNonNull(header);
         final var response = ScheduleGetInfoResponse.newBuilder().header(header);
         return Response.newBuilder().scheduleGetInfo(response).build();
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        // Need to work out if this is correct, note we effectively (much) more than double total effort
-        // here just to calculate fees based on a single instance of that effort...
-        final Schedule found = findSchedule(context);
-        if (found != null) {
-            final ScheduleInfo.Builder builder = ScheduleInfo.newBuilder();
-            buildFromSchedule(builder, found, context.ledgerId());
-            return context.feeCalculator()
-                    .legacyCalculate(sigValueObj -> usageGiven(fromPbj(context.query()), fromPbj(builder.build())));
-        } else {
-            return context.feeCalculator().calculate();
-        }
     }
 
     @Override
@@ -161,25 +133,5 @@ public class ScheduleGetInfoHandler extends PaidQueryHandler {
 
     private Timestamp.Builder timestampFromSeconds(long secondsSinceEpoch) {
         return Timestamp.newBuilder().seconds(secondsSinceEpoch).nanos(0);
-    }
-
-    public FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.Query query,
-            final com.hederahashgraph.api.proto.java.ScheduleInfo info) {
-        if (info != null) {
-            final var scheduleCtxBuilder = ExtantScheduleContext.newBuilder()
-                    .setScheduledTxn(info.getScheduledTransactionBody())
-                    .setMemo(info.getMemo())
-                    .setNumSigners(info.getSigners().getKeysCount())
-                    .setResolved(info.hasExecutionTime() || info.hasDeletionTime());
-            if (info.hasAdminKey()) {
-                scheduleCtxBuilder.setAdminKey(info.getAdminKey());
-            } else {
-                scheduleCtxBuilder.setNoAdminKey();
-            }
-            return legacyUsage.scheduleInfoUsage(query, scheduleCtxBuilder.build());
-        } else {
-            return CONSTANT_FEE_DATA;
-        }
     }
 }

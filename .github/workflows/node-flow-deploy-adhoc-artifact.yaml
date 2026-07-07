@@ -1,83 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Node: Deploy Adhoc Release"
+name: "Deprecated: Node: Deploy Adhoc Release"
 on:
   workflow_dispatch:
-    inputs:
-      dry-run-enabled:
-        description: "Perform Dry Run"
-        type: boolean
-        required: false
-        default: false
-      ref:
-        required: true
-        description: "Git Reference (branch, tag, or commit SHA)"
-      ref-name:
-        required: true
-        description: "Git Reference Name (branch name or tag name)"
-      java-version:
-        description: "Java JDK Version:"
-        type: string
-        required: false
-      java-distribution:
-        description: "Java JDK Distribution:"
-        type: string
-        required: false
-        default: "temurin"
-      gradle-version:
-        description: "Gradle Version:"
-        type: string
-        required: false
-        default: "wrapper"
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
-  extract-jdk-version:
-    name: Extract Java Version
-    uses: ./.github/workflows/802-extract-jdk-version.yaml
-    with:
-      ref: ${{ github.event.inputs.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  release-adhoc:
-    name: Release [Adhoc]
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    needs:
-      - extract-jdk-version
-    uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
-    with:
-      version-policy: branch-commit
-      trigger-env-deploy: none
-      release-profile: AdhocCommit
-      dry-run-enabled: ${{ github.event.inputs.dry-run-enabled == 'true' }}
-      java-version: ${{ github.event.inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
-      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
-      gradle-version: ${{ github.event.inputs.gradle-version || 'wrapper' }}
-      ref: ${{ github.event.inputs.ref }}
-      ref-name: ${{ github.event.inputs.ref-name }}
-
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
-      cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
-      central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
-      central-publishing-password: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
-      svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
-      svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
-      sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
-      sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
-      sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
-      sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
-      slack-webhook-url: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
-      jf-url: ${{ vars.JF_URL }}
-      jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
-      jf-user-name: ${{ vars.JF_USER_NAME }}
-      jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
+  print-deprecated:
+    name: Print Deprecated Warning
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Print Deprecation Warning
+        run: |
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

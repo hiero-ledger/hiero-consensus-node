@@ -16,10 +16,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 
 /**
- * Factory class to create instances of {@link BlockStreamPublishServiceClient} or {@link org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient} for communicating with block nodes.
+ * Factory class to create instances of {@link BlockStreamPublishBytesClient} or {@link org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient} for communicating with block nodes.
  * This factory is necessary to test clients to mock the creation of the gRPC client. PBJ will create the underlying
  * connections in the constructor and there is no way to mock that.
  */
@@ -92,32 +91,32 @@ public class BlockNodeClientFactory {
     }
 
     /**
-     * Create a new {@link BlockStreamPublishServiceClient} instance using the specified configuration.
+     * Create a new {@link BlockStreamPublishBytesClient} instance using the specified configuration.
      *
      * @param config the block node configuration to use
      * @param timeout the timeout to use
-     * @return a new {@link BlockStreamPublishServiceClient} instance
+     * @return a new {@link BlockStreamPublishBytesClient} instance
      */
-    public BlockStreamPublishServiceClient createStreamingClient(
+    public BlockStreamPublishBytesClient createStreamingClient(
             @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
         return createStreamingClient(config, timeout, null);
     }
 
     /**
-     * Create a new {@link BlockStreamPublishServiceClient} instance using the specified configuration and
+     * Create a new {@link BlockStreamPublishBytesClient} instance using the specified configuration and
      * connection-level correlation ID.
      *
      * @param config the block node configuration to use
      * @param timeout the timeout to use
      * @param connectionCorrelationId correlation ID to send in gRPC metadata
-     * @return a new {@link BlockStreamPublishServiceClient} instance
+     * @return a new {@link BlockStreamPublishBytesClient} instance
      */
-    public BlockStreamPublishServiceClient createStreamingClient(
+    public BlockStreamPublishBytesClient createStreamingClient(
             @NonNull final BlockNodeConfiguration config,
             @NonNull final Duration timeout,
             final String connectionCorrelationId) {
         final PbjGrpcClient client = buildPbjClient(ClientType.STREAMING, config, timeout);
-        return new BlockStreamPublishServiceClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
+        return new BlockStreamPublishBytesClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
     }
 
     /**

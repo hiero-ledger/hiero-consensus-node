@@ -18,6 +18,7 @@ dates, statuses, and one-line summaries lives in `decisions/README.md`.
 
 ```yaml
 ---
+type: decision
 id: ADR-NNN
 title: Short title — what the decision is about
 topics: [event-intake, gossip]        # topic slugs this decision touches
@@ -153,6 +154,7 @@ line per change (`date — what changed — who`). Omit if empty.
 
 ```markdown
 ---
+type: decision
 id: ADR-NNN
 title: ...
 topics: [...]

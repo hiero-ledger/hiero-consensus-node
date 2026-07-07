@@ -4,12 +4,15 @@ import org.hiero.consensus.state.config.StateConfigurationExtension;
 
 module org.hiero.consensus.state {
     exports org.hiero.consensus.state.config;
+    exports org.hiero.consensus.state.nexus;
+    exports org.hiero.consensus.state.saved;
     exports org.hiero.consensus.state.signed;
     exports org.hiero.consensus.state.snapshot;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
+    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.impl;

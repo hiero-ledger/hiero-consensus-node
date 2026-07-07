@@ -9,9 +9,9 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import java.time.Duration;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -45,7 +45,7 @@ public class CheckingRecoveryTest {
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
         network.withConfigValue(
-                PlatformSchedulersConfig_.TRANSACTION_HANDLER, "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE");
+                TransactionHandlingWiringConfig_.HANDLER, "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE");
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
