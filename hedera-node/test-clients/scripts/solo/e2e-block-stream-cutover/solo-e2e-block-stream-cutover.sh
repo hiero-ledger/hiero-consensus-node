@@ -3939,6 +3939,36 @@ ensure_tck_port_forwards() {
   fi
 }
 
+# Logs which network the TCK is about to hit — the mirror REST view of the address book plus
+# the latest block number / HAPI version — so every run carries visible proof of the target
+# environment in its log. Fetch failures only warn (mirror REST liveness was already gated by
+# wait_for_http_ok); the single hard check is a fetched address book WITHOUT node account
+# 0.0.3 — the node the TCK client is pinned to via NODE_IP/NODE_ACCOUNT_ID (see run_tck_npm) —
+# which means the forwards point at the wrong network and the whole suite would fail anyway.
+print_tck_network_fingerprint() {
+  local nodes_json blocks_json
+  echo "--- TCK target network fingerprint (via mirror REST :${MIRROR_REST_LOCAL_PORT}) ---"
+  nodes_json="$(curl -sf "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes?limit=10" 2>/dev/null || true)"
+  if [[ -n "${nodes_json}" ]]; then
+    echo "${nodes_json}" | jq -r '.nodes[] | "  node_id=\(.node_id) account=\(.node_account_id) \(.description // "")"' 2>/dev/null \
+      || echo "  (unparseable /api/v1/network/nodes response)"
+  else
+    echo "  WARNING: could not fetch /api/v1/network/nodes from the mirror" >&2
+  fi
+  blocks_json="$(curl -sf "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?order=desc&limit=1" 2>/dev/null || true)"
+  if [[ -n "${blocks_json}" ]]; then
+    echo "${blocks_json}" | jq -r '.blocks[0] | "  latest_block=\(.number) hapi_version=\(.hapi_version)"' 2>/dev/null \
+      || echo "  (unparseable /api/v1/blocks response)"
+  else
+    echo "  WARNING: could not fetch /api/v1/blocks from the mirror" >&2
+  fi
+  if [[ -n "${nodes_json}" ]] && ! echo "${nodes_json}" | jq -e '.nodes[] | select(.node_account_id == "0.0.3")' >/dev/null 2>&1; then
+    echo "TCK network fingerprint check FAILED: mirror address book has no node with account 0.0.3;" >&2
+    echo "the :${CN_GRPC_LOCAL_PORT}/:${MIRROR_REST_LOCAL_PORT} forwards are not pointing at the expected network." >&2
+    return 1
+  fi
+}
+
 # CI parity (819 L202-207): create a fresh 1,000,000-hbar account carrying the well-known dev
 # key before the suite. Repeat-safe (a new account per invocation) and doubles as a solo-CLI
 # level liveness check of the post-cutover network. No solo-version gate: this script already
@@ -4374,6 +4404,7 @@ if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
   restart_post_upgrade_port_forwards
   wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
   wait_for_sdk_responsive 180
+  print_tck_network_fingerprint
 
   prepare_tck_repos
   install_tck_client_dependencies
