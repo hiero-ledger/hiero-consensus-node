@@ -450,9 +450,13 @@ jobs:
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
           done
 
+          # Exclude the multi-GB WRAPS proving-key bundles (solo's per-node *-log-config.zip)
+          # from the artifact: copy only files under 100MB and record what was skipped.
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
-            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            find "${HOME}/.solo/logs" -type f -size +100M -exec ls -lh {} \; \
+              > "${OUT_DIR}/solo-logs/SKIPPED-large-files.txt" 2>/dev/null || true
+            (cd "${HOME}/.solo/logs" && find . -type f -size -100M -exec cp --parents -t "${OUT_DIR}/solo-logs" {} +) || true
           fi
 
       - name: Upload Cutover Failure Artifacts
