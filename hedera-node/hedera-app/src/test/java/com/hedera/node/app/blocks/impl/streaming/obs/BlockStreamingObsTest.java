@@ -118,7 +118,6 @@ class BlockStreamingObsTest {
 
         clock.set(secs(10)); // move past the 2-second gather grace period
         final String report = gather(obs);
-        System.out.println(report);
 
         assertThat(report).isNotNull();
         // block lifecycle spans (exact line for the simplest probe; prefixes elsewhere)

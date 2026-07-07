@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
@@ -236,6 +237,7 @@ public class BlockBufferService {
         lastProducedBlockNumber.set(-1);
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResultRef.set(PruneResult.NIL);
+        bufferSizeInBytes.reset();
         awaitingRecovery = false;
         completeAcknowledgementFuturesExceptionally(
                 new IllegalStateException("Block buffer service shut down before acknowledgement completed"));
@@ -564,10 +566,18 @@ public class BlockBufferService {
         }
 
         logger.info("Block buffer is being restored from disk (blocksRead: {})", blocks.size());
+        BigInteger totalBlockSizeLoaded = BigInteger.ZERO;
+        long totalItemsLoaded = 0;
+        int numBlocksLoaded = 0;
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
-            bufferedBlock.block().items().forEach(block::addSerializedItem);
+            long blockItemTotalSize = 0L;
+            for (final Bytes itemBytes : bufferedBlock.block().items()) {
+                block.addSerializedItem(itemBytes);
+                blockItemTotalSize += itemBytes.length();
+                ++totalItemsLoaded;
+            }
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
@@ -586,8 +596,18 @@ public class BlockBufferService {
                 logger.debug(
                         "Block {} was read from disk but it was already in the buffer; ignoring block from disk",
                         bufferedBlock.blockNumber());
+            } else {
+                ++numBlocksLoaded;
+                bufferSizeInBytes.add(blockItemTotalSize);
+                totalBlockSizeLoaded = totalBlockSizeLoaded.add(BigInteger.valueOf(blockItemTotalSize));
             }
         }
+
+        logger.info(
+                "Finished loading blocks from disk (blocks: {}, items: {}, bytes: {})",
+                numBlocksLoaded,
+                totalItemsLoaded,
+                totalBlockSizeLoaded);
     }
 
     /**
