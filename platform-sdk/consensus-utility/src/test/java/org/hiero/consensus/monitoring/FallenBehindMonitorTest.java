@@ -80,7 +80,6 @@ class FallenBehindMonitorTest {
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
-
     @Test
     void multipleRemovalsShouldBeNoOp() {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
@@ -102,11 +101,9 @@ class FallenBehindMonitorTest {
         monitor.report(nodeIds[6]);
         assertFallenBehind(true, 6, "we should be fallen behind");
 
-
         monitor.report(nodeIds[7]);
         monitor.report(nodeIds[8]);
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
-
 
         monitor.clear(nodeIds[8]);
         monitor.clear(nodeIds[8]);

@@ -38,7 +38,7 @@ public class FallenBehindMonitor {
 
     private final RosterLookup rosterLookup;
 
-    private final double fallenBehindWeightThreshold;
+    private final long fallenBehindWeightThreshold;
 
     /**
      * set of peers that reported this node has fallen behind
@@ -47,7 +47,7 @@ public class FallenBehindMonitor {
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
     @GuardedBy("lock")
-    private double fallenBehindLevel;
+    private long fallenBehindLevel;
 
     @GuardedBy("lock")
     private boolean isBehind;
@@ -81,7 +81,7 @@ public class FallenBehindMonitor {
     public FallenBehindMonitor(@NonNull final Roster roster, final double fallenBehindThreshold, final NodeId selfId) {
         this.rosterLookup = new RosterLookup(requireNonNull(roster));
         this.fallenBehindWeightThreshold =
-                (rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId)) * fallenBehindThreshold;
+                Math.round((rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId)) * fallenBehindThreshold);
     }
 
     private void checkAndNotify() {
@@ -90,11 +90,6 @@ public class FallenBehindMonitor {
         isBehind = fallenBehindLevel > fallenBehindWeightThreshold;
         if (wasNotBehind && isBehind) {
             fallenBehindCondition.signalAll(); // notify waiting threads
-        }
-        if (reportFallenBehind.isEmpty()) {
-            // this shouldn't be normally needed, but we don't want to show things like 0.00000000000001
-            // fallen behind due to floating point issues
-            fallenBehindLevel = 0;
         }
     }
 
