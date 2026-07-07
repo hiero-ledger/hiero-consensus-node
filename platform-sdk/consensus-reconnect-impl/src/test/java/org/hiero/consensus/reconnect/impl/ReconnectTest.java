@@ -8,11 +8,9 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestStateUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -38,6 +36,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -153,7 +152,6 @@ final class ReconnectTest {
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
                 configuration,
-                Time.getCurrent(),
                 getStaticThreadManager(),
                 connection,
                 RECONNECT_SOCKET_TIMEOUT,

@@ -10,7 +10,6 @@ import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.networkadmin.FreezeService;
-import com.hedera.node.app.service.networkadmin.NetworkService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.util.UtilService;
@@ -68,8 +67,6 @@ public class ServiceScopeLookup {
             case FILE_CREATE, FILE_UPDATE, FILE_DELETE, FILE_APPEND -> FileService.NAME;
 
             case FREEZE -> FreezeService.NAME;
-
-            case UNCHECKED_SUBMIT -> NetworkService.NAME;
 
             case SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> ScheduleService.NAME;
 

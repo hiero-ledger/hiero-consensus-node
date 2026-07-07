@@ -247,7 +247,7 @@ counting and asynchronous garbage collection. The property — *a state
 must remain reserved as long as any consumer can still access it* — its
 application across direct calls, wiring fan-out, holders, and concurrent
 reads, and the use-after-free failure mode it guards against are
-captured in [RUL-001](../../rules/RUL-001-signed-state-reservations.md).
+captured in RUL-001.
 
 Two related operational cautions sit outside that rule:
 
@@ -350,7 +350,7 @@ behavior are covered in [iss-detection.md](iss-detection.md).
 - Source docs:
   [signed-state-snapshot-spec.md](../../../core/signed-state-snapshot-spec.md),
   [signed-state-use.md](../../../core/signed-state-use.md).
-- Invariants: [TBD: INV-NNN once `invariants.md` catalog populates].
+- Invariants: INV-008 — consensus, once reached, is permanent; INV-002 and INV-003 — consensus order and timestamp are agreed by all nodes.
 - Decisions: [TBD: ADR-NNN once `decisions/` catalog populates].
 
 ## Future state

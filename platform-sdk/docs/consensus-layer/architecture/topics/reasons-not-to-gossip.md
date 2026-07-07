@@ -283,12 +283,6 @@ ranges are accurate at last review and may shift with refactors.
 - [`topics/reconnect.md`](reconnect.md)
 - [`topics/restart-and-pces.md`](restart-and-pces.md)
 
-**Invariants**
-
-- [TBD: INV-NNN — link once `invariants.md` catalog populates. Likely
-  candidates: durability-before-gossip; gossip suspended during
-  reconnect; one-active-sync-per-peer.]
-
 **Decisions**
 
 - [TBD: ADR-NNN — link once `decisions/` catalog populates. Likely

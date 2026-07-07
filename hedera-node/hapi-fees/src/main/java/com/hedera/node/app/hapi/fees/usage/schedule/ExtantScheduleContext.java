@@ -2,11 +2,11 @@
 package com.hedera.node.app.hapi.fees.usage.schedule;
 
 import static com.hedera.node.app.hapi.fees.usage.schedule.entities.ScheduleEntitySizes.SCHEDULE_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RICH_INSTANT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_RICH_INSTANT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_TX_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BOOL_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;

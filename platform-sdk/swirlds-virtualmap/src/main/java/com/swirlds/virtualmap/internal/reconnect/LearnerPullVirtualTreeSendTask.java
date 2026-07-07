@@ -65,7 +65,7 @@ public class LearnerPullVirtualTreeSendTask implements Runnable {
                     continue;
                 }
                 sendRequest(new PullVirtualTreeRequest(path, treeExchanger.getNodeHash(path)));
-                treeExchanger.getMapStats().incrementTransfersFromLearner();
+                treeExchanger.onRequestSend();
             }
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Learner sending task is interrupted");

@@ -5,7 +5,6 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -117,19 +116,14 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 delegate = createBlockDelegate(adaptedFactory);
             } else {
                 final EventualRecordStreamAssertion recordAssertion;
-                if (hasPassedIfNothingFailed) {
-                    recordAssertion = EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory);
-                } else if (timeout != null && replayExistingFiles) {
-                    // Replay already-written record files so a genesis-time externalization (e.g. a
-                    // LedgerIdPublication) that landed in the still-open genesis record file before this
-                    // assertion subscribed is still seen.
-                    recordAssertion = EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay(
-                            recordFactory, timeout);
-                } else if (timeout != null) {
-                    recordAssertion =
-                            EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory, timeout);
+                if (timeout != null) {
+                    recordAssertion = hasPassedIfNothingFailed
+                            ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory)
+                            : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory, timeout);
                 } else {
-                    recordAssertion = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory);
+                    recordAssertion = hasPassedIfNothingFailed
+                            ? EventualRecordStreamAssertion.eventuallyAssertingNoFailures(recordFactory)
+                            : EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(recordFactory);
                 }
                 if (needsBackgroundTraffic) {
                     recordAssertion.withBackgroundTraffic();
@@ -167,7 +161,7 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
 
     private static StreamMode resolveStreamMode(@NonNull final HapiSpec spec) {
         try {
-            return BlockSourceFactory.effectiveStartupProperties(spec).getStreamMode("blockStream.streamMode");
+            return spec.startupProperties().getStreamMode("blockStream.streamMode");
         } catch (final Exception e) {
             return StreamMode.BOTH;
         }

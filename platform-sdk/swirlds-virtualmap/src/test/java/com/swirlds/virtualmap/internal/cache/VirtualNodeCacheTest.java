@@ -75,7 +75,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
     @BeforeEach
     public void setup() {
-        final VirtualMapConfig virtualMapConfig = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+        final VirtualMapConfig virtualMapConfig = DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class);
         // Hash chunk loader always returns null, since this test doesn't flush any data to data source
         chunkLoader = new TrackingHashChunkLoader();
         cache = new VirtualNodeCache(virtualMapConfig, HASH_CHUNK_HEIGHT, chunkLoader);
@@ -2093,7 +2093,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         //          (A+)======(E+)     (C+)=======(F+)       (B+)========(G+)
         //
         // Add A and B as leaf 1 and 2
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, HASH_CHUNK_HEIGHT, chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(DEFAULT_VIRTUAL_MAP_CONFIG, HASH_CHUNK_HEIGHT, chunkLoader);
         VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
         VirtualLeafBytes<TestValue> bananaLeaf0 = bananaLeaf(2);
         cache0.putLeaf(appleLeaf0);
@@ -2778,7 +2779,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         try {
             System.clearProperty("syncCleaningPool");
 
-            final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+            final VirtualMapConfig config = DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class);
             final VirtualNodeCache realPoolCache = new VirtualNodeCache(config, HASH_CHUNK_HEIGHT, chunkLoader);
 
             try {
@@ -2838,7 +2839,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         try {
             System.clearProperty("syncCleaningPool");
 
-            final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+            final VirtualMapConfig config = DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class);
             final VirtualNodeCache realPoolCache = new VirtualNodeCache(config, HASH_CHUNK_HEIGHT, chunkLoader);
 
             try {

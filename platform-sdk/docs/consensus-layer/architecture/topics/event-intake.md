@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Event intake
-last_reviewed: 2026-05-15
+last_reviewed: 2026-07-02
 ---
 
 # Event intake
@@ -309,16 +309,15 @@ The line 220 check is what distinguishes these two cases on release:
 events still non-ancient are emitted, events that have aged out are
 dropped.
 
-**Note on `eventSequenceNumber` vs. `assignNGen`:** both fire on
-release
-([lines 228-229](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:228))
-because the orphan buffer is mid-transition. `nGen` (non-deterministic
-generation) is the legacy identifier; it has a defect that surfaces in
-an edge case during reconnect, which makes it undesirable. The new
-monotonic sequence number is its replacement and eliminates that
-defect. Both are assigned today so consumers can be migrated
-incrementally; once the migration is complete, `assignNGen` will be
-removed.
+**Note on `eventSequenceNumber`:** the monotonic sequence number is
+stamped on each event as it is released
+([line 228](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:228)).
+It is the local topological-ordering key that replaced the former
+`nGen` (non-deterministic generation), which had a defect that surfaced
+in an edge case during reconnect: `nGen` reset to 1 when an event's
+parents were already ancient, breaking the per-creator monotonic
+ordering its consumers relied on. Unlike `nGen`, the sequence number
+never resets. `nGen` has since been removed entirely (ADR-008).
 
 [TBD: question for engineer —
 [`clear` (line 262)](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:262)
@@ -438,7 +437,8 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
   - `platform-sdk/docs/core/gossip/syncing/sync-protocol.md` —
     orientation only; the protocol detail belongs in
     [gossip.md](./gossip.md).
-- **Invariants**: [TBD: INV-NNN once invariants.md catalog populates].
+- **Invariants**: INV-010 — every event used in consensus has a verified creator signature; INV-011 — birth round is monotonic along ancestry.
+- **Rules**: RUL-004 — consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent.
 - **Decisions**: [TBD: ADR-NNN once decisions/ catalog populates].
 - **Scenarios**: [TBD: SCN-NNN — orphan-buffer growth under sustained
   out-of-order arrival, validation-stage-ordering edge cases, and the

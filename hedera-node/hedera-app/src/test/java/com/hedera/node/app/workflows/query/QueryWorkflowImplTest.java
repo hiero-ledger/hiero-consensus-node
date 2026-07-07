@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
@@ -62,8 +61,6 @@ import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetExecutionTimeHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -176,7 +173,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     private QueryWorkflowImpl workflow;
 
     @BeforeEach
-    void setup(@Mock FeeCalculator feeCalculator) throws ParseException, PreCheckException {
+    void setup() throws ParseException, PreCheckException {
         setupStandardStates();
 
         when(stateAccessor.apply(any())).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
@@ -197,8 +194,6 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         configuration = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
         when(configProvider.getConfiguration()).thenReturn(configuration);
-
-        when(feeManager.createFeeCalculator(eq(FILE_GET_INFO), any(), any())).thenReturn(feeCalculator);
 
         final var signatureMap = SignatureMap.newBuilder().build();
         transactionInfo = new TransactionInfo(
@@ -576,7 +571,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                 instantSource,
                 opWorkflowMetrics,
                 shouldCharge);
-        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+        mockQueryContext();
         given(handler.requiresNodePayment(any())).willReturn(true);
         when(handler.findResponse(any(), any()))
                 .thenReturn(Response.newBuilder()
@@ -617,7 +612,6 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(queryParser.parseStrict((ReadableSequentialData) notNull())).thenReturn(query);
         when(handler.extractHeader(query)).thenReturn(queryHeader);
         when(dispatcher.getHandler(query)).thenReturn(handler);
-        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         given(handler.requiresNodePayment(any())).willReturn(true);
         when(handler.findResponse(any(), any()))
                 .thenReturn(Response.newBuilder()
@@ -872,7 +866,6 @@ class QueryWorkflowImplTest extends AppTestBase {
     @Test
     void testPaidQueryForSuperUserDoesNotSubmitCryptoTransfer() throws PreCheckException, ParseException {
         // given
-        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         given(handler.requiresNodePayment(any())).willReturn(true);
         when(handler.findResponse(any(), any()))
                 .thenReturn(Response.newBuilder()
@@ -1043,7 +1036,6 @@ class QueryWorkflowImplTest extends AppTestBase {
         doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
                 .when(submissionManager)
                 .submit(txBody, serializedPayment, false);
-        given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         final var responseBuffer = newEmptyBuffer();
         doAnswer(invocationOnMock -> {
                     final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
@@ -1165,10 +1157,6 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         requestBuffer = Query.PROTOBUF.toBytes(query);
         when(queryParser.parseStrict((ReadableSequentialData) notNull())).thenReturn(query);
-
-        final var feeCalculatorMock = mock(FeeCalculator.class);
-        when(feeManager.createFeeCalculator(eq(CONSENSUS_GET_TOPIC_INFO), any(), any()))
-                .thenReturn(feeCalculatorMock);
 
         final var signatureMap = SignatureMap.newBuilder().build();
         transactionInfo = new TransactionInfo(

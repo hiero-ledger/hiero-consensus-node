@@ -25,4 +25,5 @@ testModuleInfo {
     requires("org.mockito.junit.jupiter")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
+    runtimeOnly("com.swirlds.config.impl")
 }

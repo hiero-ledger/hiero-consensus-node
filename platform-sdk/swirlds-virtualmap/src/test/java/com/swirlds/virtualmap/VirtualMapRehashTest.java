@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -37,7 +38,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @Test
     @DisplayName("Test rehash is skipped if map is empty")
     void testRehashSkippedIfEmpty() {
-        VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
         // Map is empty, firstLeafPath and lastLeafPath in dataSource are -1
         vm.fullLeafRehashIfNecessary();
         // No exception and logs would show skipping (hard to verify logs without mocks, but we can verify it doesn't
@@ -48,7 +49,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @Test
     @DisplayName("Test rehash is skipped if first leaf hash matches")
     void testRehashSkippedIfHashMatches() throws IOException {
-        VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
         metadata.setLastLeafPath(1);
         metadata.setFirstLeafPath(1);
@@ -71,7 +72,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @Test
     @DisplayName("Test rehash is triggered if first leaf hash does not match")
     void testRehashTriggeredIfHashMismatches() throws IOException {
-        VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
+        VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
         metadata.setLastLeafPath(2);
         metadata.setFirstLeafPath(1);
@@ -120,7 +121,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
         // Configuration with 0ms timeout to ensure it times out
         final Configuration configuration = ConfigurationBuilder.create()
                 .withConfigDataType(VirtualMapConfig.class)
-                .withValue("virtualMap.fullRehashTimeoutMs", "0")
+                .withValue(VirtualMapConfig_.FULL_REHASH_TIMEOUT_MS, "0")
                 .build();
         VirtualMap vm = new VirtualMap(builder, configuration);
         VirtualMapMetadata metadata = vm.getMetadata();

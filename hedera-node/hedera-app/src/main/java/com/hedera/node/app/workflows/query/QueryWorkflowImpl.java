@@ -192,7 +192,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
-                final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
                 final QueryContext context;
                 TransactionBody txBody;
                 AccountID payerID = null;
@@ -215,14 +214,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         // get payer
                         payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
                         context = new QueryContextImpl(
-                                state,
-                                storeFactory,
-                                query,
-                                configuration,
-                                recordCache,
-                                exchangeRateManager,
-                                feeCalculator,
-                                payerID);
+                                state, storeFactory, query, configuration, recordCache, exchangeRateManager, payerID);
 
                         // A super-user does not have to pay for a query and has all permissions
                         if (!authorizer.isSuperUser(payerID)) {
@@ -247,16 +239,11 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             }
 
                             // 3.iv Calculate costs
-                            long queryFees;
-                            if (shouldUseSimpleFees(context)) {
-                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                                queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents.totalTinycents(),
-                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                            } else {
-                                queryFees = handler.computeFees(context).totalFee();
-                            }
+                            final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                    .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                            final long queryFees = tinycentsToTinybars(
+                                    queryFeeTinyCents.totalTinycents(),
+                                    fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
 
                             // The fee for the crypto transfer that pays the fee
                             final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
@@ -292,7 +279,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             configProvider.getConfiguration(),
                             recordCache,
                             exchangeRateManager,
-                            feeCalculator,
                             null);
                 }
 
@@ -307,16 +293,11 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
-                    long queryFees;
-                    if (shouldUseSimpleFees(context)) {
-                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                        queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents.totalTinycents(),
-                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                    } else {
-                        queryFees = handler.computeFees(context).totalFee();
-                    }
+                    final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                            .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                    final long queryFees = tinycentsToTinybars(
+                            queryFeeTinyCents.totalTinycents(),
+                            fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);
@@ -352,28 +333,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         }
 
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
-    }
-
-    private boolean shouldUseSimpleFees(QueryContext context) {
-        return switch (context.query().query().kind()) {
-            case CONSENSUS_GET_TOPIC_INFO,
-                    SCHEDULE_GET_INFO,
-                    FILE_GET_CONTENTS,
-                    FILE_GET_INFO,
-                    TOKEN_GET_INFO,
-                    TOKEN_GET_NFT_INFO,
-                    CRYPTO_GET_INFO,
-                    CRYPTO_GET_ACCOUNT_RECORDS,
-                    CRYPTOGET_ACCOUNT_BALANCE,
-                    NETWORK_GET_VERSION_INFO,
-                    TRANSACTION_GET_RECORD,
-                    TRANSACTION_GET_RECEIPT,
-                    GET_BY_KEY,
-                    CONTRACT_CALL_LOCAL,
-                    CONTRACT_GET_BYTECODE,
-                    CONTRACT_GET_INFO -> true;
-            default -> false;
-        };
     }
 
     private Query parseQuery(Bytes requestBuffer) {

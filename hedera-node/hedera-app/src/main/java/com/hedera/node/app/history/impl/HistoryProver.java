@@ -95,6 +95,7 @@ public interface HistoryProver {
      * @param targetProofKeys current snapshot of nodeId -> Schnorr proof key for the target roster
      * @param tssConfig the TSS configuration
      * @param ledgerId the ledger id, if known
+     * @param canSubmit whether this node may submit best-effort TSS transactions to the platform
      * @return the current outcome of proof construction
      */
     @NonNull
@@ -104,7 +105,8 @@ public interface HistoryProver {
             @NonNull Bytes targetMetadata,
             @NonNull Map<Long, Bytes> targetProofKeys,
             @NonNull TssConfig tssConfig,
-            @Nullable Bytes ledgerId);
+            @Nullable Bytes ledgerId,
+            boolean canSubmit);
 
     /**
      * Cancel any in-flight asynchronous work started by this prover.

@@ -471,7 +471,7 @@ jobs:
           export TERM=vt100
           cd "${{ github.workspace }}"/platform-sdk/swirlds-benchmarks
           ulimit -n 16000
-          ../../gradlew --no-daemon --rerun-tasks -Dorg.gradle.caching=false --no-configuration-cache jmhJar
+          ../../gradlew jmhJar
 
           cat << EOPROPF > settings.txt
           benchmark.benchmarkData,            .

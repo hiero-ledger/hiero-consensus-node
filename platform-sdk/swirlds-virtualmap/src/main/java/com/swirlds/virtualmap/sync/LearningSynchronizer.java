@@ -4,11 +4,13 @@ package com.swirlds.virtualmap.sync;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
+import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
@@ -17,8 +19,6 @@ import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapMetrics;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
@@ -32,7 +32,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Performs reconnect in the role of the learner.
@@ -44,28 +43,29 @@ public class LearningSynchronizer {
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
     private final ThreadManager threadManager;
-    private final ReconnectConfig reconnectConfig;
+    private final VirtualMapSyncConfig syncConfig;
     private final Metrics metrics;
 
     /**
      * Constructs a new learning synchronizer.
      *
      * @param threadManager responsible for managing thread lifecycles
-     * @param reconnectConfig the reconnect configuration
+     * @param config the configuration
      * @param metrics the metrics system for recording synchronization metrics
      */
     public LearningSynchronizer(
             @NonNull final ThreadManager threadManager,
-            @NonNull final ReconnectConfig reconnectConfig,
+            @NonNull final Configuration config,
             @NonNull final Metrics metrics) {
 
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
-        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig cannot be null");
+        this.syncConfig =
+                Objects.requireNonNull(config, "config cannot be null").getConfigData(VirtualMapSyncConfig.class);
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
     }
 
     @NonNull
-    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, ReconnectMapStats mapStats) {
+    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, LearnerSyncMetrics syncMetrics) {
         logger.info(
                 RECONNECT.getMarker(),
                 "Building learner exchanger for map with path range [{}, {}]",
@@ -73,15 +73,15 @@ public class LearningSynchronizer {
                 originalVirtualMap.getMetadata().getLastLeafPath());
 
         final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
-        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, reconnectConfig, mapStats);
+        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap);
 
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), mapStats);
+                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), mapStats);
+                new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), syncMetrics);
             case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
-                new LearnerTreeExchanger(vmapLearner, new ParallelSyncTraversalOrder(), mapStats);
+                new LearnerTreeExchanger(vmapLearner, new ParallelSyncTraversalOrder(), syncMetrics);
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: "
                         + virtualMapConfig.reconnectMode()
@@ -114,16 +114,16 @@ public class LearningSynchronizer {
         Objects.requireNonNull(out, "output stream cannot be null");
         Objects.requireNonNull(breakConnection, "break connection action cannot be null");
 
-        final ReconnectMapMetrics reconnectStats = new ReconnectMapMetrics(metrics, null, null);
-        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, reconnectStats);
+        final LearnerSyncMetrics syncMetrics = new LearnerSyncMetrics(metrics);
+        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, syncMetrics);
 
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "learner start synchronizing");
 
-            final AsyncInputStream input = new AsyncInputStream(
-                    in, reconnectConfig.asyncStreamBufferSize(), reconnectConfig.asyncStreamTimeout());
+            final AsyncInputStream input =
+                    new AsyncInputStream(in, syncConfig.asyncStreamBufferSize(), syncConfig.asyncStreamTimeout());
             input.start(workGroup);
-            final AsyncOutputStream output = buildOutputStream(out, reconnectConfig);
+            final AsyncOutputStream output = buildOutputStream(out, syncConfig);
             output.start(workGroup);
 
             // Perform the root-node (path 0) request/response handshake synchronously before forking
@@ -171,7 +171,7 @@ public class LearningSynchronizer {
         try {
             VirtualMap syncedVirtualMap = exchanger.onSuccessfulComplete();
             logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
-            logger.info(RECONNECT.getMarker(), reconnectStats::format);
+            logger.info(RECONNECT.getMarker(), syncMetrics::toString);
             return syncedVirtualMap;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while completing synchronization", t);
@@ -198,12 +198,12 @@ public class LearningSynchronizer {
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final DataOutputStream out, @NonNull final ReconnectConfig reconnectConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
         return new AsyncOutputStream(
                 out,
-                reconnectConfig.asyncStreamBufferSize(),
-                reconnectConfig.asyncOutputStreamFlush(),
-                reconnectConfig.asyncStreamTimeout());
+                syncConfig.asyncStreamBufferSize(),
+                syncConfig.asyncOutputStreamFlush(),
+                syncConfig.asyncStreamTimeout());
     }
 
     /**
@@ -229,7 +229,7 @@ public class LearningSynchronizer {
             Thread.currentThread().interrupt();
             throw new MerkleSynchronizationException("Interrupted while sending root node request", e);
         }
-        exchanger.getMapStats().incrementTransfersFromLearner();
+        exchanger.onRequestSend();
 
         // wait for response
         final byte[] rootResponseBytes = in.readOrWait(YieldStrategy.PARK);

@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-06-12
+last_reviewed: 2026-06-26
 ---
 
 # Restart and PCES
@@ -67,7 +67,7 @@ The general guarantee applies to every event: consensus never observes an event 
 specifically to self-events on the gossip path, the same guarantee also serves an anti-branching role. If a node
 gossiped a self-event and crashed before it was written, on restart the node would not know the event existed and could
 build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
-[`../concepts/branching.md`](../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
+[`../../concepts/branching.md`](../../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
 
 The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
 node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any
@@ -141,6 +141,18 @@ on-disk PCES files rather than gossip.
   read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
   health-monitor mechanism.
 
+## Consensus initialization and the init-judge gate
+
+Replay (above) feeds events back through the consensus algorithm, but many of them already reached consensus in the run
+that produced the signed state being loaded — their transactions are already reflected in that state. Re-emitting those
+rounds would corrupt the resulting state, and even if the application detected and dropped the duplicates, recomputing
+them is wasted work.
+
+To prevent that, consensus emits no rounds during initialization until the snapshot round's judges have been replayed,
+then marks the events they already decided as consensus *without* emitting them — so no round that fed the loaded state
+flows out of the hashgraph a second time (upholding INV-008). The gate lives in the consensus algorithm, not in PCES;
+its mechanics are detailed in [`hashgraph.md`](hashgraph.md#algorithm-in-current-code) under *Init-judge gate*.
+
 ## Offline ISS recovery
 
 A network-wide ISS that prevents progress is resolved offline by replaying PCES on top of a known-good signed state
@@ -150,10 +162,9 @@ recipe any driver must follow, and the record/block-file coordination with the e
 
 ## Cross-references
 
-- **Topics:** `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
+- **Topics:** `hashgraph.md`, `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
   `event-intake.md`, `health-monitor-and-backpressure.md`.
 - **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
-- **Invariants:** [TBD: INV-NNN once the
-  `invariants.md` catalog populates — candidate invariants from this topic include "self-events are persisted before being gossiped" and "gossip is not started until PCES replay completes"].
+- **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.
 - **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
 - **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].

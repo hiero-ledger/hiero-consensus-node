@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignSeqNumAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -168,13 +168,13 @@ public class EventCreationTimeTests {
         // Both nodes create their genesis events
         final PlatformEvent genesis0 = nodes.get(nodeA).eventCreator().maybeCreateEvent();
         assertNotNull(genesis0);
-        assignNGenAndDistributeEvent(nodes, events, genesis0);
+        assignSeqNumAndDistributeEvent(nodes, events, genesis0);
 
         time.tick(Duration.ofSeconds(1));
 
         final PlatformEvent genesis1 = nodes.get(nodeB).eventCreator().maybeCreateEvent();
         assertNotNull(genesis1);
-        assignNGenAndDistributeEvent(nodes, events, genesis1);
+        assignSeqNumAndDistributeEvent(nodes, events, genesis1);
 
         // Override the other parent's timeReceived to be far in the future,
         // while its timeCreated remains in the past.

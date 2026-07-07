@@ -11,7 +11,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

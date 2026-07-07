@@ -6,17 +6,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.StringValue;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RegisteredNodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -100,18 +95,5 @@ public class HapiRegisteredNodeUpdate extends HapiTxnOp<HapiRegisteredNodeUpdate
     @Override
     protected HapiRegisteredNodeUpdate self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(@NonNull final HapiSpec spec, @NonNull final Transaction txn, final int numPayerKeys)
-            throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(HederaFunctionality.RegisteredNodeUpdate, this::usageEstimate, txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        final UsageAccumulator accumulator = new UsageAccumulator();
-        accumulator.addVpt(Math.max(0, svo.getTotalSigCount() - 1));
-        return AdapterUtils.feeDataFrom(accumulator);
     }
 }

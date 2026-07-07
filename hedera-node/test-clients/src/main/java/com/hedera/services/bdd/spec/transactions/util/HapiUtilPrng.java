@@ -1,20 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.util;
 
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
-
 import com.google.common.base.MoreObjects;
-import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.UtilPrngTransactionBody;
 import java.util.Arrays;
@@ -49,19 +40,6 @@ public class HapiUtilPrng extends HapiTxnOp<HapiUtilPrng> {
     @Override
     protected HapiUtilPrng self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        return spec.fees().forActivityBasedOp(HederaFunctionality.UtilPrng, this::usageEstimate, txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final var opMeta = new CryptoCreateMeta(txn.getCryptoCreateAccount());
-        final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoCreateUsage(suFrom(svo), baseMeta, opMeta, accumulator);
-        return AdapterUtils.feeDataFrom(accumulator);
     }
 
     @Override

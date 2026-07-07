@@ -25,8 +25,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.nexus.LockFreeStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -67,9 +65,20 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LockFreeStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -405,7 +414,7 @@ public final class PlatformBuilder {
 
     private void initializePcesModule(
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
+            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @Nullable final EventPipelineTracker pipelineTracker) {
         pcesModule.initialize(
                 model,
@@ -416,11 +425,10 @@ public final class PlatformBuilder {
                 platformContext.getRecycleBin(),
                 platformContext.getFileSystemManager(),
                 initialState.get().getRound(),
-                platformCoordinator::flushIntakePipeline,
-                platformCoordinator::flushTransactionHandler,
-                latestStateSupplier,
+                platformCoordinator::flushPrimaryPipeline,
+                replayProgressSupplier,
                 platformCoordinator::submitStatusAction,
-                platformCoordinator::flushStateHasher,
+                platformCoordinator::flushPlatformStatus,
                 platformCoordinator::signalEndOfPcesReplay,
                 pipelineTracker);
     }
@@ -454,7 +462,7 @@ public final class PlatformBuilder {
 
     private void initializeGossipModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
+            @NonNull final Supplier<ReservedSignedState> latestCompleteStateSupplier,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         if (this.gossipModule == null) {
@@ -471,7 +479,7 @@ public final class PlatformBuilder {
                 selfId,
                 softwareVersion,
                 intakeEventCounter,
-                () -> getLatestCompleteStateReference.get().get(),
+                latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 stateLifecycleManager);
@@ -489,6 +497,43 @@ public final class PlatformBuilder {
                 initialState.get().getRound(),
                 latestFreezeRoundOf(initialState.get().getState()),
                 SystemExitUtils::handleFatalError);
+    }
+
+    @NonNull
+    private TransactionHandlingModule createTransactionHandlingModule(
+            @NonNull final SignedStateNexus latestImmutableStateNexus,
+            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
+        return new TransactionHandlingModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                latestImmutableStateNexus,
+                consensusStateEventHandler,
+                stateLifecycleManager,
+                statusActionSubmitterReference,
+                softwareVersion,
+                selfId,
+                transactionOffsetNanos);
+    }
+
+    @NonNull
+    private StateManagementModule createStateManagementModule(
+            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
+            @NonNull final SavedStateController savedStateController) {
+        return new StateManagementModule(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getFileSystemManager(),
+                keysAndCerts,
+                appName,
+                selfId,
+                swirldName,
+                stateLifecycleManager,
+                latestCompleteStateNexus,
+                savedStateController);
     }
 
     /**
@@ -561,7 +606,7 @@ public final class PlatformBuilder {
                 .eventPipelineMetricsEnabled();
         final EventPipelineTracker pipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference = new AtomicReference<>();
+        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
@@ -583,6 +628,18 @@ public final class PlatformBuilder {
 
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
 
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+        final TransactionHandlingModule transactionHandlingModule =
+                createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
+
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(configuration, platformContext.getMetrics());
+        final Supplier<ReservedSignedState> latestCompleteStateSupplier =
+                () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+        final StateManagementModule stateManagementModule =
+                createStateManagementModule(latestCompleteStateNexus, savedStateController);
+
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
                 model,
@@ -591,10 +648,12 @@ public final class PlatformBuilder {
                 pcesModule,
                 hashgraphModule,
                 gossipModule,
-                issDetectionModule);
+                issDetectionModule,
+                transactionHandlingModule,
+                stateManagementModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
-        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+        statusActionSubmitterReference.set(platformCoordinator);
 
         initializeEventCreatorModule();
 
@@ -608,14 +667,12 @@ public final class PlatformBuilder {
         }
 
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        initializePcesModule(
-                platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
+        final Supplier<PcesReplayProgress> replayProgressSupplier =
+                buildPcesReplayProgressSupplier(latestImmutableStateNexus);
+        initializePcesModule(platformCoordinator, replayProgressSupplier, pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
         initializeGossipModule(
-                intakeEventCounter,
-                getLatestCompleteStateReference,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor);
+                intakeEventCounter, latestCompleteStateSupplier, reservedSignedStateResultPromise, fallenBehindMonitor);
 
         PlatformWiring.wire(platformContext, execution, platformComponents, staleEventConsumer);
 
@@ -633,12 +690,10 @@ public final class PlatformBuilder {
                 intakeEventCounter,
                 secureRandomSupplier,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                new AtomicReference<>(),
                 consensusEventStreamName,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                new AtomicReference<>(),
+                statusActionSubmitterReference,
                 stateLifecycleManager,
-                getLatestCompleteStateReference,
                 firstPlatform,
                 consensusStateEventHandler,
                 execution,
@@ -646,9 +701,24 @@ public final class PlatformBuilder {
                 reservedSignedStateResultPromise,
                 platformCoordinator,
                 latestImmutableStateNexus,
-                transactionOffsetNanos);
+                transactionOffsetNanos,
+                savedStateController);
 
         return new PlatformComponentBuilder(buildingBlocks);
+    }
+
+    @NonNull
+    private Supplier<PcesReplayProgress> buildPcesReplayProgressSupplier(
+            @NonNull final SignedStateNexus latestImmutableStateNexus) {
+        return () -> {
+            try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("PCES replay")) {
+                if (reservedState == null || reservedState.isNull()) {
+                    return PcesReplayProgress.EMPTY;
+                }
+                final SignedState signedState = reservedState.get();
+                return new PcesReplayProgress(signedState.getRound(), signedState.getConsensusTimestamp());
+            }
+        };
     }
 
     /**

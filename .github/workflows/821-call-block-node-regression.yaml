@@ -96,6 +96,9 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
+          setup-go: "true"
+          go-version: "1.26.4"
+          setup-jq: "true"
 
       # Get version for the checked out hiero-consensus-node
       - name: Get Version of Checkout CN Codebase
@@ -116,7 +119,7 @@ jobs:
       - name: Retrieve BN Release Tag
         run: |
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
-          if [[ "${{ inputs.bn-release-version }}" != "latest" ]]; then
+          if [[ -n "${{ inputs.bn-release-version }}" && "${{ inputs.bn-release-version }}" != "latest" ]]; then
             bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/tags/${{ inputs.bn-release-version }}"
           fi
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
@@ -194,7 +197,7 @@ jobs:
 
       - name: Setup PNPM
         run: |
-          npm install -g pnpm
+          npm install -g pnpm@10.11.0
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
@@ -235,7 +238,12 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hiero-ledger/solo@latest
+        run: |
+          if [[ -z "${{ inputs.solo-version }}" ]]; then
+            echo "ERROR: solo-version input must be set to a specific version tag (e.g. v0.44.0)"
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -393,14 +401,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       # Verify the BN is getting blocks
       - name: Get ServerStatus from Block Node
@@ -541,13 +542,8 @@ jobs:
     outputs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
