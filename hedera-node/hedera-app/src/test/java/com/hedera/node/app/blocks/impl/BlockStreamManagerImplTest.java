@@ -156,6 +156,7 @@ class BlockStreamManagerImplTest {
     private static final BlockItem FAKE_RECORD_FILE_ITEM =
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
     private static final String SIMULATED_PIPELINE_FAILURE = "simulated hashing pipeline failure";
+    private static final String SIMULATED_PIPELINE_ERROR = "simulated hashing pipeline error";
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(HASH_OF_ZERO), 0);
 
     @Mock
@@ -521,6 +522,25 @@ class BlockStreamManagerImplTest {
 
         final var thrown = assertPipelineFailsFast(subject::prngSeed);
         assertInstanceOf(NullPointerException.class, thrown.getCause());
+    }
+
+    @Test
+    void errorEscapingOnExecuteFailsFastViaOnExceptionInsteadOfHanging() {
+        // The pipeline's try/catch blocks only handle Exception; an Error (e.g. OutOfMemoryError) escapes onExecute()
+        // and is routed to onException() by AbstractTask. That path must still record the failure and advance the chain
+        // so sync() fails fast instead of hanging on join() — the same guarantee ParallelTask.onException provides.
+        givenSingleRoundPerBlockSubject();
+        givenWriterThrowingErrorOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // A further item after the failing one keeps prevTask downstream of the failure.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertInstanceOf(OutOfMemoryError.class, thrown.getCause());
+        assertEquals(SIMULATED_PIPELINE_ERROR, thrown.getCause().getMessage());
     }
 
     @Test
@@ -1859,6 +1879,19 @@ class BlockStreamManagerImplTest {
         doAnswer(invocationOnMock -> {
                     if (((BlockItem) invocationOnMock.getArgument(0)).hasSignedTransaction()) {
                         throw new RuntimeException(SIMULATED_PIPELINE_FAILURE);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+    }
+
+    private void givenWriterThrowingErrorOnSignedTransaction() {
+        doAnswer(invocationOnMock -> {
+                    if (((BlockItem) invocationOnMock.getArgument(0)).hasSignedTransaction()) {
+                        // An Error (not an Exception) is not caught inside onExecute(); it must be handled by
+                        // onException() instead of stalling the pipeline.
+                        throw new OutOfMemoryError(SIMULATED_PIPELINE_ERROR);
                     }
                     return aWriter;
                 })

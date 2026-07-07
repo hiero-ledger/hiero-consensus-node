@@ -1188,6 +1188,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             out.send(item, bytes);
             return true;
         }
+
+        @Override
+        protected void onException(final Throwable t) {
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute() and slipped past the catch above;
+            // record it and still hand the item downstream so the sequential task fires and sync()/join() does not
+            // hang.
+            log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, t);
+            pipelineFailure.compareAndSet(null, t);
+            out.send(item, null);
+        }
     }
 
     class SequentialTask extends AbstractTask {
