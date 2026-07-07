@@ -9,7 +9,7 @@ import java.util.Locale;
 
 public class HashgraphGuiConstants {
 
-    public static final int DEFAULT_GENERATIONS_TO_DISPLAY = 25;
+    public static final int DEFAULT_NUM_EVENTS_TO_DISPLAY = 50;
     /** outline of labels */
     public static final Color LABEL_OUTLINE = new Color(255, 255, 255);
     /** unknown-fame witness, non-consensus */

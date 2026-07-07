@@ -33,7 +33,7 @@ public class SimpleEventImplGraph implements SimpleGraph<EventImpl> {
      */
     public SimpleEventImplGraph(@NonNull final List<PlatformEvent> events) {
         final List<EventImpl> eventImpls = new ArrayList<>();
-        // we use the orphan buffer to assign nGen values to the events
+        // we use the orphan buffer to assign sequence numbers to the events
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
         final ConsensusLinker consensusLinker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());

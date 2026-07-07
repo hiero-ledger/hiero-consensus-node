@@ -55,7 +55,7 @@ public class ConsensusImplBenchmark {
                 .maxOtherParents(numOP)
                 .realSignatures(false)
                 .numNodes(numNodes)
-                .populateNgen(true)
+                .populateSequenceNumber(true)
                 .build();
         final List<PlatformEvent> platformEvents = generator.nextEvents(NUMBER_OF_EVENTS);
 

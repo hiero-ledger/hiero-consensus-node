@@ -48,7 +48,8 @@ public class GuiBranchDetector {
 
         if (!currentEventWindow.isAncient(selfParent)) {
             final int branchIndex = nextBranchIndexPerCreator.merge(creator, 0, (old, v) -> old + 1);
-            branchedEventsMetadata.put(event.getGossipEvent(), new BranchedEventMetadata(branchIndex, event.getNGen()));
+            branchedEventsMetadata.put(
+                    event.getGossipEvent(), new BranchedEventMetadata(branchIndex, event.getSequenceNumber()));
         }
         mostRecentPerCreator.put(creator, event.getDescriptor());
     }

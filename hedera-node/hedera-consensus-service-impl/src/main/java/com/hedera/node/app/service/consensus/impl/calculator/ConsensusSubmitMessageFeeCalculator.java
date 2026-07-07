@@ -9,7 +9,6 @@ import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -20,7 +19,7 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
     @Override
     public void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
-            @Nullable SimpleFeeContext simpleFeeContext,
+            @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =

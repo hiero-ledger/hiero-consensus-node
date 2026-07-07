@@ -2,7 +2,6 @@
 package org.hiero.consensus.orphan;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -65,7 +65,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final SequenceMap<EventDescriptorWrapper, List<OrphanedEvent>> missingParentMap;
 
     /**
-     * First sequence number assigned to an event. Has to be greater than {@link PlatformEvent#UNASSIGNED_SEQUENCE_NUMBER}
+     * First sequence number assigned to an event. Has to be greater than {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}
      */
     private final long FIRST_ASSIGNED_SEQUENCE_NUMBER = 1;
 
@@ -225,7 +225,6 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
-            assignNGen(nonOrphan, eventsWithParents);
             nonOrphan.setSequenceNumber(eventSequenceNumber.getAndIncrement());
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might

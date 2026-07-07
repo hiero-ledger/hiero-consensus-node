@@ -19,7 +19,7 @@ import org.hiero.consensus.orphan.DefaultOrphanBuffer;
  * <p>This source processes events lazily through:
  * <ol>
  *   <li>Event hasher - computes the hash for each event</li>
- *   <li>Orphan buffer - links parents, computes ngen, filters orphans</li>
+ *   <li>Orphan buffer - links parents, assigns the sequence number, filters orphans</li>
  * </ol>
  *
  * <p>Events that are released from the orphan buffer (i.e., have their parents linked) are returned.
@@ -50,7 +50,7 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
     }
 
     /**
-     * @return non-ancient, non-orphaned events in topological order, hashed, with ngen computed and parents linked.
+     * @return non-ancient, non-orphaned events in topological order, hashed, with the sequence number assigned and parents linked.
      */
     @Override
     @NonNull

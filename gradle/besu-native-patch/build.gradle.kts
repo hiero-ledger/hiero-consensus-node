@@ -4,7 +4,6 @@ plugins { `java-gradle-plugin` }
 repositories { gradlePluginPortal() }
 
 dependencies {
-    compileOnly("org.gradlex:extra-java-module-info:1.13.1")
     compileOnly("net.java.dev.jna:jna:5.18.1")
 }
 

@@ -1130,18 +1130,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     class BlockStreamManagerTask {
 
+        // First failure seen in this block's hashing pipeline; sync() rethrows it so the handler thread fails fast
+        // instead of deadlocking on join() when a task never completes.
+        final AtomicReference<Throwable> pipelineFailure = new AtomicReference<>();
         SequentialTask prevTask;
         SequentialTask currentTask;
 
         BlockStreamManagerTask() {
             prevTask = null;
-            currentTask = new SequentialTask();
+            currentTask = new SequentialTask(pipelineFailure);
             currentTask.send();
         }
 
         void addItem(BlockItem item) {
-            new ParallelTask(item, currentTask).send();
-            SequentialTask nextTask = new SequentialTask();
+            new ParallelTask(item, currentTask, pipelineFailure).send();
+            SequentialTask nextTask = new SequentialTask(pipelineFailure);
             currentTask.send(nextTask);
             prevTask = currentTask;
             currentTask = nextTask;
@@ -1150,79 +1153,116 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         void sync() {
             if (prevTask != null) {
                 prevTask.join();
+                final var failure = pipelineFailure.get();
+                if (failure != null) {
+                    throw new IllegalStateException("Block stream hashing pipeline failed", failure);
+                }
             }
         }
     }
 
     class ParallelTask extends AbstractTask {
 
+        final AtomicReference<Throwable> pipelineFailure;
         BlockItem item;
         SequentialTask out;
 
-        ParallelTask(BlockItem item, SequentialTask out) {
+        ParallelTask(BlockItem item, SequentialTask out, AtomicReference<Throwable> pipelineFailure) {
             super(executor, 1);
             this.item = item;
             this.out = out;
+            this.pipelineFailure = pipelineFailure;
         }
 
         @Override
         protected boolean onExecute() {
+            byte[] bytes = null;
             try {
-                final byte[] bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                out.send(item, bytes);
-                return true;
-            } catch (Exception e) {
-                log.error("{} - error hashing item {}", ALERT_MESSAGE, item, e);
-                return false;
+                bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
+            } catch (final Exception e) {
+                log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, e);
+                pipelineFailure.compareAndSet(null, e);
             }
-        }
-    }
-
-    class SequentialTask extends AbstractTask {
-
-        SequentialTask next;
-        BlockItem item;
-        byte[] serialized;
-
-        SequentialTask() {
-            super(executor, 3);
-        }
-
-        @Override
-        protected boolean onExecute() {
-            final var kind = item.item().kind();
-            switch (kind) {
-                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
-                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
-                case TRANSACTION_RESULT -> {
-                    outputTreeHasher.addLeaf(serialized);
-
-                    // Also update running hashes
-                    final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
-                    runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
-                }
-                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
-                case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
-                case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
-                case BLOCK_FOOTER, BLOCK_PROOF -> {
-                    // BlockFooter and BlockProof are not included in any merkle tree
-                    // They are metadata about the block, not part of the hashed content
-                }
-            }
-
-            final BlockHeader header = item.blockHeader();
-            if (header != null) {
-                writer.openBlock(header.number());
-            }
-            writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
-
-            next.send();
+            // Always hand the item downstream (bytes is null on failure) so the sequential task fires and the chain
+            // keeps advancing; it observes the recorded failure and skips its work.
+            out.send(item, bytes);
             return true;
         }
 
         @Override
         protected void onException(final Throwable t) {
-            log.error("Error occurred while executing task", t);
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute() and slipped past the catch above;
+            // record it and still hand the item downstream so the sequential task fires and sync()/join() does not
+            // hang.
+            log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, t);
+            pipelineFailure.compareAndSet(null, t);
+            out.send(item, null);
+        }
+    }
+
+    class SequentialTask extends AbstractTask {
+
+        final AtomicReference<Throwable> pipelineFailure;
+        SequentialTask next;
+        BlockItem item;
+        byte[] serialized;
+
+        SequentialTask(final AtomicReference<Throwable> pipelineFailure) {
+            super(executor, 3);
+            this.pipelineFailure = pipelineFailure;
+        }
+
+        @Override
+        protected boolean onExecute() {
+            // Skip hashing/writing once the pipeline has failed, but always advance the chain so sync()/join() does
+            // not hang; a failure here is recorded rather than swallowed.
+            if (pipelineFailure.get() == null) {
+                try {
+                    final var kind = item.item().kind();
+                    switch (kind) {
+                        case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
+                        case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
+                        case TRANSACTION_RESULT -> {
+                            outputTreeHasher.addLeaf(serialized);
+
+                            // Also update running hashes
+                            final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
+                            runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
+                        }
+                        case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
+                        case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
+                        case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
+                        case BLOCK_FOOTER, BLOCK_PROOF -> {
+                            // BlockFooter and BlockProof are not included in any merkle tree
+                            // They are metadata about the block, not part of the hashed content
+                        }
+                    }
+
+                    final BlockHeader header = item.blockHeader();
+                    if (header != null) {
+                        writer.openBlock(header.number());
+                    }
+                    writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
+                } catch (final Exception e) {
+                    log.error("{} - error hashing/writing block item {}", ALERT_MESSAGE, item, e);
+                    pipelineFailure.compareAndSet(null, e);
+                }
+            }
+
+            if (next != null) {
+                next.send();
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute(); record it and keep the chain moving.
+            log.error("{} - error executing block item hashing task", ALERT_MESSAGE, t);
+            pipelineFailure.compareAndSet(null, t);
+            if (next != null) {
+                next.send();
+            }
         }
 
         void send(SequentialTask next) {

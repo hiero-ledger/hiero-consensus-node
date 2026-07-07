@@ -559,7 +559,7 @@ public class StandardGraphGenerator implements GraphGenerator {
         buildDefaultOtherParentAffinityMatrix();
         // save all non-ancient events
         final List<EventImpl> nonAncientEvents = new ArrayList<>(linker.getNonAncientEvents());
-        nonAncientEvents.sort(Comparator.comparingLong(e -> e.getBaseEvent().getNGen()));
+        nonAncientEvents.sort(Comparator.comparingLong(e -> e.getBaseEvent().getSequenceNumber()));
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);

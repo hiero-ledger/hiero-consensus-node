@@ -2,7 +2,7 @@
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
 import static org.hiero.consensus.gui.internal.GuiUtils.wrap;
-import static org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
+import static org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants.DEFAULT_NUM_EVENTS_TO_DISPLAY;
 
 import java.awt.Checkbox;
 import java.awt.Color;
@@ -43,8 +43,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox labelConsOrderCheckbox;
     /** the consensus time stamp for the event */
     private final Checkbox labelConsTimestampCheckbox;
-    /** the Ngen number for the event */
-    private final Checkbox labelNGenCheckbox;
     /** the Sequence number for the event */
     private final Checkbox labelSeqNumCheckbox;
     /** the birth round number for the event */
@@ -58,9 +56,9 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
 
     private final Component[] comps;
     /** only draw this many generations, at most */
-    private final JSpinner numGenerations;
+    private final JSpinner numEvents;
 
-    private final JSpinner startGeneration;
+    private final JSpinner startSequenceNumber;
 
     public HashgraphGuiControls(final ItemListener freezeListener) {
         freezeCheckbox = new Checkbox("Freeze: don't change this window");
@@ -72,7 +70,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelRoundRecCheckbox = new Checkbox("Labels: Round received (consensus)");
         labelConsOrderCheckbox = new Checkbox("Labels: Order (consensus)");
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
-        labelNGenCheckbox = new Checkbox("Labels: NGen (non-deterministic generation)");
         labelSeqNumCheckbox = new Checkbox("Labels: Sequence Number");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
@@ -81,25 +78,27 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         displayLatestEvents.setState(true);
 
         // boxing so that the JSpinner will use an int internally
-        numGenerations = new JSpinner(new SpinnerNumberModel(
-                Integer.valueOf(DEFAULT_GENERATIONS_TO_DISPLAY),
+        numEvents = new JSpinner(new SpinnerNumberModel(
+                Integer.valueOf(DEFAULT_NUM_EVENTS_TO_DISPLAY),
                 Integer.valueOf(5),
                 Integer.valueOf(1000),
                 Integer.valueOf(1)));
-        ((JSpinner.DefaultEditor) numGenerations.getEditor()).getTextField().setColumns(10);
+        ((JSpinner.DefaultEditor) numEvents.getEditor()).getTextField().setColumns(10);
         // boxing so that the JSpinner will use a long internally
-        startGeneration = new JSpinner(new SpinnerNumberModel(
-                Long.valueOf(EventConstants.FIRST_GENERATION),
-                Long.valueOf(EventConstants.FIRST_GENERATION),
+        startSequenceNumber = new JSpinner(new SpinnerNumberModel(
+                Long.valueOf(EventConstants.FIRST_SEQUENCE_NUMBER),
+                Long.valueOf(EventConstants.FIRST_SEQUENCE_NUMBER),
                 Long.valueOf(Long.MAX_VALUE),
                 Long.valueOf(1)));
-        ((JSpinner.DefaultEditor) startGeneration.getEditor()).getTextField().setColumns(10);
-        startGeneration.setEnabled(false);
+        ((JSpinner.DefaultEditor) startSequenceNumber.getEditor())
+                .getTextField()
+                .setColumns(10);
+        startSequenceNumber.setEnabled(false);
 
         displayLatestEvents.addItemListener(e -> {
             switch (e.getStateChange()) {
-                case ItemEvent.SELECTED -> startGeneration.setEnabled(false);
-                case ItemEvent.DESELECTED -> startGeneration.setEnabled(true);
+                case ItemEvent.SELECTED -> startSequenceNumber.setEnabled(false);
+                case ItemEvent.DESELECTED -> startSequenceNumber.setEnabled(true);
             }
         });
 
@@ -112,7 +111,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelRoundRecCheckbox,
             labelConsOrderCheckbox,
             labelConsTimestampCheckbox,
-            labelNGenCheckbox,
             labelSeqNumCheckbox,
             labelBirthroundCheckbox,
             labelBranchNumberCheckbox,
@@ -161,10 +159,10 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         constr.gridwidth = 1; // each component is one cell
         checkboxesPanel.add(new Label("Display "), constr);
         constr.gridx++;
-        checkboxesPanel.add(numGenerations, constr);
+        checkboxesPanel.add(numEvents, constr);
         constr.gridx++;
         constr.gridwidth = GridBagConstraints.RELATIVE;
-        checkboxesPanel.add(new Label(" generations"), constr);
+        checkboxesPanel.add(new Label(" events"), constr);
         constr.gridx++;
         constr.gridwidth = GridBagConstraints.REMAINDER;
         checkboxesPanel.add(new Label(""), constr);
@@ -172,9 +170,9 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         constr.gridx = 0;
         constr.gridy++;
         constr.gridwidth = 1; // each component is one cell
-        checkboxesPanel.add(new Label("Start generation "), constr);
+        checkboxesPanel.add(new Label("Start sequence number "), constr);
         constr.gridx++;
-        checkboxesPanel.add(startGeneration, constr);
+        checkboxesPanel.add(startSequenceNumber, constr);
         constr.gridx++;
         constr.gridwidth = GridBagConstraints.REMAINDER;
         checkboxesPanel.add(new Label(""), constr);
@@ -236,11 +234,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     }
 
     @Override
-    public boolean writeNGen() {
-        return labelNGenCheckbox.getState();
-    }
-
-    @Override
     public boolean writeSeqNum() {
         return labelSeqNumCheckbox.getState();
     }
@@ -261,19 +254,19 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     }
 
     @Override
-    public int getNumGenerationsDisplay() {
-        if (numGenerations.getValue() instanceof Integer generations) {
-            return generations;
+    public int getNumEventsDisplay() {
+        if (numEvents.getValue() instanceof Integer numEventsInt) {
+            return numEventsInt;
         }
-        return DEFAULT_GENERATIONS_TO_DISPLAY;
+        return DEFAULT_NUM_EVENTS_TO_DISPLAY;
     }
 
     @Override
-    public long getStartGeneration() {
-        if (startGeneration.getValue() instanceof Long generations) {
+    public long getStartSequenceNumber() {
+        if (startSequenceNumber.getValue() instanceof Long generations) {
             return generations;
         }
-        return EventConstants.GENERATION_UNDEFINED;
+        return EventConstants.SEQUENCE_NUMBER_UNDEFINED;
     }
 
     @Override
@@ -287,7 +280,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     }
 
     @Override
-    public void setStartGeneration(final long startGeneration) {
-        this.startGeneration.setValue(startGeneration);
+    public void setStartSequenceNumber(final long startSequenceNumber) {
+        this.startSequenceNumber.setValue(startSequenceNumber);
     }
 }

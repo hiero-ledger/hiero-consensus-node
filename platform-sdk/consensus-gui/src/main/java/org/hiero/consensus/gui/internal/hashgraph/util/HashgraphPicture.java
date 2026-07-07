@@ -93,13 +93,13 @@ public class HashgraphPicture extends JPanel {
 
             List<EventImpl> events;
             if (options.displayLatestEvents()) {
-                final long startGen = Math.max(
-                        hashgraphSource.getMaxGeneration() - options.getNumGenerationsDisplay() + 1,
-                        EventConstants.FIRST_GENERATION);
-                options.setStartGeneration(startGen);
-                events = hashgraphSource.getEvents(startGen, options.getNumGenerationsDisplay());
+                final long startSeqNum = Math.max(
+                        hashgraphSource.getMaxSequenceNumber() - options.getNumEventsDisplay() + 1,
+                        EventConstants.FIRST_SEQUENCE_NUMBER);
+                options.setStartSequenceNumber(startSeqNum);
+                events = hashgraphSource.getEvents(startSeqNum, options.getNumEventsDisplay());
             } else {
-                events = hashgraphSource.getEvents(options.getStartGeneration(), options.getNumGenerationsDisplay());
+                events = hashgraphSource.getEvents(options.getStartSequenceNumber(), options.getNumEventsDisplay());
             }
             // in case the state has events from creators that don't exist, don't show them
             if (events == null) { // in case a screen refresh happens before any events
@@ -207,7 +207,7 @@ public class HashgraphPicture extends JPanel {
                 // treat it as if there is no other parent
                 continue;
             }
-            if (parent.getNGen() < pictureMetadata.getMinGen()) {
+            if (parent.getSequenceNumber() < pictureMetadata.getMinSequenceNumber()) {
                 // parent is out of range, don't draw line to it
                 continue;
             }
@@ -284,9 +284,6 @@ public class HashgraphPicture extends JPanel {
             if (t != null) {
                 s.append(" ").append(HashgraphGuiConstants.FORMATTER.format(t));
             }
-        }
-        if (options.writeNGen()) {
-            s.append(" ").append(event.getNGen());
         }
 
         if (options.writeSeqNum()) {

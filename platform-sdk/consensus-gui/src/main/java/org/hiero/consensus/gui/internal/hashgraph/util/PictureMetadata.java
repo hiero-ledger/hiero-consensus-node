@@ -27,7 +27,7 @@ public class PictureMetadata {
     private final int ymin;
     private final int width;
     private final double r;
-    private final long minGen;
+    private final long minSequenceNumber;
     private final long maxGen;
 
     private final HashgraphGuiSource hashgraphSource;
@@ -66,18 +66,18 @@ public class PictureMetadata {
         ymin = (int) Math.round(height1 + 0.025 * height2);
         ymax = (int) Math.round(height1 + 0.975 * height2) - textLineHeight;
 
-        long minGenTmp = Long.MAX_VALUE;
-        long maxGenTmp = Long.MIN_VALUE;
+        long minSeqNumTmp = Long.MAX_VALUE;
+        long maxSeqNumTmp = Long.MIN_VALUE;
         for (final EventImpl event : events) {
-            minGenTmp = Math.min(minGenTmp, event.getNGen());
-            maxGenTmp = Math.max(maxGenTmp, event.getNGen());
+            minSeqNumTmp = Math.min(minSeqNumTmp, event.getSequenceNumber());
+            maxSeqNumTmp = Math.max(maxSeqNumTmp, event.getSequenceNumber());
         }
-        maxGenTmp = Math.max(maxGenTmp, minGenTmp + 2);
-        minGen = minGenTmp;
-        maxGen = maxGenTmp;
+        maxSeqNumTmp = Math.max(maxSeqNumTmp, minSeqNumTmp + 2);
+        minSequenceNumber = minSeqNumTmp;
+        maxGen = maxSeqNumTmp;
 
         final int n = rosterMetadata.getNumMembers() + 1;
-        final double gens = maxGen - minGen;
+        final double gens = maxGen - minSequenceNumber;
         final double dy = (ymax - ymin) * (gens - 1) / gens;
         r = Math.min(width / n / 4, dy / gens / 2);
     }
@@ -123,7 +123,7 @@ public class PictureMetadata {
      * find y position on the screen for an event
      */
     public int ypos(final EventImpl event) {
-        return (event == null) ? -100 : (int) (ymax - r * (1 + 2 * (event.getNGen() - minGen)));
+        return (event == null) ? -100 : (int) (ymax - r * (1 + 2 * (event.getSequenceNumber() - minSequenceNumber)));
     }
 
     /**
@@ -142,10 +142,10 @@ public class PictureMetadata {
     }
 
     /**
-     * @return the minimum generation being displayed
+     * @return the minimum sequence number being displayed
      */
-    public long getMinGen() {
-        return minGen;
+    public long getMinSequenceNumber() {
+        return minSequenceNumber;
     }
 
     /**

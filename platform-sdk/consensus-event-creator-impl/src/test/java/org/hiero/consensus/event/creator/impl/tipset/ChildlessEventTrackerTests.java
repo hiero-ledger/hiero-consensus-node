@@ -33,25 +33,28 @@ class ChildlessEventTrackerTests {
         // Add some events with no parents
         loadTrackerWithInitialEvents(random, tracker, numNodes);
 
-        // Increase generation. Each creator will create a new event with a higher
-        // non-deterministic generation and unknown parents. Only the new events should
-        // be tracked because they have a higher nGen.
+        // Increase the sequence number. Each creator will create a new event with a higher
+        // sequence number and unknown parents. Only the new events should
+        // be tracked because they have a higher sequence number.
         final List<PlatformEvent> batch2 = new ArrayList<>();
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
             final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId1)
+                    .setEnableSequenceNumberAssignment(true)
                     .build();
 
             final NodeId nonExistentParentId2 = NodeId.of(nodeId + 110);
             final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId2)
+                    .setEnableSequenceNumberAssignment(true)
                     .build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
                     .setSelfParent(nonExistentParent1)
                     .setOtherParent(nonExistentParent2)
+                    .setEnableSequenceNumberAssignment(true)
                     .build();
 
             tracker.addEvent(event);
@@ -80,17 +83,22 @@ class ChildlessEventTrackerTests {
         // Add some generation 1 events to the tracker
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId parent1 = NodeId.of(nodeId);
-            final PlatformEvent parentEvent1 =
-                    new TestingEventBuilder(random).setCreatorId(parent1).build();
+            final PlatformEvent parentEvent1 = new TestingEventBuilder(random)
+                    .setCreatorId(parent1)
+                    .setEnableSequenceNumberAssignment(true)
+                    .build();
 
             final NodeId parent2 = NodeId.of(nodeId);
-            final PlatformEvent parentEvent2 =
-                    new TestingEventBuilder(random).setCreatorId(parent2).build();
+            final PlatformEvent parentEvent2 = new TestingEventBuilder(random)
+                    .setCreatorId(parent2)
+                    .setEnableSequenceNumberAssignment(true)
+                    .build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
                     .setSelfParent(parentEvent1)
                     .setOtherParent(parentEvent2)
+                    .setEnableSequenceNumberAssignment(true)
                     .build();
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).contains(event);
@@ -98,17 +106,21 @@ class ChildlessEventTrackerTests {
 
         final Collection<PlatformEvent> childlessEvents = new ArrayList<>(tracker.getChildlessEvents());
 
-        // Create events with a lower generation for all nodes. Each creator will create a new event,
-        // with a lower non-deterministic generation. None of these events should
-        // be tracked because they have a lower nGen.
+        // Create events with a lower sequence number for all nodes. Each creator will create a new event,
+        // with a lower sequence number. None of these events should
+        // be tracked because they have a lower sequence number.
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
             final NodeId parent1 = NodeId.of(nodeId);
-            final PlatformEvent parentEvent1 =
-                    new TestingEventBuilder(random).setCreatorId(parent1).build();
+            final PlatformEvent parentEvent1 = new TestingEventBuilder(random)
+                    .setCreatorId(parent1)
+                    .setEnableSequenceNumberAssignment(true)
+                    .build();
 
             final NodeId parent2 = NodeId.of(nodeId);
-            final PlatformEvent parentEvent2 =
-                    new TestingEventBuilder(random).setCreatorId(parent2).build();
+            final PlatformEvent parentEvent2 = new TestingEventBuilder(random)
+                    .setCreatorId(parent2)
+                    .setEnableSequenceNumberAssignment(true)
+                    .build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
@@ -216,6 +228,7 @@ class ChildlessEventTrackerTests {
                 .setCreatorId(NodeId.of(0))
                 .setSelfParent(initialEvents.get(0))
                 .setOtherParent(initialEvents.get(1))
+                .setEnableSequenceNumberAssignment(true)
                 .build();
         tracker.addEvent(eventWithTwoParents);
 
@@ -234,6 +247,7 @@ class ChildlessEventTrackerTests {
                 .setCreatorId(NodeId.of(2))
                 .setSelfParent(initialEvents.get(2))
                 .setOtherParent(initialEvents.get(2))
+                .setEnableSequenceNumberAssignment(true)
                 .build();
         tracker.addEvent(eventWithSameParents);
 
