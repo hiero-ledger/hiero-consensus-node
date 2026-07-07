@@ -1057,7 +1057,7 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @Nullable final List<ThrottleUsage> throttleUsages,
             final boolean useHighVolumeBucket) {
-        return (implicitCreationsCount == 0)
+        return (implicitCreationsCount <= 0)
                 ? !manager.allReqsMetAt(now, throttleUsages)
                 : shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
     }
