@@ -500,6 +500,14 @@ cleanup() {
   # need MinIO back up.
   reconnect_importer_to_minio >/dev/null 2>&1 || true
 
+  # Preserve the sdk-server log next to the exported TCK report before killing the server:
+  # WORK_DIR is a temp dir that never reaches CI artifacts, and the log carries the per-request
+  # receipts needed to tell "no receipt from CN" apart from "mirror never showed the update".
+  if [[ -s "${TCK_SDK_SERVER_LOG}" ]]; then
+    mkdir -p "${TCK_REPORT_EXPORT_DIR}" >/dev/null 2>&1 || true
+    cp "${TCK_SDK_SERVER_LOG}" "${TCK_REPORT_EXPORT_DIR}/tck-sdk-server.log" >/dev/null 2>&1 || true
+  fi
+
   # TCK helpers (Step 13) are host-local only — the JSON-RPC sdk-server and the mirror
   # grpc/restjava forwards exist solely for the TCK client. Kill them regardless of exit
   # code / KEEP_NETWORK; pnpm spawns nodemon which spawns the node that owns the socket,

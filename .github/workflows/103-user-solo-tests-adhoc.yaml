@@ -452,6 +452,13 @@ jobs:
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
           done
 
+          # Mirror-node logs (importer above all) — needed to trace BN-fed ingestion gaps
+          # such as token-supply updates or the address book not surfacing in mirror REST.
+          for mn_dep in mirror-1-importer mirror-1-rest mirror-1-restjava mirror-1-grpc; do
+            kubectl -n "${SOLO_NAMESPACE}" logs "deployment/${mn_dep}" --all-containers --tail=-1 \
+              > "${OUT_DIR}/${mn_dep}.log" 2>&1
+          done
+
           # Exclude the multi-GB WRAPS proving-key bundles (solo's per-node *-log-config.zip)
           # from the artifact: copy only files under 100MB and record what was skipped.
           if [[ -d "${HOME}/.solo/logs" ]]; then
