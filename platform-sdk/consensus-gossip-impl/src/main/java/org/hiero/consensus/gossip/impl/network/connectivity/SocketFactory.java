@@ -79,9 +79,6 @@ public interface SocketFactory {
         }
         final InetSocketAddress endpoint = new InetSocketAddress(networkEndpoint.hostname(), networkEndpoint.port());
         serverSocket.setReuseAddress(true);
-        // FIXME: it's an experiment, remove it
-        final int reconnectBufferBytes = 1 << 20; // 1MiB
-        serverSocket.setReceiveBufferSize(reconnectBufferBytes);
 
         logger.warn(
                 SOCKET_EXCEPTIONS.getMarker(),
@@ -124,9 +121,6 @@ public interface SocketFactory {
             // set the IP_TOS option
             clientSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
-        final int reconnectBufferBytes = 1 << 20; // 1MiB
-        clientSocket.setReceiveBufferSize(reconnectBufferBytes);
-        clientSocket.setSendBufferSize(reconnectBufferBytes);
 
         logger.warn(
                 SOCKET_EXCEPTIONS.getMarker(),
