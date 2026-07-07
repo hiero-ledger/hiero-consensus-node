@@ -1251,7 +1251,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return pipeline.pausePipelineAndRun("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
             try {
-                final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, true);
+                final VirtualDataSource dataSourceCopy =
+                        dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
                 final VirtualNodeCache cacheSnapshot = cache.snapshot();
                 final int hashChunkHeight = dataSource.getHashChunkHeight();
                 return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
