@@ -81,12 +81,16 @@ public interface SocketFactory {
         serverSocket.setReuseAddress(true);
 
         logger.warn(SOCKET_EXCEPTIONS.getMarker(),
-                "Server socket receive buffer size: {}",
+                "[PRE BIND] Server socket receive buffer size: {}",
                 serverSocket.getReceiveBufferSize());
 
         serverSocket.bind(endpoint); // try to grab a port on this computer
         // do NOT do clientSocket.setSendBufferSize or clientSocket.setReceiveBufferSize
         // because it causes a major bug in certain situations
+
+        logger.warn(SOCKET_EXCEPTIONS.getMarker(),
+                "[POST BIND] Server socket receive buffer size: {}",
+                serverSocket.getReceiveBufferSize());
 
         serverSocket.setSoTimeout(socketConfig.timeoutServerAcceptConnect());
     }
@@ -115,11 +119,12 @@ public interface SocketFactory {
             // set the IP_TOS option
             clientSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
+
         logger.warn(SOCKET_EXCEPTIONS.getMarker(),
-                "Client socket send buffer size: {}",
+                "[PRE CONNECT] Client socket send buffer size: {}",
                 clientSocket.getSendBufferSize());
         logger.warn(SOCKET_EXCEPTIONS.getMarker(),
-                "Client socket receive buffer size: {}",
+                "[PRE CONNECT] Client socket receive buffer size: {}",
                 clientSocket.getReceiveBufferSize());
 
         clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
@@ -127,6 +132,13 @@ public interface SocketFactory {
         // do NOT do clientSocket.setSendBufferSize or clientSocket.setReceiveBufferSize
         // because it causes a major bug in certain situations
         clientSocket.connect(new InetSocketAddress(hostname, port), socketConfig.timeoutSyncClientConnect());
+
+        logger.warn(SOCKET_EXCEPTIONS.getMarker(),
+                "[POST CONNECT] Client socket send buffer size: {}",
+                clientSocket.getSendBufferSize());
+        logger.warn(SOCKET_EXCEPTIONS.getMarker(),
+                "[POST CONNECT] Client socket receive buffer size: {}",
+                clientSocket.getReceiveBufferSize());
     }
 
     /**
