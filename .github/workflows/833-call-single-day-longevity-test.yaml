@@ -49,10 +49,11 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
-      java-version:
-        description: "Java JDK Version:"
+      bnref:
+        description: "BN version"
         type: string
-        required: false
+        required: true
+        default: ""
     secrets:
       slack-report-webhook:
         required: true
