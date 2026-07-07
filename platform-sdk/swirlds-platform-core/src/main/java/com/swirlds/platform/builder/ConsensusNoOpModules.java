@@ -224,7 +224,7 @@ public class ConsensusNoOpModules {
         final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics, selfId);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
