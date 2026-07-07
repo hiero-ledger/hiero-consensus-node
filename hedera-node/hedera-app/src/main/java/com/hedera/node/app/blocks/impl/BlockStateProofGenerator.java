@@ -50,12 +50,12 @@ public class BlockStateProofGenerator {
     /**
      * Index to the Merkle path of the single child internal node at the same level of the consensus timestamp
      */
-    public static final int INTERNAL_NODE_PATH_INDEX = 2;
+    public static final int SINGLE_CHILD_NODE_PATH_INDEX = 2;
 
     /**
      * Index to the final Merkle path representing the root hash of the signed block
      */
-    public static final int FINAL_MERKLE_PATH_INDEX = 3;
+    public static final int ROOT_HASH_MERKLE_PATH_INDEX = 3;
 
     /**
      * Index indicating the end of the merkle path chain
@@ -98,12 +98,12 @@ public class BlockStateProofGenerator {
 
         // Merkle Path 1: construct the block timestamp path
         final var tsBytes = Timestamp.PROTOBUF.toBytes(latestSignedBlockTimestamp);
-        final var mp1 = MerklePath.newBuilder().timestampLeaf(tsBytes).nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+        final var mp1 = MerklePath.newBuilder().timestampLeaf(tsBytes).nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
 
         // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
         MerklePath.Builder mp2 = MerklePath.newBuilder()
                 .hash(currentPendingBlock.previousBlockHash())
-                .nextPathIndex(INTERNAL_NODE_PATH_INDEX);
+                .nextPathIndex(SINGLE_CHILD_NODE_PATH_INDEX);
 
         // Create a set of siblings for each indirect block, plus another set for the signed block
         final var totalSiblings =
@@ -154,7 +154,7 @@ public class BlockStateProofGenerator {
         mp2.siblings(Arrays.stream(allSiblingHashes).toList());
 
         // Merkle Path 3: single-child internal node; nextPathIndex points to its parent (mp4/root)
-        final var mp3 = MerklePath.newBuilder().nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+        final var mp3 = MerklePath.newBuilder().nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
 
         // Merkle Path 4: the parent/block root path
         final var mp4 = MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX);

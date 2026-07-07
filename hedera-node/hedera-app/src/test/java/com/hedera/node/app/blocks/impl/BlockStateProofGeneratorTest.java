@@ -4,9 +4,9 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
-import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
-import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.INTERNAL_NODE_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.ROOT_HASH_MERKLE_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SINGLE_CHILD_NODE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -112,6 +112,9 @@ class BlockStateProofGeneratorTest {
                 pendingBlocksByBlockNum.get(MAX_BLOCK_NUM).blockTimestamp();
         final var expectedSignedBlockHash = EXPECTED_BLOCK_HASHES.get(MAX_BLOCK_NUM);
 
+        // Blocks [minBlockNum, MAX_BLOCK_NUM-2] produce multi-block proofs (2+ indirect blocks);
+        // block MAX_BLOCK_NUM-1 produces a single-block proof (exactly 1 indirect block).
+        // Both cases must traverse correctly — the assertion message records the indirect-block count.
         for (long blockNum = minBlockNum; blockNum < MAX_BLOCK_NUM; blockNum++) {
             final var currentBlock = pendingBlocksByBlockNum.remove(blockNum);
             final StateProof stateProof = BlockStateProofGenerator.generateStateProof(
@@ -123,7 +126,9 @@ class BlockStateProofGeneratorTest {
 
             final var computedHash = traverseStateProof(stateProof, currentBlock.previousBlockHash());
             Assertions.assertThat(computedHash)
-                    .as("Traversal of state proof for block %d must reproduce the signed block's root hash", blockNum)
+                    .as(
+                            "Traversal of state proof for block %d (%d indirect block(s)) must reproduce the signed block's root hash",
+                            blockNum, MAX_BLOCK_NUM - blockNum)
                     .isEqualTo(expectedSignedBlockHash);
         }
     }
@@ -153,12 +158,23 @@ class BlockStateProofGeneratorTest {
             if (path.hasTimestampLeaf()) {
                 pathHashes[i] = BlockImplUtils.hashLeaf(path.timestampLeafOrThrow());
             } else if (!path.siblings().isEmpty()) {
+                // In a valid state proof only mp2 (BLOCK_CONTENTS_PATH_INDEX) carries siblings.
+                // If mp3 or mp4 were to have siblings the hash check below would incorrectly pass
+                // or fail with a confusing message, so assert the path index up front.
+                Assertions.assertThat(i)
+                        .as("Only the block-contents path (index %d) should have siblings", BLOCK_CONTENTS_PATH_INDEX)
+                        .isEqualTo(BLOCK_CONTENTS_PATH_INDEX);
                 Assertions.assertThat(path.hash())
                         .as("Sibling path hash must equal startHash")
                         .isEqualTo(startHash);
                 var current = startHash;
                 for (final SiblingNode sibling : path.siblings()) {
                     if (sibling.isLeft()) {
+                        // Left siblings are always a block's consensus timestamp. At this point
+                        // 'current' holds depth3Node1 (the block-contents subtree hash). Before
+                        // combining with the timestamp, wrap it as a single-child node to produce
+                        // depth2Node2 — depth-2 node 2 has only one real child because reserved
+                        // subroots 9-16 are absent from the tree (see BlockStreamManagerImpl).
                         current = BlockImplUtils.hashInternalNodeSingleChild(current);
                         current = BlockImplUtils.hashInternalNode(sibling.hash(), current);
                     } else {
@@ -167,8 +183,10 @@ class BlockStateProofGeneratorTest {
                 }
                 pathHashes[i] = current;
             } else {
-                // Internal node: combine children (paths with nextPathIndex == i).
-                // In DFS order, children always have lower indices than their parent.
+                // Exactly two paths fall here in every proof (single- or multi-block): mp3
+                // (single-child internal node, whose only child is mp2) and mp4 (root, whose
+                // children are mp1 and mp3). Scanning by nextPathIndex handles both: one child
+                // found → hashInternalNodeSingleChild; two children found → hashInternalNode.
                 Bytes timestampChildHash = null;
                 Bytes otherChildHash = null;
                 for (int j = 0; j < i; j++) {
@@ -290,10 +308,11 @@ class BlockStateProofGeneratorTest {
         final var expectedSignedTsBytes = Timestamp.PROTOBUF.toBytes(expectedSignedTs);
         final var expectedMp1 = MerklePath.newBuilder()
                 .timestampLeaf(expectedSignedTsBytes)
-                .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
+                .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX)
                 .build();
-        final var expectedMp3 =
-                MerklePath.newBuilder().nextPathIndex(FINAL_MERKLE_PATH_INDEX).build();
+        final var expectedMp3 = MerklePath.newBuilder()
+                .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX)
+                .build();
         final var expectedMp4 =
                 MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX).build();
         final var expectedFinalBlockHash = EXPECTED_BLOCK_HASHES.get(MAX_BLOCK_NUM);
@@ -351,7 +370,7 @@ class BlockStateProofGeneratorTest {
                     + " produces expected signed block hash " + expectedFinalBlockHash);
 
             // Verify mp3 (single-child internal node path)
-            Assertions.assertThat(paths.get(INTERNAL_NODE_PATH_INDEX)).isEqualTo(expectedMp3);
+            Assertions.assertThat(paths.get(SINGLE_CHILD_NODE_PATH_INDEX)).isEqualTo(expectedMp3);
             // Verify mp4 (terminal path)
             Assertions.assertThat(paths.getLast()).isEqualTo(expectedMp4);
 
