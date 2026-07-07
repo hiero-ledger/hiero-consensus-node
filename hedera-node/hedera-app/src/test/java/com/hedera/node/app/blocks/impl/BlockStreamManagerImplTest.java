@@ -23,10 +23,12 @@ import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFOR
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -110,6 +112,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -152,6 +155,8 @@ class BlockStreamManagerImplTest {
             .build();
     private static final BlockItem FAKE_RECORD_FILE_ITEM =
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
+    private static final String SIMULATED_PIPELINE_FAILURE = "simulated hashing pipeline failure";
+    private static final String SIMULATED_PIPELINE_ERROR = "simulated hashing pipeline error";
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(HASH_OF_ZERO), 0);
 
     @Mock
@@ -457,6 +462,85 @@ class BlockStreamManagerImplTest {
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
+    }
+
+    @Test
+    void endRoundFailsFastWhenBlockItemWriteFailsInsteadOfHanging() {
+        // A failure inside the per-block hashing pipeline must surface as a fast failure on
+        // the handler thread's sync() (here via endRound), never a permanent deadlock on ForkJoinTask.join().
+        givenSingleRoundPerBlockSubject();
+        given(blockHashSigner.isReady()).willReturn(true);
+        givenWriterFailingOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+
+        final var thrown = assertPipelineFailsFast(() -> subject.endRound(state, ROUND_NO));
+        assertEquals(SIMULATED_PIPELINE_FAILURE, thrown.getCause().getMessage());
+    }
+
+    @Test
+    void prngSeedFailsFastWhenBlockItemWriteFailsInsteadOfHanging() {
+        // The same fast-failure guarantee must hold for the mid-transaction sync() site.
+        givenSingleRoundPerBlockSubject();
+        givenWriterFailingOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // A further item after the failing one keeps prevTask downstream of the failure, so the old
+        // swallow-and-stall behavior would block prngSeed()'s join() here forever.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertEquals(SIMULATED_PIPELINE_FAILURE, thrown.getCause().getMessage());
+    }
+
+    @Test
+    void serializationFailureInParallelTaskFailsFastInsteadOfHanging() throws Exception {
+        // Covers the ParallelTask branch where BlockItem serialization itself throws (rather
+        // than a downstream writer failure). A null item is pushed straight onto the worker so
+        // BlockItem.PROTOBUF.toBytes(item) fails; the pipeline must record it, keep advancing, and fail fast on sync().
+        givenSingleRoundPerBlockSubject();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // This reflection is intentionally coupled to the private `worker` field and its `addItem(BlockItem)` method;
+        // if either is renamed, update this test. Reflection is the only way to feed an unserializable (null) item —
+        // writeItem() rejects nulls before they ever reach the pipeline.
+        final var workerField = BlockStreamManagerImpl.class.getDeclaredField("worker");
+        workerField.setAccessible(true);
+        final var worker = workerField.get(subject);
+        final var addItem = worker.getClass().getDeclaredMethod("addItem", BlockItem.class);
+        addItem.setAccessible(true);
+        addItem.invoke(worker, new Object[] {null});
+        // A valid item after the failing one keeps prevTask downstream of the failure.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertInstanceOf(NullPointerException.class, thrown.getCause());
+    }
+
+    @Test
+    void errorEscapingOnExecuteFailsFastViaOnExceptionInsteadOfHanging() {
+        // The pipeline's try/catch blocks only handle Exception; an Error (e.g. OutOfMemoryError) escapes onExecute()
+        // and is routed to onException() by AbstractTask. That path must still record the failure and advance the chain
+        // so sync() fails fast instead of hanging on join() — the same guarantee ParallelTask.onException provides.
+        givenSingleRoundPerBlockSubject();
+        givenWriterThrowingErrorOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // A further item after the failing one keeps prevTask downstream of the failure.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertInstanceOf(OutOfMemoryError.class, thrown.getCause());
+        assertEquals(SIMULATED_PIPELINE_ERROR, thrown.getCause().getMessage());
     }
 
     @Test
@@ -1781,6 +1865,44 @@ class BlockStreamManagerImplTest {
 
         // init with HASH_OF_ZERO — cutover should be skipped since BSI has advanced
         subject.init(state, HASH_OF_ZERO);
+    }
+
+    private void givenSingleRoundPerBlockSubject() {
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+    }
+
+    private void givenWriterFailingOnSignedTransaction() {
+        doAnswer(invocationOnMock -> {
+                    if (((BlockItem) invocationOnMock.getArgument(0)).hasSignedTransaction()) {
+                        throw new RuntimeException(SIMULATED_PIPELINE_FAILURE);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+    }
+
+    private void givenWriterThrowingErrorOnSignedTransaction() {
+        doAnswer(invocationOnMock -> {
+                    if (((BlockItem) invocationOnMock.getArgument(0)).hasSignedTransaction()) {
+                        // An Error (not an Exception) is not caught inside onExecute(); it must be handled by
+                        // onException() instead of stalling the pipeline.
+                        throw new OutOfMemoryError(SIMULATED_PIPELINE_ERROR);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+    }
+
+    private IllegalStateException assertPipelineFailsFast(final Executable syncTrigger) {
+        // Preemptive timeout so a regression to the old swallow-and-stall behavior fails the test instead of hanging.
+        return assertTimeoutPreemptively(
+                Duration.ofSeconds(30), () -> assertThrows(IllegalStateException.class, syncTrigger));
     }
 
     private void givenSubjectWith(
