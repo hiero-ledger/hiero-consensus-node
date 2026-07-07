@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
@@ -24,9 +23,8 @@ import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.pces.config.PcesConfig_;
-import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +40,7 @@ class PcesReplayerTests {
     private AtomicInteger eventOutputCount;
     private AtomicBoolean flushPrimaryPipelineCalled;
     private Runnable flushPrimaryPipeline;
-    private Supplier<ReservedSignedState> latestImmutableStateSupplier;
+    private Supplier<PcesReplayProgress> replayProgressSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
     private final int eventCount = 100;
@@ -65,11 +63,7 @@ class PcesReplayerTests {
         flushPrimaryPipelineCalled = new AtomicBoolean(false);
         flushPrimaryPipeline = () -> flushPrimaryPipelineCalled.set(true);
 
-        final ReservedSignedState latestImmutableState = mock(ReservedSignedState.class);
-        final SignedState signedState = mock(SignedState.class);
-        when(latestImmutableState.get()).thenReturn(signedState);
-
-        latestImmutableStateSupplier = () -> latestImmutableState;
+        replayProgressSupplier = () -> new PcesReplayProgress(0L, null);
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < eventCount; i++) {
@@ -103,7 +97,7 @@ class PcesReplayerTests {
                 .getOrCreateConfig();
 
         final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, latestImmutableStateSupplier, () -> true);
+                configuration, time, eventOutputWire, flushPrimaryPipeline, replayProgressSupplier, () -> true);
 
         replayer.replayPces(ioIterator);
 
@@ -120,7 +114,7 @@ class PcesReplayerTests {
                 .getOrCreateConfig();
 
         final PcesReplayer replayer = new PcesReplayer(
-                configuration, time, eventOutputWire, flushPrimaryPipeline, latestImmutableStateSupplier, () -> true);
+                configuration, time, eventOutputWire, flushPrimaryPipeline, replayProgressSupplier, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);

@@ -22,7 +22,6 @@ module org.hiero.consensus.pces.impl {
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
-    requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
