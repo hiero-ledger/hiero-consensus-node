@@ -130,8 +130,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -307,6 +309,8 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "20.18.0"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -318,8 +322,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -400,10 +406,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
-          grpcurl --version
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       - name: Build Consensus Node Local Artifacts
         run: ${GRADLE_EXEC} assemble
@@ -412,6 +415,7 @@ jobs:
         env:
           CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
           KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
+          UPGRADE_075_VERSION: ${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
@@ -419,7 +423,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 150m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              UPGRADE_075_VERSION="${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}" \
+              UPGRADE_075_VERSION="${UPGRADE_075_VERSION}" \
               CLUSTER_TARGET="${CLUSTER_TARGET}" \
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
@@ -495,6 +499,8 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -506,8 +512,10 @@ jobs:
           token: ${{ github.token }}
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -541,16 +549,16 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
-          grpcurl --version
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       - name: Build Consensus Node Local Artifacts
         if: ${{ inputs.tss-upgrade-tag == 'local' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run 0.75 -> 0.76 TSS Upgrade Scenario
+        env:
+          DEPLOY_RELEASE_TAG: ${{ inputs.tss-starting-tag || 'v0.75.0-rc.6' }}
+          UPGRADE_TAG: ${{ inputs.tss-upgrade-tag }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-075-to-076-tss.sh"
@@ -558,8 +566,8 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 100m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.tss-starting-tag || 'v0.75.0-rc.6' }}" \
-              UPGRADE_TAG="${{ inputs.tss-upgrade-tag }}" \
+              DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG}" \
+              UPGRADE_TAG="${UPGRADE_TAG}" \
             "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/075-to-076-tss-script.log"
 
       - name: Collect Diagnostics On Failure
@@ -632,10 +640,14 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "20.18.0"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Install Solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
         run: |
-          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
           solo --version
 
       - name: Setup Kind
@@ -696,9 +708,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       - name: Verify Solo Dependency Versions
         run: |
