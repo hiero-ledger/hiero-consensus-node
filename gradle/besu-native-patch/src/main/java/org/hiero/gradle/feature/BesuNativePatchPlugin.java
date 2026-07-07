@@ -7,7 +7,6 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension;
 import org.hiero.gradle.transforms.BesuNativePatchTransform;
 
 @SuppressWarnings("UnstableApiUsage")
@@ -19,18 +18,7 @@ public abstract class BesuNativePatchPlugin implements Plugin<Settings> {
     }
 
     private static void configureProject(Project project) {
-        project.getPlugins().withId("org.hiero.gradle.base.jpms-modules", plugin -> {
-            configureExtraModuleInfo(project);
-            configureTransform(project);
-        });
-    }
-
-    private static void configureExtraModuleInfo(Project project) {
-        project.getExtensions().configure(ExtraJavaModuleInfoPluginExtension.class, ext -> {
-            ext.module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes");
-            ext.module("io.consensys.tuweni:tuweni-units", "tuweni.units");
-            ext.module("io.vertx:vertx-core", "io.vertx.core");
-        });
+        project.getPlugins().withId("org.hiero.gradle.base.jpms-modules", _ -> configureTransform(project));
     }
 
     private static void configureTransform(Project project) {
