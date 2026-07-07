@@ -91,13 +91,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -107,13 +107,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_TOKEN_V2
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -123,13 +123,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_TOKEN_V3
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -139,13 +139,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CREATE_FUNGIBLE_TOKEN_WITH_METADATA
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -155,13 +155,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -171,13 +171,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -187,13 +187,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -203,13 +203,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -219,13 +219,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V1
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -235,13 +235,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V2
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -251,13 +251,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V3
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -267,13 +267,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -283,13 +283,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -299,13 +299,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -315,13 +315,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -331,13 +331,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                         .getOutputs()
                         .encode(Tuple.of((long) SUCCESS.protoOrdinal(), tokenId))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -349,13 +349,13 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3
                         .getOutputs()
                         .encode(Tuple.of((long) INSUFFICIENT_TX_FEE.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -365,8 +365,8 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(recordBuilder.status()), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(recordBuilder.status()), result.output());
     }
 
     @Test

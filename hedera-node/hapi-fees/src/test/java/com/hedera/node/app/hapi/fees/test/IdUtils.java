@@ -12,6 +12,33 @@ import com.hederahashgraph.api.proto.java.TopicID;
 import java.util.stream.Stream;
 
 public class IdUtils {
+    public static AccountID asAccount(final long num) {
+        return AccountID.newBuilder()
+                .setShardNum(0)
+                .setRealmNum(0)
+                .setAccountNum(num)
+                .build();
+    }
+
+    public static TokenID asToken(final long num) {
+        return tokenWith(num);
+    }
+
+    public static ScheduleID asSchedule(final long num) {
+        return ScheduleID.newBuilder()
+                .setShardNum(0)
+                .setRealmNum(0)
+                .setScheduleNum(num)
+                .build();
+    }
+
+    public static NftID asNftID(final long tokenNum, final long serialNum) {
+        return NftID.newBuilder()
+                .setTokenID(tokenWith(tokenNum))
+                .setSerialNumber(serialNum)
+                .build();
+    }
+
     public static TokenID tokenWith(final long num) {
         return TokenID.newBuilder()
                 .setShardNum(0)
@@ -91,7 +118,7 @@ public class IdUtils {
 
     public static TokenBalance tokenBalanceWith(final long id, final long balance) {
         return TokenBalance.newBuilder()
-                .setTokenId(IdUtils.asToken("0.0." + id))
+                .setTokenId(tokenWith(id))
                 .setBalance(balance)
                 .build();
     }

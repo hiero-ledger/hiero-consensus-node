@@ -389,7 +389,7 @@ public class NonceSuite {
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
                         .nonce(0)
-                        .gasLimit(21_064L)
+                        .gasLimit(21_564L)
                         .hasKnownStatus(INSUFFICIENT_GAS)
                         .via(TX),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),

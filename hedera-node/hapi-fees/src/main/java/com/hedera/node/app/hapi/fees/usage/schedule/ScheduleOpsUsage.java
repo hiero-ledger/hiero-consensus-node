@@ -4,11 +4,11 @@ package com.hedera.node.app.hapi.fees.usage.schedule;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.schedule.entities.ScheduleEntitySizes.SCHEDULE_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RICH_INSTANT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_RICH_INSTANT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_TX_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BOOL_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 import static com.hederahashgraph.api.proto.java.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 
 import com.google.common.annotations.VisibleForTesting;

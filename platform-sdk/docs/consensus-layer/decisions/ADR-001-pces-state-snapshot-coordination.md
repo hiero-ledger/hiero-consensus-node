@@ -1,4 +1,5 @@
 ---
+type: decision
 id: ADR-001
 title: No Coordination Between PCES Writer and Signed State Writer for Snapshot PCES Copy
 topics: [signed-state, pces]

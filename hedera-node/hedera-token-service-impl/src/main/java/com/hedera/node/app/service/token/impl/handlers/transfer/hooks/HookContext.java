@@ -12,4 +12,5 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param memo the memo associated with the transaction
  * @param txnFee the transaction fee
  */
-public record HookContext(@NonNull Tuple proposedTransfers, @NonNull String memo, long txnFee) {}
+public record HookContext(
+        @NonNull Tuple proposedTransfers, @NonNull String memo, long txnFee) {}

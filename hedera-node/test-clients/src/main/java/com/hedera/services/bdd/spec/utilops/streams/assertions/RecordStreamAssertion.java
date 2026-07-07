@@ -11,7 +11,7 @@ import com.hedera.services.stream.proto.TransactionSidecarRecord;
  *
  * <p>Typical implementations will be stateful, and will be constructed with their "parent" {@link HapiSpec}.
  */
-public interface RecordStreamAssertion {
+public interface RecordStreamAssertion extends StreamAssertion {
     /**
      * Returns true if this assertion is applicable to the given item. (There is no reason to call
      * {@link #test(RecordStreamItem)} if this method returns false.)

@@ -113,6 +113,13 @@ public interface HintsService extends Service {
     SigningResult sign(@NonNull Bytes blockHash);
 
     /**
+     * Notifies the service that a new block has started.
+     *
+     * @param blockNumber the block number being started
+     */
+    void onBlockStarted(long blockNumber);
+
+    /**
      * Returns the TSS node-transaction submission helper.
      */
     @NonNull
@@ -132,8 +139,9 @@ public interface HintsService extends Service {
      * @param adoptedRoster the adopted roster
      * @param adoptedRosterHash the adopted roster hash
      * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
+     * @return whether the handoff happened
      */
-    void handoff(
+    boolean handoff(
             @NonNull WritableHintsStore hintsStore,
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,

@@ -18,7 +18,6 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbstractNonRevertibleTokenViewCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -62,12 +61,13 @@ public class TokenInfoCall extends AbstractNonRevertibleTokenViewCall {
         requireNonNull(status);
         requireNonNull(token);
 
-        final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
-        final var ledgerId = Bytes.wrap(ledgerConfig.id().toByteArray()).toString();
         // For backwards compatibility, we need to revert here per issue #8746.
         if (isStaticCall && status != SUCCESS) {
             return revertResult(status, gasRequirement);
         }
+        final var ledgerId = Bytes.wrap(
+                        enhancement.nativeOperations().ledgerId().toByteArray())
+                .toString();
 
         return function.getName().equals(TOKEN_INFO_167.methodName())
                         && function.getOutputs().equals(TOKEN_INFO_167.getOutputs())

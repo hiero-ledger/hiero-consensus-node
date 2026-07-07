@@ -4,9 +4,7 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -31,8 +29,7 @@ public class FakePlatformContext implements PlatformContext {
             .withConfigDataType(BasicConfig.class)
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(PathsConfig.class)
             .withConfigDataType(PathsConfig.class)
             .build();
 

@@ -8,6 +8,13 @@ dependencies {
     published(project(":hiero-metrics")) // product 'hiero-observability'
     published(project(":openmetrics-httpserver"))
 
+    // tools used for building and testing that are also tested
+    implementation(project(":consensus-event-intake-concurrent"))
+    implementation(project(":consensus-gui"))
+    implementation(project(":junit-extensions"))
+    implementation(project(":swirlds-config-processor"))
+    implementation(project(":swirlds-logging-log4j-appender"))
+
     // examples that also contain tests we would like to run
     implementation(project(":swirlds-platform-base-example"))
     // projects that only contain tests (and no production code)

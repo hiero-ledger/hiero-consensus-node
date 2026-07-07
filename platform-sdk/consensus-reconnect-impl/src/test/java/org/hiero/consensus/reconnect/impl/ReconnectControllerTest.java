@@ -25,17 +25,10 @@ import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.status.actions.FallenBehindAction;
-import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -61,9 +54,16 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.management.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
+import org.hiero.consensus.status.actions.FallenBehindAction;
+import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.system.SystemExitCode;
+import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -101,11 +101,10 @@ class ReconnectControllerTest {
     private SignedStateValidator signedStateValidator;
 
     @TempDir
-    static Path tempDir;
+    Path tempDir;
 
     @AfterAll
     static void tearDownClass() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
@@ -188,6 +187,10 @@ class ReconnectControllerTest {
             testReservedSignedState.close();
         }
         destroyStateLifecycleManager(stateLifecycleManager);
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        // Wait for MerkleDB's background threads to finish closing the database before JUnit deletes the per-test
+        // @TempDir. Otherwise the directory can still be in use, causing the deletion to fail intermittently in CI.
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     /**

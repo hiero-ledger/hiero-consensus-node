@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.leaky;
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -19,7 +20,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadSingleInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
@@ -47,15 +46,14 @@ import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidatio
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
@@ -120,7 +118,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -136,7 +133,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
@@ -399,12 +396,11 @@ public class LeakyContractTestsSuite {
                                 .balanceLessThan(INIT_ACCOUNT_BALANCE - REDUCED_NETWORK_FEE - REDUCED_NODE_FEE)));
     }
 
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @EmbeddedHapiTest({MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> payerCannotOverSendValue() {
         final var payerBalance = 666 * ONE_HBAR;
         final var overdraftAmount = payerBalance + ONE_HBAR;
         final var overAmbitiousPayer = "overAmbitiousPayer";
-        final var uncheckedCC = "uncheckedCC";
         return hapiTest(
                 uploadInitCode(PAY_RECEIVABLE_CONTRACT),
                 contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
@@ -413,19 +409,11 @@ public class LeakyContractTestsSuite {
                         .payingWith(overAmbitiousPayer)
                         .sending(overdraftAmount)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
-                usableTxnIdNamed(uncheckedCC).payerId(overAmbitiousPayer),
-                uncheckedSubmit(contractCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
-                                .txnId(uncheckedCC)
-                                .payingWith(overAmbitiousPayer)
-                                .sending(overdraftAmount))
-                        .payingWith(GENESIS),
-                sleepFor(1_000),
-                getReceipt(uncheckedCC)
-                        .hasRetryAnswerOnlyPrecheck(RECEIPT_NOT_FOUND)
-                        .setRetryLimit(300) // 3s
-                        // Mod-service and mono-service use these mostly interchangeably
-                        .hasPriorityStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
-                        .logged());
+                contractCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
+                        .payingWith(overAmbitiousPayer)
+                        .sending(overdraftAmount)
+                        .setNode("4") // for skipping ingest
+                        .hasKnownStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -596,9 +584,9 @@ public class LeakyContractTestsSuite {
         BiConsumer<TransactionRecord, Logger> resultSizeFormatter = (rcd, txnLog) -> {
             final var result = rcd.getContractCallResult();
             txnLog.info(
-                    "Contract call result FeeBuilder size = {}, fee = {}, result is"
+                    "Contract call result FeeConstants size = {}, fee = {}, result is"
                             + " [self-reported size = {}, '{}']",
-                    () -> FeeBuilder.getContractFunctionSize(result),
+                    () -> FeeConstants.getContractFunctionSize(result),
                     rcd::getTransactionFee,
                     result.getContractCallResult()::size,
                     result::getContractCallResult);
@@ -722,7 +710,8 @@ public class LeakyContractTestsSuite {
 
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
-                    expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
+                    expectedChildAddress.set(ByteString.copyFrom(
+                            expectedChildContractAddress.getBytes().toArray()));
 
                     // Extract actual child/grandchild contract IDs from child records
                     // (cannot assume parentNum+1/+2 in concurrent embedded mode)
@@ -1431,13 +1420,14 @@ public class LeakyContractTestsSuite {
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 100000001L))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> allRunFor(
                         spec,
                         ethereumCallWithFunctionAbi(
                                         false,
@@ -1459,7 +1449,8 @@ public class LeakyContractTestsSuite {
 
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 100000001L))),
                 contractCallWithFunctionAbi("invalid", function).hasKnownStatus(INVALID_CONTRACT_ID));
     }
 

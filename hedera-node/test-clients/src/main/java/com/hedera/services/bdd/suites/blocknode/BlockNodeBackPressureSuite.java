@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -55,7 +56,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(1)
@@ -92,7 +99,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(2)
@@ -146,7 +159,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -160,7 +179,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -174,7 +199,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -188,7 +219,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(3)
@@ -232,5 +269,51 @@ public class BlockNodeBackPressureSuite {
                 blockNode(0).startImmediately(),
                 blockNode(1).startImmediately(),
                 waitForAny(allNodes(), RESTART_TO_ACTIVE_TIMEOUT, PlatformStatus.ACTIVE));
+    }
+
+    /**
+     * Smoke test: a healthy block node combined with a low
+     * {@code blockStream.buffer.minAckedBlocksToBuffer} value should never engage backpressure and
+     * the node should remain ACTIVE throughout. Verifies the new property wires through end-to-end
+     * without regressing the happy path. The unit tests in {@code BlockBufferServiceTest} verify the
+     * pruning algorithm itself.
+     */
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks",
+                            "50",
+                            "blockStream.buffer.minAckedBlocksToBuffer",
+                            "3",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        })
+            })
+    @Order(4)
+    final Stream<DynamicTest> aggressivePruneHealthyPathDoesNotEngageBackpressure() {
+        return hapiTest(
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0),
+                        "Block buffer is saturated; backpressure is being enabled",
+                        Duration.ofSeconds(10)),
+                waitForActive(byNodeId(0), Duration.ofSeconds(30)));
     }
 }

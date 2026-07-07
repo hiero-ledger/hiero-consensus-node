@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.pcli {
+    exports org.hiero.consensus.pcli.utility;
+    exports org.hiero.consensus.pcli;
+
     opens org.hiero.consensus.pcli to
-            info.picocli;
-    opens org.hiero.consensus.pcli.utility to
             info.picocli;
     opens org.hiero.consensus.pcli.graph to
             info.picocli;
     opens org.hiero.consensus.pcli.recovery to
             info.picocli;
-
-    exports org.hiero.consensus.pcli.utility;
-    exports org.hiero.consensus.pcli;
+    opens org.hiero.consensus.pcli.utility to
+            info.picocli;
 
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
@@ -34,13 +34,16 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.state.management;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.transaction.handling;
     requires org.hiero.consensus.utility;
     requires info.picocli;
     requires io.github.classgraph;

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -42,8 +41,6 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         this.overrideProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
         this.overrideProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);
         this.overrideProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
-        this.overrideProperties.withConfigValue(
-                StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.resolve("data/saved"));
         this.overrideProperties.withConfigValue(PathsConfig_.SAVED_STATE_DIR, outputDirectory.resolve("data/saved"));
         this.overrideProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
         this.overrideProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));

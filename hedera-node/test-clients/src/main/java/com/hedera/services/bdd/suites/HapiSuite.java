@@ -29,9 +29,6 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 
 public abstract class HapiSuite {
-    // The first 0 refers to the shard of the target network.
-    // The second 0 refers to the realm.
-    public static final String DEFAULT_SHARD_REALM = "0.0.";
     public static final String FALSE_VALUE = "false";
     public static final String EVM_VERSION_046 = "v0.46";
     public static final String EVM_VERSION_050 = "v0.50";

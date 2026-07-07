@@ -40,6 +40,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
@@ -64,7 +65,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -416,6 +416,97 @@ public class ThrottleAccumulator {
     }
 
     /**
+     * How {@link #restoreThrottleUsage(List, List, SnapshotMismatchPolicy)} reacts when the persisted
+     * snapshot count does not match the active throttle count.
+     */
+    public enum SnapshotMismatchPolicy {
+        /** Throw {@link IllegalStateException} so the caller can rebuild usage from scratch. */
+        FAIL_FAST,
+        /** Log and leave usage unchanged; also roll back if an individual snapshot is incompatible. */
+        SKIP
+    }
+
+    /**
+     * Selects the active throttle list whose size matches the given usage snapshots, so they can be
+     * restored by position. Legacy snapshots contain only the normal TPS throttles; newer snapshots also
+     * include the high-volume throttles.
+     *
+     * @param throttleAccumulator the accumulator whose active throttles are being restored
+     * @param snapshots the persisted usage snapshots
+     * @return the throttle list to pair with the snapshots
+     */
+    public static List<DeterministicThrottle> selectedThrottlesFor(
+            @NonNull final ThrottleAccumulator throttleAccumulator,
+            @NonNull final List<ThrottleUsageSnapshot> snapshots) {
+        final var allThrottles = throttleAccumulator.allActiveThrottlesIncludingHighVolume();
+        if (allThrottles.size() == snapshots.size()) {
+            return allThrottles;
+        }
+        log.info(
+                "Snapshot size {} does not match all throttles size {}, using normal throttles",
+                snapshots.size(),
+                allThrottles.size());
+        final var normalThrottles = throttleAccumulator.allActiveThrottles();
+        if (normalThrottles.size() == snapshots.size()) {
+            return normalThrottles;
+        }
+        return allThrottles;
+    }
+
+    /**
+     * Restores usage into the given throttles from the given snapshots, pairing them strictly by
+     * position. A mismatch in counts means the throttle definitions changed since the snapshot was taken
+     * and usage cannot be safely restored by index. The converse does not hold: a definitions change that
+     * keeps the same total count still passes this check and restores positionally into the wrong buckets,
+     * since snapshots carry no bucket identity — this limitation is shared by all callers.
+     *
+     * @param throttles the active throttles to restore usage into
+     * @param snapshots the persisted usage snapshots, paired to {@code throttles} by position
+     * @param policy how to react to a count mismatch (see {@link SnapshotMismatchPolicy})
+     */
+    public static void restoreThrottleUsage(
+            @NonNull final List<DeterministicThrottle> throttles,
+            @NonNull final List<ThrottleUsageSnapshot> snapshots,
+            @NonNull final SnapshotMismatchPolicy policy) {
+        if (throttles.size() != snapshots.size()) {
+            if (policy == SnapshotMismatchPolicy.FAIL_FAST) {
+                throw new IllegalStateException("Cannot restore throttle usage: " + snapshots.size()
+                        + " usage snapshots do not match " + throttles.size() + " active throttles");
+            }
+            log.warn(
+                    "Snapshot count {} does not match active throttle count {}, not restoring usage",
+                    snapshots.size(),
+                    throttles.size());
+            return;
+        }
+        if (policy == SnapshotMismatchPolicy.SKIP) {
+            // Capture current usage so we can roll back if any snapshot turns out to be incompatible.
+            final var currentSnapshots =
+                    throttles.stream().map(DeterministicThrottle::usageSnapshot).toList();
+            for (int i = 0, n = throttles.size(); i < n; i++) {
+                try {
+                    throttles.get(i).resetUsageTo(snapshots.get(i));
+                } catch (final Exception e) {
+                    log.warn(
+                            "Saved usage snapshot @ index {} was not compatible with the corresponding"
+                                    + " active throttle ({}), not performing a reset !",
+                            i,
+                            e.getMessage());
+                    for (int j = 0, m = throttles.size(); j < m; j++) {
+                        throttles.get(j).resetUsageTo(currentSnapshots.get(j));
+                    }
+                    return;
+                }
+            }
+        } else {
+            // FAIL_FAST: apply by position and let an incompatible snapshot propagate so the caller rebuilds.
+            for (int i = 0, n = throttles.size(); i < n; i++) {
+                throttles.get(i).resetUsageTo(snapshots.get(i));
+            }
+        }
+    }
+
+    /**
      * Gets the current list of active throttles for the given functionality.This is used for the utilization scaling multiplier
      * o congestion pricing.
      *
@@ -522,11 +613,10 @@ public class ThrottleAccumulator {
         }
 
         // Check if this is a high-volume transaction and use appropriate throttle bucket.
-        // Verify feature flags here (mirrors the ingest-time guard in IngestChecker) so a config
+        // Verify the feature flag here (mirrors the ingest-time guard in IngestChecker) so a config
         // toggle between ingest and consensus does not silently route to the wrong throttle bucket.
         final boolean highVolumeEnabled =
-                configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()
-                        && configuration.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+                configuration.getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
         final boolean isHighVolumeTxn = txBody.highVolume() && highVolumeEnabled;
         final boolean isHighVolumeFunction = HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function);
         final boolean useHighVolumeBucket = shouldUseHighVolumeBucket(

@@ -4,16 +4,20 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Utility methods for block implementation.
  */
 public class BlockImplUtils {
+    /** The size in bytes of a single SHA-384 block hash. */
+    public static final int HASH_SIZE = DigestType.SHA_384.digestLength();
+
     public static final byte[] LEAF_PREFIX = {0x0};
     public static final Bytes LEAF_PREFIX_BYTES = Bytes.wrap(LEAF_PREFIX);
     public static final byte[] SINGLE_CHILD_INTERNAL_NODE_PREFIX = {0x1};
@@ -49,6 +53,38 @@ public class BlockImplUtils {
             hash.getBytes(0, newBytes, newBytes.length - HASH_SIZE, HASH_SIZE);
         }
         return Bytes.wrap(newBytes);
+    }
+
+    /**
+     * Given a concatenated sequence of 48-byte block hashes, where the rightmost hash was for the given last block
+     * number, returns either the hash of the block at the given block number, or null if the block number is out of
+     * range. This is block-format agnostic: it is used both for the legacy {@code BlockInfo.blockHashes} and for the
+     * {@code BlockStreamInfo.trailingBlockHashes}.
+     *
+     * @param blockHashes the concatenated sequence of block hashes
+     * @param lastBlockNo the block number of the rightmost hash in the sequence
+     * @param blockNo the block number of the hash to return
+     * @return the hash of the block at the given block number if available, null otherwise
+     */
+    public static @Nullable Bytes blockHashByBlockNumber(
+            @NonNull final Bytes blockHashes, final long lastBlockNo, final long blockNo) {
+        final var blocksAvailable = blockHashes.length() / HASH_SIZE;
+
+        // Smart contracts (and other services) call this API. Should a smart contract call this, we don't really
+        // want to throw an exception. So we will just return null, which is also valid. Basically, if the block
+        // doesn't exist, you get null.
+        if (blockNo < 0) {
+            return null;
+        }
+        final var firstAvailableBlockNo = lastBlockNo - blocksAvailable + 1;
+        // If blocksAvailable == 0, then firstAvailable == blockNo; and all numbers are
+        // either less than or greater than or equal to blockNo, so we return unavailable
+        if (blockNo < firstAvailableBlockNo || blockNo > lastBlockNo) {
+            return null;
+        } else {
+            long offset = (blockNo - firstAvailableBlockNo) * HASH_SIZE;
+            return blockHashes.slice(offset, HASH_SIZE);
+        }
     }
 
     /**

@@ -26,6 +26,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_DELETED_CONTRACT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BASE_COST_CHARGING_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONSTRUCTOR_PARAMS;
@@ -56,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -78,11 +82,13 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -95,10 +101,10 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.function.Consumer;
 import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -117,7 +123,7 @@ class HevmTransactionFactoryTest {
     private TokenServiceApi tokenServiceApi;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock
     private FeatureFlags featureFlags;
@@ -170,20 +176,24 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowFixedLowerBound() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(
                 INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(20_999L));
     }
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false, 0L))
-                .willReturn(22_000L);
+        given(gasCalculator.transactionGasRequirements(0, 0, false, List.of(), List.of()))
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(22_000L));
         assertCallFailsWith(
                 INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(21_999L));
     }
 
     @Test
     void fromHapiCallFailsNegativeValue() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(
                 CONTRACT_NEGATIVE_VALUE,
                 b -> b.contractID(CALLED_CONTRACT_ID).gas(30_000L).amount(-1L));
@@ -191,12 +201,16 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsOverMaxGas() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.contractID(CALLED_CONTRACT_ID)
                 .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
     @Test
     void fromHapiCallUsesEmptyCallDataWhenNotSet() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         final var transaction = getManufacturedCall(
                 b -> b.amount(123L).contractID(CALLED_CONTRACT_ID).gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
         assertEquals(SENDER_ID, transaction.senderId());
@@ -239,6 +253,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallIgnoresDeletedContractIfFeatureFlagEnabled() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(
                         CONFIG_THROTTLE_BY_GAS, CALLED_CONTRACT_ID.contractNumOrThrow()))
@@ -262,6 +278,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallUsesCallParamsWhenSet() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         final var transaction = getManufacturedCall(b -> b.amount(123L)
                 .functionParameters(CALL_DATA)
                 .contractID(CALLED_CONTRACT_ID)
@@ -443,6 +461,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationStillPermitsEmptyKey() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         final var immutabilitySentinelKey =
                 Key.newBuilder().keyList(KeyList.DEFAULT).build();
         final var transaction = getManufacturedCreation(b -> b.memo(SOME_MEMO)
@@ -467,6 +487,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationAppendsConstructorArgsIfPresent() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder().contents(INITCODE).build());
         String hexedPayload = new String(INITCODE.toByteArray()) + CommonUtils.hex(CONSTRUCTOR_PARAMS.toByteArray());
@@ -494,6 +516,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCreationSkips0xPrefixFromInitcodeIfPresent() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder()
                         .contents(Bytes.wrap("0x" + new String(INITCODE.toByteArray())))
@@ -554,6 +578,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthFailsImmediatelyWithTooHighGasLimit() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         final var txData = ETH_DATA_WITH_TO_ADDRESS.replaceGasLimit(16_000_000L);
         final var sigs = mock(EthTxSigs.class);
         when(sigs.address()).thenReturn(Hex.decode("00000000000000000000000000000000cafebabe"));
@@ -564,6 +590,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthRepresentsCallAsExpected() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITH_TO_ADDRESS);
         final var sig = EthTxSigs.extractSignatures(ETH_DATA_WITH_TO_ADDRESS);
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS)).willReturn(sig);
@@ -595,6 +623,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiEthRepresentsCreateAsExpected() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
         final var dataToUse = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(CALL_DATA.toByteArray());
         givenInsteadHydratedEthTxWithRightChainId(dataToUse);
         final var sig = EthTxSigs.extractSignatures(dataToUse);

@@ -227,7 +227,7 @@ class V0740BlockStreamSchemaTest {
     }
 
     @Test
-    void deletesPreviewBlockFiles() throws IOException {
+    void archivesPreviewBlockFiles() throws IOException {
         final var blockDir = tempDir.resolve("blocks");
         Files.createDirectories(blockDir);
         final var subdir = blockDir.resolve("000000000000042");
@@ -236,7 +236,7 @@ class V0740BlockStreamSchemaTest {
         Files.createFile(subdir.resolve("block-42.mf"));
         Files.createFile(subdir.resolve("pending.pnd.gz"));
         Files.createFile(subdir.resolve("proof.pnd.json"));
-        // Non-matching file should survive
+        // Non-matching file should survive in place
         Files.createFile(subdir.resolve("readme.txt"));
 
         final var blockInfo = validBlockInfo();
@@ -250,12 +250,54 @@ class V0740BlockStreamSchemaTest {
 
         subject.restart(ctx);
 
+        final var archiveDir = blockDir.resolveSibling(blockDir.getFileName() + "-preview-archive");
+        final var archivedSubdir = archiveDir.resolve("000000000000042");
         assertTrue(markerCalled.get());
+        // Originals moved out of the active directory
         assertFalse(Files.exists(subdir.resolve("block-42.blk.gz")));
         assertFalse(Files.exists(subdir.resolve("block-42.mf")));
         assertFalse(Files.exists(subdir.resolve("pending.pnd.gz")));
         assertFalse(Files.exists(subdir.resolve("proof.pnd.json")));
+        // Non-matching file stays put
         assertTrue(Files.exists(subdir.resolve("readme.txt")));
+        // Archive sibling contains the moved files, preserving the subdir layout
+        assertTrue(Files.exists(archivedSubdir.resolve("block-42.blk.gz")));
+        assertTrue(Files.exists(archivedSubdir.resolve("block-42.mf")));
+        assertTrue(Files.exists(archivedSubdir.resolve("pending.pnd.gz")));
+        assertTrue(Files.exists(archivedSubdir.resolve("proof.pnd.json")));
+    }
+
+    @Test
+    void overwritesStaleArchiveFilesOnRepeatedCutover() throws IOException {
+        // Simulates a re-cutover (e.g. a second upgrade attempt) where a prior cutover already left
+        // a *-preview-archive sibling on disk. Files moved out of the active dir use REPLACE_EXISTING,
+        // so same-named stale archive entries are overwritten by the new attempt's content.
+        final var blockDir = tempDir.resolve("blocks");
+        final var subdir = blockDir.resolve("000000000000042");
+        Files.createDirectories(subdir);
+        Files.writeString(subdir.resolve("block-42.blk.gz"), "new-attempt-content");
+
+        // Pre-existing stale archive from a prior cutover, same relative path, old content.
+        final var archiveDir = blockDir.resolveSibling(blockDir.getFileName() + "-preview-archive");
+        final var archivedSubdir = archiveDir.resolve("000000000000042");
+        Files.createDirectories(archivedSubdir);
+        Files.writeString(archivedSubdir.resolve("block-42.blk.gz"), "stale-prior-attempt-content");
+
+        final var blockInfo = validBlockInfo();
+        final var runningHashes = validRunningHashes();
+        final var previewBsi = BlockStreamInfo.newBuilder()
+                .blockNumber(50)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .build();
+
+        givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);
+
+        subject.restart(ctx);
+
+        assertTrue(markerCalled.get());
+        // Active copy moved out; stale archive entry overwritten with the new attempt's content.
+        assertFalse(Files.exists(subdir.resolve("block-42.blk.gz")));
+        assertEquals("new-attempt-content", Files.readString(archivedSubdir.resolve("block-42.blk.gz")));
     }
 
     @Test
@@ -515,7 +557,7 @@ class V0740BlockStreamSchemaTest {
     }
 
     @Test
-    void deletesBlockFilesInMultipleSubdirectories() throws IOException {
+    void archivesBlockFilesInMultipleSubdirectories() throws IOException {
         final var blockDir = tempDir.resolve("multi-blocks");
         Files.createDirectories(blockDir);
         final var subdir1 = blockDir.resolve("000000000000001");
@@ -537,17 +579,22 @@ class V0740BlockStreamSchemaTest {
 
         subject.restart(ctx);
 
+        final var archiveDir = blockDir.resolveSibling(blockDir.getFileName() + "-preview-archive");
         assertFalse(Files.exists(subdir1.resolve("block-1.blk.gz")));
         assertFalse(Files.exists(subdir2.resolve("block-2.blk.gz")));
         assertFalse(Files.exists(subdir2.resolve("block-2.mf")));
-        // Directories themselves should remain
+        // Subdirectories under the active dir remain (the writer may reuse them)
         assertTrue(Files.exists(subdir1));
         assertTrue(Files.exists(subdir2));
+        // Files now live under the archive sibling, with the same subdir layout
+        assertTrue(Files.exists(archiveDir.resolve("000000000000001/block-1.blk.gz")));
+        assertTrue(Files.exists(archiveDir.resolve("000000000000002/block-2.blk.gz")));
+        assertTrue(Files.exists(archiveDir.resolve("000000000000002/block-2.mf")));
     }
 
     @Test
     void ignoresFilesTooDeeplyNested() throws IOException {
-        // Files.walk depth is 2, so files at depth 3 should not be deleted
+        // Files.walk depth is 2, so files at depth 3 should not be touched
         final var blockDir = tempDir.resolve("deep-blocks");
         Files.createDirectories(blockDir);
         final var subdir = blockDir.resolve("000000000000001");

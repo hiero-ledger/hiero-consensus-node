@@ -8,7 +8,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.OperationUtil
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext.InvalidAddressType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -59,8 +59,7 @@ public class CustomExtCodeSizeOperation extends ExtCodeSizeOperation {
                 return new OperationResult(cost, null);
             }
             if (contractRequired(frame, address, featureFlags) && !addressChecks.isPresent(address, frame)) {
-                FrameUtils.invalidAddressContext(frame)
-                        .set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+                FrameUtils.invalidAddressContext(frame).set(address, InvalidAddressType.NON_CALL_TARGET);
                 return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             }
             return super.execute(frame, evm);

@@ -2,13 +2,13 @@
 package com.hedera.node.app.hapi.fees.usage.state;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ACCOUNT_AMT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RECEIPT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_BODY_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_RECORD_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.HRS_DIVISOR;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ACCOUNT_AMT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_RECEIPT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_TX_BODY_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_TX_RECORD_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.HRS_DIVISOR;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.INT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.RECEIPT_STORAGE_TIME_SEC;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.pricing.ResourceProvider;

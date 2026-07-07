@@ -78,8 +78,13 @@ public class WrappedRecordBlockHashMigration {
         requireNonNull(jumpstartConfig);
 
         if (migrationAlreadyApplied) {
-            log.info("Jumpstart migration already applied (votingComplete=true), skipping");
-            return;
+            if (jumpstartConfig.blockNum() < 0) {
+                log.info("Jumpstart migration already applied (votingComplete=true) and no jumpstart config, skipping");
+                return;
+            }
+            log.info(
+                    "Jumpstart migration previously applied but jumpstart properties present (blockNum={}) - proceeding for potential new upgrade cycle",
+                    jumpstartConfig.blockNum());
         }
 
         final var computeHashesFromWrappedEnabled =

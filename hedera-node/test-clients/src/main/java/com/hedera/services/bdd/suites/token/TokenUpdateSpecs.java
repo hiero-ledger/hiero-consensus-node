@@ -695,6 +695,48 @@ public class TokenUpdateSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> canDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates() {
+        final var token = "nonFungible";
+        final var originalTreasury = "originalTreasury";
+        final var previousTreasury = "previousTreasury";
+        final var finalTreasury = "finalTreasury";
+        final var beneficiary = "beneficiary";
+        final var adminKey = "adminKey";
+        final var supplyKey = "supplyKey";
+
+        return defaultHapiSpec("CanDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates")
+                .given(
+                        newKeyNamed(adminKey),
+                        newKeyNamed(supplyKey),
+                        cryptoCreate(originalTreasury),
+                        cryptoCreate(previousTreasury),
+                        cryptoCreate(finalTreasury),
+                        cryptoCreate(beneficiary),
+                        tokenCreate(token)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .adminKey(adminKey)
+                                .supplyKey(supplyKey)
+                                .treasury(originalTreasury),
+                        mintToken(token, List.of(ByteString.copyFromUtf8("memo"))))
+                .when(
+                        tokenAssociate(previousTreasury, token),
+                        tokenUpdate(token).treasury(previousTreasury).signedByPayerAnd(adminKey, previousTreasury),
+                        getAccountInfo(previousTreasury)
+                                .hasOwnedNfts(1)
+                                .hasToken(
+                                        ExpectedTokenRel.relationshipWith(token).balance(1)),
+                        tokenAssociate(finalTreasury, token),
+                        tokenUpdate(token).treasury(finalTreasury).signedByPayerAnd(adminKey, finalTreasury))
+                .then(
+                        getAccountInfo(previousTreasury)
+                                .hasOwnedNfts(0)
+                                .hasToken(
+                                        ExpectedTokenRel.relationshipWith(token).balance(0)),
+                        cryptoDelete(previousTreasury).transfer(beneficiary));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> tokenUpdateCanClearMemo() {
         final var token = "token";
         final var multiKey = "multiKey";

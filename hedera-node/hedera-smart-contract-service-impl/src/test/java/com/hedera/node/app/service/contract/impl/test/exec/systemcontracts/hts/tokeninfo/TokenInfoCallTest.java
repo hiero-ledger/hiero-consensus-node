@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.tokeninfo.TokenInfoCall;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.Collections;
 import org.apache.tuweni.bytes.Bytes;
@@ -39,21 +38,17 @@ class TokenInfoCallTest extends CallTestBase {
     @Mock
     private Configuration config;
 
-    @Mock
-    private LedgerConfig ledgerConfig;
-
     @Test
     void returnsTokenInfoStatusForPresentToken() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject = new TokenInfoCall(
                 gasCalculator, mockEnhancement(), false, FUNGIBLE_EVERYTHING_TOKEN, config, TOKEN_INFO_167.function());
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_167
                         .getOutputs()
@@ -80,14 +75,13 @@ class TokenInfoCallTest extends CallTestBase {
                                         Bytes.wrap(expectedLedgerId.toByteArray())
                                                 .toString())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
     void returnsTokenInfoStatusForPresentTokenV2() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(LEDGER_ID);
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject = new TokenInfoCall(
                 gasCalculator,
@@ -99,7 +93,7 @@ class TokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_16C
                         .getOutputs()
@@ -128,21 +122,20 @@ class TokenInfoCallTest extends CallTestBase {
                                         Bytes.wrap(expectedLedgerId.toByteArray())
                                                 .toString())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
     void returnsTokenInfoStatusForMissingToken() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         final var expectedLedgerId = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
-        when(ledgerConfig.id()).thenReturn(expectedLedgerId);
+        when(nativeOperations.ledgerId()).thenReturn(expectedLedgerId);
 
         final var subject =
                 new TokenInfoCall(gasCalculator, mockEnhancement(), false, null, config, TOKEN_INFO_167.function());
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_167
                         .getOutputs()
@@ -169,34 +162,28 @@ class TokenInfoCallTest extends CallTestBase {
                                         Bytes.wrap(expectedLedgerId.toByteArray())
                                                 .toString())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
     void returnsTokenInfoStatusForMissingTokenStaticCall() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
-        when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
-
         final var subject =
                 new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_167.function());
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
     void returnsTokenInfoStatusForMissingTokenStaticCallV2() {
-        when(config.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
-        when(ledgerConfig.id()).thenReturn(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01"));
-
         final var subject =
                 new TokenInfoCall(gasCalculator, mockEnhancement(), true, null, config, TOKEN_INFO_16C.function());
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

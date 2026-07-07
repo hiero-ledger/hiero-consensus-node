@@ -1,5 +1,9 @@
 # Testing Hedera
 
+> For an index of all `test-clients` documentation — Gradle tasks, system properties,
+> annotations, validators, restart testing, embedded internals, and more — see
+> [`docs/OVERVIEW.md`](docs/OVERVIEW.md).
+
 These tests specify the behavior of the Hedera network as outlined in HIPs approved by the governing
 council.
 
@@ -15,12 +19,15 @@ four-node network whose lifetime is scoped to the JUnit `LauncherSession`. Such 
 with the `@HapiTest` meta-annotation, as correct execution requires registering Jupiter extensions
 to manage the test network lifecycle and make it the target of each `HapiSpec`.
 
-The default Gradle `test` task instructs these extensions to create the target network by spawning
-four child subprocesses as nodes. Meanwhile, the `testEmbedded` and `testRepeatable` tasks instruct
-the extensions to embed a single `Hedera` instance in the test process, invoking its workflows
-directly. In embedded mode, there is no hashgraph consensus because the `Platform` is replaced with
-a simple mock, and the `MerkleState` implementation uses in-memory data structures instead of a
-Merkle tree.
+The `testSubprocess` Gradle task (and the various `hapiTest*` PR-check tasks that delegate to it)
+instructs these extensions to create the target network by spawning child subprocesses as nodes.
+The default network size is four (`CLASSIC_HAPI_TEST_NETWORK_SIZE` in
+`SharedNetworkLauncherSessionListener`); some PR checks override this to three via the
+`hapi.spec.network.size` system property. Meanwhile, the `testEmbedded` and `testRepeatable` tasks
+instruct the extensions to embed a single `Hedera` instance in the test process, invoking its
+workflows directly. In embedded mode, there is no hashgraph consensus because the `Platform` is
+replaced with `AbstractFakePlatform`, and the state is a `FakeState` backed by in-memory data
+structures instead of a Merkle tree.
 
 ## Table of contents
 
@@ -74,20 +81,24 @@ operations with some useful infrastructure components. The four most important c
 
 ## `HederaNetwork` implementations
 
-There are four implementations of the `HederaNetwork` interface, as follows:
+There are three implementations of the `HederaNetwork` interface, as follows:
 
 1. `RemoteNetwork` - a proxy to a remote Hedera network, supporting only gRPC access to the nodes
    without access to their block streams, internal state, or file system.
-2. `SubProcessNetwork` - a managed network of four child processes, each running a Hedera node. This
-   implementation supports starting and stopping nodes, and provides access to each node's block
-   stream, logs, and upgrade artifacts. However, it does not support direct access to working state.
-3. `ConcurrentEmbeddedNetwork` - a simulated network that instantiates a single `Hedera` instance
-   directly in the test process. The internal state is a `FakeMerkleState` implementation whose data
-   sources are collections from the `java.util.concurrent` package. This allows direct access to,
-   and modification of, the network's state.
-4. `RepeatableEmbeddedNetwork` - an embedded variant automatically selected when running a
-   `HapiSpec` in repeatable mode. This implementation requires single-threaded test execution and
-   uses virtual time to ensure the same consensus times every test run.
+2. `SubProcessNetwork` - a managed network of child processes (four by default; some PR checks use
+   three), each running a Hedera node. This implementation supports starting and stopping nodes, and
+   provides access to each node's block stream, logs, and upgrade artifacts. However, it does not
+   support direct access to working state.
+3. `EmbeddedNetwork` - a simulated network that instantiates a single `Hedera` instance directly in
+   the test process. The internal state is a `FakeState` whose data sources are in-memory collections
+   (often from the `java.util.concurrent` package), which allows direct access to, and modification
+   of, the network's state. An `EmbeddedNetwork` runs in one of two modes selected by the
+   `EmbeddedMode` enum:
+   - `CONCURRENT` (used by the `testEmbedded` task) — multiple specs can run in parallel; consensus
+     time is tied to real time.
+   - `REPEATABLE` (used by the `testRepeatable` task) — single-threaded execution with virtual
+     consensus time, so every run produces the same state and streams. Because ECDSA signing is
+     inherently nondeterministic, repeatable specs must use Ed25519 keys.
 
 Examining the differences between these implementations as we move from black box testing to
 increasingly white box testing provides valuable insights into the key architectural elements of a
@@ -144,15 +155,16 @@ misbehaving nodes which might submit duplicate or malformed transactions.
 We can address the testing deficiencies of a subprocess network by trading off the realism of a live
 network for greater control. Maximum control is achieved by directly instantiating a `Hedera`
 instance in the test process, and initializing it with fake `Platform`, `ServicesRegistry`, and
-`MerkleState` implementations that are created and managed by the testing framework. Instead of
-submitting transactions through gRPC, we can call the ingest, query, pre-handle, and handle
-workflows directly.
+state implementations that are created and managed by the testing framework. Instead of submitting
+transactions through gRPC, we can call the ingest, query, pre-handle, and handle workflows
+directly.
 
 At this point, the main tradeoff is between supporting concurrent test execution and achieving
-repeatable results. The `ConcurrentEmbeddedNetwork` supports concurrent test execution, but the
-consensus time is still tied to real time. The `RepeatableEmbeddedNetwork` achieves repeatable
-results by instead using virtual consensus time; but this requires single-threaded execution and
-exclusive use of Ed25519 keys, since the ECDSA signing process has inherent randomness.
+repeatable results. An `EmbeddedNetwork` in `CONCURRENT` mode supports concurrent test execution,
+but the consensus time is still tied to real time. An `EmbeddedNetwork` in `REPEATABLE` mode
+achieves repeatable results by instead using virtual consensus time; but this requires
+single-threaded execution and exclusive use of Ed25519 keys, since the ECDSA signing process has
+inherent randomness.
 
 Either way, we can now directly access and manipulate the network's internal state; and we can
 submit transactions that would be rejected by a real network. Furthermore, in repeatable mode,
@@ -168,45 +180,32 @@ This section explains how to run tests with block nodes using the `hapi.spec.blo
 
 ### Block Node Modes
 
-The following block node modes are available:
+The values of `hapi.spec.blocknode.mode` correspond to the `BlockNodeMode` enum in
+`com.hedera.services.bdd.junit.hedera`:
 
-- `SIM` - Use simulated block nodes
+- `SIMULATOR` - Use simulated block nodes (in-process fakes).
+- `REAL` - Use Docker containers running real block nodes.
+- `LOCAL_NODE` - Connect `SubProcessNode 1` to a local block node the developer is already running.
+- `NONE` - Do not use any block nodes (default when the property is unset).
 
 ### Running Tests with Block Node Simulator
 
-#### Using Predefined Tasks
-
-The following predefined tasks are available for running tests with the block node simulator:
-
-- `testSubprocessWithBlockNodeSimulator` - Runs subprocess tests with block node simulators
-
-Example:
-
-```bash
-# Run subprocess tests with block node simulator
-./gradlew testSubprocessWithBlockNodeSimulator
-
-# Run a specific test with block node simulator
-./gradlew testSubprocessWithBlockNodeSimulator --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite"
-```
-
-#### Using the System Property Directly
-
-You can also set the system property directly with any Gradle task:
+There is no dedicated Gradle task for the simulator; set the system property on any of the standard
+test tasks:
 
 ```bash
 # Run a specific test with block node simulator
-./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=SIM
+./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=SIMULATOR
 
 # Run with Docker containers for block nodes
 ./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=REAL
 
 # Run with a local block node
-./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=LOCAL
+./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.crypto.CryptoCreateSuite" -Dhapi.spec.blocknode.mode=LOCAL_NODE
 ```
 
 Another system property `hapi.spec.blocknode.simulator.manyToOne` will configure the `SubProcessNetwork` to use a single
-block node simulator for all consensus nodes. This can currently be specified manually in the same fashion as the above.
+block node simulator for all consensus nodes.
 
 #### Notes
 
@@ -294,20 +293,22 @@ Two other trivial meta-annotations are `@HapiTestLifecycle`, which registers the
 `SpecManagerExtension`; and `@OrderedInIsolation`, which both isolates a test class and orders its
 method executions by `@Order` attribute.
 
-The object-oriented DSL in the `c.h.s.bdd.spec.dsl` package works via a family of annotations that
-include `@AccountSpec`, `@ContractSpec`, `@KeySpec`, and so on. These annotations register the
-`SpecEntityExtension`, which then allows the test author to inject `SpecEntity` types such as
-`SpecAccount` into test methods and static fields on the test class. These entities are created
-automatically, which can greatly reduce the boilerplate needed to set up a test.
+The object-oriented DSL in the `c.h.s.bdd.spec.dsl` package works via a family of annotations
+defined in `c.h.s.bdd.spec.dsl.annotations`: `@Account`, `@Contract`, `@Key`, `@FungibleToken`,
+`@NonFungibleToken`, and `@Hook`. These annotations register the `SpecEntityExtension`, which then
+allows the test author to inject `SpecEntity` types such as `SpecAccount` and `SpecContract` into
+test methods and static fields on the test class. These entities are created automatically, which
+can greatly reduce the boilerplate needed to set up a test.
 
 ### `SharedNetworkLauncherSessionListener`
 
 This `LauncherSessionListener` implementation does nothing but register a `TestExecutionListener`.
 When the `TestPlan` execution is starting, the listener chooses a `HederaNetwork` implementation
-based on the values of the system properties `hapi.spec.embedded.mode` and
-`hapi.spec.repeatable.mode`. It creates an instance of this type, calls its `start()` method, and
-sets it in a `SHARED_NETWORK` static field of the `NetworkTargetingExtension`. When the `TestPlan`
-execution is finished, the listener calls `stop()` on the shared network.
+based on the system property `hapi.spec.embedded.mode`, which accepts `concurrent`, `repeatable`,
+or `per-class` (and is unset for subprocess/remote networks). It creates an instance of the chosen
+type, calls its `start()` method, and sets it in a `SHARED_NETWORK` static field of the
+`NetworkTargetingExtension`. When the `TestPlan` execution is finished, the listener calls
+`terminate()` on the shared network.
 
 ### `NetworkTargetingExtension`
 

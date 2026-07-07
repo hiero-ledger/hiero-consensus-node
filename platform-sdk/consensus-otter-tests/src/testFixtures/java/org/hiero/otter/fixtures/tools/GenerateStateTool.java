@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.app.OtterApp.SWIRLD_NAME;
 import static org.hiero.otter.fixtures.util.OtterSavedStateUtils.fetchApplicationVersion;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -20,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -236,7 +236,7 @@ public class GenerateStateTool {
             final Node node = generateStateTool.getNode((int) SELF_ID);
             final Configuration configuration = node.configuration().current();
             final Path outputDirectory =
-                    configuration.getConfigData(StateCommonConfig.class).savedStateDirectory();
+                    configuration.getConfigData(PathsConfig.class).savedStateDir();
 
             generateStateTool.cleanUpDirectory(outputDirectory);
             generateStateTool.copyFilesInPlace(outputDirectory);

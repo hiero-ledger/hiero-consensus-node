@@ -7,6 +7,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
@@ -79,6 +80,7 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
             @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier,
             @NonNull final BlockRecordManager.Lifecycle blockLifecycle) {
         final var merkleState = state.getState();
@@ -96,7 +98,8 @@ public abstract class BlockRecordInjectionModule {
                 wrbWriterSupplier,
                 blockHashSigner,
                 initTrigger,
-                blockLifecycle);
+                blockLifecycle,
+                wrappedRecordBlockHashMigration.result());
     }
 
     @Provides

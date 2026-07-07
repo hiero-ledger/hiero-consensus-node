@@ -1,3 +1,10 @@
+---
+type: tunable-catalog
+title: Tunables — Catalog
+description: Catalog of consensus-layer configurable parameters (TUN-NNN) organised by config record, with key, type, default, effect, range, and fragility columns.
+last_reviewed: TBD
+---
+
 # Tunables — Catalog
 
 Catalog of consensus-layer configurable parameters, referenced from other KB
@@ -107,17 +114,12 @@ Per-component `TaskSchedulerConfiguration` values that shape the platform wiring
 |   ID    |                            Key                            |            Type            |                                                Default                                                |                               Effect                                | Range | Fragility |
 |---------|-----------------------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|-------|-----------|
 | TUN-023 | `platformSchedulers.consensusEngine`                      | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`    | Scheduler configuration for the consensus engine.                   |       | —         |
-| TUN-024 | `platformSchedulers.stateSnapshotManager`                 | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC`                                                | Scheduler configuration for the state snapshot manager.             |       | —         |
-| TUN-025 | `platformSchedulers.stateSigner`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC`                                                       | Scheduler configuration for the state signer.                       |       | —         |
 | TUN-026 | `platformSchedulers.futureEventBuffer`                    | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`                       | Scheduler configuration for the future-event buffer.                |       | —         |
 | TUN-027 | `platformSchedulers.pcesSequencer`                        | TaskSchedulerConfiguration | `DIRECT`                                                                                              | Scheduler configuration for the preconsensus event sequencer.       |       | —         |
 | TUN-028 | `platformSchedulers.applicationTransactionPrehandler`     | TaskSchedulerConfiguration | `CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the application transaction prehandler. |       | —         |
-| TUN-029 | `platformSchedulers.stateSignatureCollector`              | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the state signature collector.          |       | —         |
 | TUN-030 | `platformSchedulers.transactionHandler`                   | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the transaction handler.                |       | —         |
 | TUN-031 | `platformSchedulers.issDetector`                          | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC`                                                      | Scheduler configuration for the ISS detector.                       |       | —         |
 | TUN-032 | `platformSchedulers.issHandler`                           | TaskSchedulerConfiguration | `DIRECT`                                                                                              | Scheduler configuration for the ISS handler.                        |       | —         |
-| TUN-033 | `platformSchedulers.hashLogger`                           | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC`                                                      | Scheduler configuration for the hash logger.                        |       | —         |
-| TUN-034 | `platformSchedulers.stateHasher`                          | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC`             | Scheduler configuration for the state hasher.                       |       | —         |
 | TUN-035 | `platformSchedulers.stateGarbageCollector`                | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC`                                                       | Scheduler configuration for the state garbage collector.            |       | —         |
 | TUN-036 | `platformSchedulers.stateGarbageCollectorHeartbeatPeriod` | Duration                   | `200ms`                                                                                               | Heartbeat frequency sent to the state garbage collector.            |       | —         |
 | TUN-037 | `platformSchedulers.signedStateSentinel`                  | TaskSchedulerConfiguration | `SEQUENTIAL UNHANDLED_TASK_METRIC`                                                                    | Scheduler configuration for the signed-state sentinel.              |       | —         |
@@ -128,6 +130,10 @@ Per-component `TaskSchedulerConfiguration` values that shape the platform wiring
 | TUN-042 | `platformSchedulers.transactionPool`                      | TaskSchedulerConfiguration | `DIRECT_THREADSAFE`                                                                                   | Scheduler configuration for the transaction pool.                   |       | —         |
 | TUN-043 | `platformSchedulers.branchDetector`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch detector.                    |       | —         |
 | TUN-044 | `platformSchedulers.branchReporter`                       | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                            | Scheduler configuration for the branch reporter.                    |       | —         |
+
+**Retired.** TUN-024, TUN-025, TUN-029, TUN-033, TUN-034 moved out of this record to
+[`state.management.wiring.*` — StateManagementWiringConfig](#statemanagementwiring---statemanagementwiringconfig)
+(now TUN-192…TUN-196) when the state-management schedulers were extracted into `consensus-state-management`. IDs retired, not reused.
 
 ## `os.health.*` — OSHealthCheckConfig
 
@@ -217,20 +223,14 @@ Module: `consensus-utility`. Source: [RecycleBinConfig.java](../../consensus-uti
 
 Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-reconnect/src/main/java/org/hiero/consensus/reconnect/config/ReconnectConfig.java).
 
-|   ID    |                        Key                         |   Type   | Default |                                                                Effect                                                                | Range | Fragility |
-|---------|----------------------------------------------------|----------|---------|--------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                                          |       | —         |
-| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`).               |       | —         |
-| TUN-069 | `reconnect.asyncStreamTimeout`                     | Duration | `300s`  | Time an `AsyncInputStream` / `AsyncOutputStream` waits before throwing a timeout.                                                    |       | —         |
-| TUN-070 | `reconnect.asyncOutputStreamFlush`                 | Duration | `8ms`   | Period of the periodic flush that drains the async output stream buffer.                                                             |       | —         |
-| TUN-071 | `reconnect.asyncStreamBufferSize`                  | int      | `10000` | Size of the buffers for async input and output streams.                                                                              |       | —         |
-| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                                 |       | —         |
-| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                                        |       | —         |
-| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                                           |       | —         |
-| TUN-075 | `reconnect.teacherMaxNodesPerSecond`               | int      | `0`     | Maximum number of nodes a teacher will send per second; `0` means no limit.                                                          |       | —         |
-| TUN-076 | `reconnect.teacherRateLimiterSleep`                | Duration | `1us`   | Sleep applied by the teacher when throttling is engaged.                                                                             |       | —         |
-| TUN-077 | `reconnect.pullLearnerRootResponseTimeout`         | Duration | `60s`   | Pull-based reconnect: learner-side timeout to receive a virtual root-node response from the teacher.                                 |       | —         |
-| TUN-078 | `reconnect.allMessagesReceivedTimeout`             | Duration | `300s`  | Pull-based reconnect: learner-side timeout to wait until all virtual-view messages are processed after the teacher's final response. |       | —         |
+|   ID    |                        Key                         |   Type   | Default |                                                         Effect                                                         | Range | Fragility |
+|---------|----------------------------------------------------|----------|---------|------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                            |       | —         |
+| TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`). |       | —         |
+| TUN-069 | `reconnect.socketTimeout`                          | Duration | `60s`   | Socket timeout for input streams used during reconnect.                                                                |       | —         |
+| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
+| TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
+| TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
 
 ## `state.*` — StateConfig
 
@@ -261,6 +261,20 @@ Shares the `state.*` prefix with [StateCommonConfig](#state---statecommonconfig)
 | TUN-097 | `state.deleteInvalidStateFiles`       | boolean  | `false` | At startup, delete state files that can't be deserialized and try the next one; be very careful enabling network-wide.                        |       | —         |
 | TUN-098 | `state.validateInitialState`          | boolean  | `true`  | If false, skip ISS validation on the state loaded from disk at startup (test-only).                                                           |       | —         |
 | TUN-099 | `state.periodicSnapshotsEnabled`      | boolean  | `true`  | Create periodic snapshots of the signed state.                                                                                                |       | —         |
+
+## `state.management.wiring.*` — StateManagementWiringConfig
+
+Module: `consensus-state-management`. Source: [StateManagementWiringConfig.java](../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/config/StateManagementWiringConfig.java).
+
+Per-component `TaskSchedulerConfiguration` values for the state-management pipeline. These schedulers were extracted from [PlatformSchedulersConfig](#platformschedulers---platformschedulersconfig) (retired TUN-024, TUN-025, TUN-029, TUN-033, TUN-034); defaults are unchanged.
+
+|   ID    |                        Key                        |            Type            |                                          Default                                          |                           Effect                           | Range | Fragility |
+|---------|---------------------------------------------------|----------------------------|-------------------------------------------------------------------------------------------|------------------------------------------------------------|-------|-----------|
+| TUN-192 | `state.management.wiring.stateHasher`             | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the state hasher.              |       | —         |
+| TUN-193 | `state.management.wiring.hashLogger`              | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC`                                          | Scheduler configuration for the hash logger.               |       | —         |
+| TUN-194 | `state.management.wiring.stateSigner`             | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC`                                           | Scheduler configuration for the state signer.              |       | —         |
+| TUN-195 | `state.management.wiring.stateSignatureCollector` | TaskSchedulerConfiguration | `SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC`                                | Scheduler configuration for the state signature collector. |       | —         |
+| TUN-196 | `state.management.wiring.stateSnapshotManager`    | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC`                                    | Scheduler configuration for the state snapshot manager.    |       | —         |
 
 ## `consensus.*` — ConsensusConfig
 
@@ -356,7 +370,7 @@ Module: `consensus-event-creator`. Source: [EventCreationConfig.java](../../cons
 | TUN-137 | `event.creation.eventIntakeThrottle`                 | int      | `1024`  | When the event intake queue equals or exceeds this size, new self-event creation is suspended.                                          |       | —         |
 | TUN-138 | `event.creation.maximumPermissibleUnhealthyDuration` | Duration | `1s`    | Maximum time the system can be unhealthy before event creation stops.                                                                   |       | —         |
 | TUN-139 | `event.creation.maxAllowedSyncLag`                   | int      | `15`    | If the node is lagging more than this many rounds on average, stop creating events; very large values effectively disable the rule.     |       | —         |
-| TUN-140 | `event.creation.maxOtherParents`                     | int      | `1`     | Maximum allowed number of other parents; `1` reproduces the classic single-self-parent / single-other-parent shape.                     |       | —         |
+| TUN-140 | `event.creation.maxOtherParents`                     | int      | `4`     | Maximum number of other parents an event may reference.                                                                                 |       | —         |
 
 ## `event.creation.wiring.*` — EventCreationWiringConfig
 
@@ -389,7 +403,7 @@ Module: `consensus-gossip`. Source: [GossipConfig.java](../../consensus-gossip/s
 |   ID    |                   Key                   |            Type             | Default |                                                                 Effect                                                                  | Range | Fragility |
 |---------|-----------------------------------------|-----------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
 | TUN-147 | `gossip.interfaceBindings`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node interface bindings used in `SocketFactory`; overrides default network behavior in specialized environments (containers, etc.). |       | —         |
-| TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionCreator`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
+| TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionManager`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
 | TUN-149 | `gossip.connectionServerThreadPriority` | int                         | `5`     | Priority for threads listening for incoming gossip connections.                                                                         |       | —         |
 | TUN-150 | `gossip.hangingThreadDuration`          | Duration                    | `60s`   | How long a gossip thread is allowed to wait on shutdown before logging an error.                                                        |       | —         |
 

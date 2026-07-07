@@ -48,15 +48,12 @@ class HintsSubmissionsTest {
     @Mock
     private HintsKeyAccessor keyAccessor;
 
-    @Mock
-    private HintsContext signingContext;
-
     private HintsSubmissions subject;
 
     @BeforeEach
     void setUp() {
         given(gossip.isAvailable()).willReturn(true);
-        subject = new HintsSubmissions(executor, appContext, keyAccessor, signingContext);
+        subject = new HintsSubmissions(executor, appContext, keyAccessor);
     }
 
     @Test
@@ -177,10 +174,9 @@ class HintsSubmissionsTest {
         given(appContext.gossip()).willReturn(gossip);
         final var msg = Bytes.wrap("M");
         final var sig = Bytes.wrap("S");
-        given(signingContext.constructionIdOrThrow()).willReturn(123L);
         given(keyAccessor.signWithBlsPrivateKey(123L, msg)).willReturn(sig);
 
-        subject.submitPartialSignature(msg);
+        subject.submitPartialSignature(123L, msg);
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(gossip)

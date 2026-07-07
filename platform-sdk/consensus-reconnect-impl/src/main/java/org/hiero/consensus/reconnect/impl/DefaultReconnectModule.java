@@ -4,7 +4,6 @@ package org.hiero.consensus.reconnect.impl;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
@@ -20,6 +19,7 @@ import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.state.management.SavedStateController;
 
 /**
  * The default implementation of {@link ReconnectModule}.

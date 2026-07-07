@@ -35,7 +35,7 @@ public class LocalConsensusGeneration {
      */
     public static void assignCGen(@NonNull final List<EventImpl> events) {
         Objects.requireNonNull(events);
-        events.sort(Comparator.comparingLong(e -> e.getBaseEvent().getNGen()));
+        events.sort(Comparator.comparingLong(e -> e.getBaseEvent().getSequenceNumber()));
 
         final Map<EventDescriptorWrapper, EventImpl> parentMap = new HashMap<>();
         for (final EventImpl event : events) {

@@ -4,36 +4,23 @@ package com.hedera.node.app.service.schedule.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.ScheduleID;
-import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
-import com.hedera.hapi.node.state.schedule.Schedule;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -42,8 +29,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ScheduleSignHandler extends AbstractScheduleHandler implements TransactionHandler {
-    private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
-
     @Inject
     public ScheduleSignHandler(@NonNull final ScheduleFeeCharging feeCharging) {
         super(feeCharging);
@@ -107,41 +92,5 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
         context.savepointStack()
                 .getBaseBuilder(ScheduleStreamBuilder.class)
                 .scheduledTransactionID(transactionIdForScheduled(schedule));
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var scheduleStore = feeContext.readableStore(ReadableScheduleStore.class);
-        final var schedule = scheduleStore.get(
-                body.scheduleSignOrElse(ScheduleSignTransactionBody.DEFAULT).scheduleIDOrElse(ScheduleID.DEFAULT));
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(body),
-                        sigValueObj,
-                        schedule,
-                        feeContext
-                                .configuration()
-                                .getConfigData(LedgerConfig.class)
-                                .scheduleTxExpiryTimeSecs()));
-    }
-
-    private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            @NonNull final SigValueObj svo,
-            @Nullable final Schedule schedule,
-            final long scheduledTxExpiryTimeSecs) {
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        if (schedule != null) {
-            return scheduleOpsUsage.scheduleSignUsage(txn, sigUsage, schedule.calculatedExpirationSecond());
-        } else {
-            final long latestExpiry =
-                    txn.getTransactionID().getTransactionValidStart().getSeconds() + scheduledTxExpiryTimeSecs;
-            return scheduleOpsUsage.scheduleSignUsage(txn, sigUsage, latestExpiry);
-        }
     }
 }

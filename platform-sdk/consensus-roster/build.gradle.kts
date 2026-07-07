@@ -10,7 +10,6 @@ description = "Consensus Roster"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl")
     requires("com.swirlds.state.impl.test.fixtures")
@@ -26,4 +25,5 @@ testModuleInfo {
     requires("org.mockito.junit.jupiter")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
+    runtimeOnly("com.swirlds.config.impl")
 }

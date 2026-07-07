@@ -33,7 +33,6 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateToken;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewMappedValue;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
@@ -41,6 +40,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
@@ -232,7 +232,7 @@ public class ConcurrentIntegrationTests {
     @DisplayName("skips pre-upgrade event and streams result with BUSY status")
     final Stream<DynamicTest> skipsStaleEventWithBusyStatus() {
         return hapiTest(
-                blockStreamMustIncludePassFrom(spec -> blockWithResultOf(BUSY)),
+                streamMustIncludePassFrom(spec -> blockWithResultOf(BUSY)),
                 cryptoCreate("somebody").balance(0L),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "somebody", ONE_HBAR))
                         .setNode(4)
@@ -259,7 +259,7 @@ public class ConcurrentIntegrationTests {
     @DisplayName("fail invalid during dispatch recharges fees")
     final Stream<DynamicTest> failInvalidDuringDispatchRechargesFees() {
         return hapiTest(
-                blockStreamMustIncludePassFrom(spec -> blockWithResultOf(FAIL_INVALID)),
+                streamMustIncludePassFrom(spec -> blockWithResultOf(FAIL_INVALID)),
                 cryptoCreate("treasury").balance(ONE_HUNDRED_HBARS),
                 tokenCreate("token").supplyKey("treasury").treasury("treasury").initialSupply(1L),
                 // Corrupt the state by removing the treasury account from the token

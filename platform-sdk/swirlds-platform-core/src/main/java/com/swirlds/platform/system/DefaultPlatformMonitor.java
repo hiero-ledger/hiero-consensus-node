@@ -3,16 +3,10 @@ package com.swirlds.platform.system;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.system.status.StatusStateMachine;
-import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
-import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
-import com.swirlds.platform.system.status.actions.TimeElapsedAction;
 import com.swirlds.platform.uptime.UptimeTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -22,7 +16,12 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.actions.CatastrophicFailureAction;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
+import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
+import org.hiero.consensus.status.actions.TimeElapsedAction;
 
 /**
  * The default implementation of the {@link PlatformMonitor}.
@@ -50,7 +49,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
         time = platformContext.getTime();
-        statusStateMachine = new StatusStateMachine(platformContext);
+        statusStateMachine =
+                new StatusStateMachine(platformContext.getConfiguration(), platformContext.getMetrics(), time);
         uptimeTracker = new UptimeTracker(platformContext, selfId);
         lastQuiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
         lastQuiescenceCommandTime = time.now();
@@ -114,8 +114,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Nullable
     @Override
-    public PlatformStatus issNotification(@NonNull final List<IssNotification> notifications) {
-        if (notifications.stream().map(IssNotification::getIssType).anyMatch(CATASTROPHIC_ISS_TYPES::contains)) {
+    public PlatformStatus issNotification(@NonNull final IssNotification notification) {
+        if (CATASTROPHIC_ISS_TYPES.contains(notification.getIssType())) {
             return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
         }
         // don't change status for other types of ISSs

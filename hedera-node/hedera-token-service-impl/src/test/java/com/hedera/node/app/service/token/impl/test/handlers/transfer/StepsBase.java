@@ -199,7 +199,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
         given(handleContext.configuration()).willReturn(configuration);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
-        given(handleContext.dispatchComputeFees(any(), any(), any())).willReturn(new Fees(1l, 2l, 3l));
+        given(handleContext.dispatchComputeFees(any(), any(), any(), any())).willReturn(new Fees(1l, 2l, 3l));
         transferContext = new TransferContextImpl(handleContext);
         given(configProvider.getConfiguration()).willReturn(versionedConfig);
     }
@@ -283,7 +283,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
         given(handleContext.configuration()).willReturn(configuration);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(handleContext.dispatch(any())).willReturn(tokenAirdropRecordBuilder);
-        given(handleContext.dispatchComputeFees(any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
+        given(handleContext.dispatchComputeFees(any(), any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
         given(configProvider.getConfiguration()).willReturn(versionedConfig);
     }
 
@@ -296,7 +296,7 @@ public class StepsBase extends CryptoTokenHandlerTestBase {
         given(handleContext.body()).willReturn(txn);
         given(handleContext.configuration()).willReturn(configuration);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
-        given(handleContext.dispatchComputeFees(any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
+        given(handleContext.dispatchComputeFees(any(), any(), any(), any())).willReturn(new Fees(1L, 2L, 3L));
         given(configProvider.getConfiguration()).willReturn(versionedConfig);
     }
 }

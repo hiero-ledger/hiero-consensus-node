@@ -189,16 +189,22 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
 
     /**
-     * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should
-     * trigger any essential fatal shutdown logic.
+     * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that
+     * (a) stops the block stream from opening or mutating any further block state and (b) causes the next round
+     * boundary on the handler thread to flush the contents of any open and pending blocks to local disk for triage.
+     * Safe to call from any thread and idempotent; it does NOT itself flush. The block stream manager is otherwise
+     * allowed to keep processing rounds normally up until this point. Callers wait for the flush to finish via
+     * {@link #awaitFatalShutdown(Duration)}.
      */
     void notifyFatalEvent();
 
     /**
-     * Synchronous method that, when invoked, blocks until the block stream manager signals a successful
-     * completion of its fatal shutdown logic.
+     * Synchronous method invoked, after {@link #notifyFatalEvent()}, when the platform has reached a catastrophic
+     * failure. Blocks until the handler-thread flush of any open and pending blocks has completed, bounded by the
+     * given timeout; if no further round boundary occurs within the timeout it flushes any already-closed pending
+     * blocks itself (a race-free fallback) and returns.
      *
-     * @param timeout the maximum time to wait for block stream shutdown
+     * @param timeout the maximum time to wait for the open/pending blocks to be flushed to disk
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
 

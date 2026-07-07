@@ -1,0 +1,330 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "904: [CRON] Release Branching"
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_CLI_VERSION: 2.21.2
+  YQ_CLI_VERSION: 4.30.8
+  WORKFLOW_CONFIG_FILE: ".github/workflows/config/node-release.yaml"
+  RELEASE_BRANCH_CHECK_SCRIPT: ".github/workflows/support/scripts/release-branch-check.sh"
+
+jobs:
+  check-trigger:
+    name: Check Trigger Conditions
+    runs-on: hl-cn-default-lin-sm
+    if: ${{ !github.event.workflow_dispatch.repository.fork }}
+    outputs:
+      triggered: ${{ steps.evaluate.outputs.triggered }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read Trigger Time
+        id: time
+        uses: mikefarah/yq@1b9b4ac5187171d2e5e3129be0cfa827c7f9d53d # v4.53.3
+        with:
+          cmd: yq '.release.branching.execution.time' '${{ env.WORKFLOW_CONFIG_FILE }}'
+
+      - name: Evaluate Trigger
+        id: evaluate
+        env:
+          REQUESTED_TIME: ${{ steps.time.outputs.result }}
+        run: |
+          set -x
+          if [[ -z "${REQUESTED_TIME}" ]]; then
+            echo "::error file=${WORKFLOW_CONFIG_FILE},title=Configuration Error::The release branch execution time must be specified and may not be omitted."
+            exit 1
+          fi
+
+          if ! date --date="${REQUESTED_TIME} today" +%s >/dev/null 2>&1; then
+            echo "::error file=${WORKFLOW_CONFIG_FILE},title=Configuration Error::The release branch execution time of '${REQUESTED_TIME}' is invalid."
+            exit 1
+          fi
+
+          BEGIN_TRIGGER_EPOCH="$(date --date="${REQUESTED_TIME} today" +%s)"
+          END_TRIGGER_EPOCH="$(date --date="${REQUESTED_TIME} today +2 hours" +%s)"
+          CURRENT_EPOCH="$(date +%s)"
+
+          TRIGGERED="false"
+          [[ "${CURRENT_EPOCH}" -ge "${BEGIN_TRIGGER_EPOCH}" && "${CURRENT_EPOCH}" -le "${END_TRIGGER_EPOCH}" ]] && TRIGGERED="true"
+          echo "triggered=${TRIGGERED}" >> "${GITHUB_OUTPUT}"
+
+  check-branch:
+    name: Check Branching Conditions
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - check-trigger
+    outputs:
+      schedule-trigger: ${{ steps.branch-creation.outputs.schedule-trigger }}
+      branch-create: ${{ steps.branch-creation.outputs.branch-create }}
+      branch-name: ${{ steps.branch-creation.outputs.branch-name }}
+      tag-create: ${{ steps.branch-creation.outputs.tag-create }}
+      tag-name: ${{ steps.branch-creation.outputs.tag-name }}
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+
+    if: ${{ needs.check-trigger.outputs.triggered == 'true' && !cancelled() }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Branch Creation Check
+        id: branch-creation
+        run: bash "${{ github.workspace }}/${{ env.RELEASE_BRANCH_CHECK_SCRIPT }}"
+
+  create-branch:
+    name: Create Release Branch
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - check-branch
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+
+    if: ${{ needs.check-branch.outputs.branch-create == 'true' && !cancelled() }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+
+      - name: Create Branch
+        id: branch
+        uses: peterjgrainger/action-create-branch@10c7d268152480ae859347db45dc69086cef1d9c # v3.0.0
+        with:
+          branch: refs/heads/${{ needs.check-branch.outputs.branch-name }}
+
+      - name: Compute Commit Identifier
+        id: commit
+        run: echo "short-id=$(echo -n "${{ github.sha }}" | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                  {
+                    "color": "#7647cd",
+                    "blocks": [
+                      {
+                        "type": "header",
+                        "text": {
+                          "type": "plain_text",
+                          "text": ":evergreen_tree: Hiero Consensus Node - Automatic Release Branching",
+                          "emoji": true
+                        }
+                      },
+                      {
+                        "type": "section",
+                        "fields": [
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Branch Name:*"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Source Branch:*"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ needs.check-branch.outputs.branch-name }}|${{ needs.check-branch.outputs.branch-name }}>"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}|${{ github.ref_name }}>"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "section",
+                        "text": {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ steps.commit.outputs.short-id }}>"
+                        }
+                      },
+                      {
+                        "type": "divider"
+                      },
+                      {
+                        "type": "context",
+                        "elements": [
+                          {
+                            "type": "mrkdwn",
+                            "text": ":watch: Initiated by scheduled repository event at date & time: `${{ needs.check-branch.outputs.schedule-trigger }} UTC`"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  create-tag:
+    name: Create Release Tag
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - check-branch
+      - create-branch
+      - extract-jdk-version
+    if: ${{ needs.check-branch.outputs.tag-create == 'true' && needs.create-branch.result == 'success' && !cancelled() }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-java: "true"
+          java-distribution: "temurin"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          setup-gradle: "true"
+          setup-semver: "true"
+
+      - name: Import GPG key for commit signoff
+        id: gpg_import
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        with:
+          gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_config_global: true
+
+      - name: Calculate Version
+        id: version
+        run: |
+          VALID_VERSION="$(semver validate "${{ needs.check-branch.outputs.tag-name }}" | tr -d '[:space:]')"
+
+          if [[ "${VALID_VERSION}" != "valid" ]]; then
+            echo "::error title=Invalid Version::The supplied tag name (${{ needs.check-branch.outputs.tag-name }}) is not a valid semantic version number."
+            exit 1
+          fi
+
+          REL_PART="$(semver get release "${{ needs.check-branch.outputs.tag-name }}")"
+          PRE_PART="$(semver get prerel "${{ needs.check-branch.outputs.tag-name }}")"
+
+          VERSION="${REL_PART}"
+          [[ -n "${PRE_PART}" ]] && VERSION="${VERSION}-${PRE_PART}"
+
+          echo "number=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update Software Version
+        run: ./gradlew versionAsSpecified -PnewVersion=${{ steps.version.outputs.number }}
+
+      - name: Commit Version Changes
+        id: git-commit
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        with:
+          author_name: ${{ secrets.PLATFORM_GIT_USER_NAME }}
+          author_email: ${{ secrets.PLATFORM_GIT_USER_EMAIL }}
+          commit: --signoff --gpg-sign
+          tag: "v${{ steps.version.outputs.number }} -f -m '[Automated Release] Hedera Node v${{ steps.version.outputs.number }}'"
+          message: "[Automated Release] Hedera Node v${{ steps.version.outputs.number }}"
+
+      - name: Compute Commit Identifier
+        id: commit
+        run: |
+          echo "id=$(echo -n "${{ steps.git-commit.outputs.commit_long_sha }}" | tr -d '[:space:]')" >> "${GITHUB_OUTPUT}"
+          echo "short-id=$(echo -n "${{ steps.git-commit.outputs.commit_long_sha }}" | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
+
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: "true"
+          payload: |
+            {
+              "attachments": [
+                  {
+                    "color": "#16bec7",
+                    "blocks": [
+                      {
+                        "type": "header",
+                        "text": {
+                          "type": "plain_text",
+                          "text": ":ideograph_advantage: Hiero Consensus Node - Automatic Release Tagging",
+                          "emoji": true
+                        }
+                      },
+                      {
+                        "type": "section",
+                        "fields": [
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Tag Name:*"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "*Source Branch:*"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "<${{ github.server_url }}/hiero-ledger/hiero-consensus-node/tree/v${{ steps.version.outputs.number }}|v${{ steps.version.outputs.number }}>"
+                          },
+                          {
+                            "type": "mrkdwn",
+                            "text": "<${{ github.server_url }}/hiero-ledger/hiero-consensus-node/tree/${{ needs.check-branch.outputs.branch-name }}|${{ needs.check-branch.outputs.branch-name }}>"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "section",
+                        "text": {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.commit.outputs.id  }}|${{ steps.commit.outputs.short-id }}>"
+                        }
+                      },
+                      {
+                        "type": "divider"
+                      },
+                      {
+                        "type": "context",
+                        "elements": [
+                          {
+                            "type": "mrkdwn",
+                            "text": ":watch: Initiated by scheduled repository event at date & time: `${{ needs.check-branch.outputs.schedule-trigger }} UTC`"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }

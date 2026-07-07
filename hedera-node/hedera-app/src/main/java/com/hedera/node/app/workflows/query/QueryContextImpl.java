@@ -8,12 +8,14 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.records.impl.BlockStreamInfoImpl;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -32,7 +34,6 @@ public class QueryContextImpl implements QueryContext {
     private final State state;
     private final ExchangeRateManager exchangeRateManager;
     private final AccountID payer;
-    private final FeeCalculator feeCalculator;
     private BlockRecordInfo blockRecordInfo; // lazily created
     private ExchangeRateInfo exchangeRateInfo; // lazily created
 
@@ -45,7 +46,6 @@ public class QueryContextImpl implements QueryContext {
      * @param configuration the current {@link Configuration}
      * @param recordCache   the {@link RecordCache} used to cache records
      * @param exchangeRateManager the {@link ExchangeRateManager} used to get the current exchange rate
-     * @param feeCalculator the {@link FeeCalculator} used to calculate fees
      * @param payer         the {@link AccountID} of the payer, if present
      * @throws NullPointerException if {@code query} is {@code null}
      */
@@ -56,7 +56,6 @@ public class QueryContextImpl implements QueryContext {
             @NonNull final Configuration configuration,
             @NonNull final RecordCache recordCache,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final FeeCalculator feeCalculator,
             @Nullable final AccountID payer) {
         this.state = requireNonNull(state, "state must not be null");
         this.storeFactory = requireNonNull(storeFactory, "storeFactory must not be null");
@@ -64,7 +63,6 @@ public class QueryContextImpl implements QueryContext {
         this.configuration = requireNonNull(configuration, "configuration must not be null");
         this.recordCache = requireNonNull(recordCache, "recordCache must not be null");
         this.exchangeRateManager = requireNonNull(exchangeRateManager, "exchangeRateManager must not be null");
-        this.feeCalculator = requireNonNull(feeCalculator, "feeCalculator must not be null");
         this.payer = payer;
     }
 
@@ -114,7 +112,12 @@ public class QueryContextImpl implements QueryContext {
     @Override
     public BlockRecordInfo blockRecordInfo() {
         if (blockRecordInfo == null) {
-            blockRecordInfo = BlockRecordInfoImpl.from(state);
+            // In BLOCKS mode the legacy BlockInfo singleton is not maintained, so block number/timestamp/hashes
+            // must be sourced from BlockStreamInfo (mirrors the handle-path selection in ParentTxnFactory).
+            final var streamMode =
+                    configuration.getConfigData(BlockStreamConfig.class).streamMode();
+            blockRecordInfo =
+                    streamMode == StreamMode.BLOCKS ? BlockStreamInfoImpl.from(state) : BlockRecordInfoImpl.from(state);
         }
         return blockRecordInfo;
     }
@@ -126,11 +129,5 @@ public class QueryContextImpl implements QueryContext {
             exchangeRateInfo = exchangeRateManager.exchangeRateInfo(state);
         }
         return exchangeRateInfo;
-    }
-
-    @NonNull
-    @Override
-    public FeeCalculator feeCalculator() {
-        return feeCalculator;
     }
 }

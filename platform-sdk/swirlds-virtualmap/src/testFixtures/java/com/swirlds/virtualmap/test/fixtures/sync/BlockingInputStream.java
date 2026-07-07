@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.test.fixtures.sync;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -44,6 +45,9 @@ public class BlockingInputStream extends InputStream {
     @Override
     public int read() throws IOException {
         while (locked.get()) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedIOException();
+            }
             Thread.onSpinWait();
         }
         return in.read();

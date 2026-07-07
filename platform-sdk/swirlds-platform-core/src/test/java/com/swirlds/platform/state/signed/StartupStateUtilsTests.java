@@ -2,11 +2,11 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
-import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignedStateToDisk;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -17,15 +17,12 @@ import static org.mockito.Mockito.spy;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -41,14 +38,17 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig_;
+import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.io.TestRecycleBin;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -99,7 +99,7 @@ public class StartupStateUtilsTests {
     @NonNull
     private PlatformContext buildContext(final boolean deleteInvalidStateFiles, @NonNull final RecycleBin recycleBin) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, savedStateDir.toString())
+                .withValue(PathsConfig_.SAVED_STATE_DIR, savedStateDir.toString())
                 .withValue(StateConfig_.DELETE_INVALID_STATE_FILES, deleteInvalidStateFiles)
                 .getOrCreateConfig();
 
@@ -134,7 +134,8 @@ public class StartupStateUtilsTests {
 
         final Path savedStateDirectory = signedStateFilePath.getSignedStateDirectory(round);
         writeSignedStateToDisk(
-                platformContext,
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager(),
                 selfId,
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,

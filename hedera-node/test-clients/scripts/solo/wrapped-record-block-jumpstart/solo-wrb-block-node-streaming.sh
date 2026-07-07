@@ -33,7 +33,7 @@ Environment:
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
                                 (default: <repo>/hedera-node/data)
   GENESIS_APP_PROPS_FILE        Base application.properties for genesis deploy
-                                (default: wrapped-record-block-jumpstart/resources/0.74/application.properties)
+                                (default: wrapped-record-block-jumpstart/resources/0.75/application.properties)
   LOG4J2_XML_PATH               log4j2 xml path (default: <repo>/hedera-node/configuration/dev/log4j2.xml)
   BLOCK_STREAM_MODE             blockStream.streamMode for genesis (default: BOTH)
   BLOCK_STREAM_WRITER_MODE      blockStream.writerMode for genesis (default: FILE_AND_GRPC)
@@ -99,10 +99,37 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 
+# Shared remote-cluster helpers (default StorageClass, deployment re-establish after destroy,
+# toleration patcher) reused from the jumpstart scenario; the functions are no-ops on kind.
+# shellcheck source=../remote-cluster-helpers.sh
+source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
+# Shared Block Node WRB RSA roster helpers (generate_rsa_bootstrap_roster_json,
+# write_block_node_rsa_values). The cutover scenario still carries an inline copy of the same logic;
+# that is a candidate to migrate onto this shared file.
+# shellcheck source=../block-node-rsa-roster.sh
+source "${SCRIPT_DIR}/../block-node-rsa-roster.sh"
+
 export SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo}"
 export SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 export SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-cluster}"
 export SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-deployment}"
+
+# Cluster target: "kind" (default, ephemeral local cluster) or "remote" (pre-allocated cluster
+# reached via an already-current kubectl context, e.g. Teleport). On remote, adopt the CITR
+# conventions so this lands on the shared cluster the same way the longevity tooling does.
+CLUSTER_TARGET="${CLUSTER_TARGET:-kind}"
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  : "${KUBE_CONTEXT:?CLUSTER_TARGET=remote requires KUBE_CONTEXT (the kubectl context to use)}"
+  CLUSTER_REF="${CLUSTER_REF:-${SOLO_NAMESPACE}-ref}"
+  export SOLO_CLUSTER_SETUP_NAMESPACE="solo-setup"
+  export SOLO_DEPLOYMENT="${SOLO_NAMESPACE}-test"
+elif [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  KUBE_CONTEXT="${KUBE_CONTEXT:-kind-${SOLO_CLUSTER_NAME}}"
+  CLUSTER_REF="${CLUSTER_REF:-kind-${SOLO_CLUSTER_NAME}}"
+else
+  echo "Invalid CLUSTER_TARGET: ${CLUSTER_TARGET} (expected 'kind' or 'remote')" >&2
+  exit 1
+fi
 
 if [[ -n "${NODE_COUNT_PARAM}" ]]; then
   case "${NODE_COUNT_PARAM}" in
@@ -119,7 +146,7 @@ RELEASE_TAG="${RELEASE_TAG:-v0.73.0-rc.5}"
 USE_LOCAL_BUILD="${USE_LOCAL_BUILD:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
-GENESIS_APP_PROPS_FILE="${GENESIS_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74/application.properties}"
+GENESIS_APP_PROPS_FILE="${GENESIS_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.75/application.properties}"
 BLOCK_STREAM_MODE="${BLOCK_STREAM_MODE:-BOTH}"
 BLOCK_STREAM_WRITER_MODE="${BLOCK_STREAM_WRITER_MODE:-FILE_AND_GRPC}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-}"
@@ -145,6 +172,18 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 GENERATED_DIR="${GENERATED_DIR:-${SCRIPT_DIR}/generated}"
 WORK_DIR="${WORK_DIR:-${GENERATED_DIR}/work-genesis-block-node}"
 TMP_GENESIS_APP_PROPS="${WORK_DIR}/genesis-application.properties"
+
+# RSA roster bootstrap for the Block Node's RsaRosterBootstrapPlugin: the wrapped-record-block
+# verifier needs the CN address book (node_id -> RSA public key) or it rejects every streamed block
+# with BAD_BLOCK_PROOF ("Address book is empty"). We generate the roster from the network's gossip
+# certs and seed it into the BN's live-data PVC via an init container (file-first path). No Mirror
+# Node fallback: streaming runs no mirror, and /api/v1/network/nodes 404s on a fresh solo deploy.
+RSA_BOOTSTRAP_ROSTER_FILE="${RSA_BOOTSTRAP_ROSTER_FILE:-${WORK_DIR}/rsa-bootstrap-roster.json}"
+BLOCK_NODE_RSA_VALUES_FILE="${BLOCK_NODE_RSA_VALUES_FILE:-${WORK_DIR}/block-node-rsa-values.yaml}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL:-}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_CONNECT_TIMEOUT_SECONDS:-5}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS:-10}"
+ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE:-100}"
 WRB_LOCAL_PAYLOAD_PATH="${WORK_DIR}/localPayload/data"
 GENERATED_BLOCK_NODE_PROTO_PATH="${WORK_DIR}/block-node-protos"
 EFFECTIVE_LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}"
@@ -174,12 +213,16 @@ cleanup() {
   set +e
   [[ -n "${CN_PORT_FORWARD_PID}" ]] && kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
   [[ -n "${BLOCK_NODE_PORT_FORWARD_PID}" ]] && kill "${BLOCK_NODE_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  stop_remote_toleration_patcher
   if [[ "${KEEP_NETWORK}" != "true" && ${exit_code} -eq 0 ]]; then
-    log "KEEP_NETWORK=false, destroying Solo resources and kind cluster"
+    log "KEEP_NETWORK=false, destroying Solo resources (and the kind cluster when CLUSTER_TARGET=kind)"
     solo block node destroy --deployment "${SOLO_DEPLOYMENT}" --id "${BLOCK_NODE_ID}" --quiet-mode --force >/dev/null 2>&1 || true
     solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
-    kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+    # Never delete the shared remote cluster; only an ephemeral kind cluster is torn down here.
+    if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+      kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+    fi
   fi
 }
 trap cleanup EXIT
@@ -482,10 +525,15 @@ prepare_wrb_local_build_payload() {
 }
 
 deploy_block_node_for_streaming() {
+  # Seed the BN's WRB RSA address book before deploying it; without it the RsaRosterBootstrapPlugin
+  # loads nothing and the verifier rejects every streamed block with BAD_BLOCK_PROOF.
+  generate_rsa_bootstrap_roster_json
+  write_block_node_rsa_values
+
   local add_args=(
     solo block node add
     --deployment "${SOLO_DEPLOYMENT}"
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+    --cluster-ref "${CLUSTER_REF}"
     --quiet-mode
     --priority-mapping "${BLOCK_NODE_PRIORITY_MAPPING}"
   )
@@ -493,7 +541,11 @@ deploy_block_node_for_streaming() {
   [[ -n "${BLOCK_NODE_CHART_VERSION}" ]] && add_args+=(--chart-version "${BLOCK_NODE_CHART_VERSION}")
   [[ -n "${BLOCK_NODE_RELEASE_TAG}" ]] && add_args+=(--release-tag "${BLOCK_NODE_RELEASE_TAG}")
   [[ -n "${BLOCK_NODE_IMAGE_TAG}" ]] && add_args+=(--image-tag "${BLOCK_NODE_IMAGE_TAG}")
-  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && add_args+=(--values-file "${BLOCK_NODE_VALUES_FILE}")
+  # Solo's --values-file is comma-separated; layer the RSA roster values on top of any user-supplied
+  # BLOCK_NODE_VALUES_FILE so user overrides still win for other keys.
+  local values_files="${BLOCK_NODE_RSA_VALUES_FILE}"
+  [[ -n "${BLOCK_NODE_VALUES_FILE}" ]] && values_files="${BLOCK_NODE_VALUES_FILE},${BLOCK_NODE_RSA_VALUES_FILE}"
+  add_args+=(--values-file "${values_files}")
 
   log "Deploying Block Node ${BLOCK_NODE_ID} and routing consensus nodes with priority mapping '${BLOCK_NODE_PRIORITY_MAPPING}'"
   "${add_args[@]}"
@@ -642,7 +694,10 @@ assert_block_node_logs_clean() {
 }
 
 log "Validating prerequisites"
-require_cmd kind
+# kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  require_cmd kind
+fi
 require_cmd kubectl
 require_cmd solo
 require_cmd jq
@@ -691,28 +746,46 @@ prepare_block_node_proto_path
 create_genesis_application_properties
 prepare_wrb_local_build_payload
 
-log "Resetting kind cluster ${SOLO_CLUSTER_NAME}"
-kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
+if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
+  log "Resetting kind cluster ${SOLO_CLUSTER_NAME}"
+  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+fi
 
-log "Configuring Solo deployment ${SOLO_DEPLOYMENT} for ${CONSENSUS_NODE_COUNT} node(s)"
-solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+log "Configuring Solo deployment ${SOLO_DEPLOYMENT} for ${CONSENSUS_NODE_COUNT} node(s) (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})"
+solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
 solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
 solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "${CLUSTER_REF}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
+
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  # Mark local-path default, tear down any prior network, re-establish the deployment config the
+  # destroy removes, and run cluster-ref setup only if missing (shared helper).
+  remote_reset_and_prepare_deployment
+else
+  solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+fi
 
 log "Deploying consensus network with genesis block streaming properties"
 solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-solo consensus network deploy \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -i "${NODE_ALIASES}" \
-  --application-properties "${TMP_GENESIS_APP_PROPS}" \
-  --log4j2-xml "${LOG4J2_XML_PATH}" \
-  --service-monitor true \
-  --pod-log true \
-  --pvcs true \
+# On remote, pass the scheduling/storage value overrides and deploy without PVCs (emptyDir); kind keeps PVCs.
+deploy_pvcs="true"
+deploy_args=(
+  solo consensus network deploy
+  --deployment "${SOLO_DEPLOYMENT}"
+  -i "${NODE_ALIASES}"
+  --application-properties "${TMP_GENESIS_APP_PROPS}"
+  --log4j2-xml "${LOG4J2_XML_PATH}"
+  --service-monitor true
+  --pod-log true
   --release-tag "${RELEASE_TAG}"
+)
+if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
+  deploy_pvcs="false"
+  deploy_args+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+fi
+deploy_args+=(--pvcs "${deploy_pvcs}")
+"${deploy_args[@]}"
 
 setup_args=(
   solo consensus node setup
@@ -732,11 +805,15 @@ if [[ "${USE_LOCAL_BUILD}" == "true" ]]; then
   verify_local_build_on_consensus_nodes
 fi
 
+# On remote, keep the block-node (and any shared-resources) pods tolerating the node taint while
+# they come up; no-op on kind.
+start_remote_toleration_patcher
 deploy_block_node_for_streaming
 restart_port_forwards
 
 log "Waiting for Block Node to persist streamed block data"
 wait_for_block_node_to_persist_block
+stop_remote_toleration_patcher
 log "Verifying required WRB RecordFileItem streaming; absence of WRB content is a test failure"
 assert_block_node_serves_wrb_record_file_block
 assert_consensus_block_node_logs_clean

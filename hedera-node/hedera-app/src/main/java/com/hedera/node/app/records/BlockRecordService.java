@@ -12,6 +12,7 @@ import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0750BlockRecordSchema;
+import com.hedera.node.app.records.schemas.V0760BlockRecordSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -69,6 +70,7 @@ public final class BlockRecordService implements Service {
         registry.register(new V0490BlockRecordSchema());
         registry.register(new V0560BlockRecordSchema());
         registry.register(new V0750BlockRecordSchema());
+        registry.register(new V0760BlockRecordSchema());
     }
 
     @Override

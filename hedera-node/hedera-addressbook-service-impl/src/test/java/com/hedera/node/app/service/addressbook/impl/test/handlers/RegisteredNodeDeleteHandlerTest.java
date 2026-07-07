@@ -2,9 +2,7 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_NODE_STILL_ASSOCIATED;
-import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,10 +20,7 @@ import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -66,12 +61,6 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
 
     @Mock
     private FeeContext feeContext;
-
-    @Mock
-    private FeeCalculatorFactory feeCalculatorFactory;
-
-    @Mock
-    private FeeCalculator feeCalculator;
 
     private RegisteredNodeDeleteHandler subject;
 
@@ -317,74 +306,6 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(REGISTERED_NODE_STILL_ASSOCIATED, msg.getStatus());
-    }
-
-    // ─── calculateFees ─────────────────────────────────────────────
-
-    @Test
-    @DisplayName("calculateFees uses signature-based pricing with SubType.DEFAULT")
-    void calculateFeesUsesSignatureBasedPricing() {
-        final var expectedFees = new Fees(1L, 2L, 3L);
-        given(feeContext.configuration())
-                .willReturn(HederaTestConfigBuilder.create()
-                        .withValue("nodes.registeredNodesEnabled", true)
-                        .getOrCreateConfig());
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
-        given(feeContext.numTxnSignatures()).willReturn(2);
-        given(feeCalculator.calculate()).willReturn(expectedFees);
-
-        final var result = subject.calculateFees(feeContext);
-
-        assertEquals(expectedFees, result);
-        verify(feeCalculator).resetUsage();
-        verify(feeCalculator).addVerificationsPerTransaction(1);
-    }
-
-    @Test
-    @DisplayName("calculateFees floors verification count at zero for single signature")
-    void calculateFeesWithZeroSignatures() {
-        given(feeContext.configuration())
-                .willReturn(HederaTestConfigBuilder.create()
-                        .withValue("nodes.registeredNodesEnabled", true)
-                        .getOrCreateConfig());
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
-        given(feeContext.numTxnSignatures()).willReturn(0);
-        given(feeCalculator.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeContext);
-
-        verify(feeCalculator).addVerificationsPerTransaction(0);
-    }
-
-    @Test
-    @DisplayName("calculateFees adds n-1 verifications for multiple signatures")
-    void calculateFeesWithMultipleSignatures() {
-        given(feeContext.configuration())
-                .willReturn(HederaTestConfigBuilder.create()
-                        .withValue("nodes.registeredNodesEnabled", true)
-                        .getOrCreateConfig());
-        given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(DEFAULT)).willReturn(feeCalculator);
-        given(feeContext.numTxnSignatures()).willReturn(5);
-        given(feeCalculator.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeContext);
-
-        verify(feeCalculator).addVerificationsPerTransaction(4);
-    }
-
-    @Test
-    @DisplayName("calculateFees throws NOT_SUPPORTED when registeredNodesEnabled is false")
-    void calculateFeesThrowsWhenDisabled() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.registeredNodesEnabled", false)
-                .getOrCreateConfig();
-        given(feeContext.configuration()).willReturn(config);
-
-        final var ex = assertThrows(HandleException.class, () -> subject.calculateFees(feeContext));
-        assertEquals(NOT_SUPPORTED, ex.getStatus());
     }
 
     // ─── helpers ───────────────────────────────────────────────────

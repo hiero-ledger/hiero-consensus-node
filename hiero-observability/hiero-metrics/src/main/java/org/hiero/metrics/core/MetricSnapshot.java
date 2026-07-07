@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * A snapshot of a {@link Metric} at a point in time, containing its {@link MeasurementSnapshot}s.
+ * A snapshot of a {@link Metric} at a point in time, allowing iteration over {@link MeasurementSnapshot}s
+ * with consistent repetitive order (new measurements are appended).
  */
 public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSnapshot> {
 

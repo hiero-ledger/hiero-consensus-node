@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -40,6 +41,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.tuweni.bytes.Bytes;
@@ -194,6 +196,10 @@ class HandleSystemContractOperationsTest {
                 AccountID.newBuilder().build());
 
         // given
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("blockStream.streamMode", "BOTH")
+                        .getOrCreateConfig());
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL))
                 .willReturn(streamBuilder);
@@ -206,6 +212,46 @@ class HandleSystemContractOperationsTest {
 
         // then
         verify(streamBuilder).status(ResponseCodeEnum.SUCCESS);
+        verify(streamBuilder).contractCallResult(contractFunctionResult);
+    }
+
+    @Test
+    void externalizeResultSkipsLegacyContractCallResultWhenStreamModeIsBlocks() {
+        final var transaction = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
+                        .transactionID(TransactionID.DEFAULT)
+                        .build()))
+                .build();
+        final var contractFunctionResult = SystemContractUtils.successResultOfZeroValueTraceable(
+                0,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                100L,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                AccountID.newBuilder().build());
+        final var txResult = SystemContractUtils.txSuccessResultOfZeroValueTraceable(
+                0,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                100L,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                AccountID.newBuilder().build());
+
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("blockStream.streamMode", "BLOCKS")
+                        .getOrCreateConfig());
+        given(context.savepointStack()).willReturn(savepointStack);
+        given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL))
+                .willReturn(streamBuilder);
+        given(streamBuilder.signedTx(transaction)).willReturn(streamBuilder);
+        given(streamBuilder.status(ResponseCodeEnum.SUCCESS)).willReturn(streamBuilder);
+
+        // when
+        subject.externalizeResult(contractFunctionResult, ResponseCodeEnum.SUCCESS, transaction, txResult);
+
+        // then
+        verify(streamBuilder, never())
+                .contractCallResult(any(com.hedera.hapi.node.contract.ContractFunctionResult.class));
+        verify(streamBuilder).evmCallTransactionResult(txResult);
     }
 
     @Test

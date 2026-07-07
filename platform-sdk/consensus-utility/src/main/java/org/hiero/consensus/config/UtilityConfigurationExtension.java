@@ -20,6 +20,7 @@ public class UtilityConfigurationExtension implements ConfigurationExtension {
                 EventConfig.class,
                 FallenBehindConfig.class,
                 PathsConfig.class,
+                PlatformStatusConfig.class,
                 RecycleBinConfig.class);
     }
 }

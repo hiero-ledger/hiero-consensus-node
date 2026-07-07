@@ -10,9 +10,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.TssVerbs.startIgnoringTssSignatureRequests;
 import static com.hedera.services.bdd.spec.utilops.TssVerbs.stopIgnoringTssSignatureRequests;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,7 +69,7 @@ public class RepeatableTssTests {
                         doAdhoc(() -> spec.repeatableEmbeddedHederaOrThrow().setRoundDuration(Duration.ofSeconds(2))),
                         sleepForSeconds(3L),
                         startIgnoringTssSignatureRequests(),
-                        blockStreamMustIncludePassFrom(ignore -> indirectProofsAssertion),
+                        streamMustIncludePassFrom(ignore -> indirectProofsAssertion),
                         // Each transaction is placed into its own round and hence block
                         cryptoCreate("somebody").yahcliLogging(),
                         sleepForSeconds(3L),

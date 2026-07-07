@@ -2,7 +2,7 @@
 
 Specification for `invariants/INV-NNN-short-slug.md` entries. This file
 defines the structure only; allowed values for the `topics` field are the
-eleven topic slugs under `architecture/topics/`. The test for whether
+topic slugs under `architecture/topics/`. The test for whether
 something is an invariant rather than a rule is defined in `README.md` —
 apply it before filing here.
 
@@ -16,6 +16,7 @@ apply it before filing here.
 
 ```yaml
 ---
+type: invariant
 id: INV-NNN
 title: Short declarative title — the property in a phrase
 class: safety                         # safety | liveness | agreement | ordering | integrity | determinism
@@ -98,6 +99,7 @@ entries, history. Omit the section if empty.
 
 ```markdown
 ---
+type: invariant
 id: INV-NNN
 title: ...
 class: safety

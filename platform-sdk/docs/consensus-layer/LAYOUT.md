@@ -6,7 +6,7 @@ Canonical structure for the consensus-layer knowledge base in the repo. Tools (T
 
 ## Scope
 
-The consensus layer of the platform-sdk — the 11 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
+The consensus layer of the platform-sdk — the 13 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
 
 ## Directory tree
 
@@ -20,7 +20,12 @@ platform-sdk/docs/consensus-layer/
 │   ├── rounds-and-witnesses.md
 │   ├── strongly-seeing.md
 │   ├── birth-round.md
-│   └── ...
+│   ├── coin-rounds.md
+│   ├── judges.md
+│   ├── voting.md
+│   ├── event-lifecycle.md
+│   ├── stale-events.md
+│   └── branching.md
 │
 ├── glossary.md                            single file, ~50 terms
 ├── symptoms.md                            single file (catalog of SYM-NNN entries)
@@ -29,7 +34,7 @@ platform-sdk/docs/consensus-layer/
 ├── architecture/
 │   ├── README.md
 │   ├── overview.md                        high-level shape; adapts from Consensus-Layer.md
-│   ├── topics/                            one file per topic (the 11)
+│   ├── topics/                            one file per topic
 │   │   ├── wiring-framework.md
 │   │   ├── gossip.md
 │   │   ├── event-intake.md
@@ -37,7 +42,9 @@ platform-sdk/docs/consensus-layer/
 │   │   ├── hashgraph.md
 │   │   ├── health-monitor-and-backpressure.md
 │   │   ├── reasons-not-to-gossip.md
+│   │   ├── quiescence.md
 │   │   ├── signed-state-management.md
+│   │   ├── iss-detection.md
 │   │   ├── restart-and-pces.md
 │   │   ├── freeze-and-upgrade.md
 │   │   └── reconnect.md
@@ -71,6 +78,7 @@ platform-sdk/docs/consensus-layer/
 │
 ├── delta-map/                             one file per topic, flat
 │   ├── README.md
+│   ├── FORMAT.md
 │   ├── wiring-framework.md
 │   ├── gossip.md
 │   ├── event-intake.md
@@ -78,10 +86,13 @@ platform-sdk/docs/consensus-layer/
 │   ├── hashgraph.md
 │   ├── health-monitor-and-backpressure.md
 │   ├── reasons-not-to-gossip.md
+│   ├── quiescence.md
 │   ├── signed-state-management.md
+│   ├── iss-detection.md
 │   ├── restart-and-pces.md
 │   ├── freeze-and-upgrade.md
-│   └── reconnect.md
+│   ├── reconnect.md
+│   └── sheriff.md
 │
 └── tutor/                                 curriculum content; internal structure deferred
 ```
@@ -128,13 +139,13 @@ Single file. ~50 terms. The canonical definition for each term referenced anywhe
 
 ### `symptoms.md`
 
-Single file. Controlled vocabulary of observable symptoms (`SYM-NNN`) referenced by per-file catalogs that key off observation — currently `heuristics/` and `scenarios/`. Each entry has an ID, name, description, and source of observation. A symptom here is something observable and recorded, independent of cause; many heuristics or scenarios may share one symptom, and that is the point of the catalog.
+Single file. Controlled vocabulary of observable symptoms (`SYM-NNN`) referenced by per-file catalogs that key off observation — currently `heuristics/` and `scenarios/`. It is an index, not a knowledge file: it carries no diagnostic content of its own. The knowledge — suspected cause, validation, incident timeline — lives in the `heuristics/` and `scenarios/` entries that cite the `SYM-NNN`. Each entry has an ID, name, description, and source of observation. A symptom here is something observable and recorded, independent of cause; many heuristics or scenarios may share one symptom, and that is the point of the catalog.
 
 ### `architecture/`
 
 The topic-organized lens on the consensus layer.
 - `architecture/overview.md` — adapts the high-level shape from `Consensus-Layer.md` for KB use.
-- `architecture/topics/` — one file per topic (the 11). Each describes the topic's responsibilities, state, contracts, and links to related concepts, invariants, decisions, and scenarios.
+- `architecture/topics/` — one file per topic. Each describes the topic's responsibilities, state, contracts, and links to related concepts, invariants, decisions, and scenarios.
 - `architecture/interfaces/consensus-execution-boundary.md` — the Consensus public API (`initialize`, `destroy`, `nextRound`, `onBehind`, `onPreHandleEvent`, `getTransactionsForEvent`, etc.).
 
 ### `decisions/`
@@ -147,7 +158,7 @@ Per-file catalog of design-guaranteed properties of the form **this is true, and
 
 ### `rules/`
 
-Per-file catalog of implementation-true properties of the form **this is true of the code as it stands, and a correct change could make it false**. Each entry has an ID (`RUL-NNN`), statement, code anchor, `last_verified_against` commit, and account of what would break it. A rule observed false is a divergence signal — the code moved, or the rule was mis-stated — not, by itself, a bug. Pairs with `invariants/`: an entry that turns out to be design-guaranteed is promoted to `invariants/`.
+Per-file catalog of implementation-true properties of the form **this is true of the code as it stands, and a correct change could make it false**. Each entry has an ID (`RUL-NNN`), statement, code anchor (`components:`), `status`, and account of what would break it. A rule observed false is a divergence signal — the code moved, or the rule was mis-stated — not, by itself, a bug. Pairs with `invariants/`: an entry that turns out to be design-guaranteed is promoted to `invariants/`.
 
 ### `tunables.md`
 
@@ -163,7 +174,7 @@ Per-file heuristic entries of the form **observable symptom → suspected cause 
 
 ### `delta-map/`
 
-Per-topic status of "current code vs. proposed design": done / partial / not started / divergent. Eleven flat files, one per topic. Updated as work progresses.
+Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per architecture topic, plus `sheriff.md` for a proposal-only module with no architecture topic yet. `FORMAT.md` defines the entry shape. Updated as work progresses.
 
 ### `tutor/`
 
@@ -183,7 +194,86 @@ Internal organization of `tutor/` is left to the Tutor implementation — author
 
 Every populated directory has a `README.md` that serves as the canonical index — a table mapping IDs (where applicable) to titles, with brief descriptions. Tools cross-reference by ID; humans navigate by title in listings.
 
-Every catalog directory with per-file entries (currently `decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`) additionally carries a `FORMAT.md` that specifies the entry shape — file naming, frontmatter, mandatory body sections, status discipline. The `README.md` is the catalog; the `FORMAT.md` is the schema. New entries are checked against `FORMAT.md`; tools that read the catalog rely on its conventions holding.
+Every catalog directory with per-file entries (currently `decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`, `delta-map/`) additionally carries a `FORMAT.md` that specifies the entry shape — file naming, frontmatter, mandatory body sections, status discipline. The `README.md` is the catalog; the `FORMAT.md` is the schema. New entries are checked against `FORMAT.md`; tools that read the catalog rely on its conventions holding.
+
+### Frontmatter conventions
+
+`type` is the first key in every non-scaffolding `.md` frontmatter block. Non-scaffolding
+means every file except `README.md`, `FORMAT.md`, and `LAYOUT.md`. The value is lowercase
+and fixed per document class.
+
+Two header orderings apply:
+
+- **Catalog entries** (`decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`):
+  `type` / `id` / `title` / … (all other existing fields unchanged)
+- **Narrative and single-file catalog files** (`concepts/`, `architecture/**`, `glossary.md`,
+  `symptoms.md`, `tunables.md`): `type` / `title` / `description` (catalog files only) /
+  `last_reviewed`
+
+Type vocabulary:
+
+|          Path pattern          |       `type` value       |
+|--------------------------------|--------------------------|
+| `concepts/*.md`                | `concept`                |
+| `glossary.md`                  | `glossary`               |
+| `architecture/overview.md`     | `architecture-overview`  |
+| `architecture/interfaces/*.md` | `architecture-interface` |
+| `architecture/topics/*.md`     | `architecture-topic`     |
+| `decisions/ADR-*.md`           | `decision`               |
+| `invariants/INV-*.md`          | `invariant`              |
+| `rules/RUL-*.md`               | `rule`                   |
+| `scenarios/SCN-*.md`           | `scenario`               |
+| `heuristics/HEU-*.md`          | `heuristic`              |
+| `delta-map/*.md`               | `delta-map`              |
+| `symptoms.md`                  | `symptom-catalog`        |
+| `tunables.md`                  | `tunable-catalog`        |
+
+## Canonicalization and non-duplication
+
+Each fact has exactly one canonical home in this KB. Every other mention
+references that home — by ID, by link, or by name — rather than restating the
+fact. This is the structural rule that keeps the KB maintainable: when a fact
+changes, there is one place to change it, not a scattered set that must all be
+found and edited in lockstep.
+
+Canonical homes, by kind of fact:
+
+|              Kind of fact              |                          Canonical home                          |
+|----------------------------------------|------------------------------------------------------------------|
+| Term definition / mental model         | `glossary.md` (term), `concepts/` (model)                        |
+| Observable symptom                     | `symptoms.md` (`SYM-NNN`)                                        |
+| Configurable parameter, threshold      | `tunables.md`                                                    |
+| Why a load-bearing choice was made     | `decisions/` (`ADR-NNN`)                                         |
+| Property true under any correct impl   | `invariants/` (`INV-NNN`)                                        |
+| Property true of the code as it is     | `rules/` (`RUL-NNN`)                                             |
+| Catalog entry title + one-line summary | the entry file (mirrored into its `README.md` index — see below) |
+
+### Narrative restatement vs. duplicated source of truth
+
+Repetition is not absolutely forbidden — an ADR or rule may restate orienting
+context so a human can read it without chasing links, and that is fine. The
+line is between two kinds of repetition:
+
+- **Narrative restatement** — a prose summary that orients the reader. Allowed.
+  Keep it a summary, and link to the canonical home for the authoritative version.
+- **Duplicated source of truth** — a load-bearing value copied verbatim: a
+  parameter value or threshold, an ID, a file path, a `status`, a commit hash.
+  **Not allowed.** State it once in its canonical home and reference it.
+
+The test: *if this fact changes, must I also edit it here?* If yes, it is a
+duplicated source of truth and must become a reference instead.
+
+### Sanctioned duplication
+
+One duplication is built into the structure: each catalog entry's title and
+one-line summary appear both in the entry file and in its `README.md` index
+row. This is deliberate — the index is the navigable catalog. Because it is a
+duplication, it carries a sync obligation: the index row is updated in the same
+change as the entry it describes, never separately.
+
+The procedure a contributor (human or agent) follows to honor these rules —
+including how to find every existing reference before changing a fact — lives in
+[`CLAUDE.md`](CLAUDE.md). This section states the rule; that file states how to apply it.
 
 ## When to update this file
 
@@ -194,5 +284,6 @@ This document is the structural contract for the KB; structural changes should l
 - **Move path or discriminator change between catalogs** — update the affected sections so the rule for sorting entries between them stays explicit.
 - **Deferred decision resolved** — move it out of "Deferred decisions" into the relevant convention section.
 - **Convention change** (e.g., FORMAT.md requirement, frontmatter pattern, README index shape) — update wherever the convention is stated, and check for restatements that need to follow.
+- **Frontmatter-pattern change** — any change to the `type` vocabulary, or the header ordering.
 
 Non-structural content updates — new ADRs, new scenarios, new lessons, new entries to existing catalogs — do not require an update here. That is what the catalog READMEs are for.

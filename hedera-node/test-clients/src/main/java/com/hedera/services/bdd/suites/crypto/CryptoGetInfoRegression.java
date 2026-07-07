@@ -26,6 +26,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -242,12 +243,9 @@ public class CryptoGetInfoRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"fees.simpleFeesEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
-                overriding("fees.simpleFeesEnabled", "false"),
                 cryptoCreate(CIVILIAN_PAYER),
                 getAccountInfo(GENESIS)
                         .payingWith(CIVILIAN_PAYER)

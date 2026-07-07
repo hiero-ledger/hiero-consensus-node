@@ -8,15 +8,15 @@ import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.coun
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoDeleteAllowanceMeta.countNftDeleteSerials;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.CRYPTO_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BOOL_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.CRYPTO_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.INT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_DELETE_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.TOKEN_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -37,7 +37,7 @@ import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CryptoAllowance;
 import com.hederahashgraph.api.proto.java.CryptoApproveAllowanceTransactionBody;
@@ -72,11 +72,11 @@ class CryptoOpsUsageTest {
     private final long expiry = now + secs;
     private final Key key = KeyUtils.A_COMPLEX_KEY;
     private final String memo = "That abler soul, which thence doth flow";
-    private final AccountID proxy = IdUtils.asAccount("0.0.75231");
-    private final AccountID proxy2 = IdUtils.asAccount("0.0.75232");
-    private final AccountID proxy3 = IdUtils.asAccount("0.0.75233");
-    private final AccountID proxy4 = IdUtils.asAccount("0.0.75234");
-    private final AccountID owner = IdUtils.asAccount("0.0.10000");
+    private final AccountID proxy = IdUtils.asAccount(75231L);
+    private final AccountID proxy2 = IdUtils.asAccount(75232L);
+    private final AccountID proxy3 = IdUtils.asAccount(75233L);
+    private final AccountID proxy4 = IdUtils.asAccount(75234L);
+    private final AccountID owner = IdUtils.asAccount(10000L);
     private final int maxAutoAssociations = 123;
     private final int numSigs = 3;
     private final int sigSize = 100;
@@ -86,17 +86,17 @@ class CryptoOpsUsageTest {
     private final TokenAllowance tokenAllowances = TokenAllowance.newBuilder()
             .setSpender(proxy)
             .setAmount(10L)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .build();
     private final NftAllowance nftAllowances = NftAllowance.newBuilder()
             .setSpender(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L))
             .build();
 
     private final NftRemoveAllowance nftDeleteAllowances = NftRemoveAllowance.newBuilder()
             .setOwner(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L))
             .build();
 
@@ -574,7 +574,7 @@ class CryptoOpsUsageTest {
                 /* The proxy account */
                 + BASIC_ENTITY_ID_SIZE
                 + memo.length()
-                + FeeBuilder.getAccountKeyStorageSize(key)
+                + FeeConstants.getAccountKeyStorageSize(key)
                 + (maxAutoAssociations != 0 ? INT_SIZE : 0);
     }
 

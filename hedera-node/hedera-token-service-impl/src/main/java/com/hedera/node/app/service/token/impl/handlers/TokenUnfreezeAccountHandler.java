@@ -5,13 +5,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUnfreezeAccountTransactionBody;
@@ -19,8 +18,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -117,8 +114,9 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
         final var tokenMeta = tokenStore.getTokenMeta(tokenId);
         validateTrue(tokenMeta != null, INVALID_TOKEN_ID);
 
-        // Check that the token has a freeze key
-        validateTrue(tokenMeta.hasFreezeKey(), TOKEN_HAS_NO_FREEZE_KEY);
+        // Check that the token has a freeze key. An empty key list (the HIP-540 removal sentinel)
+        // means the freeze function is disabled and must be treated as "no freeze key".
+        validateTrue(!isEmpty(tokenMeta.freezeKey()), TOKEN_HAS_NO_FREEZE_KEY);
 
         // Check that the account exists
         final var accountId = op.accountOrElse(AccountID.DEFAULT);
@@ -134,16 +132,5 @@ public class TokenUnfreezeAccountHandler implements TransactionHandler {
 
         // Return the token relation
         return tokenRel;
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var meta = TOKEN_OPS_USAGE_UTILS.tokenUnfreezeUsageFrom();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(meta.getBpt())
-                .calculate();
     }
 }

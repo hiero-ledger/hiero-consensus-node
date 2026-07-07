@@ -7,28 +7,23 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.config.internal.ConfigMappings;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import java.time.Duration;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.junit.jupiter.api.Test;
 
 class ConfigMappingsTest {
     @Test
     void testAliases() {
-        final int valueNonAncient = 10;
-        final int valueExpired = 20;
-        final int valueCoin = 30;
+        final Duration valueHangingThreadDuration = Duration.ofSeconds(123);
 
-        final SimpleConfigSource configSource = new SimpleConfigSource()
-                .withValue("state.roundsNonAncient", String.valueOf(valueNonAncient))
-                .withValue("state.roundsExpired", String.valueOf(valueExpired))
-                .withValue("coinFreq", String.valueOf(valueCoin));
+        final SimpleConfigSource configSource =
+                new SimpleConfigSource().withValue("hangingThreadDuration", String.valueOf(valueHangingThreadDuration));
         final Configuration configuration = ConfigurationBuilder.create()
                 .withSource(ConfigMappings.addConfigMapping(configSource))
-                .withConfigDataType(ConsensusConfig.class)
+                .withConfigDataType(GossipConfig.class)
                 .build();
 
-        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
-        assertEquals(valueNonAncient, consensusConfig.roundsNonAncient());
-        assertEquals(valueExpired, consensusConfig.roundsExpired());
-        assertEquals(valueCoin, consensusConfig.coinFreq());
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
+        assertEquals(valueHangingThreadDuration, gossipConfig.hangingThreadDuration());
     }
 }

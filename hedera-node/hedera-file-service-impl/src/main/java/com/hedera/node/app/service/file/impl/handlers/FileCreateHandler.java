@@ -12,16 +12,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.records.CreateFileStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -40,17 +35,12 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class FileCreateHandler implements TransactionHandler {
-    private final FileOpsUsage fileOpsUsage;
 
     /**
-     * Constructs a {@link FileCreateHandler} with the given {@link FileOpsUsage}.
-     *
-     * @param fileOpsUsage the file operation usage calculator
+     * Constructs a {@link FileCreateHandler}.
      */
     @Inject
-    public FileCreateHandler(final FileOpsUsage fileOpsUsage) {
-        this.fileOpsUsage = fileOpsUsage;
-    }
+    public FileCreateHandler() {}
 
     /**
      * Performs checks independent of state or context.
@@ -151,17 +141,5 @@ public class FileCreateHandler implements TransactionHandler {
             }
             throw e;
         }
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var txnBody = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(svo -> fileOpsUsage.fileCreateUsage(
-                        CommonPbjConverters.fromPbj(txnBody),
-                        new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount())));
     }
 }

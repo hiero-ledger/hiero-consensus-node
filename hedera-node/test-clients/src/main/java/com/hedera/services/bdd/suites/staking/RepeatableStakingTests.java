@@ -12,13 +12,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.sleepToExactly;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withRecordSpec;
@@ -99,7 +99,7 @@ public class RepeatableStakingTests {
     Stream<DynamicTest> scheduledTransactionCrossingThresholdTriggersExpectedRewards() {
         final AtomicReference<Instant> secondBoundary = new AtomicReference<>();
         return hapiTest(
-                blockStreamMustIncludePassFrom(scheduledExecutionResult(
+                streamMustIncludePassFrom(scheduledExecutionResult(
                         "trigger", withRecordSpec(op -> op.hasPaidStakingRewards(List.of(Pair.of("staker", 2L)))))),
                 cryptoCreate("staker").stakedNodeId(0).balance(ONE_HBAR),
                 waitUntilStartOfNextStakingPeriod(1),

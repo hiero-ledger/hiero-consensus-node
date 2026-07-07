@@ -21,11 +21,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -108,7 +108,7 @@ public class CryptoRecordsSanityCheckSuite {
                 validateTransferListForBalances(
                         "txn",
                         List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
-                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+                doingContextual(spec -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -121,7 +121,7 @@ public class CryptoRecordsSanityCheckSuite {
                         "txn",
                         List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
                         Set.of("test")),
-                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+                doingContextual(spec -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -132,7 +132,7 @@ public class CryptoRecordsSanityCheckSuite {
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "a", 1_234L)).via("txn"),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR)),
-                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+                doingContextual(spec -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -145,14 +145,15 @@ public class CryptoRecordsSanityCheckSuite {
                 validateTransferListForBalances(
                         "txn",
                         List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),
-                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+                doingContextual(spec -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> insufficientAccountBalanceRecordSanityChecks() {
         final long BALANCE = 500_000_000L;
         return hapiTest(flattened(
-                withOpContext((spec, opLog) -> spec.registry().saveAccountId("NODE_4", asAccount("0.0.4"))),
+                doingContextual(
+                        spec -> spec.registry().saveAccountId("NODE_4", asAccount(spec.shard(), spec.realm(), 4L))),
                 cryptoCreate(PAYER).balance(BALANCE),
                 cryptoCreate(RECEIVER),
                 takeBalanceSnapshots(

@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.QueryContextHevmBlocks;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
@@ -30,7 +31,6 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module
 public interface QueryModule {
@@ -51,9 +51,10 @@ public interface QueryModule {
     static SystemContractGasCalculator provideSystemContractGasCalculator(
             @NonNull final CanonicalDispatchPrices canonicalDispatchPrices,
             @NonNull final TinybarValues tinybarValues) {
-        return new SystemContractGasCalculator(tinybarValues, canonicalDispatchPrices, (body, payerId) -> {
-            throw new IllegalStateException("Queries should fail before dispatching a child transaction");
-        });
+        return new SystemContractGasCalculator(
+                tinybarValues, canonicalDispatchPrices, (body, payerId, signatureMap) -> {
+                    throw new IllegalStateException("Queries should fail before dispatching a child transaction");
+                });
     }
 
     @Provides
@@ -122,9 +123,9 @@ public interface QueryModule {
     @Provides
     @QueryScope
     static EvmFrameStateFactory provideEvmFrameStateFactory(
-            @NonNull final CodeFactory codeFactory,
             @NonNull final HederaOperations operations,
-            @NonNull final HederaNativeOperations nativeOperations) {
-        return EvmFrameStates.DEFAULT.from(operations, nativeOperations, codeFactory);
+            @NonNull final HederaNativeOperations nativeOperations,
+            @NonNull final ContractCodeCache codeCache) {
+        return EvmFrameStates.DEFAULT.from(operations, nativeOperations, codeCache);
     }
 }

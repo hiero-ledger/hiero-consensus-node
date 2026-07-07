@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
@@ -177,6 +178,25 @@ class TssBlockHashSignerTest {
         assertNull(attempt.verificationKey());
         assertNull(attempt.chainOfTrustProof());
         assertEquals(FAKE_HINTS_SIGNATURE, attempt.signatureFuture().join());
+        verifyNoInteractions(hintsService, historyService);
+    }
+
+    @Test
+    void blockStartNotificationsForwardToHintsServiceWhenEnabled() {
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.NO);
+
+        subject.onBlockStarted(123L);
+
+        verify(hintsService).onBlockStarted(123L);
+        verifyNoInteractions(historyService);
+    }
+
+    @Test
+    void blockStartNotificationsAreIgnoredWhenHintsDisabled() {
+        givenSubjectWith(HintsEnabled.NO, HistoryEnabled.NO);
+
+        subject.onBlockStarted(123L);
+
         verifyNoInteractions(hintsService, historyService);
     }
 

@@ -265,9 +265,9 @@ Saying the `SpecOperation` family makes up a DSL is a bit of an overstatement. T
 collection of types with suggestively named factories and fluent modifiers. But when arranged
 thoughtfully, they can assert expected behaviors of the Hedera network with clear intent.
 
-Given a `HapiSpec` initialized for a target network, you can also use these operations in arbitrary
-Java code as an SDK for that network by calling `SpecOperation#execFor(HapiSpec)` wherever you
-want---inside a `for` loop, asynchronously in a scheduled `Runnable`, and so on.
+Given a `HapiSpec` initialized for a target network, these operations can also be used in arbitrary
+Java code as an SDK for that network by calling `SpecOperation#execFor(HapiSpec)` from any
+context---inside a `for` loop, asynchronously in a scheduled `Runnable`, and so on.
 
 Though this approach offers flexibility, it makes the resulting tests significantly harder to review
 and search. Therefore, avoid starting by copying a test that uses `withOpContext()`. Only use this
@@ -278,18 +278,17 @@ device when truly necessary, and even then, adhere to the limits prescribed by t
 
 ### Predicting an entity number
 
-It can happen you need the entity number of something created within a contract, e.g., another contract,
-or a token created via use of the HTS system contract.  You can't actually _get_ this number from
-anywhere.  You have to _predict_ it, knowing that entity numbers are generated in compact ascending
-order.  The problem is that when declaring entities using the annotations (e.g., `@Account` or
-`@Contract`) they're actually created _lazily_ only when they're first used.  So it's very fragile
-to know what order they're created in.  For this use case (contract will create an entity) you'd really
-like the contract to be created last of all the entities you're declaring, then the entities it
-creates (when you call methods on it) can be predicted.
+Sometimes the entity number of something created within a contract is needed — e.g., another
+contract, or a token created via use of the HTS system contract.  This number cannot be _retrieved_
+from anywhere; it must be _predicted_, knowing that entity numbers are generated in compact
+ascending order.  The problem is that entities declared via annotations (e.g., `@Account` or
+`@Contract`) are actually created _lazily_ only when first used, so it is very fragile to know
+what order they will be created in.  For this use case (a contract that will create an entity),
+the contract must be created last of all the declared entities, so that the entities it creates
+(when its methods are invoked) can be predicted.
 
-Use `SpecEntity.forceCreateAndRegister` to enumerate all the entities you're creating for the test,
-in the specific order you want to create them.  Then you can do something to predict the _next_
-entity number, such as:
+Use `SpecEntity.forceCreateAndRegister` to enumerate all entities required by the test in the
+specific order they should be created.  The _next_ entity number can then be predicted, such as:
 
 ```java
 withOpContext((spec, opLog) -> {
@@ -304,25 +303,28 @@ method `getNthNextContractInfoFrom`.
 
 ## Working with Block Nodes
 
-When testing interactions with block nodes, you can use the `BlockNodeVerbs` class to control block nodes in your tests. This allows you to test how consensus nodes handle different response codes, connection drops, and other edge cases from block nodes.
+When testing interactions with block nodes, the `BlockNodeVerbs` class can be used to control
+block nodes from a spec. This allows tests to exercise how consensus nodes handle different
+response codes, connection drops, and other edge cases from block nodes.
 
 ### Prerequisites
 
-To use block node simulator operations in your tests, you must:
+Block node simulator operations require:
 
-1. Run your tests with the block node simulator enabled by setting the system property `hapi.spec.blocknode.mode=SIMULATOR`
-2. Use a `SubProcessNetwork` (not an embedded network)
+1. The block node simulator must be enabled by setting the system property `hapi.spec.blocknode.mode=SIMULATOR`
+2. A `SubProcessNetwork` must be the target (not an embedded network)
 
-You can use the predefined Gradle task `testSubprocessWithBlockNodeSimulator` to run tests with the block node simulator enabled:
+There is no dedicated Gradle task for this; pass the system property to any of the standard
+subprocess test tasks:
 
 ```bash
-./gradlew testSubprocessWithBlockNodeSimulator --tests "com.hedera.services.bdd.suites.YourTestSuite"
+./gradlew testSubprocess --tests "com.hedera.services.bdd.suites.YourTestSuite" -Dhapi.spec.blocknode.mode=SIMULATOR
 ```
 
 ### Using BlockNodeVerbs
 
 The `BlockNodeVerbs` class provides a fluent API for interacting with block nodes.
-Those block nodes can be simulators or real containerized block nodes. Here's how to use it in your tests:
+Those block nodes can be simulators or real containerized block nodes. Usage:
 
 ```java
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
@@ -419,10 +421,10 @@ blockNode(0).getLastVerifiedBlockExposing(lastBlock -> {
 
 ### Important Notes
 
-1. Block node simulator operations will throw an `IllegalStateException` if the block node mode is not set to `SIM` in the `SubProcessNetwork`.
+1. Block node simulator operations will throw an `IllegalStateException` if the block node mode is not set to `SIMULATOR` in the `SubProcessNetwork`.
 
 2. Each consensus node (0-3) has a corresponding block node simulator with the same index unless the many-to-one topology is enabled.
 
-You can configure the simulator to use a many-to-one topology (where multiple consensus nodes connect to a single block node) by setting the system property `hapi.spec.blocknode.simulator.manyToOne=true`.
+The simulator can be configured to use a many-to-one topology (where multiple consensus nodes connect to a single block node) by setting the system property `hapi.spec.blocknode.simulator.manyToOne=true`.
 
 For more examples, see the `BlockNodeSuite` class in the test-clients codebase.

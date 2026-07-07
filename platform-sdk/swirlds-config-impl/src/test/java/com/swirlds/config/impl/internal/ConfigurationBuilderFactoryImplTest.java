@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl.internal;
 
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.spi.ConfigurationBuilderFactory;
 import org.hiero.consensus.concurrent.config.BasicCommonConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +36,7 @@ class ConfigurationBuilderFactoryImplTest {
         // then
         Assertions.assertFalse(configuration.getConfigDataTypes().isEmpty());
         Assertions.assertTrue(configuration.getConfigDataTypes().contains(BasicCommonConfig.class));
-        Assertions.assertTrue(configuration.getConfigDataTypes().contains(StateCommonConfig.class));
+        Assertions.assertTrue(configuration.getConfigDataTypes().contains(PathsConfig.class));
     }
 
     @Test

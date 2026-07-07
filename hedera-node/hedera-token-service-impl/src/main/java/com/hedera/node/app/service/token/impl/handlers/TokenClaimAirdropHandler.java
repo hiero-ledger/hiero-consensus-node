@@ -17,8 +17,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Token;
@@ -40,8 +38,6 @@ import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenAirdropValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -192,19 +188,6 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
                     TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY);
         }
         return standardAirdropIds;
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
-        validateTrue(tokensConfig.airdropsClaimEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        feeCalculator.resetUsage();
-
-        return feeCalculator
-                .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                .calculate();
     }
 
     private void createOrUpdateTransfers(

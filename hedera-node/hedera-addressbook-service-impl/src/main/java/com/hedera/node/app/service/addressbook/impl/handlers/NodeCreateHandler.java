@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -18,7 +17,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
@@ -27,8 +25,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -170,20 +166,6 @@ public class NodeCreateHandler implements TransactionHandler {
         final var recordBuilder = handleContext.savepointStack().getBaseBuilder(NodeCreateStreamBuilder.class);
 
         recordBuilder.nodeID(node.nodeId());
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext, "feeContext must not be null");
-        checkDABEnabled(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        // The price of node create should be increased based on number of signatures.
-        // The first signature is free and is accounted in the base price, so we only need to add
-        // the price of the rest of the signatures.
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
     }
 
     /**

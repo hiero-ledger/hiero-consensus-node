@@ -95,8 +95,9 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.log.Log;
+import org.hyperledger.besu.datatypes.Log;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream
@@ -112,8 +113,12 @@ public class BaseTranslator {
 
     /**
      * These fields are context maintained for the full lifetime of the translator.
+     * <p>
+     * The watermarks are per entity type; a single cross-type watermark would misclassify
+     * genesis system files (created after the higher-numbered system accounts), and node ids
+     * live in their own id space entirely.
      */
-    private long highestKnownEntityNum = 0L;
+    private final Map<EntityType, Long> highestKnownEntityNums = new EnumMap<>(EntityType.class);
 
     private long highestKnownNodeId = -1L;
 
@@ -137,7 +142,7 @@ public class BaseTranslator {
     /**
      * These fields are used to translate a single "unit" of block items connected to a {@link TransactionID}.
      */
-    private long prevHighestKnownEntityNum = 0L;
+    private final Map<EntityType, Long> prevHighestKnownEntityNums = new EnumMap<>(EntityType.class);
 
     private Instant userTimestamp;
     private final Map<TokenID, Integer> numMints = new HashMap<>();
@@ -266,7 +271,8 @@ public class BaseTranslator {
      * @param unit the unit to prepare for
      */
     public void prepareForUnit(@NonNull final BlockTransactionalUnit unit) {
-        this.prevHighestKnownEntityNum = highestKnownEntityNum;
+        prevHighestKnownEntityNums.clear();
+        prevHighestKnownEntityNums.putAll(highestKnownEntityNums);
         numMints.clear();
         highestPutSerialNos.clear();
         nextCreatedNums.clear();
@@ -286,8 +292,12 @@ public class BaseTranslator {
             serialNos.addAll(mintedHere.subList(0, numMints.getOrDefault(tokenId, 0)));
             serialNos.sort(Comparator.naturalOrder());
         });
-        highestKnownEntityNum =
-                nextCreatedNums.values().stream().mapToLong(List::getLast).max().orElse(highestKnownEntityNum);
+        nextCreatedNums.forEach((type, nums) -> {
+            // Node ids are a separate id space tracked via highestKnownNodeId
+            if (type != NODE && type != REGISTERED_NODE) {
+                highestKnownEntityNums.put(type, nums.getLast());
+            }
+        });
         final var nodeNums = nextCreatedNums.getOrDefault(NODE, emptyList());
         final var regNodeNums = nextCreatedNums.getOrDefault(REGISTERED_NODE, emptyList());
         if (!nodeNums.isEmpty()) {
@@ -308,11 +318,24 @@ public class BaseTranslator {
     /**
      * Determines if the given number was created in the ongoing transactional unit.
      *
+     * @param type the type of entity
      * @param num the number to query
      * @return true if the number was created
      */
-    public boolean entityCreatedThisUnit(final long num) {
-        return num > prevHighestKnownEntityNum;
+    public boolean entityCreatedThisUnit(@NonNull final EntityType type, final long num) {
+        return num > prevHighestKnownEntityNums.getOrDefault(type, 0L);
+    }
+
+    /**
+     * Determines if the given number is above the watermark of known entities of the given type,
+     * implying it was created in the unit being scanned.
+     *
+     * @param type the type of entity
+     * @param num the number to query
+     * @return true if the number was not yet known
+     */
+    private boolean isNewEntityNum(@NonNull final EntityType type, final long num) {
+        return num > highestKnownEntityNums.getOrDefault(type, 0L);
     }
 
     /**
@@ -655,7 +678,7 @@ public class BaseTranslator {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
                             final var writtenKey = writes.get(read.indexOrThrow());
-                            final var slotKey = new SlotKey(contractId, HookUtils.leftPad32(writtenKey));
+                            final var slotKey = new SlotKey(contractId, ByteUtils.leftPad32(writtenKey));
                             Bytes value = null;
                             for (final var nextScopedEvmTraceData : followingScopedEvmTraces) {
                                 final var nextEvmTraceData = nextScopedEvmTraceData.evmTraceDataOrThrow();
@@ -872,7 +895,7 @@ public class BaseTranslator {
                     .forEach(traceData -> traceData.logs().forEach(log -> {
                         final var besuLog = asBesuLog(
                                 log,
-                                log.topics().stream().map(HookUtils::leftPad32).toList());
+                                log.topics().stream().map(ByteUtils::leftPad32).toList());
                         besuLogs.add(besuLog);
                         verboseLogs.add(asContractLogInfo(log, besuLog));
                     }));
@@ -909,7 +932,7 @@ public class BaseTranslator {
                 .contractID(log.contractIdOrThrow())
                 .bloom(bloomFor(besuLog))
                 .data(log.data())
-                .topic(log.topics().stream().map(HookUtils::leftPad32).toList())
+                .topic(log.topics().stream().map(ByteUtils::leftPad32).toList())
                 .build();
     }
 
@@ -984,28 +1007,28 @@ public class BaseTranslator {
                                 tokenId,
                                 mapUpdate.valueOrThrow().tokenValueOrThrow().tokenType());
                     }
-                    if (tokenId.tokenNum() > highestKnownEntityNum) {
+                    if (isNewEntityNum(TOKEN, tokenId.tokenNum())) {
                         nextCreatedNums
                                 .computeIfAbsent(TOKEN, ignore -> new LinkedList<>())
                                 .add(tokenId.tokenNum());
                     }
                 } else if (key.hasTopicIdKey()) {
                     final var num = key.topicIdKeyOrThrow().topicNum();
-                    if (num > highestKnownEntityNum) {
+                    if (isNewEntityNum(TOPIC, num)) {
                         nextCreatedNums
                                 .computeIfAbsent(TOPIC, ignore -> new LinkedList<>())
                                 .add(num);
                     }
                 } else if (key.hasFileIdKey()) {
                     final var num = key.fileIdKeyOrThrow().fileNum();
-                    if (num > highestKnownEntityNum) {
+                    if (isNewEntityNum(FILE, num)) {
                         nextCreatedNums
                                 .computeIfAbsent(FILE, ignore -> new LinkedList<>())
                                 .add(num);
                     }
                 } else if (key.hasScheduleIdKey()) {
                     final var num = key.scheduleIdKeyOrThrow().scheduleNum();
-                    if (num > highestKnownEntityNum) {
+                    if (isNewEntityNum(SCHEDULE, num)) {
                         nextCreatedNums
                                 .computeIfAbsent(SCHEDULE, ignore -> new LinkedList<>())
                                 .add(num);
@@ -1018,7 +1041,7 @@ public class BaseTranslator {
                     scheduleTxnIds.put(scheduleId, scheduledTxnId);
                 } else if (key.hasAccountIdKey() && mapUpdate.valueOrThrow().hasAccountValue()) {
                     final var num = key.accountIdKeyOrThrow().accountNumOrThrow();
-                    if (num > highestKnownEntityNum) {
+                    if (isNewEntityNum(ACCOUNT, num)) {
                         nextCreatedNums
                                 .computeIfAbsent(ACCOUNT, ignore -> new LinkedList<>())
                                 .add(num);

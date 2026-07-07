@@ -82,7 +82,28 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
-    void skipsWhenMigrationAlreadyApplied() throws Exception {
+    void skipsWhenMigrationAlreadyAppliedAndNoJumpstartConfig() throws Exception {
+        // When votingComplete=true and no jumpstart properties are configured (blockNum < 0),
+        // the migration must remain skipped so a cold-restart never re-enters the pipeline.
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entry(i));
+        }
+        final var recentHashesDir = createRecentHashesDir(entries);
+        final var config = enabledRecordsConfig(recentHashesDir);
+        final var noJumpstartConfig =
+                new BlockStreamJumpstartConfig(-1, Bytes.EMPTY, 0, 0, List.of(), Bytes.EMPTY, Bytes.EMPTY);
+
+        subject.execute(StreamMode.RECORDS, config, noJumpstartConfig, true);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void proceedsWhenMigrationAlreadyAppliedButJumpstartConfigPresent() throws Exception {
+        // When votingComplete=true but a new jumpstart config is present (blockNum >= 0), the
+        // schema migration will reset votingComplete=false for the new upgrade cycle. execute()
+        // must therefore re-run so BlockRecordManagerImpl has a non-null migrationResult to seed
+        // the live hash chain from.
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 90; i <= 100; i++) {
             entries.add(entry(i));
@@ -91,12 +112,12 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = enabledRecordsConfig(recentHashesDir);
 
         subject.execute(StreamMode.RECORDS, config, jumpstartConfig(98, 4, 1), true);
-        assertNull(subject.result());
+        assertThat(subject.result()).isNotNull();
     }
 
     @Test
-    void skipsExecutionAfterCrashWhenMigrationAlreadyApplied() throws Exception {
-        // Initial migration succeeds
+    void proceedsOnCrashRestartWhenJumpstartConfigPresent() throws Exception {
+        // Initial migration succeeds.
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 90; i <= 100; i++) {
             entries.add(entry(i));
@@ -108,17 +129,19 @@ class WrappedRecordBlockHashMigrationTest {
         subject.execute(StreamMode.RECORDS, config, jsConfig, false);
         assertThat(subject.result()).isNotNull();
 
-        // Remove the latest entry from the wrapped record hashes file, as would happen if the node went down days after
-        // migration and the file rotated or was truncated
+        // Remove the latest entry from the wrapped record hashes file, as would happen if the node
+        // went down days after migration and the file rotated or was truncated.
         final var truncatedEntries = new ArrayList<>(entries);
         truncatedEntries.removeLast();
         createRecentHashesDir(truncatedEntries); // Overwrites existing file in same dir
 
-        // Instantiate a new migration instance, same config, but migrationAlreadyApplied=true
+        // On crash restart, migrationAlreadyApplied=true but jumpstart config is present, so
+        // execute() re-runs. The result will differ (fewer blocks in truncated file) but that is
+        // safe: BlockRecordManagerImpl ignores migrationResult when votingComplete=true.
         final var restartSubject = new WrappedRecordBlockHashMigration();
         restartSubject.execute(StreamMode.RECORDS, config, jsConfig, true);
 
-        assertNull(restartSubject.result());
+        assertThat(restartSubject.result()).isNotNull();
     }
 
     @Test

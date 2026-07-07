@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -24,7 +23,6 @@ import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -32,10 +30,6 @@ import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -437,65 +431,6 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
-    }
-
-    @Test
-    @DisplayName("calculateFees uses signature-based pricing with SubType.DEFAULT")
-    void calculateFeesUsesSignatureBasedPricing() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        final var expectedFees = new Fees(1, 0, 0);
-        final var config = new TestConfigBuilder()
-                .withConfigDataType(NodesConfig.class)
-                .withValue("nodes.registeredNodesEnabled", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
-        given(feeCtx.numTxnSignatures()).willReturn(3);
-        given(feeCalc.addVerificationsPerTransaction(2L)).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(expectedFees);
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(expectedFees);
-        verify(feeCalc).resetUsage();
-        verify(feeCalc).addVerificationsPerTransaction(2L);
-    }
-
-    @Test
-    @DisplayName("calculateFees with zero signatures adds zero verifications")
-    void calculateFeesWithZeroSignatures() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        final var expectedFees = new Fees(1, 0, 0);
-        final var config = new TestConfigBuilder()
-                .withConfigDataType(NodesConfig.class)
-                .withValue("nodes.registeredNodesEnabled", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(SubType.DEFAULT)).willReturn(feeCalc);
-        given(feeCtx.numTxnSignatures()).willReturn(0);
-        given(feeCalc.addVerificationsPerTransaction(0L)).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(expectedFees);
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(expectedFees);
-        verify(feeCalc).addVerificationsPerTransaction(0L);
-    }
-
-    @Test
-    @DisplayName("calculateFees throws NOT_SUPPORTED when registeredNodesEnabled is false")
-    void calculateFeesThrowsWhenDisabled() {
-        final var feeCtx = mock(FeeContext.class);
-        final var config = new TestConfigBuilder()
-                .withConfigDataType(NodesConfig.class)
-                .withValue("nodes.registeredNodesEnabled", false)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-
-        final var ex = assertThrows(HandleException.class, () -> subject.calculateFees(feeCtx));
-        assertEquals(NOT_SUPPORTED, ex.getStatus());
     }
 
     // ─── Port boundary tests ────────────────────────────────────────────

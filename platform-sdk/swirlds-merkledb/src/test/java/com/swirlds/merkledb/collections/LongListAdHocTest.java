@@ -4,7 +4,6 @@ package com.swirlds.merkledb.collections;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.SAMPLE_SIZE;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.checkData;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.populateList;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
@@ -63,8 +62,8 @@ class LongListAdHocTest extends AbstractFileManagerAwareTest {
     @Test
     void testReallocateThreadLocalBufferWhenMemoryChunkSizeChanges() throws IOException {
         // Create two long lists with different memory chunk sizes
-        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
-        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
+        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, fileSystemManager);
+        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, fileSystemManager);
 
         // Populate both long lists with sample data and validate
         populateList(largeMemoryChunkList);

@@ -1,0 +1,464 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "202: [USER] CITR SDLT Ctrl Adhoc"
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The git ref (branch or tag) to checkout"
+        required: false
+        default: ""
+      test-asset:
+        required: true
+        default: "AdHocSD8"
+        description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
+        type: choice
+        options:
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
+          - AdHoc13
+          - AdHoc14
+          - AdHocSD8
+          - AdHocSD9
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "30"
+          - "60"
+          - "180"
+          - "330"
+          - "720"
+          - "960"
+          - "1200"
+          - "10080"
+          - "20160"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      reconnect-uptime:
+        required: false
+        default: "600"
+        type: string
+        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+  statuses: write
+
+jobs:
+  verify-tag:
+    name: Verify Tag
+    runs-on: hl-cn-sdlt-lin-sm
+    continue-on-error: true
+    outputs:
+      build-number: ${{ steps.verify-tag.outputs.build-number }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Verify Tag
+        id: verify-tag
+        env:
+          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
+          CHECK_TAG: "${{ inputs.ref || github.ref }}"
+        run: |
+          # Ensure the tag that we received is a build tag
+          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
+          # return the build tag as an output
+          # if the tag is not a build tag then we will fail the workflow
+          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
+            echo "The tag is a valid build tag."
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
+            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
+
+            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-citr-vars:
+    name: Extract CITR Vars
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
+  run-single-day-longevity-test:
+    name: Longevity Test
+    needs:
+      - verify-tag
+      - extract-jdk-version
+      - extract-citr-vars
+      - verify-citr-vars
+    uses: ./.github/workflows/833-call-single-day-longevity-test.yaml
+    if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
+    with:
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
+      ref: "${{ inputs.ref || github.ref }}"
+      solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      add-settings: "${{ inputs.add-settings }}"
+      reconnect-uptime: "${{ inputs.reconnect-uptime }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  tag-sdlt-result:
+    name: Tag SDLT Result
+    runs-on: hl-cn-sdlt-lin-sm
+    needs:
+      - run-single-day-longevity-test
+      - verify-tag
+    if: ${{ inputs.disable-notifications != true }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Tag SDLT Result
+        run: |
+          RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
+          BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
+
+          # Skip tagging if no build number is found
+          if [[ -z "${BUILD_NUM}" ]]; then
+            echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          # Populate the SDLT tag name and message
+          if [[ "${RESULT}" == "success" ]]; then
+            TAG_NAME="sdlt-pass-${BUILD_NUM}"
+            MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
+          elif [[ "${RESULT}" == "failure" ]]; then
+            TAG_NAME="sdlt-fail-${BUILD_NUM}"
+            MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Test result was: ${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
+          git push --set-upstream origin --tags
+
+          echo "### SDLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+
+  get-commit-info:
+    name: Get Commit Information
+    runs-on: hl-cn-sdlt-lin-sm
+    if: ${{ inputs.disable-notifications != true }}
+    needs:
+      - verify-tag
+    outputs:
+      commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
+      commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
+      slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          BUILD_TAG: ${{ inputs.ref || github.ref }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+        run: |
+          # Extract the commit and user information from the build tag
+          COMMIT=$(git rev-list -n 1 "${BUILD_TAG}")
+          EMAIL=$(git log -1 --pretty=format:'%ae' "${COMMIT}")
+          AUTHOR=$(git log -1 --pretty=format:'%an' "${COMMIT}")
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+  report-success:
+    name: Report SDLT execution success
+    runs-on: hl-cn-sdlt-lin-sm
+    needs:
+      - verify-tag
+      - tag-sdlt-result
+      - run-single-day-longevity-test
+      - get-commit-info
+    if: ${{ (needs.verify-tag.result == 'success' &&
+      needs.tag-sdlt-result.result == 'success' &&
+      needs.run-single-day-longevity-test.outputs.result == 'success' &&
+      needs.get-commit-info.result == 'success') &&
+      inputs.disable-notifications != true && !cancelled() }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          HEADER_TEXT: ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref || github.ref }}) Passed"
+          STATUS_TEXT: "*SDLT Job Succeeded. Test panel status below*"
+          VERIFY_TAG_LABEL: "Verify Tag for SDLT"
+          VERIFY_TAG_RESULT: ${{ needs.verify-tag.result }}
+          RUN_TEST_LABEL: "Run Single Day Longevity Test"
+          RUN_TEST_RESULT: ${{ needs.run-single-day-longevity-test.outputs.result }}
+          TAG_LABEL: "Tag SDLT Passing"
+          TAG_RESULT: ${{ needs.tag-sdlt-result.result }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-success.json.tpl -o slack_payload.json
+
+      - name: Report Success (slack)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+  report-failure:
+    name: Report SDLT execution failure
+    runs-on: hl-cn-sdlt-lin-sm
+    needs:
+      - verify-tag
+      - run-single-day-longevity-test
+      - tag-sdlt-result
+      - get-commit-info
+      - report-success
+    if: ${{ (needs.verify-tag.result != 'success' ||
+      needs.tag-sdlt-result.result != 'success' ||
+      needs.run-single-day-longevity-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
+      inputs.disable-notifications != true && !cancelled() && always() }}
+
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-gomplate: "true"
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Set Create-Alert Flag
+        id: set-alert-flag
+        run: |
+          CREATE_ALERT="false"
+          if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            CREATE_ALERT="true"
+          fi
+          echo "create=${CREATE_ALERT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          summary="The AdHoc SDLT Job Failed"
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'details<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Tag: ${{ needs.verify-tag.result }}"
+            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
+            echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Summary: ${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.summary }}
+          details: ${{ steps.rootly-summary.outputs.details }}
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "false"
+          alert_urgency: "Medium"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          HEADER_TEXT: ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref || github.ref }}) Failed"
+          STATUS_TEXT: "*SDLT Job Resulted in failure. See status below.*"
+          VERIFY_TAG_LABEL: "Verify Tag for SDLT"
+          VERIFY_TAG_RESULT: ${{ needs.verify-tag.result }}
+          RUN_TEST_LABEL: "Run Single Day Longevity Test"
+          RUN_TEST_RESULT: ${{ needs.run-single-day-longevity-test.outputs.result }}
+          TAG_LABEL: "Tag SDLT Passing"
+          TAG_RESULT: ${{ needs.tag-sdlt-result.result }}
+          COMMIT_INFO_RESULT: ${{ needs.get-commit-info.result }}
+          SOURCE_TAG_URL: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref || github.ref }}
+          COMMIT_AUTHOR: ${{ needs.get-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ needs.get-commit-info.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-sdpt-sdlt-failure.json.tpl -o slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

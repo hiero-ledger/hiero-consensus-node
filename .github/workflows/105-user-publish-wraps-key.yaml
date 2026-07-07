@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "105: [USER] Publish Wraps Proving Key Image"
+# Downloads the WRAPS proving-key tarball, verifies its integrity, packages it as a
+# data-only OCI image, and publishes it to this repository's ghcr.io namespace. The
+# image is mounted onto CI runner pods so the WRAPS HAPI tests can construct recursive
+# proofs (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key).
+on:
+  workflow_dispatch:
+    inputs:
+      source-url:
+        description: "URL of the WRAPS proving-key tar.gz; the image tag is derived from its filename (wraps-v1.0.0.tar.gz -> v1.0.0)"
+        type: string
+        required: false
+        default: "https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz"
+      source-sha384:
+        description: "Expected SHA-384 of the tarball; leave empty to skip verification (the computed hash is always reported)"
+        type: string
+        required: false
+        default: "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}/wraps-proving-key
+  STAGING_DIR: ${{ github.workspace }}/wraps-staging
+
+jobs:
+  publish-wraps-proving-key-image:
+    name: "Publish WRAPS Proving Key Image"
+    runs-on: hl-cn-default-lin-lg
+    timeout-minutes: 60
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        with:
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Download and Verify Proving Key
+        id: download
+        env:
+          SOURCE_URL: ${{ inputs.source-url }}
+          EXPECTED_SHA384: ${{ inputs.source-sha384 }}
+        run: |
+          tarball="$(basename "${SOURCE_URL}")"
+          tag="${tarball%.tar.gz}"
+          tag="${tag#wraps-}"
+          if [[ -z "${tag}" || "${tag}" == "${tarball}" ]]; then
+            echo "::error::Cannot derive image tag from '${tarball}'; expected a name like wraps-v1.0.0.tar.gz"
+            exit 1
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+          curl -fSL --retry 3 -o "${RUNNER_TEMP}/${tarball}" "${SOURCE_URL}"
+          actual_sha384="$(sha384sum "${RUNNER_TEMP}/${tarball}" | awk '{print $1}')"
+          echo "tarball-sha384=${actual_sha384}" >> "${GITHUB_OUTPUT}"
+          echo "Tarball SHA-384: ${actual_sha384}"
+          if [[ -n "${EXPECTED_SHA384}" && "${actual_sha384}" != "${EXPECTED_SHA384}" ]]; then
+            echo "::error::Tarball hash mismatch: expected ${EXPECTED_SHA384}, got ${actual_sha384}"
+            exit 1
+          fi
+
+          mkdir -p "${STAGING_DIR}"
+          tar xzf "${RUNNER_TEMP}/${tarball}" -C "${STAGING_DIR}"
+          for f in decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin; do
+            if [[ ! -f "${STAGING_DIR}/${f}" ]]; then
+              echo "::error::Expected artifact ${f} not found in tarball"
+              exit 1
+            fi
+          done
+          (cd "${STAGING_DIR}" && sha384sum decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin | tee "${RUNNER_TEMP}/expected-artifact-hashes.txt")
+
+          # Hash file consumed by the consensus node to detect the artifacts are already in place and
+          # skip re-downloading the archive (see WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME).
+          printf '%s\n' "${actual_sha384}" > "${STAGING_DIR}/wraps.sha384"
+
+      - name: Setup QEmu Support
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Setup Docker Buildx Support
+        uses: step-security/setup-buildx-action@f931205d68723ad9589fd2a7e2ece238bf9de341 # v4.0.0
+        with:
+          version: v0.32.1
+          driver-opts: network=host,image=ghcr.io/hashgraph/runner-images/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+
+      - name: Docker Login (ghcr.io)
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Image
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          push: true
+          no-cache: true
+          platforms: linux/amd64,linux/arm64
+          context: ${{ env.STAGING_DIR }}
+          file: hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key/Containerfile
+          tags: ${{ env.IMAGE_NAME }}:${{ steps.download.outputs.tag }}
+
+      - name: Verify Published Image
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          TARBALL_SHA384: ${{ steps.download.outputs.tarball-sha384 }}
+        run: |
+          docker pull "${IMAGE_NAME}@${IMAGE_DIGEST}"
+          cid="$(docker create "${IMAGE_NAME}@${IMAGE_DIGEST}" true)"
+          mkdir -p "${RUNNER_TEMP}/verify"
+          docker cp "${cid}:/." "${RUNNER_TEMP}/verify/"
+          docker rm "${cid}" >/dev/null
+          (cd "${RUNNER_TEMP}/verify" && sha384sum -c "${RUNNER_TEMP}/expected-artifact-hashes.txt")
+          got="$(tr -d '[:space:]' < "${RUNNER_TEMP}/verify/wraps.sha384")"
+          if [[ "${got}" != "${TARBALL_SHA384}" ]]; then
+            echo "::error::wraps.sha384 in image (${got}) does not match tarball SHA-384 (${TARBALL_SHA384})"
+            exit 1
+          fi
+
+      - name: Job Summary
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_TAG: ${{ steps.download.outputs.tag }}
+          TARBALL_SHA384: ${{ steps.download.outputs.tarball-sha384 }}
+        run: |
+          {
+            echo "## WRAPS Proving Key Image Published"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${IMAGE_NAME}:${IMAGE_TAG}\` |"
+            echo "| Digest | \`${IMAGE_DIGEST}\` |"
+            echo "| Pin for consumers | \`${IMAGE_NAME}@${IMAGE_DIGEST}\` |"
+            echo "| Tarball SHA-384 | \`${TARBALL_SHA384}\` |"
+            echo ""
+            echo "### Artifact hashes (SHA-384)"
+            echo '```'
+            cat "${RUNNER_TEMP}/expected-artifact-hashes.txt"
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"

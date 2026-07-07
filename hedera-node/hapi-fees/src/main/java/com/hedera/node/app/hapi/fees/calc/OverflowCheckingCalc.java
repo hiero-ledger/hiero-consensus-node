@@ -3,10 +3,10 @@ package com.hedera.node.app.hapi.fees.calc;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_DIVISOR_FACTOR;
 
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeComponents;
@@ -74,7 +74,7 @@ public final class OverflowCheckingCalc {
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
         if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
+            return FeeConstants.getTinybarsFromTinyCents(rate, amount);
         }
         return amount * hbarEquiv / rate.getCentEquiv();
     }
