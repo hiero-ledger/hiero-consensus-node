@@ -309,6 +309,8 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "20.18.0"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -404,10 +406,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
-          grpcurl --version
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       - name: Build Consensus Node Local Artifacts
         run: ${GRADLE_EXEC} assemble
@@ -500,6 +499,8 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -548,10 +549,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
-          grpcurl --version
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       - name: Build Consensus Node Local Artifacts
         if: ${{ inputs.tss-upgrade-tag == 'local' }}
@@ -642,6 +640,8 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "20.18.0"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Install Solo
         env:
@@ -708,9 +708,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
 
       - name: Verify Solo Dependency Versions
         run: |
