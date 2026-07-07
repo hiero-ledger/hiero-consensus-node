@@ -153,6 +153,7 @@ class FallenBehindMonitorTest {
             final boolean expectedFallenBehind, final int expectedNumFallenBehind, final String message) {
         assertEquals(expectedFallenBehind, monitor.hasFallenBehind(), message);
         assertEquals(expectedNumFallenBehind, monitor.reportedSize(), message);
+        assertEquals(expectedNumFallenBehind / (double) (nodeIds.length - 1), monitor.reportedWeight(), 0.001, message);
     }
 
     /**
@@ -600,11 +601,15 @@ class FallenBehindMonitorTest {
         assertFalse(monitor.hasFallenBehind());
         monitor.report(nodeIds[0]); // this node alone has supermajority
         assertTrue(monitor.hasFallenBehind());
+        assertEquals(1.0, monitor.reportedWeight(), 0.01);
         monitor.clear(nodeIds[0]); // this node alone has supermajority
         assertFalse(monitor.hasFallenBehind());
+        assertEquals(0.0, monitor.reportedWeight());
         for (int i = 1; i < numNodes; i++) {
             monitor.report(nodeIds[i]);
         }
+        assertEquals(0.0011, monitor.reportedWeight(), 0.001);
+
         assertFalse(
                 monitor.hasFallenBehind()); // even if we fall behind everybody else, one with supermajority keeps us
         // alive

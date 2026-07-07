@@ -38,6 +38,14 @@ public class FallenBehindMonitor {
 
     private final RosterLookup rosterLookup;
 
+    /**
+     * Total weight of the roster except for self node
+     */
+    private final long totalWeightExceptSelf;
+
+    /**
+     * Over that weight we assume that we have fallen behind and we need to reconnect.
+     */
     private final long fallenBehindWeightThreshold;
 
     /**
@@ -47,7 +55,7 @@ public class FallenBehindMonitor {
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
     @GuardedBy("lock")
-    private long fallenBehindLevel;
+    private long fallenBehindWeight;
 
     @GuardedBy("lock")
     private boolean isBehind;
@@ -80,14 +88,14 @@ public class FallenBehindMonitor {
 
     public FallenBehindMonitor(@NonNull final Roster roster, final double fallenBehindThreshold, final NodeId selfId) {
         this.rosterLookup = new RosterLookup(requireNonNull(roster));
-        this.fallenBehindWeightThreshold =
-                Math.round((rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId)) * fallenBehindThreshold);
+        this.totalWeightExceptSelf = rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId);
+        this.fallenBehindWeightThreshold = Math.round(totalWeightExceptSelf * fallenBehindThreshold);
     }
 
     private void checkAndNotify() {
         final boolean wasNotBehind = !isBehind;
         // Fall behind if reports > threshold
-        isBehind = fallenBehindLevel > fallenBehindWeightThreshold;
+        isBehind = fallenBehindWeight > fallenBehindWeightThreshold;
         if (wasNotBehind && isBehind) {
             fallenBehindCondition.signalAll(); // notify waiting threads
         }
@@ -103,7 +111,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             if (reportFallenBehind.add(id)) {
-                fallenBehindLevel += rosterLookup.getWeight(id);
+                fallenBehindWeight += rosterLookup.getWeight(id);
                 checkAndNotify();
             }
         } finally {
@@ -121,7 +129,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             if (reportFallenBehind.remove(id)) {
-                fallenBehindLevel -= rosterLookup.getWeight(id);
+                fallenBehindWeight -= rosterLookup.getWeight(id);
             }
             checkAndNotify();
         } finally {
@@ -167,7 +175,7 @@ public class FallenBehindMonitor {
         try {
             reportFallenBehind.clear();
             isBehind = false;
-            fallenBehindLevel = 0;
+            fallenBehindWeight = 0;
         } finally {
             lock.unlock();
         }
@@ -189,13 +197,13 @@ public class FallenBehindMonitor {
      * @return the weight fraction of nodes that have told us we have fallen behind
      */
     public double reportedWeight() {
-        final long totalWeight = rosterLookup.rosterTotalWeight();
-        if (totalWeight == 0) {
+
+        if (totalWeightExceptSelf == 0) {
             return 0;
         }
         lock.lock();
         try {
-            return fallenBehindLevel / (double) totalWeight;
+            return fallenBehindWeight / (double) totalWeightExceptSelf;
         } finally {
             lock.unlock();
         }
