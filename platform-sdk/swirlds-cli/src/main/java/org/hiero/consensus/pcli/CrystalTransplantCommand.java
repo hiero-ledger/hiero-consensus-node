@@ -40,7 +40,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.saved.SavedStateMetadata;
 import picocli.CommandLine;

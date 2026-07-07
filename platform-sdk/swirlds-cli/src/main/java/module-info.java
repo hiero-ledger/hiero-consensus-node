@@ -40,8 +40,8 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster;
-    requires org.hiero.consensus.state.management;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.transaction.handling;
     requires org.hiero.consensus.utility;

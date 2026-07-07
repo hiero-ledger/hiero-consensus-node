@@ -8,6 +8,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossip
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpReconnectModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
@@ -28,6 +29,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.config.DefaultConfiguration;
+import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
@@ -59,7 +61,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.StateManagementModule;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
@@ -181,6 +183,7 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
         final StateManagementModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final ReconnectModule reconnectModule = createNoOpReconnectModule(configuration, fileSystemManager);
 
         final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
@@ -203,6 +206,7 @@ public final class DiagramCommand extends AbstractCommand {
                 issDetectionModule,
                 transactionHandlingModule,
                 statemanagementModule,
+                reconnectModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,

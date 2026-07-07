@@ -74,15 +74,17 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.SavedStateController;
-import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.SavedStateController;
+import org.hiero.consensus.state.StateManagementModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
+import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
@@ -138,7 +140,7 @@ public class ConsensusLayerFactory {
     @NonNull
     private final SecureRandom secureRandom;
     @Nullable
-    private GossipModule gossipModuleOverride;
+    private final GossipModule gossipModuleOverride;
 
     private final ExecutorFactory executorFactory;
 
@@ -194,8 +196,7 @@ public class ConsensusLayerFactory {
                 createStateManagementModule(latestCompleteStateNexus, savedStateController);
 
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
-        final ReconnectModule reconnectModule = ConsensusModuleBuilder.createModule(ReconnectModule.class,
-                configuration);
+        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 wiringModel,
@@ -360,10 +361,25 @@ public class ConsensusLayerFactory {
         return module;
     }
 
-    private PcesModule initializePcesModule(@NonNull final PcesModule module,
+    @NonNull
+    private Supplier<PcesReplayProgress> createPcesReplayProgressSupplier(
+            @NonNull final SignedStateNexus latestImmutableStateNexus) {
+        return () -> {
+            try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("PCES replay")) {
+                if (reservedState == null || reservedState.isNull()) {
+                    return PcesReplayProgress.EMPTY;
+                }
+                final SignedState signedState = reservedState.get();
+                return new PcesReplayProgress(signedState.getRound(), signedState.getConsensusTimestamp());
+            }
+        };
+    }
+
+    private void initializePcesModule(@NonNull final PcesModule module,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
+        final Supplier<PcesReplayProgress> replayProgressSupplier = createPcesReplayProgressSupplier(latestImmutableStateNexus);
         module.initialize(
                 wiringModel,
                 configuration,
@@ -374,12 +390,11 @@ public class ConsensusLayerFactory {
                 fileSystemManager,
                 initialState.get().getRound(),
                 platformCoordinator::flushPrimaryPipeline,
-                () -> latestImmutableStateNexus.getState("PCES replay"),
+                replayProgressSupplier,
                 platformCoordinator::submitStatusAction,
                 platformCoordinator::flushPlatformStatus,
                 platformCoordinator::signalEndOfPcesReplay,
                 eventPipelineTracker);
-        return module;
     }
 
     private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
@@ -489,12 +504,11 @@ public class ConsensusLayerFactory {
      * then this method becomes a no-op.
      *
      * @param configuration the configuration for this node
-     * @return true if this is the first time this method has been called, false otherwise
      */
-    private static boolean doStaticSetup(@NonNull final Configuration configuration) {
+    private static void doStaticSetup(@NonNull final Configuration configuration) {
         if (staticSetupCompleted) {
             // Only setup static utilities once
-            return false;
+            return;
         }
         staticSetupCompleted = true;
 
@@ -504,6 +518,5 @@ public class ConsensusLayerFactory {
         // Initialize JVMPauseDetectorThread, if enabled via settings
         startJVMPauseDetectorThread(configuration);
 
-        return true;
     }
 }

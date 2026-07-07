@@ -31,12 +31,17 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.SavedStateController;
+import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
  */
 public final class PlatformBuilder {
+
+    private static final Logger logger = LogManager.getLogger(PlatformBuilder.class);
 
     private final String appName;
     private final SemanticVersion softwareVersion;
