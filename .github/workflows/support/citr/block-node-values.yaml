@@ -34,7 +34,7 @@ image:
   repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
 
 plugins:
-  names: "facility-messaging,block-access-service,health,server-status,stream-publisher,stream-subscriber,verification,blocks-file-historic,blocks-file-recent,backfill,roster-bootstrap-rsa"
+  #names: "facility-messaging,block-access-service,health,server-status,stream-publisher,stream-subscriber,verification,blocks-file-historic,blocks-file-recent,backfill,roster-bootstrap-rsa"
   repositories:
     - id: besu-maven
       url: https://artifacts.hashgraph.io/artifactory/hyperledger-besu-maven-external/
@@ -100,17 +100,17 @@ blockNode:
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "live-storage-block-node-%NODE_ID%-0"
-    verification:
-      create: false
+    applicationState:
       # name of the volume within the statefulset
-      volumeName: "verification-storage"
-      # should match VERIFICATION_ALL_BLOCKS_HASHER_FILE_PATH parent directory
-      mountPath: "/opt/hiero/block-node/verification"
+      volumeName: "application-state-storage"
+      # should match APP_STATE_TSS_DATA_FILE_PATH, APP_STATE_STORED_BLOCKS_FILE_PATH,
+      # APP_STATE_AVAILABLE_BLOCKS_FILE_PATH parent directory
+      mountPath: "/opt/hiero/block-node/application-state"
       size: 1Gi
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      existingClaim: "verification-storage-block-node-%NODE_ID%-0"
+      existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
     plugins:
       create: false
       # name of the volume within the statefulset
