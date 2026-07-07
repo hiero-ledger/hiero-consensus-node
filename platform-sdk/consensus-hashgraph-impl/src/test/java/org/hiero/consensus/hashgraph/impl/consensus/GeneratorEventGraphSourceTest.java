@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -17,7 +17,6 @@ import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -341,57 +340,46 @@ class GeneratorEventGraphSourceTest {
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("populateNgen sets ngen on generated events")
-    void populateNgenEnabled() {
+    @DisplayName("populateSequenceNumber sets sequence number on generated events")
+    void populateSequenceNumberEnabled() {
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
                 .seed(0L)
-                .populateNgen(true)
+                .populateSequenceNumber(true)
                 .build();
 
         final List<PlatformEvent> events = generator.nextEvents(200);
 
         for (final PlatformEvent event : events) {
-            assertTrue(event.hasNGen(), "every event should have ngen set when populateNgen is enabled");
-            assertTrue(event.hasSequenceNumber(), "every event should have sequence number assigned");
             assertTrue(
-                    event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
-                    "ngen should be at least FIRST_GENERATION");
-            assertTrue(
-                    event.getSequenceNumber() >= UNASSIGNED_SEQUENCE_NUMBER,
-                    "sequence number should be at least UNASSIGNED_SEQUENCE_NUMBER");
+                    event.hasSequenceNumber(),
+                    "every event should have sequence number set when populateSequence number is enabled");
+            assertTrue(event.getSequenceNumber() >= 1, "sequence number should be at least 1");
         }
 
-        // Verify that ngen actually advances beyond FIRST_GENERATION
-        final long maxNGen =
-                events.stream().mapToLong(PlatformEvent::getNGen).max().orElse(0);
-        assertTrue(
-                maxNGen > NonDeterministicGeneration.FIRST_GENERATION, "ngen should advance beyond FIRST_GENERATION");
-
-        // Verify that sequence number actually advances beyond UNASSIGNED_SEQUENCE_NUMBER
+        // Verify that sequence number actually advances beyond SEQUENCE_NUMBER_UNDEFINED
         final long maxSeqNum = events.stream()
                 .mapToLong(PlatformEvent::getSequenceNumber)
                 .max()
                 .orElse(0);
         assertTrue(
-                maxSeqNum > UNASSIGNED_SEQUENCE_NUMBER,
-                "sequence number should advance beyond UNASSIGNED_SEQUENCE_NUMBER");
+                maxSeqNum > SEQUENCE_NUMBER_UNDEFINED,
+                "sequence number should advance beyond SEQUENCE_NUMBER_UNDEFINED");
     }
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("Events do not have ngen or sequence number set when populateNgen is disabled")
-    void populateNgenDisabled() {
+    @DisplayName("Events do not have sequence number set when populateSequenceNumber is disabled")
+    void populateSequenceNumberDisabled() {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
 
         final List<PlatformEvent> events = generator.nextEvents(100);
 
         for (final PlatformEvent event : events) {
-            assertFalse(event.hasNGen(), "events should not have ngen set when populateNgen is disabled");
             assertFalse(
                     event.hasSequenceNumber(),
-                    "events should not have sequence number assigned even if populateNgen is disabled");
+                    "events should not have sequence number set when populateSequenceNumber is disabled");
         }
     }
 
