@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.reconnect.impl;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;

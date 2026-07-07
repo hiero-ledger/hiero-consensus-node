@@ -29,6 +29,7 @@ module org.hiero.consensus.state {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
+    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
