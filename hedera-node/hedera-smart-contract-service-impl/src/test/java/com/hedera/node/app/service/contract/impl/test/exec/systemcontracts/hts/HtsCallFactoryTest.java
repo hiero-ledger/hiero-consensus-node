@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof.BalanceOfTranslator.BALANCE_OF;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -96,6 +97,7 @@ class HtsCallFactoryTest extends CallTestBase {
         given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(frame.getSenderAddress()).willReturn(EIP_1014_ADDRESS);
+        given(frame.getRecipientAddress()).willReturn(Address.fromHexString(HTS_167_EVM_ADDRESS));
         given(addressChecks.hasParentDelegateCall(frame)).willReturn(true);
         given(syntheticIds.converterFor(nativeOperations)).willReturn(idConverter);
 
@@ -122,8 +124,8 @@ class HtsCallFactoryTest extends CallTestBase {
         given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(frame.getSenderAddress()).willReturn(Address.ALTBN128_ADD);
+        given(frame.getRecipientAddress()).willReturn(Address.fromHexString(HTS_167_EVM_ADDRESS));
         given(idConverter.convertSender(Address.ALTBN128_ADD)).willReturn(A_NEW_ACCOUNT_ID);
-        given(frame.getRecipientAddress()).willReturn(EIP_1014_ADDRESS);
         given(addressChecks.hasParentDelegateCall(frame)).willReturn(true);
         given(syntheticIds.converterFor(nativeOperations)).willReturn(idConverter);
 

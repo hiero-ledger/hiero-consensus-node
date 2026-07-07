@@ -424,9 +424,11 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
     private Bytes encodeInput(final boolean useExplicitCall, final boolean isRedirect, final byte[] selector) {
         if (isRedirect) {
             return useExplicitCall
-                    ? Bytes.wrap(HtsCallAttempt.REDIRECT_FOR_TOKEN
+                    ? Bytes.wrap(HtsCallAttempt.LEGACY_REDIRECT_FOR_TOKEN
                             .encodeCallWithArgs(
-                                    asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS.toArrayUnsafe()),
+                                    asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS
+                                            .getBytes()
+                                            .toArrayUnsafe()),
                                     Bytes.wrap(selector).toArrayUnsafe())
                             .array())
                     : bytesForRedirect(selector);

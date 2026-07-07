@@ -25,7 +25,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
@@ -54,7 +54,7 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
@@ -65,7 +65,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(selfId);
         requireNonNull(recycleBin);
         requireNonNull(flushPrimaryPipeline);
-        requireNonNull(latestImmutableStateSupplier);
+        requireNonNull(replayProgressSupplier);
         requireNonNull(platformStatusFlusher);
         requireNonNull(statusActionConsumer);
         requireNonNull(signalEndOfPcesReplay);
