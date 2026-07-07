@@ -7,6 +7,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -14,13 +15,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
-public record ConsensusLayerInputs(@NonNull Configuration configuration, @NonNull Metrics metrics, @NonNull Time time,
+public record ConsensusLayerInputs(@NonNull Configuration configuration,
+                                   @NonNull Metrics metrics,
+                                   @NonNull Time time,
                                    @NonNull RosterHistory rosterHistory,
                                    @NonNull KeysAndCerts keysAndCerts,
                                    @NonNull NodeId selfId,
@@ -34,6 +38,8 @@ public record ConsensusLayerInputs(@NonNull Configuration configuration, @NonNul
                                    @NonNull String appName,
                                    @NonNull String swirldName,
                                    long transactionOffsetNanos,
+                                   @Nullable StaleEventConsumer staleEventConsumer,
                                    @Nullable WiringModel wiringModel,
-                                   @Nullable SecureRandom secureRandom) {
+                                   @Nullable SecureRandom secureRandom,
+                                   @Nullable GossipModule gossipModuleOverride) {
 }

@@ -13,6 +13,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
@@ -35,7 +36,7 @@ public class DefaultReconnectModule implements ReconnectModule {
             @NonNull final Time time,
             @NonNull final Roster currentRoster,
             @NonNull final PlatformComponents components,
-            @NonNull final Platform platform,
+            @NonNull final AtomicReference<Platform> platformReference,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
@@ -49,7 +50,7 @@ public class DefaultReconnectModule implements ReconnectModule {
                 configuration,
                 time,
                 currentRoster,
-                platform,
+                platformReference,
                 reconnectCoordinator,
                 stateLifecycleManager,
                 savedStateController,

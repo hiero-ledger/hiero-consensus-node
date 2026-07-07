@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
@@ -9,14 +10,19 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDet
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
+import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
@@ -28,24 +34,31 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.management.StateManagementModule;
@@ -84,8 +97,41 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tempDir);
-
         final Configuration configuration = platformContext.getConfiguration();
+
+        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+                configuration,
+                new NoOpMetrics(),
+                Time.getCurrent(),
+                null,
+                null,
+                null,
+                null,
+                fileSystemManager,
+                mock(ExecutionLayer.class),
+                NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
+                null,
+                null,
+                SemanticVersion.DEFAULT,
+                "testApp",
+                "123",
+                0,
+                null,
+                model,
+                null,
+                null
+        );
+
+        final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
+        final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
+        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
+        final RunningEventHashOverrideWiring runningEventHashOverrideWiring = RunningEventHashOverrideWiring.create(model);
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring = new ComponentWiring<>(model, StateGarbageCollector.class, platformSchedulersConfig.stateGarbageCollector());
+        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring = new ComponentWiring<>(model, SignedStateSentinel.class, platformSchedulersConfig.signedStateSentinel());
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
+
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
@@ -98,9 +144,35 @@ class PlatformWiringTests {
         final StateManagementModule stateManagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
-        final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext,
+        final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
+                configuration,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule,
+                stateManagementModule,
+                eventStreamWiring,
+                runningEventHashOverrideWiring,
+                eventWindowManagerWiring,
+                notifierWiring,
+                stateGarbageCollectorWiring,
+                signedStateSentinelWiring,
+                platformMonitorWiring,
+                NotificationEngine.buildEngine(getStaticThreadManager()),
+                null,
+                new AtomicReference<>(null));
+        PlatformWiring.wire(inputs, buildingBlocks);
+
+        final PlatformComponentBuilder componentBuilder =
+                new PlatformComponentBuilder(createBuildingBlocks(platformContext));
+
+        final PlatformComponents platformComponents = PlatformComponents.create(
+                model,
+                configuration,
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,
@@ -109,10 +181,6 @@ class PlatformWiringTests {
                 issDetectionModule,
                 transactionHandlingModule,
                 stateManagementModule);
-        PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents, null);
-
-        final PlatformComponentBuilder componentBuilder =
-                new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder

@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -68,7 +69,7 @@ public class ReconnectController implements Runnable {
 
     private final Roster roster;
     private final SignedStateValidator signedStateValidator;
-    private final Platform platform;
+    private final AtomicReference<Platform> platformReference;
     private final Configuration configuration;
     private final ReconnectCoordinator reconnectCoordinator;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
@@ -86,7 +87,7 @@ public class ReconnectController implements Runnable {
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final Platform platform,
+            @NonNull final AtomicReference<Platform> platformReference,
             @NonNull final ReconnectCoordinator reconnectCoordinator,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
@@ -101,7 +102,7 @@ public class ReconnectController implements Runnable {
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
         this.reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        this.platform = requireNonNull(platform);
+        this.platformReference = requireNonNull(platformReference);
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.savedStateController = requireNonNull(savedStateController);
@@ -225,7 +226,7 @@ public class ReconnectController implements Runnable {
         final Hash reconnectHash = signedState.getState().getHash();
         final VirtualMapState state = signedState.getState();
         final SemanticVersion creationSoftwareVersion = creationSoftwareVersionOf(state);
-        consensusStateEventHandler.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
+        consensusStateEventHandler.onStateInitialized(state, platformReference.get(), InitTrigger.RECONNECT, creationSoftwareVersion);
 
         if (!Objects.equals(signedState.getState().getHash(), reconnectHash)) {
             throw new IllegalStateException(

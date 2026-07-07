@@ -12,6 +12,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.model.node.NodeId;
@@ -32,7 +33,7 @@ public interface ReconnectModule {
      * @param time the time source
      * @param currentRoster the current roster of the network
      * @param components the platform components to use
-     * @param platform the platform to use for performing platform operations
+     * @param platformReference a reference to the platform to use for performing platform operations
      * @param platformCoordinator the coordinator for complex tasks
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
      * @param savedStateController the controller for managing saved states
@@ -46,7 +47,7 @@ public interface ReconnectModule {
             @NonNull Time time,
             @NonNull Roster currentRoster,
             @NonNull PlatformComponents components,
-            @NonNull Platform platform,
+            @NonNull AtomicReference<Platform> platformReference,
             @NonNull PlatformCoordinator platformCoordinator,
             @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull SavedStateController savedStateController,

@@ -47,6 +47,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -120,74 +123,53 @@ public class SwirldsPlatform implements Platform {
 
     /**
      * Constructor.
-     *
-     * @param builder this object is responsible for building platform components and other things needed by the
-     *                platform
      */
-    public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
-        final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
-        platformContext = blocks.platformContext();
+    public SwirldsPlatform(@NonNull final ConsensusLayerInputs inputs,
+            @NonNull final PlatformCoordinator platformCoordinator,
+            @NonNull final ConsensusLayerBuildingBlocks blocks) {
+
+        this.platformCoordinator = platformCoordinator;
 
         // The reservation on this state is held by the caller of this constructor.
-        final SignedState initialState = blocks.initialState().get();
+        final SignedState initialState = inputs.initialState().get();
 
-        selfId = blocks.selfId();
+        selfId = inputs.selfId();
 
         notificationEngine = blocks.notificationEngine();
 
-        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
-        currentRoster = blocks.rosterHistory().getCurrentRoster();
+        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", inputs.rosterHistory());
+        currentRoster = inputs.rosterHistory().getCurrentRoster();
 
-        final Metrics metrics = platformContext.getMetrics();
+        final Metrics metrics = inputs.metrics();
         registerRosterMetrics(metrics, currentRoster, selfId);
 
         RuntimeMetrics.setup(metrics);
 
-        keysAndCerts = blocks.keysAndCerts();
-
+        keysAndCerts = inputs.keysAndCerts();
         savedStateController = blocks.savedStateController();
 
-        this.platformComponents = blocks.platformComponents();
-        this.platformCoordinator = blocks.platformCoordinator();
+        final Configuration configuration = inputs.configuration();
 
-        blocks.statusActionSubmitterReference().set(platformCoordinator);
+        initializeState(initialState, inputs.consensusStateEventHandler());
 
-        final Configuration configuration = platformContext.getConfiguration();
-
-        initializeState(initialState, blocks.consensusStateEventHandler());
+        // TODO Pickup here tomorrow
 
         // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
         // - For genesis: the manager creates a genesis state eagerly in its constructor.
         // - For restart: loadSnapshot() initializes the manager when loading from disk.
         // - For reconnect: initWithState() re-initializes the manager at runtime.
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = inputs.stateLifecycleManager();
         // Startup initialization may hash/freeze the state referenced by the initial SignedState.
         // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
         stateLifecycleManager.copyMutableState();
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
-            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.appVersion());
         }
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
-
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
-        final ReconnectModule reconnectModule =
-                ConsensusModuleBuilder.createModule(ReconnectModule.class, configuration);
-        reconnectModule.initialize(
-                configuration,
-                platformContext.getTime(),
-                currentRoster,
-                platformComponents,
-                this,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                blocks.consensusStateEventHandler(),
-                blocks.reservedSignedStateResultPromise(),
-                selfId,
-                blocks.fallenBehindMonitor());
 
         platformComponents.bind(builder, eventWindowManager, appNotifier);
 
