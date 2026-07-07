@@ -65,15 +65,17 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.SavedStateController;
-import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.SavedStateController;
+import org.hiero.consensus.state.StateManagementModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
+import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -412,7 +414,7 @@ public final class PlatformBuilder {
 
     private void initializePcesModule(
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final Supplier<ReservedSignedState> latestStateSupplier,
+            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @Nullable final EventPipelineTracker pipelineTracker) {
         pcesModule.initialize(
                 model,
@@ -424,7 +426,7 @@ public final class PlatformBuilder {
                 platformContext.getFileSystemManager(),
                 initialState.get().getRound(),
                 platformCoordinator::flushPrimaryPipeline,
-                latestStateSupplier,
+                replayProgressSupplier,
                 platformCoordinator::submitStatusAction,
                 platformCoordinator::flushPlatformStatus,
                 platformCoordinator::signalEndOfPcesReplay,
@@ -608,7 +610,7 @@ public final class PlatformBuilder {
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
+                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics(), selfId);
 
         if (this.eventCreatorModule == null) {
             this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);
@@ -665,8 +667,9 @@ public final class PlatformBuilder {
         }
 
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        initializePcesModule(
-                platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
+        final Supplier<PcesReplayProgress> replayProgressSupplier =
+                buildPcesReplayProgressSupplier(latestImmutableStateNexus);
+        initializePcesModule(platformCoordinator, replayProgressSupplier, pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
         initializeGossipModule(
                 intakeEventCounter, latestCompleteStateSupplier, reservedSignedStateResultPromise, fallenBehindMonitor);
@@ -702,6 +705,20 @@ public final class PlatformBuilder {
                 savedStateController);
 
         return new PlatformComponentBuilder(buildingBlocks);
+    }
+
+    @NonNull
+    private Supplier<PcesReplayProgress> buildPcesReplayProgressSupplier(
+            @NonNull final SignedStateNexus latestImmutableStateNexus) {
+        return () -> {
+            try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("PCES replay")) {
+                if (reservedState == null || reservedState.isNull()) {
+                    return PcesReplayProgress.EMPTY;
+                }
+                final SignedState signedState = reservedState.get();
+                return new PcesReplayProgress(signedState.getRound(), signedState.getConsensusTimestamp());
+            }
+        };
     }
 
     /**

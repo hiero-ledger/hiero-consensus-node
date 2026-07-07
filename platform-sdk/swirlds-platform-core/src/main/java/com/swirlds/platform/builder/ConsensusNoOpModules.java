@@ -48,14 +48,15 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.SavedStateController;
-import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.SavedStateController;
+import org.hiero.consensus.state.StateManagementModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
+import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
@@ -144,7 +145,7 @@ public class ConsensusNoOpModules {
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
         final Runnable flushPrimaryPipeline = () -> {};
-        final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
+        final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
         final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
         final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
@@ -162,7 +163,7 @@ public class ConsensusNoOpModules {
                 fileSystemManager,
                 startingRound,
                 flushPrimaryPipeline,
-                latestImmutableStateSupplier,
+                replayProgressSupplier,
                 statusActionConsumer,
                 platformStatusFlusher,
                 signalEndOfPcesReplay,
@@ -223,7 +224,7 @@ public class ConsensusNoOpModules {
         final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics, selfId);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);

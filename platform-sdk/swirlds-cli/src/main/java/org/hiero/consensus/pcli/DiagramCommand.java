@@ -37,7 +37,7 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.state.management.StateManagementModule;
+import org.hiero.consensus.state.StateManagementModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
