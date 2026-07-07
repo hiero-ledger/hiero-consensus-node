@@ -14,6 +14,9 @@ on:
         type: choice
         options:
           - MDLT3
+          - MQPT10
+          - MQPT11
+          - MQPT12
           - AdHoc5
           - AdHoc6
           - AdHoc7
@@ -76,7 +79,11 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
-
+      ghp_perf:
+        required: true
+        default: ""
+        type: strings
+        description: "ghp_perf"
 defaults:
   run:
     shell: bash
@@ -153,18 +160,18 @@ jobs:
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
-      ref: "${{ inputs.ref || github.ref }}"
-      solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
+      ref: "${{ inputs.ref }}"
+      #solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
       delete-namespace: ${{ inputs.delete-namespace }}
-      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      #java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+      github-token: ${{ secrets.ghp_perf }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
