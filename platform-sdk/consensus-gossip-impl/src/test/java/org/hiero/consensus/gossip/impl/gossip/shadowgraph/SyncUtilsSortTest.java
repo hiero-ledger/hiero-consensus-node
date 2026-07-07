@@ -58,7 +58,7 @@ class SyncUtilsSortTest {
      */
     @Test
     void sortYieldsTopologicalOrder() {
-        final Random random = getRandomPrintSeed(-5636817684216346039L);
+        final Random random = getRandomPrintSeed();
 
         // Build a small DAG parent-first. TestingEventBuilder assigns an ever-increasing sequence number at build
         // time, mirroring the orphan buffer assigning it at release time, so a parent always has a lower sequence

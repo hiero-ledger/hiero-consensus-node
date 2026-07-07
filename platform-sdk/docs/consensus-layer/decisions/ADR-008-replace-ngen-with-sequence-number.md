@@ -105,7 +105,11 @@ a dependency on it.
   increasing — though not contiguous — numbers even when their parents have gone
   ancient, and every event receives a value distinct from every other. (A
   creator's events stay per-creator-monotonic because a self-parent always
-  leaves the buffer before its child.)
+  leaves the buffer before its child.) One thing for consumers to know: the
+  counter is an in-memory `AtomicLong` that is not persisted, so a process
+  restart constructs a fresh buffer that begins numbering from `1` again and
+  renumbers replayed events. The value is therefore stable only within a single
+  run — never persist it or compare it across restarts.
 - **Disambiguation.** The pre-existing consensus-side `EventImpl.sequence` is
   renamed `consensusSequence` (with `getConsensusSequence` /
   `setConsensusSequence`) so the intake-order sequence number and the
