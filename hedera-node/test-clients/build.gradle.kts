@@ -270,6 +270,11 @@ val prCheckNetSizeOverrides =
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
         "hapiTestStateThrottling" to "3",
+        // Each node runs a native WRAPS prover during proof construction; 3 nodes keeps
+        // peak memory within the dedicated runner pool's limits
+        "hapiTestWraps" to "3",
+        "hapiTestCutover" to "3",
+        "hapiTestWrapsDownload" to "3",
     )
 
 tasks {
