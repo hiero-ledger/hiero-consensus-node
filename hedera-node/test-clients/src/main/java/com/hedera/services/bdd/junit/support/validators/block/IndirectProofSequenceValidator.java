@@ -24,16 +24,15 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.binary.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 
 class IndirectProofSequenceValidator {
     private static final Logger log = LogManager.getLogger(IndirectProofSequenceValidator.class);
@@ -320,94 +319,56 @@ class IndirectProofSequenceValidator {
         final var earliestBlockStartingHash = expectedBlockRootHashes.get(firstUnsignedBlockNum);
         MerklePath.Builder earliestBlockMp2 = MerklePath.newBuilder().hash(earliestBlockStartingHash);
 
-        // Create a set of siblings for all intermediate blocks (between proven and signed) plus the signed block.
-        // The proven block's own siblings are not needed: we start from its root hash directly.
+        // Build the sibling list for the earliest unsigned block's proof. Intermediate blocks (those
+        // between the proven block and the signed block) each contribute their Merkle siblings, a
+        // null-hash sentinel, and their timestamp. The signed block contributes its siblings and a sentinel.
         final var numIntermediateBlocks = signedBlockNum - firstUnsignedBlockNum - 1;
-        final var totalExpectedSiblings = expectedSiblingsFrom(numIntermediateBlocks);
-        final SiblingNode[] allSiblingHashes = new SiblingNode[totalExpectedSiblings];
+        final var allSiblingHashes = new ArrayList<SiblingNode>();
         var currentBlockNum = firstUnsignedBlockNum + 1;
         for (int i = 0; i < numIntermediateBlocks; i++) {
-            final var currentBlockPaths = partialPathsByBlock.get(currentBlockNum);
-
-            // Convert sibling hashes
-            final var blockSiblings = currentBlockPaths.right().siblingHashes().stream()
-                    .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
-                    .toList();
-            // Copy into the sibling hashes array
-            final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
-            for (int j = 0; j < blockSiblings.size(); j++) {
-                final var blockSibling = blockSiblings.get(j);
-                allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
-                        .isLeft(blockSibling.isLeft())
-                        .hash(blockSibling.hash().getBytes())
-                        .build();
+            final var currentBlockPaths = partialPathsByBlock.get(currentBlockNum++);
+            for (final var s : currentBlockPaths.right().siblingHashes()) {
+                allSiblingHashes.add(SiblingNode.newBuilder()
+                        .isLeft(s.isFirst())
+                        .hash(s.siblingHash())
+                        .build());
             }
-
-            // Null-hash sentinel: signals hashInternalNodeSingleChild before combining with timestamp
-            allSiblingHashes[firstSiblingIndex + blockSiblings.size()] =
-                    SiblingNode.newBuilder().build();
-
-            // Combine with the current block's timestamp
-            final var unsignedTsBytes = currentBlockPaths.left().leaf().timestampLeafOrThrow();
-            final var hashedUnsignedTsBytes = BlockImplUtils.hashLeaf(unsignedTsBytes);
-            allSiblingHashes[firstSiblingIndex + UNSIGNED_BLOCK_SIBLING_COUNT - 1] = SiblingNode.newBuilder()
+            allSiblingHashes.add(SiblingNode.newBuilder().build()); // null-hash sentinel
+            allSiblingHashes.add(SiblingNode.newBuilder()
                     .isLeft(true)
-                    .hash(hashedUnsignedTsBytes)
-                    .build();
-
-            currentBlockNum++;
+                    .hash(BlockImplUtils.hashLeaf(
+                            currentBlockPaths.left().leaf().timestampLeafOrThrow()))
+                    .build());
         }
 
-        // Convert and add the sibling hashes for the signed block (excluding the signed block's timestamp)
-        final var signedBlockPaths = partialPathsByBlock.get(signedBlockNum);
-        final var signedBlockSiblings = signedBlockPaths.right().siblingHashes().stream()
-                .map(s -> new SiblingHash(s.isFirst(), new Hash(s.siblingHash())))
-                .toList();
-        // Copy the signed block's siblings into the sibling hashes array, then add null sentinel
-        final var signedBlockFirstSiblingIndex = (int) numIntermediateBlocks * UNSIGNED_BLOCK_SIBLING_COUNT;
-        for (int j = 0; j < signedBlockSiblings.size(); j++) {
-            final var blockSibling = signedBlockSiblings.get(j);
-            allSiblingHashes[signedBlockFirstSiblingIndex + j] = SiblingNode.newBuilder()
-                    .isLeft(blockSibling.isLeft())
-                    .hash(blockSibling.hash().getBytes())
-                    .build();
+        // Add sibling hashes for the signed block (excluding its timestamp, which lives in mp1)
+        for (final var s : partialPathsByBlock.get(signedBlockNum).right().siblingHashes()) {
+            allSiblingHashes.add(SiblingNode.newBuilder()
+                    .isLeft(s.isFirst())
+                    .hash(s.siblingHash())
+                    .build());
         }
-        // Null-hash sentinel: signals hashInternalNodeSingleChild during verification
-        allSiblingHashes[signedBlockFirstSiblingIndex + signedBlockSiblings.size()] =
-                SiblingNode.newBuilder().build();
+        allSiblingHashes.add(SiblingNode.newBuilder().build()); // null-hash sentinel
 
         // Set the complete collection of siblings for the earliest unsigned block
-        earliestBlockMp2.siblings(Arrays.stream(allSiblingHashes).toList()).nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
+        earliestBlockMp2.siblings(allSiblingHashes).nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
 
         // Merkle Path 3: the terminal path (same for all proofs)
         final var mp3 =
                 MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX).build();
 
-        // We now have all sibling hashes needed for the earliest unsigned block's proof. Set the value in the map
         fullMerklePathsByBlockNum.put(firstUnsignedBlockNum, new MerklePath[] {mp1, earliestBlockMp2.build(), mp3});
 
-        // Populate each remaining unsigned block's proof with the subset of needed sibling hashes
+        // Each subsequent unsigned block's proof uses a suffix of allSiblingHashes starting where
+        // that block's immediate successor's siblings begin
         for (long currUnsignedBlock = firstUnsignedBlockNum + 1;
                 currUnsignedBlock < signedBlockNum;
                 currUnsignedBlock++) {
-            final var newMp2 = MerklePath.newBuilder();
-
-            final var currUnsignedBlockSiblingsSize = expectedSiblingsFrom(signedBlockNum - currUnsignedBlock - 1);
-            final var currUnsignedBlockSiblings = new SiblingNode[currUnsignedBlockSiblingsSize];
-            final var currUnsignedBlockStartingIndex =
-                    (int) ((currUnsignedBlock - firstUnsignedBlockNum) * UNSIGNED_BLOCK_SIBLING_COUNT);
-            for (int i = currUnsignedBlockStartingIndex; i < allSiblingHashes.length; i++) {
-                // Copy the subset of sibling hashes from the full set of hashes (note: COPIES the current hash)
-                currUnsignedBlockSiblings[i - currUnsignedBlockStartingIndex] =
-                        allSiblingHashes[i].copyBuilder().build();
-            }
-
-            final var currentUnsignedBlockStartingHash = expectedBlockRootHashes.get(currUnsignedBlock);
-            newMp2.hash(currentUnsignedBlockStartingHash)
-                    .siblings(currUnsignedBlockSiblings)
+            final var startIndex = (int) ((currUnsignedBlock - firstUnsignedBlockNum) * UNSIGNED_BLOCK_SIBLING_COUNT);
+            final var newMp2 = MerklePath.newBuilder()
+                    .hash(expectedBlockRootHashes.get(currUnsignedBlock))
+                    .siblings(List.copyOf(allSiblingHashes.subList(startIndex, allSiblingHashes.size())))
                     .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX);
-
-            // Populate the map with the full merkle paths for this block number
             fullMerklePathsByBlockNum.put(currUnsignedBlock, new MerklePath[] {mp1, newMp2.build(), mp3});
         }
 

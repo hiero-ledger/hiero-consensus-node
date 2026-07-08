@@ -41,17 +41,7 @@ class BlockStateProofGeneratorTest {
     @Test
     void verifyBlockStateProofs() {
         // Load and verify the pending proofs from resources (precondition)
-        final var pendingBlockInputs = loadPendingProofs().stream()
-                .map(pp -> new PendingBlock(
-                        pp.block(),
-                        null,
-                        pp.blockHash(),
-                        pp.previousBlockHash(),
-                        BlockProof.newBuilder().block(pp.block()),
-                        new NoOpTestWriter(),
-                        pp.blockTimestamp(),
-                        pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
-                .toList();
+        final var pendingBlockInputs = loadPendingBlocks();
         verifyLoadedBlocks(pendingBlockInputs);
         // Load and verify the expected state proofs from resources (precondition)
         final var expectedProofs = loadExpectedStateProofs();
@@ -90,17 +80,7 @@ class BlockStateProofGeneratorTest {
      */
     @Test
     void verifyStateProofsByTraversal() {
-        final var pendingBlockInputs = loadPendingProofs().stream()
-                .map(pp -> new PendingBlock(
-                        pp.block(),
-                        null,
-                        pp.blockHash(),
-                        pp.previousBlockHash(),
-                        BlockProof.newBuilder().block(pp.block()),
-                        new NoOpTestWriter(),
-                        pp.blockTimestamp(),
-                        pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
-                .toList();
+        final var pendingBlockInputs = loadPendingBlocks();
 
         final var pendingBlocksByBlockNum =
                 pendingBlockInputs.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
@@ -215,17 +195,7 @@ class BlockStateProofGeneratorTest {
     @Test
     @Disabled("Run manually to regenerate golden proof files after changing BlockStateProofGenerator")
     void regenerateGoldenFiles() throws Exception {
-        final var pendingBlockInputs = loadPendingProofs().stream()
-                .map(pp -> new PendingBlock(
-                        pp.block(),
-                        null,
-                        pp.blockHash(),
-                        pp.previousBlockHash(),
-                        BlockProof.newBuilder().block(pp.block()),
-                        new NoOpTestWriter(),
-                        pp.blockTimestamp(),
-                        pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
-                .toList();
+        final var pendingBlockInputs = loadPendingBlocks();
 
         final var pendingBlocksByBlockNum =
                 pendingBlockInputs.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
@@ -259,7 +229,7 @@ class BlockStateProofGeneratorTest {
                         pendingBlocks.getFirst().siblingHashes())
                 .map(MerkleSiblingHash::siblingHash)
                 .toList();
-        Assertions.assertThat(actualFirstSiblingHashes.size()).isEqualTo(BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThat(actualFirstSiblingHashes).hasSize(BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
         Assertions.assertThat(actualFirstSiblingHashes)
                 .containsExactlyElementsOf(List.of(EXPECTED_FIRST_SIBLING_HASHES));
 
@@ -357,6 +327,20 @@ class BlockStateProofGeneratorTest {
 
             System.out.println("Finished verifying loaded state proof file for block " + outerCurrentBlockNum);
         }
+    }
+
+    private List<PendingBlock> loadPendingBlocks() {
+        return loadPendingProofs().stream()
+                .map(pp -> new PendingBlock(
+                        pp.block(),
+                        null,
+                        pp.blockHash(),
+                        pp.previousBlockHash(),
+                        BlockProof.newBuilder().block(pp.block()),
+                        new NoOpTestWriter(),
+                        pp.blockTimestamp(),
+                        pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
+                .toList();
     }
 
     private List<PendingProof> loadPendingProofs() {
