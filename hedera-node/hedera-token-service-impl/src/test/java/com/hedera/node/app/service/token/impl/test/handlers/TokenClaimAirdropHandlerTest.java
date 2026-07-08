@@ -306,6 +306,27 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
+    void claimingPendingAirdropWithOverflowingValueFails() {
+        // Legacy pending value unreachable post-fix; claim must fail, not wrap.
+        handlerTestBaseInternalSetUp(true);
+        givenPendingFungibleTokenAirdrop(fungibleTokenId, spenderId, tokenReceiverNoAssociationId, Long.MIN_VALUE);
+        removeTokenCustomFee(fungibleTokenId);
+        refreshReadableStores();
+        refreshWritableStores();
+        givenStoresAndConfig(handleContext);
+        associateToken(spenderId, fungibleTokenId);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(CryptoTransferStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
+
+        var airdrops = new ArrayList<PendingAirdropId>();
+        airdrops.add(firstPendingAirdropId);
+        givenClaimAirdrop(airdrops);
+
+        final var ex = assertThrows(HandleException.class, () -> tokenClaimAirdropHandler.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, ex.getStatus());
+    }
+
+    @Test
     void claimSecondAirdrop() {
         stateInitialize();
 
