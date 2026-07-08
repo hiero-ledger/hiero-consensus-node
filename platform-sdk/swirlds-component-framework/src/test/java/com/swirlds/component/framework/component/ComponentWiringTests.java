@@ -135,6 +135,52 @@ public class ComponentWiringTests {
         }
     }
 
+    @Test
+    void testTypeMismatch() {
+        final WiringModel wiringModel = WiringModelBuilder.create(METRICS, TIME).build();
+
+        final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
+
+        final AtomicLong result = new AtomicLong();
+
+        final ComponentWiring<StringToInteger, Integer> stringToIntegerWiring =
+                new ComponentWiring<>(wiringModel, StringToInteger.class, schedulerConfiguration);
+        final ComponentWiring<IntegerToLong, Long> integerToLongWiring =
+                new ComponentWiring<>(wiringModel, IntegerToLong.class, schedulerConfiguration);
+        stringToIntegerWiring.getOutputWire().solderTo(integerToLongWiring.getInputWire(IntegerToLong::integerToLong));
+        integerToLongWiring.getOutputWire().solderTo("test1", "test2", result::set);
+        stringToIntegerWiring.getInputWire(StringToInteger::stringToInteger);
+
+        final StringToInteger stringToIntegerComponent = new StringToIntegerImpl();
+        final IntegerToLong integerToLongComponent = new IntegerToLongImpl();
+        stringToIntegerWiring.bind(stringToIntegerComponent);
+        integerToLongWiring.bind(integerToLongComponent);
+        wiringModel.start();
+        // "test" -> Double (expecting Integer) -> Long
+        stringToIntegerWiring.getInputWire(StringToInteger::stringToInteger).put("test");
+        assertEquals(10L, result.get());
+    }
+
+    public interface StringToInteger {
+        Double stringToInteger(String string);
+    }
+
+    public interface IntegerToLong {
+        Long integerToLong(Integer integer);
+    }
+
+    public class StringToIntegerImpl implements StringToInteger {
+        public Double stringToInteger(String string) {
+            return 1D;
+        }
+    }
+    public class IntegerToLongImpl implements IntegerToLong {
+        public Long integerToLong(Integer integer) {
+            return 10L;
+        }
+    }
+
+
     /**
      * The framework should not permit methods that aren't on the component to be wired.
      */
