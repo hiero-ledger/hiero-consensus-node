@@ -67,13 +67,13 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.SavedStateController;
-import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
+import org.hiero.consensus.state.SavedStateController;
+import org.hiero.consensus.state.StateManagementModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
+import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
@@ -610,7 +610,7 @@ public final class PlatformBuilder {
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
+                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics(), selfId);
 
         if (this.eventCreatorModule == null) {
             this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);

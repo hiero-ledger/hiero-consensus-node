@@ -49,8 +49,8 @@ module org.hiero.consensus.gossip.impl {
     requires org.hiero.consensus.roster;
     requires static transitive com.github.spotbugs.annotations;
 
+    uses ReconnectProtocolFactory;
+
     provides GossipModule with
             DefaultGossipModule;
-
-    uses ReconnectProtocolFactory;
 }
