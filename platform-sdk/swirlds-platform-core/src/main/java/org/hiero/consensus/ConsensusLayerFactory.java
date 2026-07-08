@@ -89,6 +89,9 @@ import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
+/**
+ * A factory used to construct the consensus layer.
+ */
 public class ConsensusLayerFactory {
 
     private static final Logger logger = LogManager.getLogger();
@@ -156,11 +159,17 @@ public class ConsensusLayerFactory {
     @NonNull
     private final SecureRandom secureRandom;
 
+    @NonNull
+    private final ExecutorFactory executorFactory;
+
     @Nullable
     private final GossipModule gossipModuleOverride;
 
-    private final ExecutorFactory executorFactory;
-
+    /**
+     * Creates a new factory with the inputs provided by the execution layer.
+     *
+     * @param inputs inputs for the consensus layer
+     */
     public ConsensusLayerFactory(@NonNull final ConsensusLayerInputs inputs) {
         configuration = inputs.configuration();
         metrics = inputs.metrics();
@@ -184,10 +193,17 @@ public class ConsensusLayerFactory {
         gossipModuleOverride = inputs.gossipModuleOverride();
     }
 
+    /**
+     * The output of the factory.
+     */
     public record ConsensusLayerFactoryResult(
             @NonNull PlatformCoordinator platformCoordinator,
             @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {}
 
+    /**
+     * Constructs most of the components and modules required to create the platform.
+     */
+    @NonNull
     public ConsensusLayerFactoryResult create() {
         final EventCreatorModule eventCreatorModule = createEventCreatorModule();
         final IntakeEventCounter intakeEventCounter = createIntakeEventCounter();
@@ -283,6 +299,7 @@ public class ConsensusLayerFactory {
         return latestImmutableStateNexus;
     }
 
+    @NonNull
     public ReconnectModule createReconnectModule(
             @NonNull final Platform platform,
             @NonNull final PlatformCoordinator platformCoordinator,
@@ -307,6 +324,7 @@ public class ConsensusLayerFactory {
         return reconnectModule;
     }
 
+    @NonNull
     private StateModule createStateModule(
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController) {
@@ -325,6 +343,7 @@ public class ConsensusLayerFactory {
                 savedStateController);
     }
 
+    @NonNull
     private TransactionHandlingModule createTransactionHandlingModule(
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
@@ -342,6 +361,7 @@ public class ConsensusLayerFactory {
                 transactionOffsetNanos);
     }
 
+    @NonNull
     private GossipModule createGossipModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
@@ -368,6 +388,7 @@ public class ConsensusLayerFactory {
         return module;
     }
 
+    @NonNull
     private HashgraphModule createHashgraphModule(@Nullable final EventPipelineTracker eventPipelineTracker) {
         final HashgraphModule module = createModule(HashgraphModule.class, configuration);
         module.initialize(
@@ -421,6 +442,7 @@ public class ConsensusLayerFactory {
                 eventPipelineTracker);
     }
 
+    @NonNull
     private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
         final boolean eventPipelineMetricsEnabled =
                 configuration.getConfigData(PlatformMetricsConfig.class).eventPipelineMetricsEnabled();
@@ -438,6 +460,7 @@ public class ConsensusLayerFactory {
         return eventPipelineTracker;
     }
 
+    @NonNull
     private IntakeEventCounter createIntakeEventCounter() {
         if (configuration.getConfigData(SyncConfig.class).waitForEventsInIntake()) {
             return new DefaultIntakeEventCounter(rosterHistory.getCurrentRoster());
@@ -446,6 +469,7 @@ public class ConsensusLayerFactory {
         }
     }
 
+    @NonNull
     private EventIntakeModule createEventIntakeModule(
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
@@ -462,6 +486,7 @@ public class ConsensusLayerFactory {
         return module;
     }
 
+    @NonNull
     private EventCreatorModule createEventCreatorModule() {
         final EventCreatorModule module = createModule(EventCreatorModule.class, configuration);
         module.initialize(
@@ -478,6 +503,7 @@ public class ConsensusLayerFactory {
         return module;
     }
 
+    @NonNull
     private SecureRandom initializeSecureRandom(@Nullable final SecureRandom secureRandomOverride) {
         if (secureRandomOverride != null) {
             return secureRandomOverride;
@@ -490,6 +516,7 @@ public class ConsensusLayerFactory {
         }
     }
 
+    @NonNull
     private WiringModel initializeWiringModel(@Nullable final WiringModel wiringModelOverride) {
         if (wiringModelOverride != null) {
             return wiringModelOverride;
@@ -509,6 +536,7 @@ public class ConsensusLayerFactory {
                 .build();
     }
 
+    @NonNull
     private IssDetectionModule createIssDetectionModule() {
         return new IssDetectionModule(
                 wiringModel,
