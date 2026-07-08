@@ -81,6 +81,7 @@ env:
   #Release version from jFrog
   NLG_VERSION: 0.14.3
   NUM_OF_BLOCK_NODES: 1
+  java-version: "25.0.2"
 
 jobs:
   acquire-kubernetes-resources:
@@ -205,7 +206,7 @@ jobs:
           echo Setup procedure ...
           cat /etc/*elease
           sudo apt-get update
-          sudo apt-get install -y net-tools iputils-ping node-typescript
+          sudo apt-get install -qq -y net-tools iputils-ping node-typescript coreutils jq xxd openssl
 
       - name: Create report dir
         shell: bash
