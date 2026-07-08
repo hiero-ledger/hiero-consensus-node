@@ -52,7 +52,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class PauseUnpauseTokenAccountPrecompileSuite {
     public static final String PAUSE_UNPAUSE_CONTRACT = "PauseUnpauseTokenAccount";
 

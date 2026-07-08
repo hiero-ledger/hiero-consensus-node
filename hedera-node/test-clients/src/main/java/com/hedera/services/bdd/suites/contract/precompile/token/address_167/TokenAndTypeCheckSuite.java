@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class TokenAndTypeCheckSuite {
     private static final String TOKEN_AND_TYPE_CHECK_CONTRACT = "TokenAndTypeCheck";
     private static final String ACCOUNT = "anybody";

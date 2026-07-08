@@ -33,7 +33,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ContractGetInfoSuite {
     private static final String NON_EXISTING_CONTRACT =
             HapiSpecSetup.getDefaultInstance().invalidContractName();

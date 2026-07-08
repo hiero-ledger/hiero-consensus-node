@@ -136,7 +136,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class Create2OperationSuite {
     private static final Logger LOG = LogManager.getLogger(Create2OperationSuite.class);
 

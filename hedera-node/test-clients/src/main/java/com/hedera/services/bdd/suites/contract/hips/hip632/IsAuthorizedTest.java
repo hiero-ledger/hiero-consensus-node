@@ -73,7 +73,7 @@ import org.junit.jupiter.api.Tag;
  * when the {@code contracts.systemContract.accountService.isAuthorizedRawEnabled} feature flag is on (which is
  * true by default in  the current release.)
  */
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "String literals should not be duplicated" - would impair readability here
 public class IsAuthorizedTest {
 

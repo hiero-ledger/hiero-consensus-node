@@ -35,7 +35,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ContractBurnHTSSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
     public static final String MULTIVERSION_BURN_CONTRACT = "MultiversionBurn";

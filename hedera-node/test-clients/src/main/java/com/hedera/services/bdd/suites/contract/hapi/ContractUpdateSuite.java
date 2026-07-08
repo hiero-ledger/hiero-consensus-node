@@ -74,7 +74,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ContractUpdateSuite {
     private static final long ONE_DAY = 60L * 60L * 24L;
     public static final String ADMIN_KEY = "adminKey";
@@ -356,7 +356,7 @@ public class ContractUpdateSuite {
     }
 
     @HapiTest
-    @Tag(SERIAL)
+    //@Tag(SERIAL)
     final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";

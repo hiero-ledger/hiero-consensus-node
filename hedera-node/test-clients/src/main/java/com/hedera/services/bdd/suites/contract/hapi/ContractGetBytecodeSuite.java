@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ContractGetBytecodeSuite {
 
     private static final Logger log = LogManager.getLogger(ContractGetBytecodeSuite.class);

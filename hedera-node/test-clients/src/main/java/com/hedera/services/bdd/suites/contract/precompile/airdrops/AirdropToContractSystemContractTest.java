@@ -96,7 +96,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class AirdropToContractSystemContractTest {
 
     private static final String TXN_NAME = "airdropTxn";

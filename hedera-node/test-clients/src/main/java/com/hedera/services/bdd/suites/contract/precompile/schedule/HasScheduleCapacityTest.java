@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Tag;
  * path because more detailed tests with be added to
  * <a href="https://github.com/hashgraph/hedera-evm-testing">hedera-evm-testing</a> repo
  */
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
 

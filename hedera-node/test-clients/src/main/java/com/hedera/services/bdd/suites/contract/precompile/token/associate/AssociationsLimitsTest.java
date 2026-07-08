@@ -38,7 +38,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class AssociationsLimitsTest {
 
     private static final int TRANSACTION_MAX_GAS = 15_000_000;

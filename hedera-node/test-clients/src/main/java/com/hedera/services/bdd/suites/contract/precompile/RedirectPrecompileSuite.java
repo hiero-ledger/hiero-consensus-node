@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class RedirectPrecompileSuite {
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String MULTI_KEY = "purpose";

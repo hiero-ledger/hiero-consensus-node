@@ -28,7 +28,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ContractStateSuite {
     private static final String CONTRACT = "StateContract";
     private static final SplittableRandom RANDOM = new SplittableRandom(1_234_567L);

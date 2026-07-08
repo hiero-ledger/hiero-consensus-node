@@ -85,7 +85,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class TokenInfoHTSSuite {
     private static final String TOKEN_INFO_CONTRACT = "TokenInfoContract";
     private static final String ADMIN_KEY = TokenKeyType.ADMIN_KEY.name();

@@ -72,7 +72,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @OrderedInIsolation
 @HapiTestLifecycle
 public class JumboTransactionsEnabledTest implements LifecycleTest {

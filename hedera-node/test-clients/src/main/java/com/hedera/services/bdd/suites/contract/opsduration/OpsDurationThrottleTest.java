@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @DisplayName("opsDurationThrottle")
 @OrderedInIsolation
 public class OpsDurationThrottleTest {
