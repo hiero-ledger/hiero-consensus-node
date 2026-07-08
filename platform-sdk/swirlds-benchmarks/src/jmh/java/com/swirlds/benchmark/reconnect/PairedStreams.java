@@ -120,6 +120,14 @@ public class PairedStreams implements AutoCloseable {
                 : Optional.empty();
     }
 
+    /**
+     * End-of-run read-pacing summary for the socket transport (live window readouts); empty for the simulated
+     * transport or when pacing is inactive (LOOPBACK profile).
+     */
+    public Optional<String> getSocketPacingSummary() {
+        return transport == NetworkTransport.LOOPBACK_SOCKET ? socketTransport.pacingSummary() : Optional.empty();
+    }
+
     @Override
     public void close() throws IOException {
         if (transport == NetworkTransport.LOOPBACK_SOCKET) {

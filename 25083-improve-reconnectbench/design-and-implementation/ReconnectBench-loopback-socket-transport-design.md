@@ -12,6 +12,12 @@ This design is benchmark-only. It must not change production/runtime consensus-n
 code may be read and reused by the benchmark, but the implementation scope is limited to
 `platform-sdk/swirlds-benchmarks/**` and task-local documentation.
 
+Amended `2026-07-08`: the Socket Shaping directive against read-side pacing ("Do not add read-side pacing..."), the
+Non-Goals bullet asserting real TCP kernel buffers make a benchmark-level window unnecessary, the write-side shaping
+stack, and the `LOOPBACK_SOCKET + REALISTIC` row of the Behavior Matrix are **superseded** by
+[`ReconnectBench-socket-buffer-read-pacing-design.md`](ReconnectBench-socket-buffer-read-pacing-design.md), which moves
+all REALISTIC shaping for the socket transport to a read-side pacer so the kernel socket buffers actually bind.
+
 ## Goal
 
 `ReconnectBench` should support two transport implementations side by side:

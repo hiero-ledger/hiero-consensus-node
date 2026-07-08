@@ -81,8 +81,8 @@ public interface SocketFactory {
         serverSocket.setReuseAddress(true);
 
         // FIXME: it's an experiment, remove it
-//        final int reconnectBufferBytes = 1 << 20; // 1MiB
-        final int reconnectBufferBytes = 32768;
+        final int reconnectBufferBytes = 1 << 20; // 1MiB
+//        final int reconnectBufferBytes = 32768;
         serverSocket.setReceiveBufferSize(reconnectBufferBytes);
 
         logger.warn(SOCKET_EXCEPTIONS.getMarker(),
@@ -125,8 +125,8 @@ public interface SocketFactory {
             clientSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
 
-//        final int reconnectBufferBytes = 1 << 20; // 1MiB
-        final int reconnectBufferBytes = 32768; // 1MiB
+        final int reconnectBufferBytes = 1 << 20; // 1MiB
+//        final int reconnectBufferBytes = 32768;
         clientSocket.setReceiveBufferSize(reconnectBufferBytes);
         clientSocket.setSendBufferSize(reconnectBufferBytes);
 

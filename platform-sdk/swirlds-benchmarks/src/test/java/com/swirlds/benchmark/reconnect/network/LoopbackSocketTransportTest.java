@@ -109,18 +109,54 @@ class LoopbackSocketTransportTest {
         }
     }
 
+    /**
+     * Replaces the retired {@code realisticProfileDelaysFirstBytes}: with read-side pacing the write path is raw and
+     * per-message first-byte delay is deliberately not modeled (recorded decision 6), so the windowed assertion is
+     * that a transfer spanning several windows must wait out the RTT periods between them. The transfer size is
+     * derived from the live diagnostics so the test holds for any local SocketFactory buffer experiment, with 6x
+     * headroom against mid-run receive-buffer autotuning growing the window.
+     */
     @Test
-    void realisticProfileDelaysFirstBytes() throws Exception {
+    void realisticProfileReleasesAtMostOneWindowPerRtt() throws Exception {
+        // One-way 100 ms -> RTT 200 ms window period; bandwidth high enough that only the window paces.
         try (LoopbackSocketTransport transport =
-                new LoopbackSocketTransport(realisticConfig(100_000, 1_000), configuration())) {
-            final long start = System.nanoTime();
-            transport.getTeacherOutput().writeInt(1234);
-            transport.getTeacherOutput().flush();
-            assertEquals(1234, transport.getLearnerInput().readInt());
-            final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                new LoopbackSocketTransport(realisticConfig(100_000, 1_000_000), configuration())) {
+            final SocketTransportDiagnostics diagnostics = transport.diagnostics();
+            final int window = diagnostics.clientSendBufferBytes() + diagnostics.acceptedReceiveBufferBytes();
+            // 12x the construction-time window: the pacer re-reads W live per window, so mid-run receive-buffer
+            // autotuning would need to grow the average window >= 6x (far beyond the ~1.5x observed) before the
+            // transfer could fit in under three windows and erode the elapsed bound below.
+            final int total = 12 * window;
 
-            assertTrue(elapsedMillis >= 70, "latency shaping should delay visible bytes");
+            final AtomicReference<Throwable> writerFailure = new AtomicReference<>();
+            final Thread writer = new Thread(() -> {
+                try {
+                    final byte[] chunk = new byte[64 * 1024];
+                    int remaining = total;
+                    while (remaining > 0) {
+                        final int n = Math.min(chunk.length, remaining);
+                        transport.getTeacherOutput().write(chunk, 0, n);
+                        remaining -= n;
+                    }
+                    transport.getTeacherOutput().flush();
+                } catch (final Throwable t) {
+                    writerFailure.set(t);
+                }
+            });
+            writer.setDaemon(true);
+
+            final long start = System.nanoTime();
+            writer.start();
+            transport.getLearnerInput().readFully(new byte[total]);
+            final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            writer.join(10_000);
+
+            // 6 windows require waiting out several full RTT periods even if autotuning doubles the window.
+            assertTrue(
+                    elapsedMillis >= 300,
+                    "window pacing should spread a multi-window transfer across RTTs, took " + elapsedMillis + " ms");
             assertTrue(transport.diagnostics().latencyShapingActive());
+            assertEquals(null, writerFailure.get(), "writer must complete cleanly");
         }
     }
 
@@ -134,11 +170,52 @@ class LoopbackSocketTransportTest {
             transport.getTeacherOutput().write(payload);
             transport.getTeacherOutput().flush();
             assertEquals(payload.length, transport.getLearnerInput().readInt());
-            transport.getLearnerInput().readFully(new byte[payload.length]);
+            // Drain in bounded chunks, like the reconnect's framed messages. Release-then-wait pacing charges a
+            // read's transmit time against the NEXT read, so a single huge readFully (BufferedInputStream's
+            // large-read bypass) would arrive as one unpaced burst whose tail charge delays nothing; sustained
+            // chunked flow — the benchmark's real shape — pays the full per-byte cost.
+            final byte[] chunk = new byte[8 * 1024];
+            for (int drained = 0; drained < payload.length; drained += chunk.length) {
+                transport.getLearnerInput().readFully(chunk);
+            }
             final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
-            assertTrue(elapsedMillis >= 300, "bandwidth shaping should pace a 64 KiB transfer at 1 Mbps");
+            // 64 KiB at 1 Mbps in 8 KiB chunks: ~7 inter-read waits of ~65 ms each -> ~460 ms end to end.
+            assertTrue(elapsedMillis >= 300, "bandwidth pacing should pace a 64 KiB transfer at 1 Mbps");
             assertTrue(transport.diagnostics().bandwidthShapingActive());
+        }
+    }
+
+    /**
+     * Discriminates an accidentally re-introduced write-side shaper — the one regression every lower-bound timing
+     * assertion in this suite would miss. Per recorded decision 6, latency is a throughput window only: a small
+     * first message flows with ~zero added delay. A lingering write-side shaper would park one-way latency
+     * (500 ms here) before the bytes even reach the socket, blowing the upper bound.
+     */
+    @Test
+    void realisticProfileDoesNotDelayFirstBytes() throws Exception {
+        try (LoopbackSocketTransport transport =
+                new LoopbackSocketTransport(realisticConfig(500_000, 1_000_000), configuration())) {
+            final long start = System.nanoTime();
+            transport.getTeacherOutput().writeInt(1234);
+            transport.getTeacherOutput().flush();
+            assertEquals(1234, transport.getLearnerInput().readInt());
+            final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+            assertTrue(
+                    elapsedMillis < 450,
+                    "first window must flow without per-message latency (decision 6), took " + elapsedMillis + " ms");
+        }
+    }
+
+    @Test
+    void pacingSummaryPresentOnlyWhenRealistic() throws Exception {
+        try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration())) {
+            assertTrue(transport.pacingSummary().isEmpty(), "LOOPBACK profile must stay a raw, unpaced floor");
+        }
+        try (LoopbackSocketTransport transport =
+                new LoopbackSocketTransport(realisticConfig(1_000, 1_000), configuration())) {
+            assertTrue(transport.pacingSummary().isPresent(), "REALISTIC profile must expose pacing readouts");
         }
     }
 }

@@ -1,6 +1,6 @@
 # Local ReconnectBench Calibration Notes
 
-Updated: `2026-06-01`
+Updated: `2026-07-08`
 
 Purpose: preserve local `ReconnectBench` calibration and validation notes, grouped by run date.
 
@@ -10,6 +10,19 @@ Covered local calibration dates:
 - `2026-05-05`: `500K`/`50M` saved-state calibration and initial RTT/window sensitivity.
 - `2026-05-06`: additional `50M` RTT/window crossover checks.
 - `2026-05-15`: averaged cluster-profile local diagnostic run.
+
+Later run notes kept as separate files in this directory:
+
+- [`2026-06-26-cluster-evidence-profile-run.md`](2026-06-26-cluster-evidence-profile-run.md): cluster-evidence-profile local run log.
+- [`2026-06-30-small-state-local-runs.md`](2026-06-30-small-state-local-runs.md): small-state local runs.
+- [`2026-07-03-loopback-socket-realistic-local-runs.md`](2026-07-03-loopback-socket-realistic-local-runs.md): first loopback-socket REALISTIC runs.
+- [`new-5m-local.md`](new-5m-local.md): `2026-07-06` 5M-state SocketFactory buffer-size runs (unset / 1 MiB / 32 KiB) under the
+  write-side shaper — the null result that motivated the read-pacing design.
+- [`2026-07-08-socket-buffer-probe.md`](2026-07-08-socket-buffer-probe.md): standalone macOS socket-buffer probe (effective
+  windows, sender-block points, autotuning readback) — evidence base for the read-pacing design.
+- [`2026-07-08-read-pacing-smoke-matrix.md`](2026-07-08-read-pacing-smoke-matrix.md): first post-implementation smoke matrix
+  (buffer config x control/binding leg) validating that `SocketFactory` buffer changes now move reconnect wall-clock in the
+  binding regime and correctly show no effect at the calibrated control point.
 
 ## 2026-05-04
 

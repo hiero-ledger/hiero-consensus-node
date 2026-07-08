@@ -93,6 +93,9 @@ public class MerkleBenchmarkUtils {
                 Thread.currentThread().interrupt();
             }
 
+            // Live-W readout: what the kernel actually granted per pacing window (autotuning included).
+            streams.getSocketPacingSummary().ifPresent(summary -> logger.info("Socket read pacing: {}", summary));
+
             if (workGroup.hasExceptions()) {
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());

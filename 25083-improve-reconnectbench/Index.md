@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-07-03
+Last updated: 2026-07-08
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 
@@ -19,6 +19,7 @@ Last updated: 2026-07-03
 - [Traversal-Comparison MVP Implementation Plan](design-and-implementation/ReconnectBench-traversal-comparison-mvp-implementation-plan.md) - Archived step-by-step implementation plan for the already-executed traversal-comparison MVP.
 - [Loopback Socket Transport Design](design-and-implementation/ReconnectBench-loopback-socket-transport-design.md) - Approved design for adding `NetworkTransport`-selected simulated vs `SocketFactory`-configured loopback socket transports.
 - [Loopback Socket Transport Implementation Plan](design-and-implementation/ReconnectBench-loopback-socket-transport-implementation-plan.md) - Step-by-step execution plan for the benchmark-only loopback TCP transport validation work.
+- [Socket-Buffer Read-Pacing Design (Option C)](design-and-implementation/ReconnectBench-socket-buffer-read-pacing-design.md) - Approved design moving `LOOPBACK_SOCKET + REALISTIC` shaping to a read-side pacer so real kernel socket buffers bind and `SocketFactory` buffer changes move reconnect wall-clock; supersedes the write-side shaping directives of the loopback transport design.
 
 ## Evidence And Calibration
 
@@ -29,5 +30,6 @@ Last updated: 2026-07-03
 - [Global Cluster Evidence Summary](evidence-and-calibration/extracted-cluster-evidence/global-summary.md) - Batch-level index for extracted cluster evidence summaries.
 - [2026-05-29 Cluster Calibration Batch Summary](evidence-and-calibration/extracted-cluster-evidence/2026-05-29-cluster-calibration/batch-summary.md) - Migrated summary for the initial traversal-order calibration batch.
 - [Historical Cluster Metrics Analysis](evidence-and-calibration/historical-cluster-metrics-analysis.md) - Historical analysis of the deleted May 6, 2026 cluster metric artifact set, kept as calibration context.
-- [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
+- [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
 - [Cluster-Evidence Local ReconnectBench Calibration Runs](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-06-26-cluster-evidence-profile-run.md) - Local run log generated from the accepted May 29 cluster evidence profile, with fixed state parameters plus appendable traversal/network result tables.
+- [2026-07-08 Socket Buffer Probe](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-08-socket-buffer-probe.md) - Standalone macOS probe (source + raw output) measuring effective loopback socket windows, sender-block points, and getsockopt-visible autotuning for the SocketFactory buffer configs; evidence base for the read-pacing design.

@@ -57,13 +57,15 @@ Future issue:
 - If revived, compare loopback TCP and `SimulatedNetworkChannel` on the same saved state and capture JFR evidence for
   thread parking, scheduling, and monitor behavior.
 
-Implementation note:
+Implementation note (updated `2026-07-08` for the socket-buffer read-pacing design):
 
 - `ReconnectBench` now supports `NetworkTransport.SIMULATED` and `NetworkTransport.LOOPBACK_SOCKET`.
 - `NetworkProfile.LOOPBACK` keeps each transport at its loopback/no-shaping floor.
-- `NetworkProfile.REALISTIC` applies the configured latency/bandwidth model; for socket transport this is write-side
-  shaping only.
-- `networkInflightBytesLimit` remains simulator-only and is ignored by socket transport.
+- `NetworkProfile.REALISTIC` applies the configured latency/bandwidth model; for socket transport this is now
+  **read-side pacing** (`PacingInputStream`; the write path is raw) so the real kernel socket buffers bind — see
+  [`ReconnectBench-socket-buffer-read-pacing-design.md`](../design-and-implementation/ReconnectBench-socket-buffer-read-pacing-design.md).
+- `networkInflightBytesLimit` remains simulator-only and is ignored by socket transport; the pacer's window is
+  kernel-derived (live buffer readback), not this parameter.
 
 ### 4. Teacher workload and multi-process harness
 
