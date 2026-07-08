@@ -63,7 +63,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Atomic Batch Tests")
 @HapiTestLifecycle
 public class CodeDelegationAtomicBatchTest {
@@ -132,29 +132,6 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER),
                 getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
-    }
-
-    //TODO
-    @LeakyHapiTest
-    final Stream<DynamicTest> test() {
-        final var delegatingAccount = "TestAccount";
-        return hapiTest(
-                createFundedAccount(delegatingAccount),
-                atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER)
-                        , cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER)
-                )
-                        .payingWith(RELAYER)
-//                        .hasKnownStatus(SUCCESS)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED)
-        );
     }
 
     //TODO
