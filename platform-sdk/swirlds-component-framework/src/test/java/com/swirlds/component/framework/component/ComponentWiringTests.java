@@ -135,51 +135,32 @@ public class ComponentWiringTests {
         }
     }
 
+    /**
+     * A handler whose return type does not match the component's declared output type must be rejected at
+     * wiring-configuration time rather than silently discarding its return value at runtime.
+     */
     @Test
-    void testTypeMismatch() {
+    void testWireReturnTypeMismatch() {
         final WiringModel wiringModel = WiringModelBuilder.create(METRICS, TIME).build();
 
         final TaskSchedulerConfiguration schedulerConfiguration = TaskSchedulerConfiguration.parse("DIRECT");
 
-        final AtomicLong result = new AtomicLong();
-
+        // StringToInteger.stringToInteger() returns Double, but this component's output type is declared as Integer.
+        // Because the return type does not match the declared output type, Java's overload resolution silently selects
+        // the consumer overload of getInputWire(), which would discard the return value at runtime. The framework
+        // should reject this at wiring-configuration time rather than fail with a silent functional error (#13894).
         final ComponentWiring<StringToInteger, Integer> stringToIntegerWiring =
                 new ComponentWiring<>(wiringModel, StringToInteger.class, schedulerConfiguration);
-        final ComponentWiring<IntegerToLong, Long> integerToLongWiring =
-                new ComponentWiring<>(wiringModel, IntegerToLong.class, schedulerConfiguration);
-        stringToIntegerWiring.getOutputWire().solderTo(integerToLongWiring.getInputWire(IntegerToLong::integerToLong));
-        integerToLongWiring.getOutputWire().solderTo("test1", "test2", result::set);
-        stringToIntegerWiring.getInputWire(StringToInteger::stringToInteger);
 
-        final StringToInteger stringToIntegerComponent = new StringToIntegerImpl();
-        final IntegerToLong integerToLongComponent = new IntegerToLongImpl();
-        stringToIntegerWiring.bind(stringToIntegerComponent);
-        integerToLongWiring.bind(integerToLongComponent);
-        wiringModel.start();
-        // "test" -> Double (expecting Integer) -> Long
-        stringToIntegerWiring.getInputWire(StringToInteger::stringToInteger).put("test");
-        assertEquals(10L, result.get());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> stringToIntegerWiring.getInputWire(StringToInteger::stringToInteger));
     }
 
     public interface StringToInteger {
+        @SuppressWarnings("UnusedReturnValue")
         Double stringToInteger(String string);
     }
-
-    public interface IntegerToLong {
-        Long integerToLong(Integer integer);
-    }
-
-    public class StringToIntegerImpl implements StringToInteger {
-        public Double stringToInteger(String string) {
-            return 1D;
-        }
-    }
-    public class IntegerToLongImpl implements IntegerToLong {
-        public Long integerToLong(Integer integer) {
-            return 10L;
-        }
-    }
-
 
     /**
      * The framework should not permit methods that aren't on the component to be wired.
