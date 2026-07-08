@@ -27,7 +27,6 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -129,7 +128,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformComponents platformComponent;
+    private ConsensusLayerBuildingBlocks buildingBlocks;
 
     @Nullable
     private OtterApp otterApp;
@@ -306,7 +305,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
             final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
-            final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+            buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
             PlatformWiring.wire(inputs, buildingBlocks);
 
             gossip.provideIntakeEventCounter(buildingBlocks.intakeEventCounter());
@@ -319,7 +318,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "consensusRounds",
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
-            platformComponent
+            buildingBlocks
                     .platformMonitorWiring()
                     .getOutputWire()
                     .solderTo(
@@ -355,7 +354,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             platformStatus = null;
             platform = null;
-            platformComponent = null;
+            buildingBlocks = null;
             executionLayer = null;
             otterApp = null;
             model = null;

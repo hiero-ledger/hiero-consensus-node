@@ -8,6 +8,7 @@ import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
 import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
+import static java.util.Objects.requireNonNullElseGet;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
@@ -346,10 +347,8 @@ public class ConsensusLayerFactory {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        if (gossipModuleOverride != null) {
-            return gossipModuleOverride;
-        }
-        final GossipModule module = createModule(GossipModule.class, configuration);
+        final GossipModule module =
+                requireNonNullElseGet(gossipModuleOverride, () -> createModule(GossipModule.class, configuration));
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         module.initialize(
