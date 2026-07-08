@@ -32,7 +32,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
@@ -61,7 +60,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -129,8 +128,6 @@ class PlatformWiringTests {
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring = RunningEventHashOverrideWiring.create(model);
         final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
         final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring = new ComponentWiring<>(model, StateGarbageCollector.class, platformSchedulersConfig.stateGarbageCollector());
-        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring = new ComponentWiring<>(model, SignedStateSentinel.class, platformSchedulersConfig.signedStateSentinel());
         final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
@@ -142,8 +139,7 @@ class PlatformWiringTests {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule stateManagementModule =
-                createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
@@ -155,13 +151,11 @@ class PlatformWiringTests {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule,
+                stateModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
                 notifierWiring,
-                stateGarbageCollectorWiring,
-                signedStateSentinelWiring,
                 platformMonitorWiring,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 null,
@@ -183,17 +177,15 @@ class PlatformWiringTests {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule);
+                stateModule);
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
-                .withSignedStateSentinel(mock(SignedStateSentinel.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
-        platformComponents.bind(componentBuilder, mock(EventWindowManager.class), mock(AppNotifier.class));
+        platformComponents.bind(inputs, mock(EventWindowManager.class), mock(AppNotifier.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());

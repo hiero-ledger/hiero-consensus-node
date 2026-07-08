@@ -4,19 +4,14 @@ package com.swirlds.platform.wiring;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.wires.output.OutputWire;
-import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
@@ -26,7 +21,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -117,7 +111,7 @@ public class PlatformWiring {
         buildingBlocks
                 .transactionHandlingModule()
                 .preHandleSignaturesOutputWire()
-                .solderTo(buildingBlocks.stateManagementModule().preconsensusSystemTransactionsInputWire());
+                .solderTo(buildingBlocks.stateModule().preconsensusSystemTransactionsInputWire());
 
         solderEventWindow(buildingBlocks);
 
@@ -145,7 +139,7 @@ public class PlatformWiring {
         buildingBlocks
                 .transactionHandlingModule()
                 .handleSignaturesOutputWire()
-                .solderTo(buildingBlocks.stateManagementModule().postconsensusSystemTranscationsInputWire());
+                .solderTo(buildingBlocks.stateModule().postconsensusSystemTranscationsInputWire());
         buildingBlocks
                 .transactionHandlingModule()
                 .handleSignaturesOutputWire()
@@ -154,28 +148,15 @@ public class PlatformWiring {
         buildingBlocks
                 .transactionHandlingModule()
                 .stateWithHashComplexityOutputWire()
-                .solderTo(buildingBlocks.stateManagementModule().unhashedStatesInputWire());
+                .solderTo(buildingBlocks.stateModule().unhashedStatesInputWire());
 
         buildingBlocks
                 .transactionHandlingModule()
                 .stateOutputWire()
-                .solderTo(buildingBlocks.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
-
-        final var config = inputs.configuration().getConfigData(PlatformSchedulersConfig.class);
-        buildingBlocks
-                .wiringModel()
-                .buildHeartbeatWire(config.stateGarbageCollectorHeartbeatPeriod())
-                .solderTo(
-                        buildingBlocks.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::heartbeat), OFFER);
-        buildingBlocks
-                .wiringModel()
-                .buildHeartbeatWire(config.signedStateSentinelHeartbeatPeriod())
-                .solderTo(
-                        buildingBlocks.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates),
-                        OFFER);
+                .solderTo(buildingBlocks.stateModule().garbageCollectorRegistrationInputWire());
 
         final OutputWire<ReservedSignedState> hashedStateOutputWire =
-                buildingBlocks.stateManagementModule().hashedStateOutputWire();
+                buildingBlocks.stateModule().hashedStateOutputWire();
         hashedStateOutputWire.solderTo(buildingBlocks.issDetectionModule().stateInputWire());
         hashedStateOutputWire
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
@@ -183,17 +164,17 @@ public class PlatformWiring {
 
         // send state signatures to execution
         buildingBlocks
-                .stateManagementModule()
+                .stateModule()
                 .stateSignaturesOutputWire()
                 .solderTo("ExecutionSignatureSubmission", "state signatures", inputs.executionLayer()::submitStateSignature);
 
         buildingBlocks
-                .stateManagementModule()
+                .stateModule()
                 .oldestMinimumBirthRoundOnDiskOutputWire()
                 .solderTo(buildingBlocks.pcesModule().minimumBirthRoundInputWire(), INJECT);
 
         buildingBlocks
-                .stateManagementModule()
+                .stateModule()
                 .stateSavingResultOutputWire()
                 .solderTo(buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
 
@@ -231,7 +212,7 @@ public class PlatformWiring {
         buildingBlocks
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(buildingBlocks.stateManagementModule().platformStatusInputWire(), INJECT);
+                .solderTo(buildingBlocks.stateModule().platformStatusInputWire(), INJECT);
 
         solderNotifier(buildingBlocks);
         buildUnsolderedWires(buildingBlocks);
@@ -248,7 +229,7 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(buildingBlocks.gossipModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(buildingBlocks.pcesModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(buildingBlocks.eventCreatorModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(buildingBlocks.stateManagementModule().eventWindowInputWire());
+        eventWindowOutputWire.solderTo(buildingBlocks.stateModule().eventWindowInputWire());
     }
 
     /**
@@ -256,7 +237,7 @@ public class PlatformWiring {
      */
     private static void solderNotifier(final ConsensusLayerBuildingBlocks buildingBlocks) {
         buildingBlocks
-                .stateManagementModule()
+                .stateModule()
                 .stateSavingResultOutputWire()
                 .buildTransformer(
                         "stateSavedNotifier",

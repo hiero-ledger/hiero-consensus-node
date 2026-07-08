@@ -61,8 +61,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.state.StateManagementModule;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
@@ -182,7 +181,7 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule statemanagementModule =
+        final StateModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
@@ -191,8 +190,6 @@ public final class DiagramCommand extends AbstractCommand {
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring = RunningEventHashOverrideWiring.create(model);
         final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
         final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring = new ComponentWiring<>(model, StateGarbageCollector.class, platformSchedulersConfig.stateGarbageCollector());
-        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring = new ComponentWiring<>(model, SignedStateSentinel.class, platformSchedulersConfig.signedStateSentinel());
         final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
@@ -210,8 +207,6 @@ public final class DiagramCommand extends AbstractCommand {
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
                 notifierWiring,
-                stateGarbageCollectorWiring,
-                signedStateSentinelWiring,
                 platformMonitorWiring,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 null,

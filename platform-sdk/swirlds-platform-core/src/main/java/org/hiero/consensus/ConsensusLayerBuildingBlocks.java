@@ -6,14 +6,10 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.reconnect.ReconnectModule;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
@@ -27,8 +23,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.StateManagementModule;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 public record ConsensusLayerBuildingBlocks(@NonNull WiringModel wiringModel,
@@ -40,13 +35,11 @@ public record ConsensusLayerBuildingBlocks(@NonNull WiringModel wiringModel,
                                            @NonNull GossipModule gossipModule,
                                            @NonNull IssDetectionModule issDetectionModule,
                                            @NonNull TransactionHandlingModule transactionHandlingModule,
-                                           @NonNull StateManagementModule stateManagementModule,
+                                           @NonNull StateModule stateModule,
                                            @NonNull ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
                                            @NonNull RunningEventHashOverrideWiring runningEventHashOverrideWiring,
                                            @NonNull ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
                                            @NonNull ComponentWiring<AppNotifier, Void> notifierWiring,
-                                           @NonNull ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
-                                           @NonNull ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
                                            @NonNull ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
                                            @NonNull NotificationEngine notificationEngine,
                                            @NonNull SavedStateController savedStateController,

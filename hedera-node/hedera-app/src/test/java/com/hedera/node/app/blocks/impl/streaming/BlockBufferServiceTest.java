@@ -506,6 +506,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(4L);
+        verify(blockStreamMetrics).recordBufferedBlocks(4);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         assertThat(buffer).hasSize(4);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
@@ -530,6 +533,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(5);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
         verifyBlockSizingMetrics();
@@ -552,6 +558,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
+        verify(blockStreamMetrics).recordBufferedBlocks(6);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(6);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -579,6 +588,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureActionStage();
         verify(blockStreamMetrics).recordBufferOldestBlock(2L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(3);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -598,6 +610,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBufferOldestBlock(2L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -621,6 +636,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBufferOldestBlock(3L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(1);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -781,6 +799,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, atLeastOnce()).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, atLeastOnce()).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -891,6 +912,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(10);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1032,6 +1056,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1087,6 +1114,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1140,6 +1170,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1198,6 +1231,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1249,6 +1285,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1295,6 +1334,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1336,6 +1378,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(10L);
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(10);
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(10);
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1384,6 +1429,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1432,6 +1480,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1479,6 +1530,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(10);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -1515,6 +1569,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(8);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1545,6 +1602,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(7);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1575,6 +1635,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1979,6 +2042,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(8L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(3);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -2029,6 +2095,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(3L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
         verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -2074,6 +2143,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(5L);
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(1);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(1);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -2118,6 +2190,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(4L);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(4);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -2162,6 +2237,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
         verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
     }

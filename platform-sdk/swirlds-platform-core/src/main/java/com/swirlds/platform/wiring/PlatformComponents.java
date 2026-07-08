@@ -12,7 +12,6 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -37,9 +36,7 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.state.StateManagementModule;
-import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
@@ -54,13 +51,11 @@ public record PlatformComponents(
         GossipModule gossipModule,
         IssDetectionModule issDetectionModule,
         TransactionHandlingModule transactionHandlingModule,
-        StateManagementModule stateManagementModule,
+        StateModule stateModule,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
-        ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring,
-        ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring,
         ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {
 
     /**
@@ -78,18 +73,12 @@ public record PlatformComponents(
         eventWindowManagerWiring.bind(eventWindowManager);
         consensusEventStreamWiring.bind(createConsensusEventStream(inputs));
         notifierWiring.bind(notifier);
-        stateGarbageCollectorWiring.bind(createStateGarbageCollector(inputs));
         platformMonitorWiring.bind(createPlatformMonitor(inputs));
     }
 
     @NonNull
     private PlatformMonitor createPlatformMonitor(@NonNull final ConsensusLayerInputs inputs) {
         return new DefaultPlatformMonitor(inputs.configuration(), inputs.metrics(), inputs.time(), inputs.selfId());
-    }
-
-    @NonNull
-    private StateGarbageCollector createStateGarbageCollector(@NonNull final ConsensusLayerInputs inputs) {
-        return new DefaultStateGarbageCollector(inputs.metrics());
     }
 
     /**
@@ -127,7 +116,7 @@ public record PlatformComponents(
             @NonNull final GossipModule gossipModule,
             @NonNull final IssDetectionModule issDetectionModule,
             @NonNull final TransactionHandlingModule transactionHandlingModule,
-            @NonNull final StateManagementModule stateManagementModule) {
+            @NonNull final StateModule stateModule) {
 
         Objects.requireNonNull(model);
 
@@ -145,13 +134,11 @@ public record PlatformComponents(
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule,
+                stateModule,
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream()),
                 RunningEventHashOverrideWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION),
-                new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector()),
-                new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel()),
                 new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor()));
     }
 }

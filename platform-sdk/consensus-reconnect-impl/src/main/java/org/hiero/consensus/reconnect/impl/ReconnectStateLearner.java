@@ -12,7 +12,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
