@@ -37,7 +37,7 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
@@ -130,7 +130,7 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule statemanagementModule =
+        final StateModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(

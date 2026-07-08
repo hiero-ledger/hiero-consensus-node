@@ -96,7 +96,7 @@ public class ReconnectCoordinator {
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
         components.gossipModule().clearInputWire().inject(NoInput.getInstance());
-        components.stateManagementModule().clearInputWire().inject(NoInput.getInstance());
+        components.stateModule().clearInputWire().inject(NoInput.getInstance());
         components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
     }
 
