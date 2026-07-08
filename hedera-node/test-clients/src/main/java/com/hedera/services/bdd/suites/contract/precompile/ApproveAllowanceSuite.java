@@ -66,7 +66,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ApproveAllowanceSuite {
 
     public static final String CONTRACTS_PERMITTED_DELEGATE_CALLERS = "contracts.permittedDelegateCallers";

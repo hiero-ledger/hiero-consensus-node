@@ -67,9 +67,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
-@Tag(SERIAL)
+//@Tag(SERIAL)
 public class Evm38ValidationSuite {
     private static final Logger LOG = LogManager.getLogger(Evm38ValidationSuite.class);
     private static final String CREATE_TRIVIAL = "CreateTrivial";

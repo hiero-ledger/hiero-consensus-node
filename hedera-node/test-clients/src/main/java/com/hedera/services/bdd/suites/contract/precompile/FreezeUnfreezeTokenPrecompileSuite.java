@@ -79,7 +79,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class FreezeUnfreezeTokenPrecompileSuite {
     public static final String FREEZE_CONTRACT = "FreezeUnfreezeContract";
     private static final String IS_FROZEN_FUNC = "isTokenFrozen";

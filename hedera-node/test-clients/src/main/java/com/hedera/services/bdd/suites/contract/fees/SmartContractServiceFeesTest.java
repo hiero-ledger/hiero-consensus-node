@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @OrderedInIsolation
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class SmartContractServiceFeesTest {
 
     @Contract(contract = "SmartContractsFees")

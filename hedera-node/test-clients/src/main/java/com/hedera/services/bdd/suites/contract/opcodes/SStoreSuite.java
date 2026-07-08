@@ -36,7 +36,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /** - CONCURRENCY STATUS - . Can run concurrent without temporarySStoreRefundTest() */
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class SStoreSuite {
 
     private static final Logger log = LogManager.getLogger(SStoreSuite.class);

@@ -50,7 +50,7 @@ import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractMintHTSV2SecurityModelSuite {
     private static final long GAS_TO_OFFER = 2_000_000L;

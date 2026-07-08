@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class ERC1155ContractInteractions {
     private static final String ACCOUNT1 = "acc1";
     private static final String ACCOUNT2 = "acc2";

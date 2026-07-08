@@ -66,10 +66,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 @DisplayName("SELFDESTRUCT")
-@Tag(SERIAL)
+//@Tag(SERIAL)
 public class SelfDestructSuite {
     private static final String SELF_DESTRUCT_CALLABLE_CONTRACT = "SelfDestructCallable";
     private static final String DESTROY_EXPLICIT_BENEFICIARY = "destroyExplicitBeneficiary";

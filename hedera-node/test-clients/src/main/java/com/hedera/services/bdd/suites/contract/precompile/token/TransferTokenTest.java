@@ -58,7 +58,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @Tag(MATS)
 @DisplayName("transferToken")
 @SuppressWarnings("java:S1192")

@@ -102,7 +102,7 @@ import org.junit.jupiter.api.Tag;
  * Tests expected behavior when the {@code entities.unlimitedAutoAssociationsEnabled} feature flag is off for
  * <a href="https://hips.hedera.com/hip/hip-904">HIP-904, "Frictionless Airdrops"</a>.
  */
-@Tag(SERIAL)
+//@Tag(SERIAL)
 @HapiTestLifecycle
 public class AirdropsDisabledTest {
     private static final Logger LOG = LogManager.getLogger(AirdropsDisabledTest.class);

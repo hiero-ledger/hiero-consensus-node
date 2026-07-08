@@ -131,8 +131,8 @@ import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
-@Tag(SERIAL)
+//@Tag(SMART_CONTRACT)
+//@Tag(SERIAL)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractCreateSuite {
 
@@ -559,7 +559,7 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(SERIAL)
+    //@Tag(SERIAL)
     final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
         final var justSendContract = "JustSend";
         final var sendInternalAndDelegateContract = "SendInternalAndDelegate";

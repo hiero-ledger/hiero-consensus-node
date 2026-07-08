@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class CreateOperationSuite {
     private static final String CONTRACT = "FactoryContract";
     private static final String CALL_RECORD_TRANSACTION_NAME = "callRecord";

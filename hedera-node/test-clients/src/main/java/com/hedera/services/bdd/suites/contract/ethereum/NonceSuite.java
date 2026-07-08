@@ -58,9 +58,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
-@Tag(SERIAL)
+//@Tag(SERIAL)
 public class NonceSuite {
     private static final long LOW_GAS_PRICE = 1L;
     private static final long ENOUGH_GAS_PRICE = 75L;

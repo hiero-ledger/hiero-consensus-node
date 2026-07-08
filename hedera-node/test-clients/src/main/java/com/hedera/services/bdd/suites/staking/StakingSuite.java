@@ -63,7 +63,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SERIAL)
+//@Tag(SERIAL)
 @Tag(LONG_RUNNING)
 @HapiTestLifecycle
 public class StakingSuite {

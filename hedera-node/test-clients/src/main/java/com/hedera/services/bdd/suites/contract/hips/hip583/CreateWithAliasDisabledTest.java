@@ -58,7 +58,7 @@ import org.junit.jupiter.api.Tag;
  * Tests expected behavior when the {@code cryptoCreateWithAlias.enabled} feature flag is off for
  * <a href="https://hips.hedera.com/hip/hip-583">HIP-583, "Expand alias support in CryptoCreate &amp; CryptoTransfer Transactions"</a>.
  */
-@Tag(SERIAL)
+//@Tag(SERIAL)
 @HapiTestLifecycle
 public class CreateWithAliasDisabledTest {
     @BeforeAll

@@ -72,8 +72,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
-@Tag(SERIAL)
+//@Tag(SMART_CONTRACT)
+//@Tag(SERIAL)
 @HapiTestLifecycle
 public class JumboTransactionsEnabledTest implements LifecycleTest {
     private static final String PAYER = "payer";

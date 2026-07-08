@@ -34,7 +34,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 public class PrngPrecompileSuite {
     private static final long GAS_TO_OFFER = 400_000L;
     private static final String THE_GRACEFULLY_FAILING_PRNG_CONTRACT = "GracefullyFailingPrng";

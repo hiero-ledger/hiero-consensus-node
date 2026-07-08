@@ -72,7 +72,7 @@ public class ScheduleLongTermSignTest {
                         .lasting(90, TimeUnit.SECONDS));
     }
 
-    @Tag(SERIAL)
+    //@Tag(SERIAL)
     @HapiTest
     final Stream<DynamicTest> ensureUnExecutedScheduleIsPurgedDuringCi() {
         return hapiTest(

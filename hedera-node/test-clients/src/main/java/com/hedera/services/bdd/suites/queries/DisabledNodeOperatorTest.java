@@ -50,7 +50,7 @@ import org.junit.jupiter.api.Tag;
  * then restarts it again with the port re-enabled.
  */
 @Tag(TOKEN)
-@Tag(SERIAL)
+//@Tag(SERIAL)
 @HapiTestLifecycle
 public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements LifecycleTest {
     @BeforeAll

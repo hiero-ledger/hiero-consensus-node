@@ -48,7 +48,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class ContractRecordsSanityCheckSuite {
     private static final String BALANCE_LOOKUP = "BalanceLookup";

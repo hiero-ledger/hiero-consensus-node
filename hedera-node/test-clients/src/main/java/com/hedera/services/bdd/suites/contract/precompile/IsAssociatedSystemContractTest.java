@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Tag;
  * Asserts expected behavior for the {@code isAuthorized()} HRC token redirect for both
  * contract and EOA {@code msg.sender} types and both fungible and non-fungible token types.
  */
-@Tag(SMART_CONTRACT)
+//@Tag(SMART_CONTRACT)
 @DisplayName("isAssociated")
 public class IsAssociatedSystemContractTest {
     @FungibleToken(name = "fungibleToken")

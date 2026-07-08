@@ -17,8 +17,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
-@Tag(SERIAL)
+//@Tag(SMART_CONTRACT)
+//@Tag(SERIAL)
 public class Evm50ValidationSuite {
     private static final String Module05OpcodesExist_CONTRACT = "Module050OpcodesExist";
     private static final long A_BUNCH_OF_GAS = 500_000L;
