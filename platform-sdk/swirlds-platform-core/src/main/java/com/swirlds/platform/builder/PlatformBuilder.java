@@ -68,7 +68,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
@@ -518,10 +518,10 @@ public final class PlatformBuilder {
     }
 
     @NonNull
-    private StateManagementModule createStateManagementModule(
+    private StateModule createStateManagementModule(
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController) {
-        return new StateManagementModule(
+        return new StateModule(
                 model,
                 platformContext.getConfiguration(),
                 platformContext.getMetrics(),
@@ -637,8 +637,7 @@ public final class PlatformBuilder {
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final StateManagementModule stateManagementModule =
-                createStateManagementModule(latestCompleteStateNexus, savedStateController);
+        final StateModule stateModule = createStateManagementModule(latestCompleteStateNexus, savedStateController);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -650,7 +649,7 @@ public final class PlatformBuilder {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule);
+                stateModule);
 
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         statusActionSubmitterReference.set(platformCoordinator);

@@ -51,7 +51,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
@@ -318,15 +318,15 @@ public class ConsensusNoOpModules {
     }
 
     /**
-     * Create and initialize a no-op instance of the {@link StateManagementModule}.
+     * Create and initialize a no-op instance of the {@link StateModule}.
      *
      * @param model the wiring model
      * @param configuration the configuration
      * @param fileSystemManager the file system manager
-     * @return an initialized no-op instance of {@code StateManagementModule}
+     * @return an initialized no-op instance of {@code StateModule}
      */
     @NonNull
-    public static StateManagementModule createNoOpStateManagementModule(
+    public static StateModule createNoOpStateManagementModule(
             @NonNull final WiringModel model,
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager) {
@@ -347,7 +347,7 @@ public class ConsensusNoOpModules {
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
 
-        return new StateManagementModule(
+        return new StateModule(
                 model,
                 configuration,
                 metrics,
