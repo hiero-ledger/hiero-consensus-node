@@ -27,7 +27,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.util.BootstrapUtils;
@@ -76,7 +75,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.nexus.LockFreeStateNexus;
@@ -84,7 +83,6 @@ import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -180,19 +178,19 @@ public class ConsensusLayerFactory {
                 metrics);
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise = new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, metrics);
+                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, selfId);
         final GossipModule gossipModule = createGossipModule(intakeEventCounter, latestCompleteStateNexus,
                 reservedSignedStateResultPromise, fallenBehindMonitor);
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
-        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+        final SignedStateNexus latestImmutableStateNexus = createLatestImmutableStateNexus(initialState);
         final TransactionHandlingModule transactionHandlingModule =
                 createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
 
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final StateManagementModule stateManagementModule =
-                createStateManagementModule(latestCompleteStateNexus, savedStateController);
+        final StateModule stateModule =
+                createStateModule(latestCompleteStateNexus, savedStateController);
 
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
@@ -206,7 +204,7 @@ public class ConsensusLayerFactory {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule);
+                stateModule);
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
 
@@ -221,10 +219,6 @@ public class ConsensusLayerFactory {
                 wiringModel, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
         final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(wiringModel, AppNotifier.class,
                 DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring = new ComponentWiring<>(
-                wiringModel, StateGarbageCollector.class, platformSchedulersConfig.stateGarbageCollector());
-        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring = new ComponentWiring<>(wiringModel,
-                SignedStateSentinel.class, platformSchedulersConfig.signedStateSentinel());
         final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(
                 wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
@@ -243,13 +237,11 @@ public class ConsensusLayerFactory {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule,
+                stateModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
                 notifierWiring,
-                stateGarbageCollectorWiring,
-                signedStateSentinelWiring,
                 platformMonitorWiring,
                 notificationEngine,
                 savedStateController,
@@ -257,6 +249,13 @@ public class ConsensusLayerFactory {
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor)
         );
+    }
+
+    @NonNull
+    private SignedStateNexus createLatestImmutableStateNexus(@NonNull final ReservedSignedState initialState) {
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+        latestImmutableStateNexus.setState(initialState.get().reserve("set latest immutable to initial state"));
+        return latestImmutableStateNexus;
     }
 
     public ReconnectModule createReconnectModule(@NonNull final Platform platform,
@@ -281,10 +280,10 @@ public class ConsensusLayerFactory {
         return reconnectModule;
     }
 
-    private StateManagementModule createStateManagementModule(
+    private StateModule createStateModule(
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController) {
-        return new StateManagementModule(
+        return new StateModule(
                 wiringModel,
                 configuration,
                 metrics,

@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
@@ -17,6 +18,7 @@ import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
@@ -104,22 +106,16 @@ public class SwirldsPlatform implements Platform {
     private final NotificationEngine notificationEngine;
 
     /**
-     * The platform context for this platform. Should be used to access basic services
-     */
-    private final PlatformContext platformContext;
-
-    /**
      * Controls which states are saved to disk
      */
     private final SavedStateController savedStateController;
 
-    /**
-     * Encapsulated wiring for the platform.
-     */
-    private final PlatformComponents platformComponents;
-
     private final long pcesReplayLowerBound;
     private final PlatformCoordinator platformCoordinator;
+
+    private final PlatformContext platformContext;
+    private final ConsensusLayerInputs inputs;
+    private final ConsensusLayerBuildingBlocks buildingBlocks;
 
     /**
      * Constructor.
@@ -127,7 +123,10 @@ public class SwirldsPlatform implements Platform {
     public SwirldsPlatform(@NonNull final ConsensusLayerInputs inputs,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
-
+        this.inputs = requireNonNull(inputs);
+        this.buildingBlocks = requireNonNull(buildingBlocks);
+        this.platformContext = PlatformContext.create(inputs.configuration(), inputs.time(), inputs.metrics(),
+                inputs.fileSystemManager(), inputs.recycleBin());
         this.platformCoordinator = platformCoordinator;
 
         // The reservation on this state is held by the caller of this constructor.
@@ -168,7 +167,7 @@ public class SwirldsPlatform implements Platform {
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
         final AppNotifier appNotifier = new DefaultAppNotifier(buildingBlocks.notificationEngine());
 
-        buildingBlocks.platformComponents().bind(builder, eventWindowManager, appNotifier);
+        buildingBlocks.platformComponents().bind(inputs, eventWindowManager, appNotifier);
 
         final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
                 ? Cryptography.NULL_HASH
@@ -179,21 +178,22 @@ public class SwirldsPlatform implements Platform {
 
         // Load the minimum generation into the pre-consensus event writer
         final String actualMainClassName =
-                configuration.getConfigData(StateConfig.class).getMainClassName(buildingBlocks.mainClassName());
+                configuration.getConfigData(StateConfig.class).getMainClassName(inputs.appName());
 
         final SignedStateFilePath statePath = new SignedStateFilePath(
-                platformContext.getFileSystemManager(), actualMainClassName, selfId, buildingBlocks.swirldName());
+                inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
-                    savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
+                    savedStates.getLast().metadata().minimumBirthRoundNonAncient();
             platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
 
-        buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
+        // TODO - this has moved to ConsensusLayerFactory, check if this actually works before removing this line
+        // buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
 
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
@@ -208,7 +208,7 @@ public class SwirldsPlatform implements Platform {
             savedStateController.registerSignedStateFromDisk(initialState);
 
             final ConsensusSnapshot consensusSnapshot =
-                    Objects.requireNonNull(consensusSnapshotOf(initialState.getState()));
+                    requireNonNull(consensusSnapshotOf(initialState.getState()));
             platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
@@ -290,18 +290,18 @@ public class SwirldsPlatform implements Platform {
     public void start() {
         logger.info(STARTUP.getMarker(), "Starting platform {}", selfId);
 
-        platformContext.getRecycleBin().start();
-        platformContext.getMetrics().start();
+        inputs.recycleBin().start();
+        inputs.metrics().start();
         platformCoordinator.start();
 
-        platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
+        buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
         platformCoordinator.startGossip();
     }
 
     @Override
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
-        platformContext.getRecycleBin().stop();
+        inputs.recycleBin().stop();
         platformCoordinator.stop();
         getMetricsProvider().removePlatformMetrics(selfId);
     }

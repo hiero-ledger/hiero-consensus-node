@@ -9,12 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.config.FallenBehindConfig_;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -40,7 +43,10 @@ class FallenBehindMonitorTest {
         this.nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
-        monitor = new FallenBehindMonitor(roster, 0.5, nodeIds[0]);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
+                .getOrCreateConfig();
+        monitor = new FallenBehindMonitor(roster, configuration, nodeIds[0]);
     }
 
     @Test
@@ -173,7 +179,10 @@ class FallenBehindMonitorTest {
                     .build();
             this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
 
-            this.fallenBehindMonitor = new FallenBehindMonitor(roster, .25, selfId);
+            final Configuration configuration = new TestConfigBuilder()
+                    .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.25)
+                    .getOrCreateConfig();
+            this.fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
         }
     }
 
@@ -432,8 +441,10 @@ class FallenBehindMonitorTest {
     @Test
     @DisplayName("Test edge case with threshold of 0.0")
     void testThresholdOfZero() {
-
-        final FallenBehindMonitor permissiveMonitor = new FallenBehindMonitor(roster, 0.0, nodeIds[0]);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.0)
+                .getOrCreateConfig();
+        final FallenBehindMonitor permissiveMonitor = new FallenBehindMonitor(roster, configuration, nodeIds[0]);
 
         // With threshold of 0.0, need > 0 reports to fall behind
         assertFalse(permissiveMonitor.hasFallenBehind());
@@ -454,18 +465,18 @@ class FallenBehindMonitorTest {
         for (int i = 0; i < numThreads; i++) {
             final int nodeId = i + 1;
             new Thread(() -> {
-                        try {
-                            startLatch.await(); // Wait for all threads to be ready
-                            monitor.report(nodeIds[nodeId]);
-                            monitor.hasFallenBehind();
-                            monitor.reportedSize();
-                            monitor.isBehindPeer(nodeIds[nodeId]);
-                        } catch (Exception e) {
-                            failed.set(true);
-                        } finally {
-                            doneLatch.countDown();
-                        }
-                    })
+                try {
+                    startLatch.await(); // Wait for all threads to be ready
+                    monitor.report(nodeIds[nodeId]);
+                    monitor.hasFallenBehind();
+                    monitor.reportedSize();
+                    monitor.isBehindPeer(nodeIds[nodeId]);
+                } catch (Exception e) {
+                    failed.set(true);
+                } finally {
+                    doneLatch.countDown();
+                }
+            })
                     .start();
         }
 
@@ -488,14 +499,14 @@ class FallenBehindMonitorTest {
         // Start multiple waiting threads
         for (int i = 0; i < numWaiters; i++) {
             new Thread(() -> {
-                        try {
-                            allStarted.countDown();
-                            monitor.awaitFallenBehind();
-                            allCompleted.countDown();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                        }
-                    })
+                try {
+                    allStarted.countDown();
+                    monitor.awaitFallenBehind();
+                    allCompleted.countDown();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            })
                     .start();
         }
 
@@ -552,14 +563,14 @@ class FallenBehindMonitorTest {
         final CountDownLatch allCompleted = new CountDownLatch(1);
 
         new Thread(() -> {
-                    try {
-                        allStarted.countDown();
-                        monitor.awaitGossipPaused();
-                        allCompleted.countDown();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                })
+            try {
+                allStarted.countDown();
+                monitor.awaitGossipPaused();
+                allCompleted.countDown();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        })
                 .start();
         allStarted.await();
         Thread.sleep(100);
@@ -574,13 +585,13 @@ class FallenBehindMonitorTest {
         monitor.notifySyncProtocolPaused();
 
         new Thread(() -> {
-                    try {
-                        monitor.awaitGossipPaused();
-                        allCompleted.countDown();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                })
+            try {
+                monitor.awaitGossipPaused();
+                allCompleted.countDown();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        })
                 .start();
 
         assertTrue(allCompleted.await(2, TimeUnit.SECONDS), "The waiting thread should be notified and complete");
@@ -596,7 +607,10 @@ class FallenBehindMonitorTest {
         final NodeId[] nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
-        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, 0.5, nodeIds[5]);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
+                .getOrCreateConfig();
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, configuration, nodeIds[5]);
 
         assertFalse(monitor.hasFallenBehind());
         monitor.report(nodeIds[0]); // this node alone has supermajority
@@ -625,7 +639,10 @@ class FallenBehindMonitorTest {
         final NodeId[] nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
-        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, 0, nodeIds[0]);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.0)
+                .getOrCreateConfig();
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, configuration, nodeIds[0]);
 
         assertFalse(monitor.hasFallenBehind());
         for (int i = 1; i < 8; i++) {
