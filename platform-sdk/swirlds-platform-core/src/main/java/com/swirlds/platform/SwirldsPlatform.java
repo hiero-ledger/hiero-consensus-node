@@ -126,7 +126,7 @@ public class SwirldsPlatform implements Platform {
      */
     public SwirldsPlatform(@NonNull final ConsensusLayerInputs inputs,
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final ConsensusLayerBuildingBlocks blocks) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
 
         this.platformCoordinator = platformCoordinator;
 
@@ -135,7 +135,7 @@ public class SwirldsPlatform implements Platform {
 
         selfId = inputs.selfId();
 
-        notificationEngine = blocks.notificationEngine();
+        notificationEngine = buildingBlocks.notificationEngine();
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", inputs.rosterHistory());
         currentRoster = inputs.rosterHistory().getCurrentRoster();
@@ -146,13 +146,11 @@ public class SwirldsPlatform implements Platform {
         RuntimeMetrics.setup(metrics);
 
         keysAndCerts = inputs.keysAndCerts();
-        savedStateController = blocks.savedStateController();
+        savedStateController = buildingBlocks.savedStateController();
 
         final Configuration configuration = inputs.configuration();
 
         initializeState(initialState, inputs.consensusStateEventHandler());
-
-        // TODO Pickup here tomorrow
 
         // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
         // - For genesis: the manager creates a genesis state eagerly in its constructor.
@@ -164,14 +162,13 @@ public class SwirldsPlatform implements Platform {
         stateLifecycleManager.copyMutableState();
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
-            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.appVersion());
+            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
         }
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
-        final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
+        final AppNotifier appNotifier = new DefaultAppNotifier(buildingBlocks.notificationEngine());
 
-
-        platformComponents.bind(builder, eventWindowManager, appNotifier);
+        buildingBlocks.platformComponents().bind(builder, eventWindowManager, appNotifier);
 
         final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
                 ? Cryptography.NULL_HASH
@@ -182,10 +179,10 @@ public class SwirldsPlatform implements Platform {
 
         // Load the minimum generation into the pre-consensus event writer
         final String actualMainClassName =
-                configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
+                configuration.getConfigData(StateConfig.class).getMainClassName(buildingBlocks.mainClassName());
 
         final SignedStateFilePath statePath = new SignedStateFilePath(
-                platformContext.getFileSystemManager(), actualMainClassName, selfId, blocks.swirldName());
+                platformContext.getFileSystemManager(), actualMainClassName, selfId, buildingBlocks.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
@@ -196,7 +193,7 @@ public class SwirldsPlatform implements Platform {
 
         final boolean startedFromGenesis = initialState.isGenesisState();
 
-        blocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
+        buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
 
         if (startedFromGenesis) {
             initialAncientThreshold = 0;

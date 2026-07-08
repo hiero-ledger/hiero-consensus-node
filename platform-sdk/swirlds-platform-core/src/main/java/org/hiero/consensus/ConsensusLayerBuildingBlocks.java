@@ -10,17 +10,21 @@ import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateManagementModule;
@@ -37,7 +41,6 @@ public record ConsensusLayerBuildingBlocks(@NonNull WiringModel wiringModel,
                                            @NonNull IssDetectionModule issDetectionModule,
                                            @NonNull TransactionHandlingModule transactionHandlingModule,
                                            @NonNull StateManagementModule stateManagementModule,
-                                           @NonNull ReconnectModule reconnectModule,
                                            @NonNull ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
                                            @NonNull RunningEventHashOverrideWiring runningEventHashOverrideWiring,
                                            @NonNull ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
@@ -47,5 +50,7 @@ public record ConsensusLayerBuildingBlocks(@NonNull WiringModel wiringModel,
                                            @NonNull ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
                                            @NonNull NotificationEngine notificationEngine,
                                            @NonNull SavedStateController savedStateController,
-                                           @NonNull AtomicReference<Platform> platformReference) {
+                                           @NonNull PlatformComponents platformComponents,
+                                           @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+                                           @NonNull FallenBehindMonitor fallenBehindMonitor) {
 }

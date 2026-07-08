@@ -123,65 +123,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Build the state garbage collector if it has not yet been built. If one has been provided via
-     * {@link #withStateGarbageCollector(StateGarbageCollector)}, that garbage collector will be used. If this method is
-     * called more than once, only the first call will build the state garbage collector. Otherwise, the default garbage
-     * collector will be created and returned.
-     *
-     * @return the state garbage collector
-     */
-    @NonNull
-    public StateGarbageCollector buildStateGarbageCollector() {
-        if (stateGarbageCollector == null) {
-            stateGarbageCollector =
-                    new DefaultStateGarbageCollector(blocks.platformContext().getMetrics());
-        }
-        return stateGarbageCollector;
-    }
-
-    /**
-     * Provide a consensus event stream in place of the platform's default consensus event stream.
-     *
-     * @param consensusEventStream the consensus event stream to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withConsensusEventStream(@NonNull final ConsensusEventStream consensusEventStream) {
-        throwIfAlreadyUsed();
-        if (this.consensusEventStream != null) {
-            throw new IllegalStateException("Consensus event stream has already been set");
-        }
-        this.consensusEventStream = Objects.requireNonNull(consensusEventStream);
-        return this;
-    }
-
-    /**
-     * Build the consensus event stream if it has not yet been built. If one has been provided via
-     * {@link #withConsensusEventStream(ConsensusEventStream)}, that stream will be used. If this method is called more
-     * than once, only the first call will build the consensus event stream. Otherwise, the default stream will be
-     * created and returned.
-     *
-     * @return the consensus event stream
-     */
-    @NonNull
-    public ConsensusEventStream buildConsensusEventStream() {
-        if (consensusEventStream == null) {
-            final PlatformContext platformContext = blocks.platformContext();
-            consensusEventStream = new DefaultConsensusEventStream(
-                    platformContext.getTime(),
-                    platformContext.getConfiguration(),
-                    platformContext.getMetrics(),
-                    blocks.selfId(),
-                    (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    blocks.consensusEventStreamName(),
-                    (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.freezeChecker()
-                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
-        }
-        return consensusEventStream;
-    }
-
-    /**
      * Provide a platform monitor in place of the platform's default platform monitor.
      *
      * @param platformMonitor the platform monitor to use
@@ -195,22 +136,6 @@ public class PlatformComponentBuilder {
         }
         this.platformMonitor = Objects.requireNonNull(platformMonitor);
         return this;
-    }
-
-    /**
-     * Build the platform monitor if it has not yet been built. If one has been provided via
-     * {@link #withPlatformMonitor(PlatformMonitor)}, that platform monitor will be used. If this method is called
-     * more than once, only the first call will build the platform monitor. Otherwise, the default platform monitor
-     * will be created and returned.
-     *
-     * @return the platform monitor
-     */
-    @NonNull
-    public PlatformMonitor buildPlatformMonitor() {
-        if (platformMonitor == null) {
-            platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
-        }
-        return platformMonitor;
     }
 
     /**

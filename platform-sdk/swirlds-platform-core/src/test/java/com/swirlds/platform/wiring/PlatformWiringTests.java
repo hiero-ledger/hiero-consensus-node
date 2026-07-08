@@ -115,6 +115,7 @@ class PlatformWiringTests {
                 SemanticVersion.DEFAULT,
                 "testApp",
                 "123",
+                "cesStream",
                 0,
                 null,
                 model,
@@ -164,7 +165,9 @@ class PlatformWiringTests {
                 platformMonitorWiring,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 null,
-                new AtomicReference<>(null));
+                null,
+                null,
+                null);
         PlatformWiring.wire(inputs, buildingBlocks);
 
         final PlatformComponentBuilder componentBuilder =

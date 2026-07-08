@@ -21,7 +21,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.ConsensusModuleBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -196,7 +195,6 @@ public class ConsensusLayerFactory {
                 createStateManagementModule(latestCompleteStateNexus, savedStateController);
 
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
-        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 wiringModel,
@@ -211,9 +209,6 @@ public class ConsensusLayerFactory {
                 stateManagementModule);
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
-        final AtomicReference<Platform> platformReference = new AtomicReference<>();
-        initializeReconnectModule(reconnectModule, platformReference, platformCoordinator, platformComponents, savedStateController,
-                reservedSignedStateResultPromise, fallenBehindMonitor);
 
         final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(
                 PlatformSchedulersConfig.class);
@@ -249,7 +244,6 @@ public class ConsensusLayerFactory {
                 issDetectionModule,
                 transactionHandlingModule,
                 stateManagementModule,
-                reconnectModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
@@ -259,22 +253,24 @@ public class ConsensusLayerFactory {
                 platformMonitorWiring,
                 notificationEngine,
                 savedStateController,
-                platformReference)
+                platformComponents,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor)
         );
     }
 
-    private void initializeReconnectModule(@NonNull final ReconnectModule reconnectModule,
-            @NonNull final AtomicReference<Platform> platformReference,
+    public ReconnectModule createReconnectModule(@NonNull final Platform platform,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final PlatformComponents platformComponents,
             @NonNull final SavedStateController savedStateController, @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
         reconnectModule.initialize(
                 configuration,
                 time,
                 rosterHistory.getCurrentRoster(),
                 platformComponents,
-                platformReference,
+                platform,
                 platformCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -282,6 +278,7 @@ public class ConsensusLayerFactory {
                 reservedSignedStateResultPromise,
                 selfId,
                 fallenBehindMonitor);
+        return reconnectModule;
     }
 
     private StateManagementModule createStateManagementModule(

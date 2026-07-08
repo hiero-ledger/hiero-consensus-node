@@ -163,6 +163,7 @@ public final class DiagramCommand extends AbstractCommand {
                 SemanticVersion.DEFAULT,
                 "testApp",
                 "123",
+                "cesStream",
                 0,
                 // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
                 // appears in the diagram; in production Execution supplies this consumer.
@@ -183,7 +184,6 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
         final StateManagementModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
-        final ReconnectModule reconnectModule = createNoOpReconnectModule(configuration, fileSystemManager);
 
         final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
@@ -206,7 +206,6 @@ public final class DiagramCommand extends AbstractCommand {
                 issDetectionModule,
                 transactionHandlingModule,
                 statemanagementModule,
-                reconnectModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
@@ -216,7 +215,9 @@ public final class DiagramCommand extends AbstractCommand {
                 platformMonitorWiring,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 null,
-                new AtomicReference<>(null)
+                null,
+                null,
+                null
         );
 
         PlatformWiring.wire(inputs, buildingBlocks);

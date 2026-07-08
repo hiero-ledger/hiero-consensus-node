@@ -33,7 +33,7 @@ public interface ReconnectModule {
      * @param time the time source
      * @param currentRoster the current roster of the network
      * @param components the platform components to use
-     * @param platformReference a reference to the platform to use for performing platform operations
+     * @param platform the platform to use for performing platform operations
      * @param platformCoordinator the coordinator for complex tasks
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
      * @param savedStateController the controller for managing saved states
@@ -47,7 +47,7 @@ public interface ReconnectModule {
             @NonNull Time time,
             @NonNull Roster currentRoster,
             @NonNull PlatformComponents components,
-            @NonNull AtomicReference<Platform> platformReference,
+            @NonNull Platform platform,
             @NonNull PlatformCoordinator platformCoordinator,
             @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull SavedStateController savedStateController,

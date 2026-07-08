@@ -3,8 +3,6 @@ package com.swirlds.platform.builder.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.LOG4J_FILE_NAME;
-import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
-import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.startup.Log4jSetup;
@@ -12,9 +10,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.NodeStartPayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CryptoMetrics;
-import com.swirlds.platform.util.BootstrapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;

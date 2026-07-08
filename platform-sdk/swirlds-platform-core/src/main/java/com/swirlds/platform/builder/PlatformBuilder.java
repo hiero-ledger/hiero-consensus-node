@@ -21,8 +21,11 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
 import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
 import org.hiero.consensus.ConsensusLayerInputs;
@@ -31,9 +34,6 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.StateManagementModule;
-import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -335,6 +335,7 @@ public final class PlatformBuilder {
                 softwareVersion,
                 appName,
                 swirldName,
+                consensusEventStreamName,
                 transactionOffsetNanos,
                 staleEventConsumer,
                 model,
@@ -344,11 +345,15 @@ public final class PlatformBuilder {
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
         final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
-        PlatformWiring.wire(inputs, factoryOutput.consensusLayerBuildingBlocks());
+        final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+        PlatformWiring.wire(inputs, buildingBlocks);
 
         try (final ReservedSignedState ignored = inputs.initialState()) {
-            final SwirldsPlatform platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), factoryOutput.consensusLayerBuildingBlocks());
-            factoryOutput.consensusLayerBuildingBlocks().platformReference().set(platform);
+            final SwirldsPlatform platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+            // Future work - capture the reconnect module, add a start() method to it, and call it later
+            factory.createReconnectModule(platform, factoryOutput.platformCoordinator(), buildingBlocks
+                    .platformComponents(), buildingBlocks.savedStateController(), buildingBlocks.reservedSignedStateResultPromise(),
+            buildingBlocks.fallenBehindMonitor());
             return platform;
         } finally {
             // TODO figure out if this can be moved into Platform.start()
