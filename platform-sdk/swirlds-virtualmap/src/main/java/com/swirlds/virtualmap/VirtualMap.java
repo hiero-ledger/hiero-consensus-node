@@ -478,19 +478,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
-        final CompletableFuture<Hash> fullRehashFuture = CompletableFuture.supplyAsync(() -> hasher.hash(
+        final CompletableFuture<Hash> fullRehashFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),
                         cache::preloadHashChunk,
                         rehashIterator,
                         firstLeafPath,
                         lastLeafPath,
-                        hashListener))
-                .exceptionally((exception) -> {
+                        hashListener)
+                .exceptionally(throwable -> {
                     // Shut down the iterator.
                     rehashIterator.close();
-                    final var message = "Full rehash failed";
-                    logger.error(EXCEPTION.getMarker(), message, exception);
-                    throw new RuntimeException(message, exception);
+                    throw new RuntimeException(
+                            "Exception occurred during full rehashing of the virtual map", throwable);
                 });
 
         final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
