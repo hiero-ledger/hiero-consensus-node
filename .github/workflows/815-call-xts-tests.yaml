@@ -370,6 +370,7 @@ jobs:
       solo-version: ${{ inputs.solo-version }}
       java-version: "${{ inputs.java-version }}"
       json-rpc-relay-version: "${{ inputs.json-rpc-relay-version }}"
+      mirror-node-version: "${{inputs.mirror-node-version}}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
