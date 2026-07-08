@@ -989,30 +989,6 @@ jobs:
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
 
-  # (TEMPORARY) Prints the wraps pool's actual pod resource limits to diagnose the
-  # runner deaths during WRAPS proof construction; remove once the pool is validated
-  wraps-pool-diagnostics:
-    name: "Wraps Pool Diagnostics"
-    if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
-    runs-on: hl-cn-hapi-wraps-lin-lg
-    timeout-minutes: 10
-    steps:
-      - name: Print Pod Resource Limits
-        run: |
-          echo "=== cgroup v2 limits (pod-level) ==="
-          for f in memory.max memory.high memory.swap.max cpu.max; do
-            [ -f "/sys/fs/cgroup/$f" ] && echo "$f: $(cat /sys/fs/cgroup/$f)"
-          done
-          echo "=== cgroup v1 fallback ==="
-          [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ] && echo "memory.limit_in_bytes: $(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)"
-          echo "=== node-level view ==="
-          nproc
-          free -h
-          df -h . /tmp | head -5
-          echo "=== current pod usage ==="
-          [ -f /sys/fs/cgroup/memory.current ] && echo "memory.current: $(cat /sys/fs/cgroup/memory.current)"
-          cat /proc/meminfo | head -4
-
   hapi-tests-wraps:
     name: "HAPI Tests (Wraps)"
     if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
@@ -1047,6 +1023,10 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
+          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently; cap each
+          # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
+          RAYON_NUM_THREADS: "4"
+          HAPI_TEST_NODE_POOL_MIB: "12288"
         run: ${GRADLE_EXEC} hapiTestWraps --no-daemon
 
       - name: Publish HAPI Test (Wraps) Reports
@@ -1138,6 +1118,10 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
+          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently; cap each
+          # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
+          RAYON_NUM_THREADS: "4"
+          HAPI_TEST_NODE_POOL_MIB: "12288"
         run: |
           status=0
           run_subtask() {

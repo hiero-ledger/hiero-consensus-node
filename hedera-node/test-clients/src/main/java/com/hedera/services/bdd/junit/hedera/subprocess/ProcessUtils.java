@@ -147,6 +147,12 @@ public class ProcessUtils {
         // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz,
         // e.g. "/Users/hincadenza/misc/wraps-v1.0.0", to get the WRAPS library ready to produce proofs
         environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", ""));
+        // Cap the WRAPS prover's rayon thread pool when the orchestrating environment requests it
+        // (e.g. CI runners whose cgroup CPU quota is shared by several nodes proving concurrently)
+        final var rayonThreads = System.getenv("RAYON_NUM_THREADS");
+        if (rayonThreads != null && !rayonThreads.isBlank()) {
+            environment.put("RAYON_NUM_THREADS", rayonThreads);
+        }
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts
