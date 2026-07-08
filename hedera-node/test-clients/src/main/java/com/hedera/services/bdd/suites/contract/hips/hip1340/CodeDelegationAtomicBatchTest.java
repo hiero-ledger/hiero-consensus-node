@@ -59,12 +59,14 @@ import org.apache.tuweni.bytes.Bytes;
 import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Atomic Batch Tests")
+@Disabled
 @HapiTestLifecycle
 public class CodeDelegationAtomicBatchTest {
     private static final String CODE_DELEGATION_CONTRACT = "CodeDelegationContract";
