@@ -213,20 +213,6 @@ public class ConsensusLayerFactory {
 
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
-        final PlatformComponents platformComponents = PlatformComponents.create(
-                wiringModel,
-                configuration,
-                eventCreatorModule,
-                eventIntakeModule,
-                pcesModule,
-                hashgraphModule,
-                gossipModule,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateModule);
-        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
-        initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
-
         final PlatformSchedulersConfig platformSchedulersConfig =
                 configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
@@ -241,6 +227,23 @@ public class ConsensusLayerFactory {
         final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
                 new ComponentWiring<>(wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
+        final PlatformComponents platformComponents = new PlatformComponents(
+                wiringModel,
+                eventCreatorModule,
+                eventIntakeModule,
+                pcesModule,
+                hashgraphModule,
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule,
+                stateModule,
+                eventStreamWiring,
+                runningEventHashOverrideWiring,
+                eventWindowManagerWiring,
+                notifierWiring,
+                platformMonitorWiring);
+        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
+        initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
 
         statusActionSubmitterReference.set(platformCoordinator);
 
