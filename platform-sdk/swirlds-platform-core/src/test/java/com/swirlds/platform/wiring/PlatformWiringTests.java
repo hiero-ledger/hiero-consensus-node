@@ -17,14 +17,12 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -35,6 +33,7 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -44,6 +43,7 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
@@ -57,30 +57,29 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Unit tests for {@link PlatformWiring}
  */
 class PlatformWiringTests {
-    static Stream<PlatformContext> testContexts() {
+
+    @TempDir
+    static Path tmpDir;
+
+    static Stream<Configuration> configurations() {
         return Stream.of(
-                TestPlatformContextBuilder.create()
-                        .withConfiguration(ConfigurationBuilder.create()
-                                .autoDiscoverExtensions()
-                                .withValue("platformWiring.inlinePces", "false")
-                                .build())
-                        .build(),
-                TestPlatformContextBuilder.create()
-                        .withConfiguration(ConfigurationBuilder.create()
-                                .autoDiscoverExtensions()
-                                .withValue("platformWiring.inlinePces", "true")
-                                .build())
-                        .build());
+                new TestConfigBuilder()
+                        .withValue(EventConfig_.EVENTS_LOG_DIR, tmpDir.resolve("eventStream"))
+                        .withValue("platformWiring.inlinePces", "false")
+                        .getOrCreateConfig(),
+                new TestConfigBuilder()
+                        .withValue(EventConfig_.EVENTS_LOG_DIR, tmpDir.resolve("eventStream"))
+                        .withValue("platformWiring.inlinePces", "true")
+                        .getOrCreateConfig());
     }
 
     @ParameterizedTest
-    @MethodSource("testContexts")
+    @MethodSource("configurations")
     @DisplayName("Assert that all input wires are bound to something")
-    void testBindings(final PlatformContext platformContext, @TempDir final Path tempDir) {
+    void testBindings(final Configuration configuration) {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
-        final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tempDir);
-        final Configuration configuration = platformContext.getConfiguration();
+        final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tmpDir);
 
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,
@@ -88,7 +87,7 @@ class PlatformWiringTests {
                 Time.getCurrent(),
                 null,
                 null,
-                null,
+                NodeId.FIRST_NODE_ID,
                 null,
                 fileSystemManager,
                 mock(ExecutionLayer.class),
@@ -154,9 +153,8 @@ class PlatformWiringTests {
                 null);
         PlatformWiring.wire(inputs, buildingBlocks);
 
-        final PlatformComponents platformComponents = PlatformComponents.create(
+        final PlatformComponents platformComponents = new PlatformComponents(
                 model,
-                configuration,
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,
@@ -164,7 +162,12 @@ class PlatformWiringTests {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateModule);
+                stateModule,
+                eventStreamWiring,
+                runningEventHashOverrideWiring,
+                eventWindowManagerWiring,
+                notifierWiring,
+                platformMonitorWiring);
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
 
