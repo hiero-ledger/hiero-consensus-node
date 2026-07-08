@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -22,25 +23,25 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
-public record ConsensusLayerInputs(@NonNull Configuration configuration,
-                                   @NonNull Metrics metrics,
-                                   @NonNull Time time,
-                                   @NonNull RosterHistory rosterHistory,
-                                   @NonNull KeysAndCerts keysAndCerts,
-                                   @NonNull NodeId selfId,
-                                   @NonNull RecycleBin recycleBin,
-                                   @NonNull FileSystemManager fileSystemManager,
-                                   @NonNull ExecutionLayer executionLayer,
-                                   @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-                                   @NonNull ReservedSignedState initialState,
-                                   @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-                                   @NonNull SemanticVersion version,
-                                   @NonNull String appName,
-                                   @NonNull String swirldName,
-                                   @NonNull String consensusEventStreamName,
-                                   long transactionOffsetNanos,
-                                   @Nullable StaleEventConsumer staleEventConsumer,
-                                   @Nullable WiringModel wiringModel,
-                                   @Nullable SecureRandom secureRandom,
-                                   @Nullable GossipModule gossipModuleOverride) {
-}
+public record ConsensusLayerInputs(
+        @NonNull Configuration configuration,
+        @NonNull Metrics metrics,
+        @NonNull Time time,
+        @NonNull RosterHistory rosterHistory,
+        @NonNull KeysAndCerts keysAndCerts,
+        @NonNull NodeId selfId,
+        @NonNull RecycleBin recycleBin,
+        @NonNull FileSystemManager fileSystemManager,
+        @NonNull ExecutionLayer executionLayer,
+        @NonNull ConsensusStateEventHandler consensusStateEventHandler,
+        @NonNull ReservedSignedState initialState,
+        @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+        @NonNull SemanticVersion version,
+        @NonNull String appName,
+        @NonNull String swirldName,
+        @NonNull String consensusEventStreamName,
+        long transactionOffsetNanos,
+        @Nullable StaleEventConsumer staleEventConsumer,
+        @Nullable WiringModel wiringModel,
+        @Nullable SecureRandom secureRandom,
+        @Nullable GossipModule gossipModuleOverride) {}

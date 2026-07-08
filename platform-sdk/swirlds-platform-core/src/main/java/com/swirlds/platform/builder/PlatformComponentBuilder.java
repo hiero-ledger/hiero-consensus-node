@@ -1,25 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.system.DefaultPlatformMonitor;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
-import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
-import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
-import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
@@ -86,24 +74,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Build the platform.
-     *
-     * @return the platform
-     */
-    @NonNull
-    public Platform build() {
-        throwIfAlreadyUsed();
-        used = true;
-
-        try (final ReservedSignedState ignored = blocks.initialState()) {
-            swirldsPlatform = new SwirldsPlatform(this);
-            return swirldsPlatform;
-        } finally {
-            getMetricsProvider().start();
-        }
-    }
-
-    /**
      * Provide a state garbage collector in place of the platform's default state garbage collector.
      *
      * @param stateGarbageCollector the state garbage collector to use
@@ -117,81 +87,5 @@ public class PlatformComponentBuilder {
         }
         this.stateGarbageCollector = Objects.requireNonNull(stateGarbageCollector);
         return this;
-    }
-
-    /**
-     * Provide a platform monitor in place of the platform's default platform monitor.
-     *
-     * @param platformMonitor the platform monitor to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withPlatformMonitor(@NonNull final PlatformMonitor platformMonitor) {
-        throwIfAlreadyUsed();
-        if (this.platformMonitor != null) {
-            throw new IllegalStateException("Status state machine has already been set");
-        }
-        this.platformMonitor = Objects.requireNonNull(platformMonitor);
-        return this;
-    }
-
-    /**
-     * Build the platform monitor if it has not yet been built. If one has been provided via
-     * {@link #withPlatformMonitor(PlatformMonitor)}, that platform monitor will be used. If this method is called
-     * more than once, only the first call will build the platform monitor. Otherwise, the default platform monitor
-     * will be created and returned.
-     *
-     * @return the platform monitor
-     */
-    @NonNull
-    public PlatformMonitor buildPlatformMonitor() {
-        if (platformMonitor == null) {
-            platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
-        }
-        return platformMonitor;
-    }
-
-    /**
-     * Provide a state snapshot manager in place of the platform's default state snapshot manager.
-     *
-     * @param stateSnapshotManager the state snapshot manager to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withStateSnapshotManager(@NonNull final StateSnapshotManager stateSnapshotManager) {
-        throwIfAlreadyUsed();
-        if (this.stateSnapshotManager != null) {
-            throw new IllegalStateException("State snapshot manager has already been set");
-        }
-        this.stateSnapshotManager = Objects.requireNonNull(stateSnapshotManager);
-        return this;
-    }
-
-    /**
-     * Build the state snapshot manager if it has not yet been built. If one has been provided via
-     * {@link #withStateSnapshotManager(StateSnapshotManager)}, that manager will be used. If this method is called more
-     * than once, only the first call will build the state snapshot manager. Otherwise, the default manager will be
-     * created and returned.
-     *
-     * @return the state snapshot manager
-     */
-    @NonNull
-    public StateSnapshotManager buildStateSnapshotManager() {
-        if (stateSnapshotManager == null) {
-            final StateConfig stateConfig =
-                    blocks.platformContext().getConfiguration().getConfigData(StateConfig.class);
-            final String actualMainClassName = stateConfig.getMainClassName(blocks.mainClassName());
-
-            stateSnapshotManager = new DefaultStateSnapshotManager(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.platformContext().getFileSystemManager(),
-                    actualMainClassName,
-                    blocks.selfId(),
-                    blocks.swirldName(),
-                    blocks.stateLifecycleManager());
-        }
-        return stateSnapshotManager;
     }
 }

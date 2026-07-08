@@ -8,7 +8,6 @@ import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,13 +54,15 @@ public class UptimeTracker {
      * @param time          the time source
      * @param selfId        the ID of this node
      */
-    public UptimeTracker(@NonNull final Configuration configuration, @NonNull final Metrics metrics,
-            @NonNull final Time time, @NonNull final NodeId selfId) {
+    public UptimeTracker(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId) {
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         this.time = Objects.requireNonNull(time);
-        this.degradationThreshold = configuration
-                .getConfigData(UptimeConfig.class)
-                .degradationThreshold();
+        this.degradationThreshold =
+                configuration.getConfigData(UptimeConfig.class).degradationThreshold();
         this.uptimeMetrics = new UptimeMetrics(metrics, this::isSelfDegraded);
         this.uptimeData = new UptimeData();
     }

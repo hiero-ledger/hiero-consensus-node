@@ -84,11 +84,11 @@ public record PlatformComponents(
      */
     @NonNull
     private ConsensusEventStream createConsensusEventStream(@NonNull final ConsensusLayerInputs inputs) {
-            final Predicate<CesEvent> isLastEventInFreezePeriod = (CesEvent event) -> {
-                final Instant consensusTimestamp = event.getConsensusTimestamp();
-                final VirtualMapState mutableState = inputs.stateLifecycleManager().getMutableState();
-                return event.isLastInRoundReceived() && isInFreezePeriod(consensusTimestamp, mutableState);
-            };
+        final Predicate<CesEvent> isLastEventInFreezePeriod = (CesEvent event) -> {
+            final Instant consensusTimestamp = event.getConsensusTimestamp();
+            final VirtualMapState mutableState = inputs.stateLifecycleManager().getMutableState();
+            return event.isLastInRoundReceived() && isInFreezePeriod(consensusTimestamp, mutableState);
+        };
         return new DefaultConsensusEventStream(
                 inputs.time(),
                 inputs.configuration(),
@@ -116,10 +116,8 @@ public record PlatformComponents(
 
         Objects.requireNonNull(model);
 
-        final PlatformSchedulersConfig config =
-                configuration.getConfigData(PlatformSchedulersConfig.class);
-        final EventStreamWiringConfig eventStreamConfig =
-                configuration.getConfigData(EventStreamWiringConfig.class);
+        final PlatformSchedulersConfig config = configuration.getConfigData(PlatformSchedulersConfig.class);
+        final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
 
         return new PlatformComponents(
                 model,

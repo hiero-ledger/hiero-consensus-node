@@ -16,8 +16,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
@@ -150,15 +148,11 @@ public class ConsensusNoOpModules {
         final RecycleBin recycleBin = new SimpleRecycleBin();
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
-        final Runnable flushPrimaryPipeline = () -> {
-        };
+        final Runnable flushPrimaryPipeline = () -> {};
         final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
-        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {
-        };
-        final Runnable platformStatusFlusher = () -> {
-        };
-        final Runnable signalEndOfPcesReplay = () -> {
-        };
+        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
+        final Runnable platformStatusFlusher = () -> {};
+        final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
         final PcesModule pcesModule =
@@ -275,8 +269,7 @@ public class ConsensusNoOpModules {
         final Roster roster = new Roster(List.of(rosterEntry));
         final long initialStateRound = 0L;
         final long latestFreezeRound = 0L;
-        final FatalErrorConsumer fatalErrorConsumer = (_, _, _) -> {
-        };
+        final FatalErrorConsumer fatalErrorConsumer = (_, _, _) -> {};
 
         return new IssDetectionModule(
                 model,
@@ -373,22 +366,22 @@ public class ConsensusNoOpModules {
                 savedStateController);
     }
 
-    public static ReconnectModule createNoOpReconnectModule(@NonNull final Configuration configuration,
-            @NonNull final FileSystemManager fileSystemManager) {
+    public static ReconnectModule createNoOpReconnectModule(
+            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
         final Time time = Time.getCurrent();
         final Metrics metrics = new NoOpMetrics();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
         final Roster roster = new Roster(List.of(rosterEntry));
         final PlatformComponents platformComponents = null;
-        final AtomicReference<Platform> platformReference = new AtomicReference<>();
         final PlatformCoordinator platformCoordinator = null;
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         final ConsensusStateEventHandler consensusStateEventHandler = NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise = new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
 
         final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
         reconnectModule.initialize(
@@ -396,15 +389,14 @@ public class ConsensusNoOpModules {
                 time,
                 roster,
                 platformComponents,
-                platformReference,
+                null,
                 platformCoordinator,
                 stateLifecycleManager,
                 savedStateController,
                 consensusStateEventHandler,
                 reservedSignedStateResultPromise,
                 selfId,
-                fallenBehindMonitor
-        );
+                fallenBehindMonitor);
         return reconnectModule;
     }
 }

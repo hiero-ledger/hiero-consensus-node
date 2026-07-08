@@ -2,7 +2,6 @@
 package com.swirlds.platform.system;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.uptime.UptimeTracker;
@@ -51,11 +50,13 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      * @param time          the time source
      * @param selfId        the ID of this node
      */
-    public DefaultPlatformMonitor(@NonNull final Configuration configuration, @NonNull final Metrics metrics,
-            @NonNull final Time time, @NonNull final NodeId selfId) {
+    public DefaultPlatformMonitor(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId) {
         this.time = time;
-        statusStateMachine =
-                new StatusStateMachine(configuration, metrics, time);
+        statusStateMachine = new StatusStateMachine(configuration, metrics, time);
         uptimeTracker = new UptimeTracker(configuration, metrics, time, selfId);
         lastQuiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
         lastQuiescenceCommandTime = time.now();

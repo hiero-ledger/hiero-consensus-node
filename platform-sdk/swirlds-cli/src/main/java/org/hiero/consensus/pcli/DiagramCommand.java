@@ -8,7 +8,6 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossip
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
-import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpReconnectModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
@@ -29,11 +28,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.reconnect.ReconnectModule;
-import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -44,7 +39,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
@@ -169,8 +163,7 @@ public final class DiagramCommand extends AbstractCommand {
                 event -> {},
                 model,
                 null,
-                null
-        );
+                null);
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
@@ -184,13 +177,19 @@ public final class DiagramCommand extends AbstractCommand {
         final StateModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
-        final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
+        final PlatformSchedulersConfig platformSchedulersConfig =
+                configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
-        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
-        final RunningEventHashOverrideWiring runningEventHashOverrideWiring = RunningEventHashOverrideWiring.create(model);
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
+        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =
+                new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
+        final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
+                RunningEventHashOverrideWiring.create(model);
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
+                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<AppNotifier, Void> notifierWiring =
+                new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
@@ -212,8 +211,8 @@ public final class DiagramCommand extends AbstractCommand {
                 null,
                 null,
                 null,
-                null
-        );
+                null,
+                null);
 
         PlatformWiring.wire(inputs, buildingBlocks);
 

@@ -31,8 +31,7 @@ public class PlatformWiring {
      * Wire the components together.
      */
     public static void wire(
-            @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         Objects.requireNonNull(inputs);
         Objects.requireNonNull(buildingBlocks);
 
@@ -106,7 +105,8 @@ public class PlatformWiring {
                 buildingBlocks.hashgraphModule().preconsensusEventOutputWire();
         // pre-handle gets pre-consensus events from the consensus engine
         // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
-        consEngineAddedEvents.solderTo(buildingBlocks.transactionHandlingModule().preHandleEventInputWire());
+        consEngineAddedEvents.solderTo(
+                buildingBlocks.transactionHandlingModule().preHandleEventInputWire());
 
         buildingBlocks
                 .transactionHandlingModule()
@@ -124,7 +124,8 @@ public class PlatformWiring {
                 buildingBlocks.hashgraphModule().consensusRoundOutputWire();
 
         // with inline PCES, the round bypasses the round durability buffer and goes directly to the round handler
-        consensusRoundOutputWire.solderTo(buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());
+        consensusRoundOutputWire.solderTo(
+                buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());
 
         consensusRoundOutputWire.solderTo(
                 buildingBlocks.eventWindowManagerWiring().getInputWire(EventWindowManager::extractEventWindow));
@@ -166,7 +167,10 @@ public class PlatformWiring {
         buildingBlocks
                 .stateModule()
                 .stateSignaturesOutputWire()
-                .solderTo("ExecutionSignatureSubmission", "state signatures", inputs.executionLayer()::submitStateSignature);
+                .solderTo(
+                        "ExecutionSignatureSubmission",
+                        "state signatures",
+                        inputs.executionLayer()::submitStateSignature);
 
         buildingBlocks
                 .stateModule()
@@ -185,8 +189,9 @@ public class PlatformWiring {
         buildingBlocks
                 .runningEventHashOverrideWiring()
                 .runningHashUpdateOutput()
-                .solderTo(
-                        buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
+                .solderTo(buildingBlocks
+                        .consensusEventStreamWiring()
+                        .getInputWire(ConsensusEventStream::legacyHashOverride));
 
         buildingBlocks
                 .issDetectionModule()
@@ -255,7 +260,9 @@ public class PlatformWiring {
         buildingBlocks
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
+                .solderTo(buildingBlocks
+                        .notifierWiring()
+                        .getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
     }
 
     /**

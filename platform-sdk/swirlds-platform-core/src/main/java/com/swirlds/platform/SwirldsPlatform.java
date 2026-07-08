@@ -18,24 +18,18 @@ import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.ConsensusModuleBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -43,14 +37,12 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -120,13 +112,18 @@ public class SwirldsPlatform implements Platform {
     /**
      * Constructor.
      */
-    public SwirldsPlatform(@NonNull final ConsensusLayerInputs inputs,
+    public SwirldsPlatform(
+            @NonNull final ConsensusLayerInputs inputs,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         this.inputs = requireNonNull(inputs);
         this.buildingBlocks = requireNonNull(buildingBlocks);
-        this.platformContext = PlatformContext.create(inputs.configuration(), inputs.time(), inputs.metrics(),
-                inputs.fileSystemManager(), inputs.recycleBin());
+        this.platformContext = PlatformContext.create(
+                inputs.configuration(),
+                inputs.time(),
+                inputs.metrics(),
+                inputs.fileSystemManager(),
+                inputs.recycleBin());
         this.platformCoordinator = platformCoordinator;
 
         // The reservation on this state is held by the caller of this constructor.
@@ -180,8 +177,8 @@ public class SwirldsPlatform implements Platform {
         final String actualMainClassName =
                 configuration.getConfigData(StateConfig.class).getMainClassName(inputs.appName());
 
-        final SignedStateFilePath statePath = new SignedStateFilePath(
-                inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
+        final SignedStateFilePath statePath =
+                new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
@@ -193,7 +190,8 @@ public class SwirldsPlatform implements Platform {
         final boolean startedFromGenesis = initialState.isGenesisState();
 
         // TODO - this has moved to ConsensusLayerFactory, check if this actually works before removing this line
-        // buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
+        // buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial
+        // state"));
 
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
@@ -207,8 +205,7 @@ public class SwirldsPlatform implements Platform {
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
-            final ConsensusSnapshot consensusSnapshot =
-                    requireNonNull(consensusSnapshotOf(initialState.getState()));
+            final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(initialState.getState()));
             platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be

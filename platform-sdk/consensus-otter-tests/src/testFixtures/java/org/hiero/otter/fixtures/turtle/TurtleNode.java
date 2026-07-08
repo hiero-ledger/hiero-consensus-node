@@ -23,13 +23,12 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -46,6 +45,10 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerFactory;
+import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.gossip.GossipModule;
@@ -278,33 +281,37 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
             final GossipModule gossipModule = new TurtleGossipModule(gossip);
 
-            final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                            OtterApp.APP_NAME,
-                            OtterApp.SWIRLD_NAME,
-                            version,
-                            initialState,
-                            otterApp,
-                            selfId,
-                            eventStreamLoc,
-                            rosterHistory,
-                            stateLifecycleManager)
-                    .withPlatformContext(platformContext)
-                    .withConfiguration(currentConfiguration)
-                    .withKeysAndCerts(keysAndCerts)
-                    .withExecutionLayer(executionLayer)
-                    .withModel(model)
-                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
-                    .withGossipModule(gossipModule)
-                    .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
+            final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+                    currentConfiguration,
+                    platformContext.getMetrics(),
+                    platformContext.getTime(),
+                    rosterHistory,
+                    keysAndCerts,
+                    selfId,
+                    platformContext.getRecycleBin(),
+                    platformContext.getFileSystemManager(),
+                    executionLayer,
+                    otterApp,
+                    initialState,
+                    stateLifecycleManager,
+                    version,
+                    OtterApp.APP_NAME,
+                    OtterApp.SWIRLD_NAME,
+                    eventStreamLoc,
+                    OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS,
+                    null,
+                    model,
+                    new SecureRandomBuilder(randotron.nextLong()).get(),
+                    gossipModule);
+            final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
+            final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
-            final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
-            final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
+            final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+            PlatformWiring.wire(inputs, buildingBlocks);
 
-            gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
+            gossip.provideIntakeEventCounter(buildingBlocks.intakeEventCounter());
 
-            platformComponent = platformBuildingBlocks.platformComponents();
-
-            platformComponent
+            buildingBlocks
                     .hashgraphModule()
                     .consensusRoundOutputWire()
                     .solderTo(
@@ -320,7 +327,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
-            platform = platformComponentBuilder.build();
+            platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
             platformStatus = PlatformStatus.STARTING_UP;
 
             platform.start();

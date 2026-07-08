@@ -14,10 +14,8 @@ import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CO
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -28,24 +26,15 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.SecureRandom;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.KeyGeneratingException;
-import org.hiero.base.crypto.SigningSchema;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -55,14 +44,9 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
-import org.hiero.consensus.state.persistence.StateSnapshotManager;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
@@ -119,16 +103,21 @@ class PlatformWiringTests {
                 null,
                 model,
                 null,
-                null
-        );
+                null);
 
-        final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
+        final PlatformSchedulersConfig platformSchedulersConfig =
+                configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
-        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
-        final RunningEventHashOverrideWiring runningEventHashOverrideWiring = RunningEventHashOverrideWiring.create(model);
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
+        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =
+                new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
+        final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
+                RunningEventHashOverrideWiring.create(model);
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
+                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<AppNotifier, Void> notifierWiring =
+                new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
@@ -161,11 +150,9 @@ class PlatformWiringTests {
                 null,
                 null,
                 null,
+                null,
                 null);
         PlatformWiring.wire(inputs, buildingBlocks);
-
-        final PlatformComponentBuilder componentBuilder =
-                new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 model,
@@ -180,33 +167,11 @@ class PlatformWiringTests {
                 stateModule);
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
-        componentBuilder
-                .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withPlatformMonitor(mock(PlatformMonitor.class))
-                .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
         platformComponents.bind(inputs, mock(EventWindowManager.class), mock(AppNotifier.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());
         coordinator.stop();
-    }
-
-    private static PlatformBuildingBlocks createBuildingBlocks(final PlatformContext context) {
-        final PlatformBuildingBlocks blocks = mock(PlatformBuildingBlocks.class);
-        when(blocks.platformContext()).thenReturn(context);
-        when(blocks.secureRandomSupplier()).thenReturn(() -> mock(SecureRandom.class));
-        final RosterHistory rosterHistory = mock(RosterHistory.class);
-        when(rosterHistory.getCurrentRoster()).thenReturn(Roster.DEFAULT);
-        when(blocks.rosterHistory()).thenReturn(rosterHistory);
-        final KeysAndCerts keysAndCerts;
-        try {
-            keysAndCerts = KeysAndCertsGenerator.generate(
-                    NodeId.FIRST_NODE_ID, SigningSchema.RSA, new SecureRandom(), new SecureRandom());
-        } catch (final NoSuchAlgorithmException | NoSuchProviderException | KeyGeneratingException e) {
-            throw new RuntimeException(e);
-        }
-        when(blocks.keysAndCerts()).thenReturn(keysAndCerts);
-        return blocks;
     }
 }

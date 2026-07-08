@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
@@ -103,39 +104,57 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private final Configuration configuration;
+
     @NonNull
     private final Metrics metrics;
+
     @NonNull
     private final Time time;
+
     @NonNull
     private final RosterHistory rosterHistory;
+
     @NonNull
     private final KeysAndCerts keysAndCerts;
+
     @NonNull
     private final NodeId selfId;
+
     @NonNull
     private final RecycleBin recycleBin;
+
     @NonNull
     private final FileSystemManager fileSystemManager;
+
     @NonNull
     private final ExecutionLayer executionLayer;
+
     @NonNull
     private final ConsensusStateEventHandler consensusStateEventHandler;
+
     @NonNull
     private final ReservedSignedState initialState;
+
     @NonNull
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
+
     @NonNull
     private final SemanticVersion version;
+
     @NonNull
     private final String appName;
+
     @NonNull
     private final String swirldName;
+
     private final long transactionOffsetNanos;
+
     @NonNull
     private final WiringModel wiringModel;
+
     @NonNull
     private final SecureRandom secureRandom;
+
     @Nullable
     private final GossipModule gossipModuleOverride;
 
@@ -164,9 +183,9 @@ public class ConsensusLayerFactory {
         gossipModuleOverride = inputs.gossipModuleOverride();
     }
 
-    public record ConsensusLayerFactoryResult(@NonNull PlatformCoordinator platformCoordinator,
-                                              @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {
-    }
+    public record ConsensusLayerFactoryResult(
+            @NonNull PlatformCoordinator platformCoordinator,
+            @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {}
 
     public ConsensusLayerFactoryResult create() {
         final EventCreatorModule eventCreatorModule = createEventCreatorModule();
@@ -174,13 +193,14 @@ public class ConsensusLayerFactory {
         final EventPipelineTracker eventPipelineTracker = createEventPipelineTracker(eventCreatorModule);
         final EventIntakeModule eventIntakeModule = createEventIntakeModule(intakeEventCounter, eventPipelineTracker);
         final HashgraphModule hashgraphModule = createHashgraphModule(eventPipelineTracker);
-        final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(configuration,
-                metrics);
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise = new BlockingResourceProvider<>();
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(configuration, metrics);
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor =
                 new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, selfId);
-        final GossipModule gossipModule = createGossipModule(intakeEventCounter, latestCompleteStateNexus,
-                reservedSignedStateResultPromise, fallenBehindMonitor);
+        final GossipModule gossipModule = createGossipModule(
+                intakeEventCounter, latestCompleteStateNexus, reservedSignedStateResultPromise, fallenBehindMonitor);
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
 
         final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
@@ -189,8 +209,7 @@ public class ConsensusLayerFactory {
                 createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
 
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final StateModule stateModule =
-                createStateModule(latestCompleteStateNexus, savedStateController);
+        final StateModule stateModule = createStateModule(latestCompleteStateNexus, savedStateController);
 
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
@@ -208,47 +227,49 @@ public class ConsensusLayerFactory {
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
 
-        final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(
-                PlatformSchedulersConfig.class);
+        final PlatformSchedulersConfig platformSchedulersConfig =
+                configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
-        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = new ComponentWiring<>(wiringModel,
-                ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
-        final RunningEventHashOverrideWiring runningEventHashOverrideWiring = RunningEventHashOverrideWiring.create(
-                wiringModel);
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(
-                wiringModel, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(wiringModel, AppNotifier.class,
-                DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(
-                wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
+        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = new ComponentWiring<>(
+                wiringModel, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
+        final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
+                RunningEventHashOverrideWiring.create(wiringModel);
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
+                new ComponentWiring<>(wiringModel, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<AppNotifier, Void> notifierWiring =
+                new ComponentWiring<>(wiringModel, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
 
         statusActionSubmitterReference.set(platformCoordinator);
 
         doStaticSetup(configuration);
 
-        return new ConsensusLayerFactoryResult(platformCoordinator, new ConsensusLayerBuildingBlocks(
-                wiringModel,
-                configuration,
-                eventCreatorModule,
-                eventIntakeModule,
-                pcesModule,
-                hashgraphModule,
-                gossipModule,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateModule,
-                eventStreamWiring,
-                runningEventHashOverrideWiring,
-                eventWindowManagerWiring,
-                notifierWiring,
-                platformMonitorWiring,
-                notificationEngine,
-                savedStateController,
-                platformComponents,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor)
-        );
+        return new ConsensusLayerFactoryResult(
+                platformCoordinator,
+                new ConsensusLayerBuildingBlocks(
+                        wiringModel,
+                        configuration,
+                        eventCreatorModule,
+                        eventIntakeModule,
+                        pcesModule,
+                        hashgraphModule,
+                        gossipModule,
+                        issDetectionModule,
+                        transactionHandlingModule,
+                        stateModule,
+                        eventStreamWiring,
+                        runningEventHashOverrideWiring,
+                        eventWindowManagerWiring,
+                        notifierWiring,
+                        platformMonitorWiring,
+                        notificationEngine,
+                        savedStateController,
+                        platformComponents,
+                        reservedSignedStateResultPromise,
+                        fallenBehindMonitor,
+                        intakeEventCounter));
     }
 
     @NonNull
@@ -258,10 +279,12 @@ public class ConsensusLayerFactory {
         return latestImmutableStateNexus;
     }
 
-    public ReconnectModule createReconnectModule(@NonNull final Platform platform,
+    public ReconnectModule createReconnectModule(
+            @NonNull final Platform platform,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final PlatformComponents platformComponents,
-            @NonNull final SavedStateController savedStateController, @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+            @NonNull final SavedStateController savedStateController,
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
         reconnectModule.initialize(
@@ -315,7 +338,8 @@ public class ConsensusLayerFactory {
                 transactionOffsetNanos);
     }
 
-    private GossipModule createGossipModule(@NonNull final IntakeEventCounter intakeEventCounter,
+    private GossipModule createGossipModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
@@ -371,11 +395,13 @@ public class ConsensusLayerFactory {
         };
     }
 
-    private void initializePcesModule(@NonNull final PcesModule module,
+    private void initializePcesModule(
+            @NonNull final PcesModule module,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
-        final Supplier<PcesReplayProgress> replayProgressSupplier = createPcesReplayProgressSupplier(latestImmutableStateNexus);
+        final Supplier<PcesReplayProgress> replayProgressSupplier =
+                createPcesReplayProgressSupplier(latestImmutableStateNexus);
         module.initialize(
                 wiringModel,
                 configuration,
@@ -394,9 +420,8 @@ public class ConsensusLayerFactory {
     }
 
     private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
-        final boolean eventPipelineMetricsEnabled = configuration
-                .getConfigData(PlatformMetricsConfig.class)
-                .eventPipelineMetricsEnabled();
+        final boolean eventPipelineMetricsEnabled =
+                configuration.getConfigData(PlatformMetricsConfig.class).eventPipelineMetricsEnabled();
         final EventPipelineTracker eventPipelineTracker =
                 eventPipelineMetricsEnabled ? new EventPipelineTracker(metrics) : null;
 
@@ -419,7 +444,8 @@ public class ConsensusLayerFactory {
         }
     }
 
-    private EventIntakeModule createEventIntakeModule(@NonNull final IntakeEventCounter intakeEventCounter,
+    private EventIntakeModule createEventIntakeModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
         final EventIntakeModule module = createModule(EventIntakeModule.class, configuration);
         module.initialize(
@@ -513,6 +539,5 @@ public class ConsensusLayerFactory {
 
         // Initialize JVMPauseDetectorThread, if enabled via settings
         startJVMPauseDetectorThread(configuration);
-
     }
 }

@@ -465,18 +465,18 @@ class FallenBehindMonitorTest {
         for (int i = 0; i < numThreads; i++) {
             final int nodeId = i + 1;
             new Thread(() -> {
-                try {
-                    startLatch.await(); // Wait for all threads to be ready
-                    monitor.report(nodeIds[nodeId]);
-                    monitor.hasFallenBehind();
-                    monitor.reportedSize();
-                    monitor.isBehindPeer(nodeIds[nodeId]);
-                } catch (Exception e) {
-                    failed.set(true);
-                } finally {
-                    doneLatch.countDown();
-                }
-            })
+                        try {
+                            startLatch.await(); // Wait for all threads to be ready
+                            monitor.report(nodeIds[nodeId]);
+                            monitor.hasFallenBehind();
+                            monitor.reportedSize();
+                            monitor.isBehindPeer(nodeIds[nodeId]);
+                        } catch (Exception e) {
+                            failed.set(true);
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    })
                     .start();
         }
 
@@ -499,14 +499,14 @@ class FallenBehindMonitorTest {
         // Start multiple waiting threads
         for (int i = 0; i < numWaiters; i++) {
             new Thread(() -> {
-                try {
-                    allStarted.countDown();
-                    monitor.awaitFallenBehind();
-                    allCompleted.countDown();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            })
+                        try {
+                            allStarted.countDown();
+                            monitor.awaitFallenBehind();
+                            allCompleted.countDown();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    })
                     .start();
         }
 
@@ -563,14 +563,14 @@ class FallenBehindMonitorTest {
         final CountDownLatch allCompleted = new CountDownLatch(1);
 
         new Thread(() -> {
-            try {
-                allStarted.countDown();
-                monitor.awaitGossipPaused();
-                allCompleted.countDown();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        })
+                    try {
+                        allStarted.countDown();
+                        monitor.awaitGossipPaused();
+                        allCompleted.countDown();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                })
                 .start();
         allStarted.await();
         Thread.sleep(100);
@@ -585,13 +585,13 @@ class FallenBehindMonitorTest {
         monitor.notifySyncProtocolPaused();
 
         new Thread(() -> {
-            try {
-                monitor.awaitGossipPaused();
-                allCompleted.countDown();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        })
+                    try {
+                        monitor.awaitGossipPaused();
+                        allCompleted.countDown();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                })
                 .start();
 
         assertTrue(allCompleted.await(2, TimeUnit.SECONDS), "The waiting thread should be notified and complete");
