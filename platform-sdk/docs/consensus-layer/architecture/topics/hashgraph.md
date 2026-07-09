@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-06-12
+last_reviewed: 2026-07-02
 ---
 
 # Hashgraph
@@ -78,7 +78,7 @@ state at runtime:
   counter, and the `pcesMode` flag set when the platform is replaying
   the pre-consensus event stream.
 - `RoundElections` tracks witnesses voted on for a round and their
-  decided-fame status, plus `minNGen` and `minBirthRound` for the
+  decided-fame status, plus `minSeqNum` and `minBirthRound` for the
   judges.
 - The future-event buffer
   [`consensus-utility/.../FutureEventBuffer.java`](../../../../consensus-utility/src/main/java/org/hiero/consensus/event/FutureEventBuffer.java)
@@ -242,17 +242,37 @@ judge IDs).
 restart or reconnect, `Consensus.waitingForInitJudges()` returns
 `true` until the linker has supplied enough events to reconstruct the
 snapshot's judges (handled by `InitJudges`). While that flag is set,
-`DefaultConsensusEngine.addEvent` returns an empty output — the
+`ConsensusImpl.addEvent` short-circuits to an empty result
+(`ConsensusImpl.java:290-293`) and `DefaultConsensusEngine.addEvent`
+returns an empty output (`DefaultConsensusEngine.java:148-153`) — the
 just-added event is not yet classified as pre-consensus, because it
-might already have been part of a previously decided round. The
-flag is checked both before and after `consensus.addEvent`; the
-post-add check is the transition point out of waiting. When the last
-init judge arrives, the engine flushes any consensus events the
-just-decided rounds produced and the queued pre-consensus events
-into the output. Usually no rounds are decided in that same call,
-but a major roster change can produce some — in which case those
-consensus events are also reported as pre-consensus events so the
-downstream view of pre-consensus output stays complete.
+might already have been part of a previously decided round. The engine
+samples the flag both before and after `consensus.addEvent`
+(`waitingForJudgesBeforeAdd` / `waitingForJudgesAfterAdd`,
+`DefaultConsensusEngine.java:140-144`); the post-add check is the
+transition point out of waiting. When the last init judge arrives,
+`ConsensusImpl.checkInitJudges`
+(`ConsensusImpl.java:442`) takes the judges' common ancestors that are
+neither already consensus nor ancient (`AncestorSearch.commonAncestorsOf`
+under the `nonConsensusNonAncient` predicate) and marks each
+`setConsensus(true)` while deliberately leaving `roundReceived` unset:
+those events already reached consensus in the run that produced the
+loaded snapshot, so they are flagged decided solely to stop the
+algorithm from re-deciding them, and are never emitted as a consensus
+round. The engine then flushes the queued pre-consensus events into the
+output (`consensus.getPreConsensusEvents()`,
+`DefaultConsensusEngine.java:168-172`). Usually the call that finds the
+last judge decides no *new* rounds — `ConsensusImpl.addEvent` routes
+through `recalculateAndVote` (`ConsensusImpl.java:295-297`), consensus
+simply resumes, and later events decide the next round. If that
+recalculation does decide a round immediately, the engine *also* places
+the round's events on the pre-consensus output
+(`DefaultConsensusEngine.java:163-166`), because the gate suppressed
+them earlier and every accepted event must still appear on the
+pre-consensus stream exactly once. Why this gate exists at the
+restart/replay boundary — not re-handling transactions already baked
+into the loaded state — is covered in
+[`../topics/restart-and-pces.md`](../topics/restart-and-pces.md#consensus-initialization-and-the-init-judge-gate).
 
 > **Note on the paper.** Round, witness, strongly-seeing, fame, and
 > judge mean the same thing in the paper and in the code. The notable
@@ -261,10 +281,16 @@ downstream view of pre-consensus output stays complete.
 > [`../../concepts/birth-round.md`](../../concepts/birth-round.md) for that
 > substitution. The
 > implementation also carries a few quantities that do not appear in
-> the paper — `NGen` (a locally-computed, non-deterministic generation
-> used only for picking a topological order and for
-> "higher in the hashgraph" comparisons; see `NonDeterministicGeneration`)
-> and the `DeGen`/`cGen` family used inside the algorithm. Conceptual
+> the paper — the orphan-buffer **event sequence number** (a
+> locally-computed, monotonic counter used for picking a topological
+> order and for "higher in the hashgraph" comparisons, e.g.
+> `consensusRelevantSeqNum` / `RoundElections.minSeqNum` and
+> `ConsensusRounds.isOlderThanDecidedRoundSeqNum`) and the `DeGen`/`cGen`
+> family used inside the algorithm. The sequence number replaced `NGen`
+> as the algorithm's ordering key, and `NGen`
+> (`NonDeterministicGeneration`) has since been removed entirely (see
+> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md)).
+> Conceptual
 > background lives in
 > [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
 > and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).

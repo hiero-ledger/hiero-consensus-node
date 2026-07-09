@@ -4,7 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -13,7 +13,6 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -60,7 +59,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
      * The expected result is that all tasks are cleaned up and the coordinator reaches a
      * quiescent state quickly.
      */
-    boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
+    boolean startMergeThenInterruptImpl() throws IOException {
         createAndApplyDataSource(COUNT, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
             // Create data in batches so that files accumulate content worth compacting
@@ -68,8 +67,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
             coordinator.enableBackgroundCompaction();
 
             final ThreadPoolExecutor compactingExecutor =
-                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
-                            CONFIGURATION.getConfigData(MerkleDbConfig.class));
+                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(DEFAULT_MERKLE_DB_CONFIG);
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
             triggerScansAndSubmitCompaction(dataSource, coordinator);
             // wait a small-time for merging to start
@@ -99,7 +97,7 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
      * tasks are interrupted and the database closes promptly without being blocked by the
      * snapshot or compaction.
      */
-    boolean startMergeWhileSnapshottingThenInterruptImpl(int delayMs) throws IOException, InterruptedException {
+    boolean startMergeWhileSnapshottingThenInterruptImpl(int delayMs) throws IOException {
         createAndApplyDataSource(COUNT, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
@@ -117,9 +115,8 @@ class CompactionInterruptTest extends AbstractMerkelDbTest {
                     return null;
                 });
 
-                final ThreadPoolExecutor compactingExecutor =
-                        (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
-                                CONFIGURATION.getConfigData(MerkleDbConfig.class));
+                final ThreadPoolExecutor compactingExecutor = (ThreadPoolExecutor)
+                        MerkleDbCompactionCoordinator.getCompactionExecutor(DEFAULT_MERKLE_DB_CONFIG);
                 final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
                 final long initTaskCount = compactingExecutor.getTaskCount();
                 triggerScansAndSubmitCompaction(dataSource, coordinator);

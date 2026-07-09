@@ -7,7 +7,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This iterator was designed specifically for use with {@link VirtualMap} during reconnect on the
@@ -31,10 +30,10 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
     private final LinkedBlockingQueue<T> buffer;
 
     /**
-     * Indicates that the array has been closed. Once closed, new elements cannot be
+     * Indicates that the iterator has been closed. Once closed, new elements cannot be
      * supplied but existing elements in the buffer can still be consumed.
      */
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private volatile boolean closed;
 
     /**
      * Contains a reference to the next element. This is basically a temporary variable.
@@ -70,10 +69,9 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
         // the teacher) is provided in certain period, the whole reconnect thread group will
         // be interrupted, there is no need to have explicit timeouts here
         try {
-            // if closed and buffer.poll != null || !closed
-            boolean isOpen = !closed.get();
-            while (((next = buffer.poll(10, TimeUnit.MILLISECONDS)) == null) && isOpen) {
-                isOpen = !closed.get();
+            //noinspection StatementWithEmptyBody
+            while (((next = buffer.poll(10, TimeUnit.MILLISECONDS)) == null) && !closed) {
+                // busy wait
             }
         } catch (final InterruptedException e) {
             throw new RuntimeException("Concurrent iterator is interrupted", e);
@@ -106,7 +104,7 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
      * 		If interrupted while waiting
      */
     public void supply(final T element) throws InterruptedException {
-        if (closed.get()) {
+        if (closed) {
             throw new IllegalStateException("Cannot supply elements to a closed ConcurrentBlockingIterator");
         }
 
@@ -119,6 +117,6 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
      * can still be retrieved.
      */
     public void close() {
-        closed.set(true);
+        closed = true;
     }
 }

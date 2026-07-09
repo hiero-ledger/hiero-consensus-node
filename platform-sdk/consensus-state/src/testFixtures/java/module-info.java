@@ -13,7 +13,6 @@ open module org.hiero.consensus.state.test.fixtures {
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
-    requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl.test.fixtures;
     requires com.swirlds.virtualmap;
@@ -22,6 +21,6 @@ open module org.hiero.consensus.state.test.fixtures {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility.test.fixtures;
-    requires com.github.spotbugs.annotations;
     requires org.mockito;
+    requires static transitive com.github.spotbugs.annotations;
 }

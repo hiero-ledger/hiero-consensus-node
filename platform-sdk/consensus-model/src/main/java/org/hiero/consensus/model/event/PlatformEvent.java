@@ -62,26 +62,12 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
-     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
-     */
-    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
-
-    /**
-     * Represents an unassigned sequence number in a {@code PlatformEvent}. This constant is used as a placeholder to
-     * indicate that a specific sequence number has not yet been assigned to an event.
-     * <p>
-     * The value of {@code UNASSIGNED_SEQUENCE_NUMBER} is defined as {@code -1}. This value is chosen because sequence
-     * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
-     */
-    public static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
-
-    /**
      * Represents the sequence number assigned to this event. The sequence number is unique and increments with each
      * event released from orphan buffer, providing a way to identify the order of events, which can be used for
      * topological ordering. If the sequence number is not assigned, it will hold the value of
      * {@code UNASSIGNED_SEQUENCE_NUMBER}.
      */
-    private long sequenceNumber = UNASSIGNED_SEQUENCE_NUMBER;
+    private long sequenceNumber = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -204,34 +190,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * The non-deterministic generation of this event.
-     *
-     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
-     * none has been set yet.
-     */
-    public long getNGen() {
-        return nGen;
-    }
-
-    /**
-     * Checks if the non-deterministic generation for this event has been set.
-     *
-     * @return {@code true} if the nGen has been set, {@code false} otherwise
-     */
-    public boolean hasNGen() {
-        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
-    }
-
-    /**
-     * Sets the non-deterministic generation of this event.
-     *
-     * @param nGen the non-deterministic generation value to set
-     */
-    public void setNGen(final long nGen) {
-        this.nGen = nGen;
-    }
-
-    /**
      * The sequence number of this event.
      *
      * @return the sequence number of this event.
@@ -246,7 +204,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return {@code true} if the sequence number is assigned, {@code false} otherwise.
      */
     public boolean hasSequenceNumber() {
-        return sequenceNumber != UNASSIGNED_SEQUENCE_NUMBER;
+        return sequenceNumber != EventConstants.SEQUENCE_NUMBER_UNDEFINED;
     }
 
     /**

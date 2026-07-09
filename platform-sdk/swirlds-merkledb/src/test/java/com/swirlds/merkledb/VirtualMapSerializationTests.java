@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,7 +42,7 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
      * Create a new virtual map data source builder.
      */
     public static MerkleDbDataSourceBuilder constructBuilder() {
-        return constructBuilder(CONFIGURATION, fileSystemManager);
+        return constructBuilder(DEFAULT_CONFIGURATION, fileSystemManager);
     }
 
     public static MerkleDbDataSourceBuilder constructBuilder(
@@ -82,7 +82,7 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
      */
     @SuppressWarnings("SameParameterValue")
     private VirtualMap generateRandomMap(final long seed, final int count) {
-        final VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
+        final VirtualMap map = new VirtualMap(constructBuilder(), DEFAULT_CONFIGURATION);
         addRandomEntries(map, count, 0, seed);
         return map;
     }
@@ -136,7 +136,9 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
         }
 
         final VirtualMap deserializedMap = VirtualMap.loadFromDirectory(
-                savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION, fileSystemManager));
+                savedStateDirectory,
+                DEFAULT_CONFIGURATION,
+                () -> constructBuilder(DEFAULT_CONFIGURATION, fileSystemManager));
 
         assertVmsAreEqual(map, deserializedMap);
 

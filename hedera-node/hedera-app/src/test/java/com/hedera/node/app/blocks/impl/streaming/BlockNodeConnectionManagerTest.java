@@ -802,6 +802,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(node1.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
         final BlockNode node2 = mock(BlockNode.class);
         when(node2.configuration()).thenReturn(newBlockNodeConfig("localhost", 2345, 1));
+        final BlockNode node3 = mock(BlockNode.class);
+        when(node3.configuration()).thenReturn(newBlockNodeConfig("localhost", 3456, 1));
+        final BlockNode node4 = mock(BlockNode.class);
+        when(node4.configuration()).thenReturn(newBlockNodeConfig("localhost", 4567, 1));
         when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
         final Future<Object> node1Future = mock(Future.class);
@@ -810,10 +814,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Future<Object> node2Future = mock(Future.class);
         when(node2Future.state()).thenReturn(State.SUCCESS);
         when(node2Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 14));
+        final Future<Object> node3Future = mock(Future.class);
+        when(node3Future.state()).thenReturn(State.SUCCESS);
+        when(node3Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, Long.MAX_VALUE));
+        final Future<Object> node4Future = mock(Future.class);
+        when(node4Future.state()).thenReturn(State.SUCCESS);
+        when(node4Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, -100L));
         when(blockingIoExecutor.invokeAll(anyCollection(), anyLong(), any(TimeUnit.class)))
-                .thenReturn(List.of(node1Future, node2Future));
+                .thenReturn(List.of(node1Future, node2Future, node3Future, node4Future));
 
-        final GroupSelectionOutcome outcome = invoke_findAvailableNode(List.of(node1, node2));
+        final GroupSelectionOutcome outcome = invoke_findAvailableNode(List.of(node1, node2, node3, node4));
 
         assertThat(outcome).isNotNull();
         assertThat(outcome.inRangeCandidates())
@@ -827,13 +837,23 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
+        verify(node3Future).state();
+        verify(node3Future).resultNow();
+        verify(node4Future).state();
+        verify(node4Future).resultNow();
         verify(node1, times(3)).configuration();
         verify(node2, times(3)).configuration();
+        verify(node3, times(3)).configuration();
+        verify(node4, times(3)).configuration();
         verify(node1).onServerStatusCheck(any(BlockNodeStatus.class));
         verify(node2).onServerStatusCheck(any(BlockNodeStatus.class));
+        verify(node3).onServerStatusCheck(any(BlockNodeStatus.class));
+        verify(node4).onServerStatusCheck(any(BlockNodeStatus.class));
+        verify(node3).applyCoolDown(any(BlockNodeOutOfRange.class));
+        verify(node4).applyCoolDown(any(BlockNodeOutOfRange.class));
         verifyNoMoreInteractions(blockingIoExecutor);
-        verifyNoMoreInteractions(node1Future, node2Future);
-        verifyNoMoreInteractions(node1, node2);
+        verifyNoMoreInteractions(node1Future, node2Future, node3Future, node4Future);
+        verifyNoMoreInteractions(node1, node2, node3, node4);
     }
 
     @Test

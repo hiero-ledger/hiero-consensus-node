@@ -2,7 +2,7 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.test.fixtures.TestKey.longToKey;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -56,7 +56,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testNadLeafPaths");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
         final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
+                new ReconnectHashLeafFlusher(ds, DEFAULT_VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
         assertThrows(IllegalArgumentException.class, () -> flusher.init(firstLeafPath, lastLeafPath));
     }
 

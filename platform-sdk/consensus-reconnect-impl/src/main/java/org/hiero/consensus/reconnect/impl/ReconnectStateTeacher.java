@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,7 +26,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
@@ -99,8 +97,7 @@ public class ReconnectStateTeacher {
         final VirtualMapState virtualMapState = signedState.getState();
         hash = virtualMapState.getHash();
 
-        synchronizer = new TeachingSynchronizer(
-                virtualMapState.getRoot(), threadManager, configuration.getConfigData(ReconnectConfig.class));
+        synchronizer = new TeachingSynchronizer(virtualMapState.getRoot(), threadManager, configuration);
 
         logReconnectStart(signedState);
     }
