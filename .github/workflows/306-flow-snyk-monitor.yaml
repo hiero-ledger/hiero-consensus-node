@@ -47,7 +47,11 @@ jobs:
       - name: Setup Snyk
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: npm install -g snyk
+        run: |
+          EXPECTED="sha512-40leKMq2ERMrQ433ruLKIVdUpBsvn4CsRhEb8YGw5zHoVcwijx8KB0qxNqhZ4ZZ3pczfpHT14TuY1yMpt8sQZQ=="
+          ACTUAL=$(npm view snyk@1.1306.0 dist.integrity)
+          [ "$ACTUAL" = "$EXPECTED" ] || { echo "Integrity mismatch! Expected: $EXPECTED, Got: $ACTUAL"; exit 1; }
+          npm install -g snyk@1.1306.0
 
       - name: Disable Gradle Isolated Projects
         run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
