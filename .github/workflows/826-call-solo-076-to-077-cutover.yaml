@@ -166,6 +166,10 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Exclude the WRAPS proving key from the logs artifact: solo's per-node log-config
+            # bundles carry the key (~4 GB/node), and the logs they contain are already
+            # captured above via kubectl.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' -delete || true
           fi
 
       - name: Upload 076-to-077 Cutover Failure Artifacts
