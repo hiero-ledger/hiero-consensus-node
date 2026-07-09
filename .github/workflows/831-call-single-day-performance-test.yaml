@@ -138,7 +138,6 @@ jobs:
           git checkout ${{ inputs.ref }}
           cd "${{ github.workspace }}"
 
-
       - name: Checkout target BN Code
         run: |
           git clone https://github.com/hiero-ledger/hiero-block-node.git target_block_node
@@ -440,7 +439,6 @@ jobs:
 
           # verify the installation
           solo --version
-
 
       - name: Build Solo
         run: |
