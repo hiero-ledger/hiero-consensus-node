@@ -55,6 +55,13 @@ import org.hyperledger.besu.evm.operation.Operation;
 
 /**
  * A factory for creating {@link TransactionExecutor} instances.
+ *
+ * <p><b>Security note:</b> the executors produced by this factory perform <b>no contract-key or signature
+ * verification</b> &mdash; the smart-contract service is wired with {@code NOOP_VERIFICATION_STRATEGIES}, which
+ * treats every key as valid. They are intended solely for <b>standalone replay and simulation</b> (for example
+ * Mirror Node gas estimation and {@code eth_call}), where there are no client signatures to enforce. They must
+ * <b>never</b> be used to execute transactions authoritatively, nor have their outputs (records, balance changes,
+ * contract results) treated as authorized, nor be wired into a consensus/handle code path.
  */
 public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
@@ -185,6 +192,10 @@ public enum TransactionExecutors {
 
     /**
      * Creates a new {@link TransactionExecutor} based on the given {@link State} and properties.
+     *
+     * <p><b>Performs no contract-key/signature verification</b> (see the class Javadoc): for standalone
+     * replay/simulation only, never for authoritative execution.
+     *
      * @param properties the properties to use for the executor
      * @return a new {@link TransactionExecutor}
      */
@@ -233,6 +244,13 @@ public enum TransactionExecutors {
         };
     }
 
+    /**
+     * Builds the {@link ExecutorComponent} backing a standalone executor.
+     *
+     * <p><b>Performs no contract-key/signature verification</b> &mdash; the contract service is constructed with
+     * {@code NOOP_VERIFICATION_STRATEGIES} (see the class Javadoc). For standalone replay/simulation only; never wire
+     * this into a consensus/handle path or treat its output as authoritative.
+     */
     public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,
