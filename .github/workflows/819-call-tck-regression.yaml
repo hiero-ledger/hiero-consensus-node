@@ -117,6 +117,23 @@ jobs:
             exit 1 # fail the workflow if not present.
           fi
 
+      # TEMPORARY: fix known hiero-sdk-tck v0.11.0 bugs that only surface against a current
+      # consensus node (HIP-1299 signature enforcement) and mirror node (restjava-only
+      # /network/nodes). Delete this step and the patch once an upstream TCK release ships
+      # the fixes and the tck-version pin is bumped. Hard-fails when the patch stops
+      # applying so a pin bump forces this cleanup instead of silently drifting.
+      - name: Apply TCK Workarounds Patch
+        run: |
+          set -eo pipefail
+          PATCH_FILE=".github/workflows/support/tck-patches/v0.11.0-tck-workarounds.patch"
+          if ! git -C platform-sdk/regression apply --check "${GITHUB_WORKSPACE}/${PATCH_FILE}"; then
+            echo "::error::${PATCH_FILE} no longer applies to the checked-out TCK." \
+              "If the TCK release now includes these fixes, delete this step and the patch file." >&2
+            exit 1
+          fi
+          git -C platform-sdk/regression apply "${GITHUB_WORKSPACE}/${PATCH_FILE}"
+          echo "Applied $(basename "${PATCH_FILE}")"
+
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
