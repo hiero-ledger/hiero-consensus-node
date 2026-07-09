@@ -52,7 +52,8 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final OverrideProperties overrideProperties) {
         super(lifecycleSupplier, overrideProperties);
         this.overrideProperties
-                .withConfigValue(EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY))
+                .withConfigValue(
+                        EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY))
                 // The default MerkleDb capacity (1e9 keys) sizes each data source's off-heap structures for a
                 // billion keys regardless of the tiny state used in Otter tests. Sizing the
                 // capacity to the handful of keys these tests actually use keeps the footprint small.
