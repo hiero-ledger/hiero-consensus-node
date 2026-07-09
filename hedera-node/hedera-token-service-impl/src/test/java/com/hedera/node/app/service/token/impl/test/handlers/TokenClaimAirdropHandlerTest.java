@@ -327,6 +327,32 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
+    void claimingMergedAirdropsThatOverflowFails() {
+        // Two same-token airdrops to the same receiver: merging the credits overflows, so the claim must fail.
+        handlerTestBaseInternalSetUp(true);
+        givenPendingFungibleTokenAirdrop(fungibleTokenId, spenderId, tokenReceiverNoAssociationId, Long.MAX_VALUE);
+        givenPendingFungibleTokenAirdrop(fungibleTokenId, ownerId, tokenReceiverNoAssociationId, Long.MAX_VALUE);
+        removeTokenCustomFee(fungibleTokenId);
+        refreshReadableStores();
+        refreshWritableStores();
+        givenStoresAndConfig(handleContext);
+        associateToken(spenderId, fungibleTokenId);
+        associateToken(ownerId, fungibleTokenId);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(CryptoTransferStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
+
+        final var ownerPendingAirdropId =
+                firstPendingAirdropId.copyBuilder().senderId(ownerId).build();
+        var airdrops = new ArrayList<PendingAirdropId>();
+        airdrops.add(firstPendingAirdropId);
+        airdrops.add(ownerPendingAirdropId);
+        givenClaimAirdrop(airdrops);
+
+        final var ex = assertThrows(HandleException.class, () -> tokenClaimAirdropHandler.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, ex.getStatus());
+    }
+
+    @Test
     void claimSecondAirdrop() {
         stateInitialize();
 
