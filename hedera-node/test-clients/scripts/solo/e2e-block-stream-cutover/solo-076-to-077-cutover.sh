@@ -127,15 +127,8 @@ EXPLORER_INGRESS_LOCAL_PORT="${EXPLORER_INGRESS_LOCAL_PORT:-38080}"
 EXPLORER_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME:-hiero-explorer-1-solo}"
 SOLO_MIRROR_DEPLOY_TIMEOUT_SECS="${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS:-900}"
 SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
-# Block-cutover for the mirror importer. The MN is deployed in 0.75 reading RECORD files from
-# MinIO (the CN writes record streams in 0.75/0.76). After the 0.77 cutover (BLOCKS-only,
-# gRPC-only — no MinIO files), the importer is reconfigured to read 0.77 blocks from the Block
-# Node. Per Mirror Node guidance: in v0.154 hiero.mirror.importer.block.enabled defaults FALSE so
-# it must be set true, and there is NO block.cutover.hapiVersion — the importer auto-switches to
-# blockstream whenever no record-stream file is processed within block.cutover.threshold (16s
-# default), which is exactly what happens at the 0.77 cutover. Once it reads one block from the BN
-# the switch is permanent. (hapiVersion only exists in 0.155+; leave the var empty on 0.154.)
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.154.0}"
+
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-076-to-077.XXXXXX")"
@@ -1418,6 +1411,7 @@ deploy_mirror_and_explorer() {
   write_mirror_node_values_override
   if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
       solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --force-port-forward false \
+      --mirror-node-version "${MIRROR_NODE_VERSION}" \
       --values-file "${MIRROR_NODE_VALUES_FILE}"; then
     if mirror_node_failed_only_on_restjava; then
       log "Mirror node add failed only on REST Java readiness; required mirror services are up — continuing"
