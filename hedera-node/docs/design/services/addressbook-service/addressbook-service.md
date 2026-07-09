@@ -23,8 +23,8 @@ to update nodes on the network.
 The Addressbook Service is a service (```AddressBookService extends RpcService```) that provides a decentralized and secure
 way to update the node addressbook to configure nodes on the Hedera network. It allows the Hedera council to add and
 remove nodes, and node operators to configure nodes on the network. Changes are saved to state. When the network receives
-a freeze transactions, new files `config.txt` and `s-public-alias.pem` are created on each node of the network to
-reflect the changes. Changes take effect once the network is restarted.
+a freeze (prepare upgrade) transaction, the updated roster is captured as the candidate roster and exported as
+`candidate-roster.json` on each node; it is adopted from state as the active roster once the network is restarted.
 
 ## Architecture Overview
 
