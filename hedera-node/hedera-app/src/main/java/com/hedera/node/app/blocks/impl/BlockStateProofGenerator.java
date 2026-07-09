@@ -114,7 +114,9 @@ public class BlockStateProofGenerator {
                         .hash(s.siblingHash())
                         .build());
             }
-            siblings.add(SiblingNode.newBuilder().build()); // null-hash sentinel
+            siblings.add(SiblingNode.newBuilder()
+                    .build()); // Add the single-child internal node (with null-hash sentinal) for loop's current block
+            // (s)
             final var hashedTs = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
             siblings.add(SiblingNode.newBuilder().isLeft(true).hash(hashedTs).build());
         }

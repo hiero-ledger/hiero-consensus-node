@@ -322,6 +322,7 @@ class IndirectProofSequenceValidator {
         // Build the sibling list for the earliest unsigned block's proof. Intermediate blocks (those
         // between the proven block and the signed block) each contribute their Merkle siblings, a
         // null-hash sentinel, and their timestamp. The signed block contributes its siblings and a sentinel.
+        // The signed block's timestamp has its own merkle path (mp1).
         final var numIntermediateBlocks = signedBlockNum - firstUnsignedBlockNum - 1;
         final var allSiblingHashes = new ArrayList<SiblingNode>();
         var currentBlockNum = firstUnsignedBlockNum + 1;
@@ -359,7 +360,7 @@ class IndirectProofSequenceValidator {
 
         fullMerklePathsByBlockNum.put(firstUnsignedBlockNum, new MerklePath[] {mp1, earliestBlockMp2.build(), mp3});
 
-        // Each subsequent unsigned block's proof uses a suffix of allSiblingHashes starting where
+        // Each subsequent unsigned block's proof uses a subset of allSiblingHashes starting where
         // that block's immediate successor's siblings begin
         for (long currUnsignedBlock = firstUnsignedBlockNum + 1;
                 currUnsignedBlock < signedBlockNum;
