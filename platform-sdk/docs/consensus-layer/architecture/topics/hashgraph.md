@@ -172,18 +172,11 @@ buffered future events and emit several decided rounds.
 rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
-`r + 1` if a super-majority is reached. As a performance short-circuit,
-any event whose sequence number is below that of the latest decided
-round's judges (`ConsensusRounds.isOlderThanDecidedRoundSeqNum`, keyed
-off the judges' minimum sequence number) — and any event already marked
-consensus — is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness
-and strongly-seeing work entirely; the dependent graph walks then skip
-that event via `ConsensusImpl.notRelevantForConsensus`. Such an event can
-no longer become a witness in or change the outcome of any undecided round
-(though it may still reach consensus as an ancestor of the judges), so its
-exact round is irrelevant. This is a
-load-bearing correctness precondition, not just a speedup — see RUL-005.
-For the conceptual background see
+`r + 1` if a super-majority is reached. As a short-circuit, any event
+whose sequence number is below the latest decided round's judges
+(`ConsensusRounds.isOlderThanDecidedRoundSeqNum`), and any consensus
+event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and
+strongly-seeing work — see RUL-005. For the conceptual background see
 [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff

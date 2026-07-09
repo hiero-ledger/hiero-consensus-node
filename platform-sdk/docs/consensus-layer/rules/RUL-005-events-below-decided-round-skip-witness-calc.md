@@ -39,15 +39,13 @@ of the graph that can no longer influence which rounds decide.
 
 The frontier is `consensusRelevantSeqNum` — the minimum sequence number among
 the judges of the latest decided round, set in
-`ConsensusRounds.currentElectionDecided` (`ConsensusRounds.java:145`, reached
-from `roundDecided`) and, on snapshot load, in `checkInitJudges`
-(`ConsensusImpl.java` lines ~474–477). The test is
+`ConsensusRounds.currentElectionDecided` (reached from `roundDecided`) and, on
+snapshot load, in `checkInitJudges`. The test is
 `ConsensusRounds.isOlderThanDecidedRoundSeqNum(x)`, which is just
-`consensusRelevantSeqNum > x.getSequenceNumber()` (`ConsensusRounds.java:121`).
-The sequence number is assigned once per event at the orphan buffer's exit
-(`DefaultOrphanBuffer`); per [ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md)
-it replaced the former non-deterministic generation (`nGen`) as the algorithm's
-local ordering key.
+`consensusRelevantSeqNum > x.getSequenceNumber()`. The sequence number is
+assigned once per event at the orphan buffer's exit (`DefaultOrphanBuffer`) and,
+per [ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md),
+replaced the former `nGen` as the algorithm's local ordering key.
 
 ## Why it holds now
 
@@ -56,24 +54,16 @@ no event below those judges can become a witness in — or change the outcome of
 any undecided round, so skipping their witness calculation changes nothing. Such
 an event can still reach consensus as an ancestor of the judges; only its witness
 and round computation is skipped. `ROUND_NEGATIVE_INFINITY` carries this
-downstream: it makes `notRelevantForConsensus(e)` (line 895) true, so the
-dependent walks — `lastSee`, `stronglySeeP`, `seeThru`, `firstWitnessS`,
-`firstSelfWitnessS` — return `null` when they reach the event, and `witness(x)`
-(line 913) rejects it.
+downstream: it makes `notRelevantForConsensus(e)` true, so the dependent walks —
+`lastSee`, `stronglySeeP`, `seeThru`, `firstWitnessS`, `firstSelfWitnessS` —
+return `null` when they reach the event, and `witness(x)` rejects it.
 
-The frontier is compared using the event **sequence number**, and that is sound
-because the check needs only one fact: whether `x` falls *earlier in topological
-order* than the decided round's judges. The sequence number is a single counter
-incremented as each event leaves the orphan buffer (`DefaultOrphanBuffer`); the
-buffer releases an event only once its parents are present or ancient, and the
-counter only ever increases, so every ancestor still in the graph carries a
-strictly smaller sequence number than its descendants. It is a valid topological
-ordering (`PlatformEvent.getSequenceNumber`) — which is exactly and only the
-property this comparison consults. Unlike the `nGen` it replaced (ADR-008), the
-sequence number is **not** a graph height: siblings and unrelated events get
-distinct numbers by release order. But the short-circuit never needed height,
-only the ancestry ordering, which the sequence number preserves and — unlike
-`nGen`, which could reset to `1` when a node fell behind — never resets.
+The check needs only one fact: whether `x` falls earlier in topological order
+than the decided round's judges. The orphan buffer numbers an event only after
+its parents, and the counter only increases and never resets, so every ancestor
+in the graph has a strictly smaller number — a monotonic topological ordering
+(`PlatformEvent.getSequenceNumber`). It need not be a graph height; ancestry
+order is the only property the comparison consults.
 
 The sequence number is local to a node and non-deterministic across the network
 (ADR-008: it reflects this node's orphan-buffer release order and is not
@@ -101,8 +91,8 @@ reached consensus, which are likewise irrelevant going forward.
   still-relevant event: the same agreement/liveness failure as a mis-computed
   frontier, reached through a different module.
 - **Removing the short-circuit.** On its own this is "only" a performance
-  regression (the forced memoization in `calculateMetadata`, line 489, also
-  guards against deep recursion). But the `ROUND_NEGATIVE_INFINITY` sentinel is
+  regression (the forced memoization in `calculateMetadata` also guards against
+  deep recursion). But the `ROUND_NEGATIVE_INFINITY` sentinel is
   part of the same machinery that keeps cleared old events from being recomputed
   under a new roster during `recalculateAndVote` — see INV-001 and SCN-001 —
   so changes here must be weighed against that interaction.
@@ -123,7 +113,3 @@ reintroduces an agreement / liveness risk.
   ancestry stalls consensus) both concern how old events' rounds are frozen or
   cleared across roster changes; the sentinel assigned here is part of that
   mechanism.
-- The frontier was keyed off `nGen` until [ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md)
-  replaced `nGen` with the event sequence number and removed
-  `NonDeterministicGeneration`; this entry was re-grounded on the sequence
-  number accordingly.
