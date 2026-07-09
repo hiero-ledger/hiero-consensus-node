@@ -28,6 +28,8 @@ public final class Git {
     private final Map<String, String> lastCommitDateCache = new HashMap<>();
     /** Per-run cache of a gone repo-relative path to the path it was renamed to (or {@code null}). */
     private final Map<String, String> renameCache = new HashMap<>();
+    /** Per-run cache of a pathspec to the short hash and subject of the commit that deleted it. */
+    private final Map<String, String> deletionCache = new HashMap<>();
 
     /**
      * Creates a wrapper rooted at the given repository and probes whether git is usable.
@@ -99,6 +101,24 @@ public final class Git {
                 }
             }
             return null;
+        });
+    }
+
+    /**
+     * The short hash and subject of the most recent commit that deleted a file matching the pathspec
+     * (git wildcard syntax; a plain repo-relative path also works). Returns {@code null} when git is
+     * unavailable or no deletion is recorded.
+     *
+     * @param pathspec the git pathspec to trace (e.g. a repo-relative path, or {@code *&#47;File.java}).
+     * @return {@code "<short-hash> <subject>"} of the deleting commit, or {@code null}.
+     */
+    public String findDeletion(final String pathspec) {
+        if (!available) {
+            return null;
+        }
+        return deletionCache.computeIfAbsent(pathspec, ps -> {
+            final String out = run(List.of("git", "log", "--diff-filter=D", "-1", "--format=%h %s", "--", ps));
+            return out == null || out.isBlank() ? null : out.strip();
         });
     }
 

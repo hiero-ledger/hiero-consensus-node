@@ -24,6 +24,9 @@ import java.util.List;
  * @param evidence    a one-look, curator-verifiable justification.
  * @param occurrences every place the target is cited in the entry, sorted; carries the line hints.
  * @param autoFixLine for an {@link Lane#AUTO_FIX} finding, the corrected code line; otherwise {@code null}.
+ * @param resolvedPath for a package/path move with exactly one candidate, the repo-relative path the
+ *                    cited source actually resolves at (drives a path-rewrite auto-fix proposal);
+ *                    otherwise {@code null}.
  */
 public record Finding(
         String id,
@@ -39,7 +42,8 @@ public record Finding(
         String question,
         String evidence,
         List<Occurrence> occurrences,
-        Integer autoFixLine) {
+        Integer autoFixLine,
+        String resolvedPath) {
 
     /**
      * Returns the number of places the target is cited in the entry.

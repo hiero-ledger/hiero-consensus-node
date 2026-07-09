@@ -69,8 +69,10 @@ public final class WorklistBuilder {
 
     /**
      * Evaluates one topic's freshness: {@code REVIEW} when the marker is missing/non-date or anchored
-     * source changed since it, {@code FRESH} when nothing changed, {@code UNKNOWN} when git is unavailable
-     * or no commit date could be determined.
+     * source changed since it, {@code FRESH} when nothing changed, {@code UNKNOWN} — with a note naming
+     * the reason — when the topic anchors no sources, git is unavailable, or no commit date could be
+     * determined. The doc-intrinsic no-sources reason is checked before git availability so it reports
+     * the same way in every environment.
      *
      * @param doc the KB document to evaluate.
      * @return the topic's worklist entry.
@@ -83,10 +85,13 @@ public final class WorklistBuilder {
         final List<String> sourcePaths = anchoredSourcePaths(doc);
         if (lastReviewed == null || !ISO_DATE.matcher(lastReviewed.strip()).matches()) {
             // No usable freshness marker — always route to review.
-            return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.REVIEW, List.of());
+            return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of());
         }
-        if (!git.available() || sourcePaths.isEmpty()) {
-            return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, List.of());
+        if (sourcePaths.isEmpty()) {
+            return unknown(key, path, lastReviewed, "no anchored sources");
+        }
+        if (!git.available()) {
+            return unknown(key, path, lastReviewed, "git unavailable");
         }
 
         final String reviewedDate = lastReviewed.strip();
@@ -102,12 +107,27 @@ public final class WorklistBuilder {
             }
         }
         if (!anyDateKnown) {
-            return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, List.of());
+            return unknown(key, path, lastReviewed, "no commit dates for anchored sources");
         }
         changed.sort(Comparator.naturalOrder());
         final WorklistEntry.Status status =
                 changed.isEmpty() ? WorklistEntry.Status.FRESH : WorklistEntry.Status.REVIEW;
-        return new WorklistEntry(key, path, lastReviewed, status, changed);
+        return new WorklistEntry(key, path, lastReviewed, status, null, changed);
+    }
+
+    /**
+     * Builds an {@link WorklistEntry.Status#UNKNOWN} entry carrying the reason freshness could not be
+     * determined.
+     *
+     * @param key          the topic entry key.
+     * @param path         the topic's repo-relative path.
+     * @param lastReviewed the topic's {@code last_reviewed} value.
+     * @param note         the reason freshness is unknown.
+     * @return the unknown-status entry.
+     */
+    private static WorklistEntry unknown(
+            final String key, final String path, final String lastReviewed, final String note) {
+        return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, note, List.of());
     }
 
     /**

@@ -110,9 +110,18 @@ own output file so the drift report itself stays pure signal:
 - **quiet-log** → `quiet-log.md`. `unverifiable` — the symbol is generated or external (PBJ,
   protobuf, `.proto` sources), so the engine cannot see its source and refuses to guess. Not drift.
 - **auto-fix** → `auto-fix.md`. The symbol resolves but a cited line number moved. A suggested
-  correction, never applied automatically. Not drift.
+  correction, never applied automatically. Not drift. A package/path move with exactly one new
+  location *is* drift (it asserts), but additionally gets a ready path-rewrite proposal here.
 - **coverage-gap** → `coverage.md`. The *code* has something the *docs* do not (e.g. an interface
   method with no documentation). The inverse of drift; tracked separately.
+
+### Expected-gone citations (`historical:`)
+
+Some documents legitimately cite deleted code — an ADR describing a removal cites the very file the
+removal deleted. Listing such sources in the document's `historical:` frontmatter (basenames or
+paths, e.g. `historical: [NonDeterministicGeneration.java]`) inverts the check for them: a gone
+source is the expected state and lands in the quiet log, while a listed source that still *exists*
+asserts — the doc claims a deletion that never happened or was reverted.
 
 ## Two ways to run it
 
@@ -189,15 +198,18 @@ symbols that are generated or external (PBJ, protobuf, `.proto` files) and there
 the engine can parse. **This is not drift** — it is the audit trail proving the tool chose silence
 over a guess. Skim it to confirm nothing that *should* be checkable is silently landing here.
 
-**`auto-fix.md` — the `auto-fix` lane.** Cases where a *named* symbol still resolves but its cited
-line number moved. Each entry is a proposed line-reference correction. **Never applied
-automatically** and never a drift finding — a moved line is a navigation nit, not a broken claim.
+**`auto-fix.md` — ready corrections.** Two shapes: a *named* symbol that still resolves but whose
+cited line number moved (a navigation nit, never a drift finding), and a **MOVED** source that
+resolves at exactly one new path (a drift finding in `report.md`, repeated here as a ready
+before/after path rewrite in whatever citation style the KB line uses). **Never applied
+automatically.**
 
 **`suggestions.md` — non-asserting "did you mean" hints.** For each **GONE** target (a missing
 cross-doc link, source path, or bare source basename) the tool offers replacement candidates — a
-definite git rename when history has one, otherwise the closest near-name matches against the KB docs
-or the source index. **Hints, not facts** (it never asserts), and kept out of `findings.json` so the
-machine artifact stays reproducible.
+definite git rename when history has one, else the commit that deleted the target when git recorded
+one, plus the closest near-name matches against the KB docs or the source index (for a gone
+architecture-topic target, only other topic/interface docs are considered). **Hints, not facts**
+(it never asserts), and kept out of `findings.json` so the machine artifact stays reproducible.
 
 **`coverage.md` — the `coverage-gap` lane.** The inverse of drift: code the docs don't mention — for
 example, a method present on a documented interface but absent from that interface's `methods:`
@@ -207,7 +219,8 @@ purpose.
 **`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
 `review` (source changed since last review), `fresh` (up to date), or `unknown` (freshness can't be
-determined). The semantic pass consumes the JSON and reads only the `review`/`unknown` entries.
+determined — the entry's note names the reason: no anchored sources, git unavailable, or no commit
+dates). The semantic pass consumes the JSON and reads only the `review`/`unknown` entries.
 
 **`baseline.proposed.tsv` — the next baseline.** The baseline this run *would* write. Adopt it with
 `--write-baseline`, or copy it over the committed baseline, then triage the rows.

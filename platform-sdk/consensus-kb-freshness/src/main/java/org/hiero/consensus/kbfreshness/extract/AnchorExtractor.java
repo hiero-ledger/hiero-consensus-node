@@ -4,8 +4,10 @@ package org.hiero.consensus.kbfreshness.extract;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.model.Anchor;
@@ -37,6 +39,14 @@ public final class AnchorExtractor {
     /** Matches a full repo-relative source path (optionally with a non-asserting {@code :NN}/{@code :NN-MM} suffix). */
     private static final Pattern FULL_SOURCE_PATH =
             Pattern.compile("^(platform-sdk/[A-Za-z0-9/._$-]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+
+    /**
+     * Matches a module-relative source path ({@code <module>/src/<set>/…/File.java}, the same convention
+     * frontmatter {@code components:} uses), optionally with a non-asserting {@code :NN}/{@code :NN-MM}
+     * suffix. The extractor prefixes {@code platform-sdk/}, mirroring the frontmatter normalization.
+     */
+    private static final Pattern MODULE_RELATIVE_SOURCE_PATH = Pattern.compile(
+            "^([A-Za-z0-9][A-Za-z0-9._-]*/src/(?:main|test|testFixtures)/[A-Za-z0-9/._$-]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
 
     /** Matches a bare source-file basename (optional leading {@code ...}/{@code .../} ellipsis, non-asserting line suffix). */
     private static final Pattern BARE_SOURCE_FILE =
@@ -82,7 +92,8 @@ public final class AnchorExtractor {
     }
 
     /**
-     * Extracts all verifiable anchors from a document's frontmatter and body.
+     * Extracts all verifiable anchors from a document's frontmatter and body. Source anchors matching
+     * the document's {@code historical:} frontmatter list are marked expected-gone.
      *
      * @param doc the scanned KB document.
      * @return the extracted anchors, in document order.
@@ -91,7 +102,37 @@ public final class AnchorExtractor {
         final List<Anchor> anchors = new ArrayList<>();
         extractFrontmatter(doc, anchors);
         extractBody(doc, anchors);
-        return anchors;
+        return markHistorical(doc.frontmatter(), anchors);
+    }
+
+    /**
+     * Marks source anchors named by the document's {@code historical:} frontmatter list (basenames or
+     * paths of deliberately deleted code cited as history) as expected-gone. A listed basename matches
+     * every source anchor citing that file; a listed path matches its exact target.
+     *
+     * @param fm      the document's frontmatter.
+     * @param anchors the extracted anchors.
+     * @return the anchors, with matching source anchors marked historical.
+     */
+    private static List<Anchor> markHistorical(final Frontmatter fm, final List<Anchor> anchors) {
+        final List<String> listed = fm.list("historical");
+        if (listed.isEmpty()) {
+            return anchors;
+        }
+        final Set<String> names = new HashSet<>();
+        for (final String h : listed) {
+            names.add(normalizeSlashes(h));
+        }
+        final List<Anchor> marked = new ArrayList<>(anchors.size());
+        for (final Anchor a : anchors) {
+            final boolean isSource = a.kind() == AnchorKind.SOURCE_PATH || a.kind() == AnchorKind.SOURCE_BASENAME;
+            if (isSource && (names.contains(a.target()) || names.contains(lastSegment(a.target())))) {
+                marked.add(a.asHistorical());
+            } else {
+                marked.add(a);
+            }
+        }
+        return marked;
     }
 
     // ---- Frontmatter ----
@@ -276,6 +317,12 @@ public final class AnchorExtractor {
         final Matcher full = FULL_SOURCE_PATH.matcher(span);
         if (full.matches()) {
             final String path = full.group(1);
+            out.add(new Anchor(AnchorKind.SOURCE_PATH, path, moduleOfPath(path), null, fileLine, Anchor.NO_LINE, span));
+            return;
+        }
+        final Matcher moduleRel = MODULE_RELATIVE_SOURCE_PATH.matcher(span);
+        if (moduleRel.matches()) {
+            final String path = "platform-sdk/" + moduleRel.group(1);
             out.add(new Anchor(AnchorKind.SOURCE_PATH, path, moduleOfPath(path), null, fileLine, Anchor.NO_LINE, span));
             return;
         }

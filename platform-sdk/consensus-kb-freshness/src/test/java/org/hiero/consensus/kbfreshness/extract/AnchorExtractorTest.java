@@ -62,6 +62,33 @@ class AnchorExtractorTest {
     }
 
     @Test
+    void moduleRelativeCodeSpanBecomesSourcePathWithPlatformSdkPrefix() {
+        final List<Anchor> anchors =
+                extract(List.of("Code anchor: `swirlds-x/src/main/java/com/swirlds/Foo.java:42`."));
+        final Anchor a = require(anchors, AnchorKind.SOURCE_PATH, t -> t.endsWith("Foo.java"));
+        assertThat(a.target()).isEqualTo("platform-sdk/swirlds-x/src/main/java/com/swirlds/Foo.java");
+        assertThat(a.citedModule()).isEqualTo("swirlds-x");
+        assertThat(a.citedLine()).isEqualTo(Anchor.NO_LINE);
+    }
+
+    @Test
+    void historicalFrontmatterMarksMatchingSourceAnchors() {
+        final List<Anchor> anchors = extractWithFrontmatter(
+                List.of("historical: [Zombie.java]"),
+                List.of("Deleted `Zombie.java` and (`platform-sdk/m/src/main/java/x/Zombie.java`); "
+                        + "`Alive.java` remains."));
+        assertThat(require(anchors, AnchorKind.SOURCE_BASENAME, t -> t.equals("Zombie.java"))
+                        .historical())
+                .isTrue();
+        assertThat(require(anchors, AnchorKind.SOURCE_PATH, t -> t.endsWith("Zombie.java"))
+                        .historical())
+                .isTrue();
+        assertThat(require(anchors, AnchorKind.SOURCE_BASENAME, t -> t.equals("Alive.java"))
+                        .historical())
+                .isFalse();
+    }
+
+    @Test
     void codeSpanInsideFencedBlockIsIgnored() {
         final List<Anchor> anchors =
                 extract(List.of("```", "`platform-sdk/consensus-model/src/main/java/org/hiero/Fenced.java`", "```"));
@@ -83,7 +110,13 @@ class AnchorExtractorTest {
     // ---- helpers ----
 
     private static List<Anchor> extract(final List<String> body) {
-        final List<String> lines = new ArrayList<>(List.of("---", "type: decision", "id: ADR-999", "---", ""));
+        return extractWithFrontmatter(List.of(), body);
+    }
+
+    private static List<Anchor> extractWithFrontmatter(final List<String> frontmatterExtra, final List<String> body) {
+        final List<String> lines = new ArrayList<>(List.of("---", "type: decision", "id: ADR-999"));
+        lines.addAll(frontmatterExtra);
+        lines.addAll(List.of("---", ""));
         lines.addAll(body);
         final Frontmatter fm = FrontmatterParser.parse(lines);
         final Entry entry =

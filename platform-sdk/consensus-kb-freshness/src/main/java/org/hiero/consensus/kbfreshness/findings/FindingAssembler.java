@@ -128,7 +128,7 @@ public final class FindingAssembler {
         }
         autoFixOccurrences.sort(Comparator.naturalOrder());
         final Resolution autoFix =
-                new Resolution(existence.outcome(), Lane.AUTO_FIX, question, evidence, correctedLine);
+                new Resolution(existence.outcome(), Lane.AUTO_FIX, question, evidence, correctedLine, null);
         return build(entry, rep, autoFix, autoFixOccurrences);
     }
 
@@ -158,7 +158,8 @@ public final class FindingAssembler {
                 res.question(),
                 res.evidence(),
                 occurrences,
-                res.autoFixLine());
+                res.autoFixLine(),
+                res.resolvedPath());
     }
 
     /**
@@ -191,6 +192,7 @@ public final class FindingAssembler {
                 a.docLine(),
                 Anchor.NO_LINE,
                 a.rawText(),
-                a.statedModule());
+                a.statedModule(),
+                a.historical());
     }
 }

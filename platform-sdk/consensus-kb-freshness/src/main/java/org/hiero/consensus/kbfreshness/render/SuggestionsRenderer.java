@@ -24,6 +24,12 @@ public final class SuggestionsRenderer {
 
     /** Minimum similarity for a near-name match to be offered. */
     private static final double THRESHOLD = 0.5;
+    /**
+     * Minimum edit similarity for a match whose head tokens differ. Long identifiers accumulate
+     * incidental character overlap, so a plain edit-distance signal only counts on its own when it is
+     * near-certain (a typo), not merely above {@link #THRESHOLD}.
+     */
+    private static final double HIGH_EDIT_SIM = 0.8;
     /** Maximum number of near-name suggestions offered per gone target. */
     private static final int MAX_SUGGESTIONS = 3;
 
@@ -47,6 +53,12 @@ public final class SuggestionsRenderer {
         final List<String> docPaths = new ArrayList<>();
         result.documents().forEach(d -> docPaths.add(d.entry().relativePath()));
 
+        // A gone architecture-topic target (typically a frontmatter topics: tag) can only plausibly be
+        // another topic or interface document — never a decision, rule, or concept file.
+        final List<String> topicDocPaths = docPaths.stream()
+                .filter(p -> p.contains("/architecture/topics/") || p.contains("/architecture/interfaces/"))
+                .toList();
+
         final List<String> sourcePaths = new ArrayList<>();
         for (final String basename : result.sourceIndex().basenames()) {
             sourcePaths.addAll(result.sourceIndex().pathsForBasename(basename));
@@ -64,9 +76,15 @@ public final class SuggestionsRenderer {
             }
             final List<Suggestion> suggestions =
                     switch (f.kind()) {
-                        case CROSS_DOC_LINK -> suggest(f.target(), f.entryPath(), true, docPaths, git);
+                        case CROSS_DOC_LINK ->
+                            suggest(
+                                    f.target(),
+                                    f.entryPath(),
+                                    true,
+                                    f.target().contains("/architecture/topics/") ? topicDocPaths : docPaths,
+                                    git);
                         case SOURCE_PATH -> suggest(f.target(), f.entryPath(), true, sourcePaths, git);
-                        case SOURCE_BASENAME -> suggest(f.target(), f.entryPath(), false, sourcePaths, null);
+                        case SOURCE_BASENAME -> suggest(f.target(), f.entryPath(), false, sourcePaths, git);
                         default -> List.of();
                     };
             if (suggestions.isEmpty()) {
@@ -95,14 +113,14 @@ public final class SuggestionsRenderer {
     }
 
     /**
-     * Suggests replacements for a gone target: a definite git rename when available, else the closest
-     * near-name matches above the similarity threshold.
+     * Suggests replacements for a gone target: a definite git rename when available, else the deleting
+     * commit when git recorded one, plus the closest near-name matches above the similarity threshold.
      *
      * @param gone           the gone target (a repo-relative path, or a bare basename).
      * @param self           the path of the entry that made the citation, excluded from candidates.
      * @param hasPath        whether {@code gone} is a real path git can trace (false for bare basenames).
      * @param candidatePaths the repo-relative paths to match against.
-     * @param git            the git wrapper, or {@code null} to skip rename detection.
+     * @param git            the git wrapper, or {@code null} to skip rename/deletion detection.
      * @return the suggestions, most relevant first (possibly empty).
      */
     private static List<Suggestion> suggest(
@@ -111,10 +129,20 @@ public final class SuggestionsRenderer {
             final boolean hasPath,
             final List<String> candidatePaths,
             final Git git) {
-        if (hasPath && git != null) {
-            final String renamed = git.findRename(gone);
-            if (renamed != null && !renamed.equals(gone)) {
-                return List.of(new Suggestion(renamed, "renamed in git to"));
+        final List<Suggestion> suggestions = new ArrayList<>();
+        if (git != null) {
+            if (hasPath && !gone.contains("/.../")) {
+                final String renamed = git.findRename(gone);
+                if (renamed != null && !renamed.equals(gone)) {
+                    return List.of(new Suggestion(renamed, "renamed in git to"));
+                }
+            }
+            // No rename recorded — a deletion commit explains where the target went (or that it is
+            // simply gone). Bare and abbreviated citations are traced by basename pathspec.
+            final String pathspec = hasPath && !gone.contains("/.../") ? gone : "*/" + baseName(gone);
+            final String deleted = git.findDeletion(pathspec);
+            if (deleted != null) {
+                suggestions.add(new Suggestion(deleted, "deleted in"));
             }
         }
 
@@ -131,14 +159,15 @@ public final class SuggestionsRenderer {
         }
         scored.sort(Comparator.comparingDouble((Scored s) -> -s.score()).thenComparing(Scored::path));
 
-        final List<Suggestion> suggestions = new ArrayList<>();
+        int nearNames = 0;
         final Set<String> seen = new HashSet<>();
         for (final Scored s : scored) {
-            if (suggestions.size() >= MAX_SUGGESTIONS) {
+            if (nearNames >= MAX_SUGGESTIONS) {
                 break;
             }
             if (seen.add(s.path())) {
                 suggestions.add(new Suggestion(s.path(), "similar name"));
+                nearNames++;
             }
         }
         return suggestions;
@@ -147,13 +176,16 @@ public final class SuggestionsRenderer {
     /**
      * A similarity score in {@code [0, 1]} combining significant-token overlap and normalized edit
      * distance, taking the stronger signal. Token overlap catches suffix/prefix matches (e.g.
-     * {@code pces} within {@code restart-and-pces}) that raw edit distance misses.
+     * {@code pces} within {@code restart-and-pces}) that raw edit distance misses. The edit signal
+     * counts only when the head (last significant) tokens agree, or when it is near-certain — long
+     * identifiers otherwise accumulate enough incidental overlap to cross the threshold for
+     * semantically unrelated names.
      *
      * @param a the first stem.
      * @param b the second stem.
      * @return the similarity score.
      */
-    private static double similarity(final String a, final String b) {
+    static double similarity(final String a, final String b) {
         if (a.isEmpty() || b.isEmpty()) {
             return 0;
         }
@@ -175,7 +207,26 @@ public final class SuggestionsRenderer {
             }
         }
         final double editSim = 1.0 - (double) levenshtein(la, lb) / Math.max(la.length(), lb.length());
-        return Math.max(tokenScore, editSim);
+        final boolean editApplies = headToken(a).equals(headToken(b)) || editSim >= HIGH_EDIT_SIM;
+        return Math.max(tokenScore, editApplies ? editSim : 0);
+    }
+
+    /**
+     * The head token of a stem: its last significant token (e.g. {@code generation} of
+     * {@code NonDeterministicGeneration}), or the lowercased stem when it has none.
+     *
+     * @param stem the stem.
+     * @return the head token.
+     */
+    private static String headToken(final String stem) {
+        final String spaced = stem.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replaceAll("[-_./]", " ");
+        final String[] parts = spaced.toLowerCase(Locale.ROOT).strip().split("\\s+");
+        for (int i = parts.length - 1; i >= 0; i--) {
+            if (parts[i].length() >= 3) {
+                return parts[i];
+            }
+        }
+        return stem.toLowerCase(Locale.ROOT);
     }
 
     /**

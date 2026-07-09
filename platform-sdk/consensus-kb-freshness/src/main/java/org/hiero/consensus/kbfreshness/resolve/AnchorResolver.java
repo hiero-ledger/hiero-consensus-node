@@ -113,7 +113,9 @@ public final class AnchorResolver {
     }
 
     /**
-     * Resolves a cross-document link anchor by checking that the linked file exists.
+     * Resolves a cross-document link anchor by checking that the linked file exists. A frontmatter
+     * {@code topics:} tag names a slug rather than a hyperlink, so it may equally denote an architecture
+     * interface document; real body links get no such fallback — their href must resolve as written.
      *
      * @param a the anchor to resolve.
      * @return present when the file exists, otherwise an absent assertion.
@@ -123,8 +125,33 @@ public final class AnchorResolver {
         if (index.fileExists(a.target())) {
             return Resolution.ok(Outcome.PRESENT, q);
         }
+        if (isTopicTag(a)) {
+            final String interfacesTarget = a.target().replace("/architecture/topics/", "/architecture/interfaces/");
+            if (index.fileExists(interfacesTarget)) {
+                return Resolution.ok(Outcome.PRESENT, q);
+            }
+            return Resolution.finding(
+                    Outcome.ABSENT,
+                    Lane.ASSERT,
+                    q,
+                    "Linked document `" + a.target() + "` does not exist (no such topic; also checked `"
+                            + interfacesTarget + "`).");
+        }
         return Resolution.finding(
                 Outcome.ABSENT, Lane.ASSERT, q, "Linked document `" + a.target() + "` does not exist.");
+    }
+
+    /**
+     * Whether a cross-doc anchor came from a frontmatter {@code topics:} tag. Such anchors carry the bare
+     * slug as their raw text and a target built as {@code <kb>/architecture/topics/<slug>.md}; a body
+     * link's raw text is its URL (which always ends in {@code .md} or carries a fragment), so it can
+     * never satisfy this shape.
+     *
+     * @param a the cross-doc anchor.
+     * @return {@code true} when the anchor is a topics tag.
+     */
+    private static boolean isTopicTag(final Anchor a) {
+        return a.target().endsWith("/architecture/topics/" + a.rawText() + ".md");
     }
 
     /**
@@ -206,6 +233,9 @@ public final class AnchorResolver {
         final String simpleName = stripExt(basename);
         final String q = "source exists: " + target;
 
+        if (a.historical()) {
+            return resolveHistoricalSource(a, q, basename);
+        }
         if (allowlist.isExternalPath(target)) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
@@ -254,19 +284,25 @@ public final class AnchorResolver {
         }
         if (!paths.isEmpty()) {
             // Exists, but not where cited — a package/path move, not "gone". Present, but reported.
+            // With exactly one candidate, the resolved path also drives a path-rewrite auto-fix proposal.
             final Set<String> modules = new TreeSet<>();
             for (final String p : paths) {
                 final String m = moduleOfPath(p);
                 modules.add(m == null ? p : m);
             }
+            final String resolvedPath = paths.size() == 1 ? paths.get(0) : null;
             String evidence = "`" + basename + "` is not at the cited location"
                     + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
-                    + "; it now resolves in: " + String.join(", ", modules) + " (package/path move).";
+                    + (resolvedPath != null
+                            ? "; it now resolves at `" + resolvedPath + "` (package/path move)."
+                            : "; it now resolves in: " + String.join(", ", modules) + " (package/path move).");
             if (a.statedModule() != null && !modules.contains(a.statedModule())) {
                 evidence += " Also update the stated `Module: " + a.statedModule() + "` label to "
                         + String.join(", ", modules) + ".";
             }
-            return Resolution.finding(Outcome.PRESENT, Lane.ASSERT, q, evidence);
+            return resolvedPath != null
+                    ? Resolution.moved(q, evidence, resolvedPath)
+                    : Resolution.finding(Outcome.PRESENT, Lane.ASSERT, q, evidence);
         }
         if (allowlist.isExternalName(simpleName)) {
             return Resolution.finding(
@@ -295,6 +331,9 @@ public final class AnchorResolver {
         final String simpleName = stripExt(basename);
         final String q = "source exists: " + basename;
 
+        if (a.historical()) {
+            return resolveHistoricalSource(a, q, basename);
+        }
         if (allowlist.isExternalName(simpleName)) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
@@ -310,6 +349,35 @@ public final class AnchorResolver {
                 Lane.ASSERT,
                 q,
                 "No file `" + basename + "` under any indexed module; cited source `" + basename + "` is gone.");
+    }
+
+    /**
+     * Resolves a source anchor the citing document marked {@code historical:} (expected-gone). The check
+     * inverts: a gone source is the expected state (quiet, unverifiable as drift), while a source that
+     * still exists contradicts the documented deletion and asserts.
+     *
+     * @param a        the historical anchor.
+     * @param q        the question asked.
+     * @param basename the cited file basename.
+     * @return an assert when the source still exists, otherwise a quiet expected-gone resolution.
+     */
+    private Resolution resolveHistoricalSource(final Anchor a, final String q, final String basename) {
+        final boolean abbreviated = a.target().contains("/.../");
+        final boolean atCitedPath = !abbreviated && a.target().contains("/") && index.fileExists(a.target());
+        final List<String> paths = index.pathsForBasename(basename);
+        if (atCitedPath || !paths.isEmpty()) {
+            final String where = atCitedPath ? a.target() : String.join(", ", paths);
+            return Resolution.finding(
+                    Outcome.PRESENT,
+                    Lane.ASSERT,
+                    q,
+                    "`" + basename + "` is marked `historical:` (expected deleted) but exists at: `" + where + "`.");
+        }
+        return Resolution.finding(
+                Outcome.UNVERIFIABLE,
+                Lane.QUIET_LOG,
+                q,
+                "Expected-gone (historical): `" + a.target() + "` is cited as removed code.");
     }
 
     /**

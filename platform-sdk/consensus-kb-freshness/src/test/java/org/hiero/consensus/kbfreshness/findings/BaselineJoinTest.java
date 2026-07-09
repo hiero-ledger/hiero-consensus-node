@@ -71,6 +71,7 @@ class BaselineJoinTest {
                 "question",
                 "evidence",
                 List.of(),
+                null,
                 null);
     }
 }

@@ -25,8 +25,9 @@ with `java -jar`.
   baseline TSV + join.
 - `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`).
 - `render/` — report / quiet-log / auto-fix / suggestions / coverage / findings.json / worklist renderers.
-  (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first, else fuzzy
-  basename match; deliberately excluded from `findings.json` to keep it reproducible.)
+  (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first, else the
+  deleting commit, plus guarded fuzzy basename matches; deliberately excluded from `findings.json` to
+  keep it reproducible.)
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.
@@ -35,6 +36,8 @@ with `java -jar`.
 
 - **Three-valued outcomes**: `present` / `absent` / `unverifiable`. Only certain-`absent` (and a
   package/path-move `present`) asserts into the report. When in doubt → `unverifiable` (quiet log).
+  A package/path move that resolves at exactly one new location still asserts, but also carries
+  `resolvedPath` (in `findings.json`) and a ready path-rewrite diff in `auto-fix.md`.
 - **Never assert on line numbers.** A moved line for a *named* symbol → an `auto-fix` proposal, never
   an assert. Bare `File.java:NN` links carry no line (the KB uses them for members too).
 - **Determinism**: `findings.json` is byte-identical across runs — it contains only reproducible
@@ -55,6 +58,13 @@ with `java -jar`.
   `methods:` (documented names). Loose interface prose is deliberately left to the semantic pass to
   avoid false positives — do not "improve" it into scraping prose.
 - **`components:`/`verification:` paths are platform-sdk-relative** (first segment = module dir); the
-  extractor prefixes `platform-sdk/`. Markdown links resolve relative to the doc's directory.
+  extractor prefixes `platform-sdk/`. Body code spans accept both the full `platform-sdk/…` form and
+  the same module-relative form (`<module>/src/…`). Markdown links resolve relative to the doc's
+  directory.
+- **Frontmatter `topics:` slugs fall back to `architecture/interfaces/<slug>.md`** when no topic doc
+  exists (resolver-side, so finding ids stay keyed on the topics/ target). Real body links get no
+  fallback — their href must resolve as written.
+- **`historical:` frontmatter marks expected-gone sources** (deliberately deleted code cited as
+  history, e.g. in an ADR describing the removal): gone → quiet log; still existing → assert.
 - **The skill is module-local**: it lives in this module's `.claude/skills/` and is discovered only
   when Claude Code starts within `platform-sdk/consensus-kb-freshness/` (or a subdirectory).

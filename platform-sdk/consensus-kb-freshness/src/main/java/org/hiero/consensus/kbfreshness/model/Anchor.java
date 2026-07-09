@@ -21,6 +21,10 @@ package org.hiero.consensus.kbfreshness.model;
  * @param statedModule the module asserted in prose next to a source citation (e.g. a
  *                    {@code Module: `swirlds-common`} label), or {@code null} when none is stated.
  *                    Cross-checked against the module the linked path actually resolves in.
+ * @param historical  whether the citing document's {@code historical:} frontmatter marks this source
+ *                    as expected-gone (deliberately deleted code cited as history). Inverts the check:
+ *                    absent is expected (quiet), present is drift (the doc claims a deletion that
+ *                    never happened or was reverted).
  */
 public record Anchor(
         AnchorKind kind,
@@ -30,13 +34,15 @@ public record Anchor(
         int docLine,
         int citedLine,
         String rawText,
-        String statedModule) {
+        String statedModule,
+        boolean historical) {
 
     /** Sentinel {@code citedLine} value meaning no code line was cited. */
     public static final int NO_LINE = -1;
 
     /**
-     * Convenience constructor for anchors that carry no stated-module label (the common case).
+     * Convenience constructor for anchors that carry no stated-module label (the common case) and are
+     * not marked historical.
      *
      * @param kind        what kind of reference this is (also the check applied).
      * @param target      the normalized subject of the check.
@@ -54,7 +60,40 @@ public record Anchor(
             final int docLine,
             final int citedLine,
             final String rawText) {
-        this(kind, target, citedModule, citedScope, docLine, citedLine, rawText, null);
+        this(kind, target, citedModule, citedScope, docLine, citedLine, rawText, null, false);
+    }
+
+    /**
+     * Convenience constructor for anchors that carry a stated-module label but are not marked historical.
+     *
+     * @param kind        what kind of reference this is (also the check applied).
+     * @param target      the normalized subject of the check.
+     * @param citedModule the module the citation scopes to, or {@code null}.
+     * @param citedScope  the enclosing scope for a member, or {@code null}.
+     * @param docLine     the 1-based line in the KB file where this citation appears.
+     * @param citedLine   the cited code line number, or {@link #NO_LINE} if none.
+     * @param rawText     the verbatim citation text.
+     * @param statedModule the module asserted in prose next to the citation, or {@code null}.
+     */
+    public Anchor(
+            final AnchorKind kind,
+            final String target,
+            final String citedModule,
+            final String citedScope,
+            final int docLine,
+            final int citedLine,
+            final String rawText,
+            final String statedModule) {
+        this(kind, target, citedModule, citedScope, docLine, citedLine, rawText, statedModule, false);
+    }
+
+    /**
+     * A copy of this anchor with {@code historical} set.
+     *
+     * @return an equivalent anchor marked as an expected-gone (historical) citation.
+     */
+    public Anchor asHistorical() {
+        return new Anchor(kind, target, citedModule, citedScope, docLine, citedLine, rawText, statedModule, true);
     }
 
     /**

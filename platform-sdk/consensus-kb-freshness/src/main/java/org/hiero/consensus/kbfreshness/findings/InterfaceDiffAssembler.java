@@ -157,6 +157,7 @@ public final class InterfaceDiffAssembler {
                 "interface `" + className + "` declares method `" + method + "`",
                 evidence,
                 List.of(new Occurrence(docLine, Anchor.NO_LINE, method)),
+                null,
                 null);
     }
 

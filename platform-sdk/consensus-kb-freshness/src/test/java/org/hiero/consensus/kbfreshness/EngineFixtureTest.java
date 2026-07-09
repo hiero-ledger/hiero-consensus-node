@@ -16,10 +16,13 @@ import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
+import org.hiero.consensus.kbfreshness.render.AutoFixRenderer;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
 import org.hiero.consensus.kbfreshness.render.SuggestionsRenderer;
+import org.hiero.consensus.kbfreshness.render.WorklistRenderer;
 import org.hiero.consensus.kbfreshness.resolve.Allowlist;
 import org.hiero.consensus.kbfreshness.util.Hashing;
+import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -56,6 +59,19 @@ class EngineFixtureTest {
         assertThat(f.outcome()).isNotEqualTo(Outcome.ABSENT);
         assertThat(f.lane()).isEqualTo(Lane.ASSERT);
         assertThat(f.evidence()).contains("module-b");
+    }
+
+    @Test
+    void uniquePackageMoveCarriesResolvedPathIntoJsonAndAutoFix() {
+        final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.contains("module-a") && t.endsWith("MovedClass.java"));
+        assertThat(f.resolvedPath()).isEqualTo("platform-sdk/module-b/src/main/java/com/y/MovedClass.java");
+        assertThat(f.evidence()).contains("platform-sdk/module-b/src/main/java/com/y/MovedClass.java");
+        assertThat(FindingsJson.render(findings))
+                .contains("\"resolvedPath\": \"platform-sdk/module-b/src/main/java/com/y/MovedClass.java\"");
+        // The auto-fix artifact proposes the components: entry rewritten to the resolved path.
+        final String autoFix = AutoFixRenderer.render(result);
+        assertThat(autoFix).contains("update path to `platform-sdk/module-b/src/main/java/com/y/MovedClass.java`");
+        assertThat(autoFix).contains("+   - module-b/src/main/java/com/y/MovedClass.java");
     }
 
     @Test
@@ -190,6 +206,72 @@ class EngineFixtureTest {
         // The typo'd link ../nope-style target `RUL-001-fixtur.md` should suggest the real `RUL-001-fixture.md`.
         final String md = SuggestionsRenderer.render(result, new Git(repo));
         assertThat(md).contains("RUL-001-fixture.md");
+    }
+
+    @Test
+    void suggestionsForGoneTopicTagsConsiderOnlyTopicAndInterfaceDocs() {
+        // The gone tag `rul-001-fixture` matches rules/RUL-001-fixture.md by name, but a topic tag can
+        // only denote a topic/interface doc — so no suggestion (and hence no section) may be offered.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).doesNotContain("architecture/topics/rul-001-fixture.md");
+    }
+
+    @Test
+    void moduleRelativeCodeSpanIsExtractedAndChecked() {
+        final Finding gone = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("com/x/SpanGone.java"));
+        assertThat(gone.target()).isEqualTo("platform-sdk/module-a/src/main/java/com/x/SpanGone.java");
+        assertThat(gone.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(gone.lane()).isEqualTo(Lane.ASSERT);
+    }
+
+    @Test
+    void topicSlugNamingAnInterfaceDocResolvesCleanly() {
+        // topics: [my-api] has no topics/my-api.md, but architecture/interfaces/my-api.md exists.
+        assertThat(byKind(AnchorKind.CROSS_DOC_LINK, t -> t.endsWith("topics/my-api.md")))
+                .isEmpty();
+    }
+
+    @Test
+    void topicSlugMissingFromTopicsAndInterfacesAsserts() {
+        final Finding f = require(AnchorKind.CROSS_DOC_LINK, t -> t.endsWith("topics/missing-topic.md"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.evidence()).contains("architecture/interfaces/missing-topic.md");
+    }
+
+    @Test
+    void historicalGoneSourcesAreQuietButHistoricalPresentAsserts() {
+        // ADR-002 marks RemovedByPlan.java and MovedClass.java historical: the gone one is the
+        // expected state (quiet), the still-existing one contradicts the documented deletion.
+        final Finding goneBare = require(AnchorKind.SOURCE_BASENAME, t -> t.equals("RemovedByPlan.java"));
+        assertThat(goneBare.outcome()).isEqualTo(Outcome.UNVERIFIABLE);
+        assertThat(goneBare.lane()).isEqualTo(Lane.QUIET_LOG);
+        assertThat(goneBare.evidence()).contains("historical");
+
+        final Finding gonePath = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("RemovedByPlan.java"));
+        assertThat(gonePath.outcome()).isEqualTo(Outcome.UNVERIFIABLE);
+        assertThat(gonePath.lane()).isEqualTo(Lane.QUIET_LOG);
+
+        final Finding stillThere = findings.stream()
+                .filter(f -> f.kind() == AnchorKind.SOURCE_BASENAME
+                        && f.target().equals("MovedClass.java")
+                        && f.entryKey().equals("ADR-002"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(stillThere.outcome()).isEqualTo(Outcome.PRESENT);
+        assertThat(stillThere.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(stillThere.evidence()).contains("exists");
+    }
+
+    @Test
+    void worklistEntryWithoutAnchoredSourcesIsUnknownWithReason() {
+        final WorklistEntry myApi = result.worklist().stream()
+                .filter(e -> e.entryPath().endsWith("my-api.md"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(myApi.status()).isEqualTo(WorklistEntry.Status.UNKNOWN);
+        assertThat(myApi.note()).isEqualTo("no anchored sources");
+        assertThat(WorklistRenderer.renderMarkdown(result)).contains("unknown (no anchored sources)");
     }
 
     // ---- helpers ----
