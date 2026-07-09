@@ -53,11 +53,6 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 # Now that a 0.76 release tag exists, there's no need to deploy 0.75 first and upgrade into 0.76.
 DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.76.0-rc.1}"
 
-# The 0.77 upgrade uses the local build. Its --upgrade-version label must point at a published Solo
-# tag (Solo resolves it before applying --local-build-path) and must be >= the network's current
-# version (the deployed ${DEPLOY_RELEASE_TAG}) or Solo rejects it as a downgrade. Default to the
-# deploy tag so it tracks automatically if that tag is bumped.
-UPGRADE_VERSION_LABEL="${UPGRADE_VERSION_LABEL:-${DEPLOY_RELEASE_TAG}}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 # The CN downloads + extracts the WRAPS proving-key archive itself at genesis, using the
@@ -1500,7 +1495,6 @@ upgrade_to_local_077() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_VERSION_LABEL}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_077_FILE}"
     --quiet-mode
