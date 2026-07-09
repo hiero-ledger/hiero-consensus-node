@@ -1030,16 +1030,29 @@ jobs:
           # x 3); the 64 GiB pod (swap=0) leaves the remainder for the native provers.
           RAYON_NUM_THREADS: "2"
           HAPI_TEST_NODE_POOL_MIB: "12288"
-        # (TEMPORARY) Background sampler: logs pod memory + load every 30s so a runner
-        # death shows memory (mem.current -> mem.max) vs CPU (loadavg >> 8) as the cause.
-        # Watch live with `gh run watch`; remove before merge.
+        # (TEMPORARY) Memory watchdog. The runner container's cgroup cap is 64 GiB with no
+        # swap; rayon 4->2 didn't change the ~32-min death, so the suspect is memory, and a
+        # container OOM kills the runner agent too (no logs). This samples every 5s and, at
+        # 60 GiB, dumps the memory breakdown + top RSS and kills the JVMs so the agent stays
+        # up and the logs + peak survive. Remove before merge.
         run: |
-          ( while true; do
-              echo "[rsample $(date -u +%H:%M:%S)] mem.current=$(cat /sys/fs/cgroup/memory.current 2>/dev/null) mem.max=$(cat /sys/fs/cgroup/memory.max 2>/dev/null) loadavg=$(cut -d' ' -f1-3 /proc/loadavg)"
-              sleep 30
+          ( hi=$((60 * 1024 * 1024 * 1024))
+            peak=0
+            while true; do
+              cur=$(cat /sys/fs/cgroup/memory.current 2>/dev/null || echo 0)
+              [ "$cur" -gt "$peak" ] && peak=$cur
+              echo "[rsample $(date -u +%H:%M:%S)] mem.current=${cur} peak=${peak} loadavg=$(cut -d' ' -f1-3 /proc/loadavg)"
+              if [ "$cur" -gt "$hi" ]; then
+                echo "::error::mem.current=${cur} peak=${peak} exceeded 60 GiB; dumping breakdown and killing JVMs before the 64 GiB container OOM"
+                head -n 20 /sys/fs/cgroup/memory.stat 2>/dev/null || true
+                ps -eo pid,rss,comm --sort=-rss 2>/dev/null | head -n 15 || true
+                pkill -9 java 2>/dev/null || true
+                break
+              fi
+              sleep 5
             done ) &
-          sampler_pid=$!
-          trap 'kill "${sampler_pid}" 2>/dev/null || true' EXIT
+          wd=$!
+          trap 'kill "${wd}" 2>/dev/null || true' EXIT
           ${GRADLE_EXEC} hapiTestWraps --no-daemon
 
       - name: Publish HAPI Test (Wraps) Reports
