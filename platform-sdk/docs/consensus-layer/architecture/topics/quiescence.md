@@ -271,7 +271,7 @@ Spec:
 
 Pending catalogs:
 
-- Invariants — see [`../../invariants/`](../../invariants/); no entry tagged to this topic yet.
+- Invariants — INV-005 — every honest event eventually reaches consensus or becomes stale; INV-004 — a stale event is never ordered on any node (together the basis for the balanced-count requirement above). No invariant is tagged to the quiescence topic itself.
 - Decisions — see [`../../decisions/`](../../decisions/); no entry tagged
   to this topic yet. The "detection lives on Execution" and "no dedicated
   quiescence status" choices are decision seeds.

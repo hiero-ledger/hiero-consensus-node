@@ -3,9 +3,9 @@ package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_HEADER;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_QUERY_RES_HEADER;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_MATRICES_CONST;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_QUERY_HEADER;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_QUERY_RES_HEADER;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_MATRICES_CONST;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;

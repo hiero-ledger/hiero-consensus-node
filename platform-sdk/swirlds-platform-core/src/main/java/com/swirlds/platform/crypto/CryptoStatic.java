@@ -7,8 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -37,6 +35,8 @@ import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.system.SystemExitCode;
+import org.hiero.consensus.system.SystemExitUtils;
 
 /**
  * A collection of various static crypto methods

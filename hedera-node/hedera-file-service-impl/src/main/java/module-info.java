@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.file.impl {
-    requires transitive com.hedera.node.app.hapi.utils;
+    exports com.hedera.node.app.service.file.impl.base;
+    exports com.hedera.node.app.service.file.impl.handlers;
+    exports com.hedera.node.app.service.file.impl.records;
+    exports com.hedera.node.app.service.file.impl.schemas;
+    exports com.hedera.node.app.service.file.impl.utils;
+    exports com.hedera.node.app.service.file.impl;
+
     requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
@@ -14,17 +20,11 @@ module com.hedera.node.app.service.file.impl {
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
     requires com.hedera.node.app.hapi.fees;
+    requires com.hedera.node.app.hapi.utils;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires com.fasterxml.jackson.databind;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
-
-    exports com.hedera.node.app.service.file.impl.handlers;
-    exports com.hedera.node.app.service.file.impl.records;
-    exports com.hedera.node.app.service.file.impl;
-    exports com.hedera.node.app.service.file.impl.base;
-    exports com.hedera.node.app.service.file.impl.utils;
-    exports com.hedera.node.app.service.file.impl.schemas;
 }

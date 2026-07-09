@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage;
 
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ACCOUNT_AMT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RECEIPT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_TX_RECORD_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_MATRICES_CONST;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ACCOUNT_AMT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_RECEIPT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_TX_RECORD_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_MATRICES_CONST;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.INT_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.RECEIPT_STORAGE_TIME_SEC;
 
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;

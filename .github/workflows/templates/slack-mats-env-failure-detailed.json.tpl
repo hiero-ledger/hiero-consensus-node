@@ -43,6 +43,10 @@
           "fields": [
             {
               "type": "mrkdwn",
+              "text": {{ printf "*Run attempt*: %s" (getenv "RUN_ATTEMPT") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
               "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL" | required "WORKFLOW_RUN_URL must be set") | data.ToJSON }}
             }
           ]

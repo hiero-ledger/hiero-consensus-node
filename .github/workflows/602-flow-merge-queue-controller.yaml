@@ -33,6 +33,30 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.citr-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
   trigger-mats-tests:
     name: MQ MATS
     needs:
@@ -58,6 +82,7 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ github.ref }}
@@ -72,11 +97,12 @@ jobs:
       enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      tck-version: ${{ needs.extract-citr-vars.outputs.tck-version }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
 
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
@@ -96,6 +122,7 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/830-call-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ needs.extract-citr-vars.outputs.mqpt-cluster }}"

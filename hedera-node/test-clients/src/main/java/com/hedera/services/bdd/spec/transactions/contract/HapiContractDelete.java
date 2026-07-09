@@ -11,7 +11,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.Arrays;
 import java.util.List;
@@ -59,13 +58,6 @@ public class HapiContractDelete extends HapiTxnOp<HapiContractDelete> {
     public HapiContractDelete purging() {
         shouldPurge = true;
         return this;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.ContractDelete, scFees::getContractDeleteTxFeeMatrices, txn, numPayerSigs);
     }
 
     @Override
