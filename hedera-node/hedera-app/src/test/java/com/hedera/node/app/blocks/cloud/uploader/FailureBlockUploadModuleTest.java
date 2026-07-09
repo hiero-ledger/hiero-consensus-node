@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.cloud.uploader;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -72,7 +73,33 @@ class FailureBlockUploadModuleTest {
                 .isInstanceOf(BuckyBlockUploader.class);
     }
 
+    @Test
+    void enabledWithBlankBucketNameThrows() {
+        when(config.issBlockUploadEnabled()).thenReturn(true);
+        when(config.bucketName()).thenReturn("");
+
+        assertThatThrownBy(
+                        () -> FailureBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("failureBlockUpload.bucketName");
+    }
+
+    @Test
+    void enabledWithBlankEndpointThrows() {
+        when(config.issBlockUploadEnabled()).thenReturn(true);
+        when(config.bucketName()).thenReturn("my-bucket");
+        when(config.endpoint()).thenReturn(" ");
+
+        assertThatThrownBy(
+                        () -> FailureBlockUploadModule.provideBlockUploader(configProvider, selfNodeAccountIdManager))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("failureBlockUpload.endpoint");
+    }
+
     private void givenCredentials() {
+        when(config.bucketName()).thenReturn("my-bucket");
+        when(config.endpoint()).thenReturn("https://storage.googleapis.com");
+        when(config.region()).thenReturn("auto");
         when(config.credentialsFileDir()).thenReturn("data/config");
         when(config.credentialsFileName()).thenReturn("iss-bucket-credentials.properties");
         when(selfNodeAccountIdManager.getSelfNodeAccountId())

@@ -147,7 +147,7 @@ class BuckyBlockUploader implements BlockUploader {
                     break;
                 }
                 try {
-                    Thread.sleep(Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS << (attempt - 1)));
+                    Thread.sleep(backoffMillis(attempt));
                 } catch (final InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     break;
@@ -161,6 +161,16 @@ class BuckyBlockUploader implements BlockUploader {
                 objectKey,
                 last);
         return null;
+    }
+
+    /**
+     * Exponential backoff for retry {@code attempt} (1-based): {@code BASE_BACKOFF_MS * 2^(attempt-1)}, capped at
+     * {@link #MAX_BACKOFF_MS}. The shift is clamped so a large {@code maxRetries} cannot overflow the {@code long} to a
+     * negative value (which would make {@link Thread#sleep(long)} throw {@link IllegalArgumentException}).
+     */
+    static long backoffMillis(final int attempt) {
+        final int shift = Math.min(attempt - 1, 30);
+        return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS << shift);
     }
 
     private String objectKeyFor(

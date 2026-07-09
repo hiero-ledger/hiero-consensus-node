@@ -10,7 +10,7 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -248,17 +248,16 @@ public class IssBlockResolver {
 
     /** Parses {@code contents} and returns the round number of its first {@code RoundHeader} item, if present. */
     static OptionalLong firstRoundOf(@NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
-        final byte[] bytes;
-        try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contents))) {
-            bytes = in.readAllBytes();
+        final Block block;
+        // Stream the gzip straight into the parser rather than decompressing the whole block into a byte[] first: that
+        // byte[] is not bounded by maxReadSize (which caps only the parser) and would be a full-block heap spike per
+        // candidate probed during the search. The parser stays bounded by maxReadSize.
+        try (final ReadableStreamingData in =
+                new ReadableStreamingData(new GZIPInputStream(Files.newInputStream(contents)))) {
+            block = Block.PROTOBUF.parse(in, false, false, maxReadDepth, maxReadSize);
         } catch (final IOException e) {
             log.warn("Failed to read block file {}", contents, e);
             return OptionalLong.empty();
-        }
-        final Block block;
-        try {
-            block = Block.PROTOBUF.parse(
-                    Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
         } catch (final ParseException e) {
             log.warn("Failed to parse block file {}", contents, e);
             return OptionalLong.empty();

@@ -55,6 +55,17 @@ class BuckyBlockUploaderTest {
     }
 
     @Test
+    void backoffIsPositiveAndCappedEvenForLargeAttemptCounts() {
+        // Regression: a large maxRetries must not overflow the backoff shift into a negative (throwing) sleep.
+        for (int attempt = 1; attempt <= 100; attempt++) {
+            assertThat(BuckyBlockUploader.backoffMillis(attempt))
+                    .as("attempt %d", attempt)
+                    .isPositive()
+                    .isLessThanOrEqualTo(20_000L);
+        }
+    }
+
+    @Test
     void uploadsPendingContentsAndProofSidecarUnderIssFolder() throws Exception {
         final String base = FileBlockItemWriter.longToFileName(2L);
         final Path pnd = tempDir.resolve(base + ".pnd.gz");

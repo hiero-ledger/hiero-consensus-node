@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.BeforeEach;
@@ -97,6 +98,7 @@ class IssDetectionUploadCoordinatorTest {
         lenient()
                 .when(selfNodeAccountIdManager.getSelfNodeAccountId())
                 .thenReturn(AccountID.newBuilder().accountNum(3).build());
+        // A direct executor runs the offloaded capture synchronously so these tests can assert on the outcome.
         subject = new IssDetectionUploadCoordinator(
                 configProvider,
                 uploader,
@@ -104,7 +106,8 @@ class IssDetectionUploadCoordinatorTest {
                 bufferReader,
                 selfNodeAccountIdManager,
                 FileSystems.getDefault(),
-                instantSource);
+                instantSource,
+                Runnable::run);
     }
 
     @Test
@@ -114,6 +117,40 @@ class IssDetectionUploadCoordinatorTest {
         subject.captureAndUpload(IssType.SELF_ISS, 9);
 
         verifyNoInteractions(diskResolver, bufferReader, uploader);
+    }
+
+    @Test
+    void captureAndUploadOffloadsWorkOffTheCallingThread() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        final List<Runnable> deferred = new ArrayList<>();
+        final IssDetectionUploadCoordinator asyncSubject = new IssDetectionUploadCoordinator(
+                configProvider,
+                uploader,
+                diskResolver,
+                bufferReader,
+                selfNodeAccountIdManager,
+                FileSystems.getDefault(),
+                instantSource,
+                deferred::add);
+
+        asyncSubject.captureAndUpload(IssType.SELF_ISS, 9);
+
+        // The blocking capture/upload was handed to the executor, so the calling (ISS dispatcher) thread was not
+        // blocked on disk polling or the upload.
+        assertThat(deferred).hasSize(1);
+        verifyNoInteractions(diskResolver, bufferReader, uploader);
+
+        // Running the deferred task performs the actual capture + upload.
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        final Path issGz =
+                issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.gz");
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of(issGz));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), eq(List.of(issGz))))
+                .thenReturn(List.of("uri"));
+
+        deferred.get(0).run();
+
+        verify(uploader).uploadBlockFiles(UploadCategory.ISS, EXPECTED_FOLDER, List.of(issGz));
     }
 
     @Test

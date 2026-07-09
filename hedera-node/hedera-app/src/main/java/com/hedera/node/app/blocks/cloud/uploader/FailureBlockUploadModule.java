@@ -10,6 +10,7 @@ import com.hedera.node.config.data.FailureBlockUploadConfig;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import javax.inject.Singleton;
 
@@ -30,9 +31,21 @@ public interface FailureBlockUploadModule {
         if (!config.issBlockUploadEnabled() && !config.triageUploadEnabled()) {
             return new NoOpBlockUploader();
         }
+        // Fail fast at startup on a misconfigured destination rather than surfacing a low-level S3 protocol error at
+        // the first (catastrophic-failure) upload attempt. bucketName has no usable default; endpoint and region are
+        // equally required by the S3 client.
+        requireConfigured(config.bucketName(), "failureBlockUpload.bucketName");
+        requireConfigured(config.endpoint(), "failureBlockUpload.endpoint");
+        requireConfigured(config.region(), "failureBlockUpload.region");
         final String nodeAccountString = asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId());
         final Path credentialsFile =
                 getAbsolutePath(config.credentialsFileDir()).resolve(config.credentialsFileName());
         return new BuckyBlockUploader(config, nodeAccountString, credentialsFile);
+    }
+
+    private static void requireConfigured(@Nullable final String value, @NonNull final String property) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(property + " must be set when ISS block upload is enabled");
+        }
     }
 }

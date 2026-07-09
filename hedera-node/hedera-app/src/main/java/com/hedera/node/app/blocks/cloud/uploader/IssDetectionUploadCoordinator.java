@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -77,11 +78,15 @@ public class IssDetectionUploadCoordinator {
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final FileSystem fileSystem;
     private final InstantSource instantSource;
+    /** Runs the detection-time capture off the ISS-notification dispatcher (a virtual thread per ISS in production). */
+    private final Executor captureExecutor;
 
     /** The latest detected fatal ISS, recorded at detection so the {@code CATASTROPHIC_FAILURE} path can upload it. */
     private final AtomicReference<RecordedIss> lastIss = new AtomicReference<>();
     /** The ISS round already uploaded to {@code iss/}, so the detection and failure paths never double-upload it. */
     private final AtomicLong uploadedRound = new AtomicLong(NO_ROUND);
+    /** The ISS round whose upload is in flight, claimed atomically so the two paths never upload it concurrently. */
+    private final AtomicLong uploadInProgressRound = new AtomicLong(NO_ROUND);
 
     private record RecordedIss(
             @NonNull IssType issType, long round, @NonNull String incidentFolder) {}
@@ -95,6 +100,30 @@ public class IssDetectionUploadCoordinator {
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
             @NonNull final InstantSource instantSource) {
+        // Detection-time capture runs on a virtual thread per ISS so the ORDERED async ISS-notification dispatcher
+        // (which calls captureAndUpload) is never blocked by the bounded disk poll and upload.
+        this(
+                configProvider,
+                uploader,
+                diskResolver,
+                bufferReader,
+                selfNodeAccountIdManager,
+                fileSystem,
+                instantSource,
+                Executors.newThreadPerTaskExecutor(
+                        Thread.ofVirtual().name("iss-block-capture-", 0).factory()));
+    }
+
+    // visible for testing: a direct executor lets a test run the capture synchronously
+    IssDetectionUploadCoordinator(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final BlockUploader uploader,
+            @NonNull final IssBlockResolver diskResolver,
+            @NonNull final IssBufferBlockReader bufferReader,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
+            @NonNull final FileSystem fileSystem,
+            @NonNull final InstantSource instantSource,
+            @NonNull final Executor captureExecutor) {
         this.configProvider = requireNonNull(configProvider);
         this.uploader = requireNonNull(uploader);
         this.diskResolver = requireNonNull(diskResolver);
@@ -102,6 +131,7 @@ public class IssDetectionUploadCoordinator {
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
         this.fileSystem = requireNonNull(fileSystem);
         this.instantSource = requireNonNull(instantSource);
+        this.captureExecutor = requireNonNull(captureExecutor);
     }
 
     /**
@@ -118,19 +148,38 @@ public class IssDetectionUploadCoordinator {
             if (!config.issBlockUploadEnabled()) {
                 return;
             }
-            final var writerMode = configProvider
-                    .getConfiguration()
-                    .getConfigData(BlockStreamConfig.class)
-                    .writerMode();
             // One folder per ISS event. The captured block(s) are staged under a per-incident timestamp dir and kept
-            // there for local triage (mirroring the iss/{timestamp}/ cloud layout); record it so the
-            // CATASTROPHIC_FAILURE
-            // path reuses the same folder and round.
+            // there for local triage (mirroring the iss/{timestamp}/ cloud layout). Record it synchronously — before
+            // offloading — so the CATASTROPHIC_FAILURE path reuses the same folder and round even while the capture
+            // below is still running.
             final String incidentFolder = INCIDENT_FOLDER_FORMAT.format(instantSource.instant());
             lastIss.set(new RecordedIss(issType, round, incidentFolder));
             if (uploadedRound.get() == round) {
                 return;
             }
+            // Offload the blocking work (resolveWithWait polls disk up to captureTimeout; uploadBounded blocks up to
+            // uploadTimeout) off the ORDERED async ISS-notification dispatcher: blocking it would stall later ISS
+            // notifications, and could even let a subsequent ISS's block be pruned before its own capture ran.
+            captureExecutor.execute(() -> doCaptureAndUpload(config, issType, round, incidentFolder));
+        } catch (final Throwable t) {
+            log.error("ISS detection-time block capture/upload failed for round {}", round, t);
+        }
+    }
+
+    /** The blocking capture+upload, run off the ISS dispatcher by {@link #captureAndUpload}. Best-effort; never throws. */
+    private void doCaptureAndUpload(
+            @NonNull final FailureBlockUploadConfig config,
+            @NonNull final IssType issType,
+            final long round,
+            @NonNull final String incidentFolder) {
+        try {
+            if (uploadedRound.get() == round) {
+                return;
+            }
+            final var writerMode = configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .writerMode();
             final Path incidentDir = incidentDirFor(config, incidentFolder);
             final List<Path> files =
                     switch (writerMode) {
@@ -178,7 +227,11 @@ public class IssDetectionUploadCoordinator {
         }
     }
 
-    /** Uploads the staged files to {@code iss/} (bounded) and marks the round done, unless another path already did. */
+    /**
+     * Uploads the staged files to {@code iss/} (bounded) and records the round as done. The round is claimed atomically
+     * so the concurrent detection and failure paths never upload it twice; the loser returns. On failure the claim is
+     * released so the other (e.g. the authoritative failure) path can still try. Best-effort.
+     */
     private void uploadAndMark(
             @NonNull final FailureBlockUploadConfig config,
             final long round,
@@ -191,9 +244,25 @@ public class IssDetectionUploadCoordinator {
         if (uploadedRound.get() == round) {
             return;
         }
-        final List<String> uploaded = uploadBounded(config, incidentFolder, files);
-        if (!uploaded.isEmpty()) {
-            uploadedRound.set(round);
+        // Claim the round; if the other path already claimed it, return without uploading so it is never uploaded
+        // twice.
+        if (!uploadInProgressRound.compareAndSet(NO_ROUND, round)) {
+            return;
+        }
+        boolean uploaded = false;
+        try {
+            if (uploadedRound.get() == round) {
+                return; // completed by the other path between the check above and our claim
+            }
+            uploaded = !uploadBounded(config, incidentFolder, files).isEmpty();
+            if (uploaded) {
+                uploadedRound.set(round);
+            }
+        } finally {
+            // Release the claim (even on success — a completed round stays guarded by uploadedRound) so a later,
+            // distinct ISS round can still be uploaded, and so a failed upload does not permanently block a retry by
+            // the other path.
+            uploadInProgressRound.compareAndSet(round, NO_ROUND);
         }
     }
 
@@ -215,10 +284,11 @@ public class IssDetectionUploadCoordinator {
             final long round,
             final int precedingBlocks,
             @NonNull final Duration timeout) {
-        final long deadline = System.currentTimeMillis() + timeout.toMillis();
+        // nanoTime (monotonic), not currentTimeMillis, so an NTP step or leap second cannot shorten or extend the wait.
+        final long deadlineNs = System.nanoTime() + timeout.toNanos();
         while (true) {
             final List<IssBlockRef> refs = diskResolver.resolve(issType, round, precedingBlocks);
-            if (!refs.isEmpty() || System.currentTimeMillis() >= deadline) {
+            if (!refs.isEmpty() || System.nanoTime() - deadlineNs >= 0) {
                 return refs;
             }
             try {
@@ -230,7 +300,13 @@ public class IssDetectionUploadCoordinator {
         }
     }
 
-    /** Copies each resolved block's on-disk files into {@code issDir}; returns the copied contents paths to upload. */
+    /**
+     * Copies each resolved block's on-disk files (the contents file plus any {@code .pnd.json} proof sidecar) into
+     * {@code issDir}, and returns the copied <b>contents</b> paths. Sidecar discovery is intentionally left to the
+     * {@link BlockUploader}: it uploads each proof sidecar by resolving the sibling in the contents file's directory —
+     * which is exactly where this method places it (see {@code BuckyBlockUploader.proofSidecarOf}). Centralizing that in
+     * the uploader lets the triage path — which passes flushed files it did not copy here — share the same contract.
+     */
     private List<Path> materializeFromDisk(@NonNull final List<IssBlockRef> refs, @NonNull final Path issDir)
             throws IOException {
         if (refs.isEmpty()) {
