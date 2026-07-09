@@ -3,8 +3,8 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.iss.detection.config.IssDetectionConfigurationExtension;
 
 module org.hiero.consensus.iss.detection {
-    exports org.hiero.consensus.iss.detection;
     exports org.hiero.consensus.iss.detection.config;
+    exports org.hiero.consensus.iss.detection;
     exports org.hiero.consensus.iss.detection.internal to
             org.hiero.otter.fixtures;
 
@@ -25,12 +25,8 @@ module org.hiero.consensus.iss.detection {
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.roster;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
-    requires jdk.management;
-    requires jdk.net;
     requires org.apache.logging.log4j;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
             IssDetectionConfigurationExtension;

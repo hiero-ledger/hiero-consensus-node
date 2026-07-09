@@ -12,6 +12,7 @@ import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -23,8 +24,6 @@ public class ConsensusOutput implements Clearable {
     private final LinkedList<PlatformEvent> preConsensusEvents;
     private final LinkedList<PlatformEvent> addedEvents;
     private final LinkedList<PlatformEvent> staleEvents;
-
-    private long latestRound;
 
     private EventWindow eventWindow;
 
@@ -154,7 +153,9 @@ public class ConsensusOutput implements Clearable {
      * @return the latest round that reached consensus
      */
     public long getLatestRound() {
-        return latestRound;
+        return consensusRounds.isEmpty()
+                ? ConsensusConstants.ROUND_UNDEFINED
+                : consensusRounds.getLast().getRoundNum();
     }
 
     /**
@@ -172,7 +173,6 @@ public class ConsensusOutput implements Clearable {
         addedEvents.clear();
         consensusRounds.clear();
         staleEvents.clear();
-        latestRound = 0;
         eventWindow = EventWindow.getGenesisEventWindow();
     }
 }
