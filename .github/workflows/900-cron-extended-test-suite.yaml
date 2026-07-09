@@ -352,14 +352,14 @@ jobs:
       enable-sdk-tck-regression-panel: "true"
       enable-block-node-regression-panel: "true"
       enable-mirror-node-regression-panel: "true"
-      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
       enable-rpc-relay-regression-panel: "true"
-      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
       bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
