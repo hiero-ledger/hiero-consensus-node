@@ -327,6 +327,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
             platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+            getMetricsProvider().start();
             platformStatus = PlatformStatus.STARTING_UP;
 
             platform.start();

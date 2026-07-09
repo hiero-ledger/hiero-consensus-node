@@ -182,6 +182,15 @@ public class ConsensusNodeManager {
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+        // Future work - capture the reconnect module, add a start() method to it, and call it later
+        factory.createReconnectModule(
+                platform,
+                factoryOutput.platformCoordinator(),
+                buildingBlocks.platformComponents(),
+                buildingBlocks.savedStateController(),
+                buildingBlocks.reservedSignedStateResultPromise(),
+                buildingBlocks.fallenBehindMonitor());
+        getMetricsProvider().start();
     }
 
     /**
