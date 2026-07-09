@@ -260,7 +260,7 @@ public interface FacilityInitModule {
         exchangeRateManager.init(state, file.contents(), midnightRates);
     }
 
-    private static void initializeFeeManager(
+    static void initializeFeeManager(
             @NonNull final State state,
             @NonNull final FileServiceImpl fileService,
             @NonNull final ConfigProvider configProvider,
@@ -294,8 +294,8 @@ public interface FacilityInitModule {
 
         final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
         if (simpleStatus != SUCCESS) {
-            log.error(
-                    "State file 0.0.{} did not contain parseable simple fee schedules ({})", simpleFeesFileNum, status);
+            throw new IllegalStateException("State file 0.0." + simpleFeesFileNum
+                    + " did not contain parseable simple fee schedules: " + simpleStatus);
         }
     }
 
