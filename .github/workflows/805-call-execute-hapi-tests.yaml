@@ -1023,11 +1023,24 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
-          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently; cap each
-          # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
-          RAYON_NUM_THREADS: "4"
+          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently, so 2 rayon
+          # threads x 3 nodes = 6 leaves headroom for the JVMs and the runner agent. At
+          # 4 x 3 = 12 the CPUs were oversubscribed and the runner was evicted mid-proof
+          # with no logs. HAPI_TEST_NODE_POOL_MIB caps each node JVM's heap share (4 GiB
+          # x 3); the 64 GiB pod (swap=0) leaves the remainder for the native provers.
+          RAYON_NUM_THREADS: "2"
           HAPI_TEST_NODE_POOL_MIB: "12288"
-        run: ${GRADLE_EXEC} hapiTestWraps --no-daemon
+        # (TEMPORARY) Background sampler: logs pod memory + load every 30s so a runner
+        # death shows memory (mem.current -> mem.max) vs CPU (loadavg >> 8) as the cause.
+        # Watch live with `gh run watch`; remove before merge.
+        run: |
+          ( while true; do
+              echo "[rsample $(date -u +%H:%M:%S)] mem.current=$(cat /sys/fs/cgroup/memory.current 2>/dev/null) mem.max=$(cat /sys/fs/cgroup/memory.max 2>/dev/null) loadavg=$(cut -d' ' -f1-3 /proc/loadavg)"
+              sleep 30
+            done ) &
+          sampler_pid=$!
+          trap 'kill "${sampler_pid}" 2>/dev/null || true' EXIT
+          ${GRADLE_EXEC} hapiTestWraps --no-daemon
 
       - name: Publish HAPI Test (Wraps) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0

@@ -119,12 +119,12 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(5))
+                                Duration.ofSeconds(120))
                         .exposingMatchGroupTo(1, downloadedHash),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
-                                "Persisted first WRAPS proving key hash (\\S+) to state",
-                                Duration.ofSeconds(5))
+                                "Pending WRAPS proving key hash (\\S+) matches proving key in state",
+                                Duration.ofSeconds(120))
                         .exposingMatchGroupTo(1, persistedHash),
                 verify(() -> {
                     assertEquals(

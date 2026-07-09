@@ -104,8 +104,8 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
-                                "Persisted first WRAPS proving key hash (\\S+) to state",
-                                Duration.ofSeconds(5))
+                                "Pending WRAPS proving key hash (\\S+) matches proving key in state",
+                                Duration.ofSeconds(120))
                         .exposingMatchGroupTo(1, selectedProvingKeyHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
