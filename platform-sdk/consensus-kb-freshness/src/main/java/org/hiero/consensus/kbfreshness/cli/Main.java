@@ -11,6 +11,7 @@ import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.findings.Baseline;
+import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Triage;
 import org.hiero.consensus.kbfreshness.render.AutoFixRenderer;
@@ -18,6 +19,7 @@ import org.hiero.consensus.kbfreshness.render.CoverageRenderer;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
 import org.hiero.consensus.kbfreshness.render.QuietLogRenderer;
 import org.hiero.consensus.kbfreshness.render.ReportRenderer;
+import org.hiero.consensus.kbfreshness.render.SuggestionsRenderer;
 import org.hiero.consensus.kbfreshness.render.WorklistRenderer;
 import org.hiero.consensus.kbfreshness.resolve.Allowlist;
 import picocli.CommandLine;
@@ -163,6 +165,9 @@ public final class Main implements Callable<Integer> {
         write(outDir.resolve("report.md"), ReportRenderer.render(result, date));
         write(outDir.resolve("quiet-log.md"), QuietLogRenderer.render(result));
         write(outDir.resolve("auto-fix.md"), AutoFixRenderer.render(result));
+        write(
+                outDir.resolve("suggestions.md"),
+                SuggestionsRenderer.render(result, new Git(result.sourceIndex().repoRoot())));
         write(outDir.resolve("coverage.md"), CoverageRenderer.render(result));
         write(outDir.resolve("worklist.md"), WorklistRenderer.renderMarkdown(result));
         write(outDir.resolve("worklist.json"), WorklistRenderer.renderJson(result));

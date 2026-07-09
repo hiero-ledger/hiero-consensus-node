@@ -167,6 +167,7 @@ drift report to act on; the rest are supporting lanes and inputs.
 | `findings.json`                 | machine-readable finding set           | Tooling / CI; diffing two runs.       |
 | `quiet-log.md`                  | **quiet-log** — `unverifiable`         | Auditing what was skipped, and why.   |
 | `auto-fix.md`                   | **auto-fix** — line corrections        | Tidying stale line numbers.           |
+| `suggestions.md`                | non-asserting "did you mean" hints     | Acting on a GONE finding.             |
 | `coverage.md`                   | **coverage-gap** — undocumented code   | Finding docs worth writing.           |
 | `worklist.md` / `worklist.json` | semantic-pass input                    | Driving or reviewing the Tier-3 pass. |
 | `baseline.proposed.tsv`         | the next baseline this run would write | Adopting or refreshing the baseline.  |
@@ -191,6 +192,12 @@ over a guess. Skim it to confirm nothing that *should* be checkable is silently 
 **`auto-fix.md` — the `auto-fix` lane.** Cases where a *named* symbol still resolves but its cited
 line number moved. Each entry is a proposed line-reference correction. **Never applied
 automatically** and never a drift finding — a moved line is a navigation nit, not a broken claim.
+
+**`suggestions.md` — non-asserting "did you mean" hints.** For each **GONE** target (a missing
+cross-doc link, source path, or bare source basename) the tool offers replacement candidates — a
+definite git rename when history has one, otherwise the closest near-name matches against the KB docs
+or the source index. **Hints, not facts** (it never asserts), and kept out of `findings.json` so the
+machine artifact stays reproducible.
 
 **`coverage.md` — the `coverage-gap` lane.** The inverse of drift: code the docs don't mention — for
 example, a method present on a documented interface but absent from that interface's `methods:`

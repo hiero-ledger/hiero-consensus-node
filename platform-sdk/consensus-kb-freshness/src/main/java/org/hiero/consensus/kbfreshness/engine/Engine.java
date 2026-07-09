@@ -59,6 +59,6 @@ public final class Engine {
         final Git git = new Git(config.repoRoot());
         final List<WorklistEntry> worklist = new WorklistBuilder(config.repoRoot(), extractor, git).build(docs);
 
-        return new RunResult(docs, findings, join, worklist);
+        return new RunResult(docs, findings, join, worklist, index);
     }
 }

@@ -11,11 +11,13 @@ import java.util.function.Predicate;
 import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
+import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
+import org.hiero.consensus.kbfreshness.render.SuggestionsRenderer;
 import org.hiero.consensus.kbfreshness.resolve.Allowlist;
 import org.hiero.consensus.kbfreshness.util.Hashing;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,14 +30,15 @@ import org.junit.jupiter.api.Test;
 class EngineFixtureTest {
 
     private static List<Finding> findings;
+    private static RunResult result;
+    private static Path repo;
 
     @BeforeAll
     static void runEngine() throws URISyntaxException {
-        final Path repo =
-                Path.of(EngineFixtureTest.class.getResource("/fixtures/repo").toURI());
+        repo = Path.of(EngineFixtureTest.class.getResource("/fixtures/repo").toURI());
         final Path kb = repo.resolve("platform-sdk/docs/consensus-layer");
         final RunConfig config = new RunConfig(repo, kb, null, List.of("platform-sdk"), Allowlist.withDefaults(), "");
-        final RunResult result = new Engine(config).run();
+        result = new Engine(config).run();
         findings = result.findings();
     }
 
@@ -146,6 +149,47 @@ class EngineFixtureTest {
     @Test
     void findingsArtifactIsByteIdenticalAcrossRenders() {
         assertThat(FindingsJson.render(findings)).isEqualTo(FindingsJson.render(findings));
+    }
+
+    @Test
+    void annotatedMethodLineResolvesToSignatureNotAnnotation() {
+        // AnnotatedMethod.run() sits at line 9, below Javadoc (7) and @Deprecated (8); the auto-fix must
+        // propose the signature line, not the annotation's.
+        final Finding f = require(AnchorKind.METHOD_REF, t -> t.equals("run"));
+        assertThat(f.lane()).isEqualTo(Lane.AUTO_FIX);
+        assertThat(f.outcome()).isEqualTo(Outcome.PRESENT);
+        assertThat(f.autoFixLine()).isEqualTo(9);
+    }
+
+    @Test
+    void statedModuleLabelMismatchIsPresentAssert() {
+        final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("LabeledClass.java"));
+        assertThat(f.outcome()).isEqualTo(Outcome.PRESENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.evidence()).contains("module-a").contains("wrong-module");
+    }
+
+    @Test
+    void fullPathCodeSpanToGoneFileIsAbsentAssert() {
+        final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("DeletedByAdr.java"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+    }
+
+    @Test
+    void bareFilenameCodeSpanGoneIsAbsentButPresentIsClean() {
+        final Finding gone = require(AnchorKind.SOURCE_BASENAME, t -> t.equals("GhostBare.java"));
+        assertThat(gone.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(gone.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(byKind(AnchorKind.SOURCE_BASENAME, t -> t.equals("PresentClass.java")))
+                .isEmpty();
+    }
+
+    @Test
+    void suggestionsProposeNearNameForGoneCrossDocLink() {
+        // The typo'd link ../nope-style target `RUL-001-fixtur.md` should suggest the real `RUL-001-fixture.md`.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("RUL-001-fixture.md");
     }
 
     // ---- helpers ----

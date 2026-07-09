@@ -6,3 +6,6 @@ topics: [present-topic]
 ---
 
 # ADR-001 — Fixture decision
+
+Cited by full path (`platform-sdk/module-a/src/main/java/com/x/DeletedByAdr.java:62-67`), by a gone
+bare name (`GhostBare.java:12`), and by a present bare name (`PresentClass.java:3`).

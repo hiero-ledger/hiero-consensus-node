@@ -12,6 +12,12 @@ public enum AnchorKind {
     MODULE_DIR(0),
     /** A path to a source file (from {@code components:}, markdown links, or abbreviated form). */
     SOURCE_PATH(0),
+    /**
+     * A bare source-file basename cited in prose (e.g. {@code `ObservingStatusLogic.java:176-187`}) with
+     * no path. Checked for existence anywhere in the index only — never for a "moved" location, since no
+     * location was cited.
+     */
+    SOURCE_BASENAME(0),
     /** A relative link from one KB doc to another. */
     CROSS_DOC_LINK(0),
     /** A {@code #heading} fragment that must exist in the linked doc. */

@@ -121,6 +121,15 @@ public final class SourceIndex {
     }
 
     /**
+     * Every indexed file basename, in sorted order. Used to propose near-name matches for a gone source.
+     *
+     * @return the sorted set of indexed basenames.
+     */
+    public java.util.Set<String> basenames() {
+        return java.util.Collections.unmodifiableSet(basenameToPaths.keySet());
+    }
+
+    /**
      * Parses a repo-relative source file, caching the result for the run.
      *
      * @param repoRelPath the repo-relative source path.

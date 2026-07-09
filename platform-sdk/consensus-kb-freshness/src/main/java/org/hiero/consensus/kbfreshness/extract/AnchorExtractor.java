@@ -3,7 +3,9 @@ package org.hiero.consensus.kbfreshness.extract;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.model.Anchor;
@@ -28,6 +30,20 @@ public final class AnchorExtractor {
     /** Matches an abbreviated {@code module/.../File.java} (or {@code .proto}) path, capturing the module and file name. */
     private static final Pattern ABBREV_PATH = Pattern.compile(
             "([A-Za-z0-9][A-Za-z0-9._-]*)/\\.\\.\\./(?:[A-Za-z0-9/._-]*/)?([A-Za-z0-9_$]+\\.(?:java|proto))");
+
+    /** Matches an inline code span, capturing its content (no embedded backtick or newline). */
+    private static final Pattern CODE_SPAN = Pattern.compile("`([^`\\n]+)`");
+
+    /** Matches a full repo-relative source path (optionally with a non-asserting {@code :NN}/{@code :NN-MM} suffix). */
+    private static final Pattern FULL_SOURCE_PATH =
+            Pattern.compile("^(platform-sdk/[A-Za-z0-9/._$-]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+
+    /** Matches a bare source-file basename (optional leading {@code ...}/{@code .../} ellipsis, non-asserting line suffix). */
+    private static final Pattern BARE_SOURCE_FILE =
+            Pattern.compile("^(?:\\.{2,3}/?)?([A-Za-z0-9_$]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+
+    /** Matches a prose {@code Module: `name`} label, capturing the stated module name. */
+    private static final Pattern MODULE_LABEL = Pattern.compile("Module:\\s*`([A-Za-z0-9._-]+)`");
 
     // "path — `method`" or "path -- `method`": em dash (U+2014) or double hyphen separator.
     /** Matches a {@code verification:} value {@code path — `method`}, capturing the path and the method name. */
@@ -147,8 +163,10 @@ public final class AnchorExtractor {
     // ---- Body ----
 
     /**
-     * Emits anchors from the document body outside fenced code blocks: markdown links, abbreviated
-     * {@code module/.../File.java} paths, and bare catalog IDs (excluding the entry's own ID).
+     * Emits anchors from the document body outside fenced code blocks. Markdown links are matched over
+     * the whole (fence-blanked) body so a link whose text wraps across lines is still seen; abbreviated
+     * {@code module/.../File.java} paths, inline code-span source citations, prose {@code Module:} labels,
+     * and bare catalog IDs are scanned per line.
      *
      * @param doc the scanned KB document.
      * @param out the list to append discovered anchors to.
@@ -158,24 +176,35 @@ public final class AnchorExtractor {
         final String ownKey = doc.entry().key();
         final int bodyStart = doc.frontmatter().bodyLine();
         final String docDir = parentDir(doc.entry().relativePath());
+
+        // A fence-blanked copy of the body (one entry per file line, line count preserved) drives the
+        // whole-body markdown-link and code-span passes; lineStart maps a match offset back to a line.
+        final StringBuilder body = new StringBuilder();
+        final long[] lineStart = new long[lines.size()];
+        // Stated "Module: `x`" label keyed by the file line it sits on, for the adjacent source link.
+        final Map<Integer, String> statedModuleByLine = new HashMap<>();
         boolean inFence = false;
 
-        for (int idx = bodyStart - 1; idx < lines.size(); idx++) {
+        for (int idx = 0; idx < lines.size(); idx++) {
+            lineStart[idx] = body.length();
             final String line = lines.get(idx);
             final int fileLine = idx + 1;
-            if (line.strip().startsWith("```") || line.strip().startsWith("~~~")) {
+            final String stripped = line.strip();
+
+            if (idx < bodyStart - 1) {
+                body.append('\n'); // frontmatter: keep line offsets but nothing to match.
+                continue;
+            }
+            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
                 inFence = !inFence;
+                body.append('\n');
                 continue;
             }
             if (inFence) {
+                body.append('\n');
                 continue;
             }
-
-            // Markdown links.
-            final Matcher link = MD_LINK.matcher(line);
-            while (link.find()) {
-                extractLink(link.group(1), link.group(2), docDir, fileLine, out);
-            }
+            body.append(line).append('\n');
 
             // Abbreviated module/.../File.java paths.
             final Matcher abbr = ABBREV_PATH.matcher(line);
@@ -200,7 +229,84 @@ public final class AnchorExtractor {
                     out.add(new Anchor(AnchorKind.CATALOG_ID, catId, null, null, fileLine, Anchor.NO_LINE, catId));
                 }
             }
+
+            // Prose "Module: `x`" label for the adjacent source link on this same line.
+            final Matcher mod = MODULE_LABEL.matcher(line);
+            if (mod.find()) {
+                statedModuleByLine.put(fileLine, mod.group(1));
+            }
         }
+
+        // Markdown links, matched over the whole body so link text may wrap across lines. Mask each link
+        // region (preserving offsets) so the code-span pass never re-reads a file citation used as link text.
+        final char[] masked = body.toString().toCharArray();
+        final Matcher link = MD_LINK.matcher(body);
+        while (link.find()) {
+            if (link.group(1).contains("\n\n")) {
+                continue; // A CommonMark link text cannot span a blank line — not a real link.
+            }
+            final int urlLine = lineAt(lineStart, link.start(2));
+            extractLink(link.group(1), link.group(2), docDir, urlLine, statedModuleByLine.get(urlLine), out);
+            for (int i = link.start(); i < link.end(); i++) {
+                if (masked[i] != '\n') {
+                    masked[i] = ' ';
+                }
+            }
+        }
+
+        // Inline code-span source citations (bare-path prose), over the link-masked body.
+        final Matcher span = CODE_SPAN.matcher(new String(masked));
+        while (span.find()) {
+            extractCodeSpan(span.group(1), lineAt(lineStart, span.start(1)), out);
+        }
+    }
+
+    /**
+     * Emits a source anchor for an inline code-span citation: a full {@code platform-sdk/…} path becomes a
+     * {@link AnchorKind#SOURCE_PATH} (existence + move check), a bare {@code File.java} basename becomes a
+     * {@link AnchorKind#SOURCE_BASENAME} (existence only). Any {@code :NN}/{@code :NN-MM} suffix is dropped —
+     * line numbers are never asserted on. Non-source spans are ignored.
+     *
+     * @param content  the code-span content (without surrounding backticks).
+     * @param fileLine the 1-based line of the span in the document.
+     * @param out      the list to append discovered anchors to.
+     */
+    private void extractCodeSpan(final String content, final int fileLine, final List<Anchor> out) {
+        final String span = content.strip();
+        final Matcher full = FULL_SOURCE_PATH.matcher(span);
+        if (full.matches()) {
+            final String path = full.group(1);
+            out.add(new Anchor(AnchorKind.SOURCE_PATH, path, moduleOfPath(path), null, fileLine, Anchor.NO_LINE, span));
+            return;
+        }
+        final Matcher bare = BARE_SOURCE_FILE.matcher(span);
+        if (bare.matches()) {
+            out.add(new Anchor(AnchorKind.SOURCE_BASENAME, bare.group(1), null, null, fileLine, Anchor.NO_LINE, span));
+        }
+    }
+
+    /**
+     * Maps a 0-based offset in the fence-blanked body to its 1-based file line via the per-line start
+     * offsets, by binary search for the last line starting at or before the offset.
+     *
+     * @param lineStart the body offset at which each file line begins.
+     * @param offset    the body offset to locate.
+     * @return the 1-based file line containing the offset.
+     */
+    private static int lineAt(final long[] lineStart, final int offset) {
+        int lo = 0;
+        int hi = lineStart.length - 1;
+        int ans = 0;
+        while (lo <= hi) {
+            final int mid = (lo + hi) >>> 1;
+            if (lineStart[mid] <= offset) {
+                ans = mid;
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return ans + 1;
     }
 
     /**
@@ -209,14 +315,20 @@ public final class AnchorExtractor {
      * and directory links. External ({@code http}/{@code https}/{@code mailto}) and pure in-document
      * fragment links are ignored.
      *
-     * @param linkText the link's display text.
-     * @param url      the link's target URL.
-     * @param docDir   the repo-relative directory of the containing document, for resolving relatives.
-     * @param fileLine the 1-based line of the link in the document.
-     * @param out      the list to append discovered anchors to.
+     * @param linkText     the link's display text.
+     * @param url          the link's target URL.
+     * @param docDir       the repo-relative directory of the containing document, for resolving relatives.
+     * @param fileLine     the 1-based line of the link's URL in the document.
+     * @param statedModule the prose {@code Module:} label on the link's line, or {@code null}.
+     * @param out          the list to append discovered anchors to.
      */
     private void extractLink(
-            final String linkText, final String url, final String docDir, final int fileLine, final List<Anchor> out) {
+            final String linkText,
+            final String url,
+            final String docDir,
+            final int fileLine,
+            final String statedModule,
+            final List<Anchor> out) {
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("mailto:")) {
             return;
         }
@@ -257,7 +369,8 @@ public final class AnchorExtractor {
             final String module = moduleOfPath(repoRel);
             // File-existence check carries no line: a bare `File.java:NN` link is ambiguous (the KB
             // uses it for members too), so line-move detection is done only for named-method links.
-            out.add(new Anchor(AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, url));
+            out.add(new Anchor(
+                    AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, url, statedModule));
             if (lower.endsWith(".java")) {
                 final String method = methodFromLinkText(linkText);
                 if (method != null && citedLine != Anchor.NO_LINE) {

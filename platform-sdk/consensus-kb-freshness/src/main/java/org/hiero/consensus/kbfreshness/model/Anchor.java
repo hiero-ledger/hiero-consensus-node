@@ -18,6 +18,9 @@ package org.hiero.consensus.kbfreshness.model;
  * @param citedLine   the cited code line number, or {@link #NO_LINE} if none. A navigation hint only
  *                    — never asserted on; drives auto-fix proposals when the symbol moved.
  * @param rawText     the verbatim citation text, for evidence and diagnostics.
+ * @param statedModule the module asserted in prose next to a source citation (e.g. a
+ *                    {@code Module: `swirlds-common`} label), or {@code null} when none is stated.
+ *                    Cross-checked against the module the linked path actually resolves in.
  */
 public record Anchor(
         AnchorKind kind,
@@ -26,10 +29,33 @@ public record Anchor(
         String citedScope,
         int docLine,
         int citedLine,
-        String rawText) {
+        String rawText,
+        String statedModule) {
 
     /** Sentinel {@code citedLine} value meaning no code line was cited. */
     public static final int NO_LINE = -1;
+
+    /**
+     * Convenience constructor for anchors that carry no stated-module label (the common case).
+     *
+     * @param kind        what kind of reference this is (also the check applied).
+     * @param target      the normalized subject of the check.
+     * @param citedModule the module the citation scopes to, or {@code null}.
+     * @param citedScope  the enclosing scope for a member, or {@code null}.
+     * @param docLine     the 1-based line in the KB file where this citation appears.
+     * @param citedLine   the cited code line number, or {@link #NO_LINE} if none.
+     * @param rawText     the verbatim citation text.
+     */
+    public Anchor(
+            final AnchorKind kind,
+            final String target,
+            final String citedModule,
+            final String citedScope,
+            final int docLine,
+            final int citedLine,
+            final String rawText) {
+        this(kind, target, citedModule, citedScope, docLine, citedLine, rawText, null);
+    }
 
     /**
      * The occurrence view of this anchor (drops the resolution-only fields).

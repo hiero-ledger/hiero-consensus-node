@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +26,8 @@ public final class Git {
     private final boolean available;
     /** Per-run cache of repo-relative path to its last commit date (or {@code null} if none). */
     private final Map<String, String> lastCommitDateCache = new HashMap<>();
+    /** Per-run cache of a gone repo-relative path to the path it was renamed to (or {@code null}). */
+    private final Map<String, String> renameCache = new HashMap<>();
 
     /**
      * Creates a wrapper rooted at the given repository and probes whether git is usable.
@@ -53,6 +56,49 @@ public final class Git {
         return lastCommitDateCache.computeIfAbsent(repoRelPath, p -> {
             final String out = run(List.of("git", "log", "-1", "--format=%cs", "--", p));
             return out == null || out.isBlank() ? null : out.strip();
+        });
+    }
+
+    /**
+     * The path a now-gone file was most recently renamed to, if git can trace it and the target still
+     * exists. Follows the cited path's history for rename ({@code R}) commits; the newest one names the
+     * current location. Returns {@code null} when git is unavailable, no rename is recorded, or the traced
+     * target no longer exists.
+     *
+     * @param repoRelPath the gone repo-relative path to trace.
+     * @return the repo-relative path it was renamed to, or {@code null}.
+     */
+    public String findRename(final String repoRelPath) {
+        if (!available) {
+            return null;
+        }
+        return renameCache.computeIfAbsent(repoRelPath, path -> {
+            final String out = run(List.of(
+                    "git",
+                    "log",
+                    "--follow",
+                    "--find-renames",
+                    "--diff-filter=R",
+                    "--name-status",
+                    "--format=",
+                    "--",
+                    path));
+            if (out == null || out.isBlank()) {
+                return null;
+            }
+            // Newest first; a rename line is "R<score>\t<old>\t<new>". The first names the current location.
+            for (final String line : out.split("\n")) {
+                if (line.startsWith("R")) {
+                    final String[] parts = line.split("\t");
+                    if (parts.length >= 3) {
+                        final String newPath = parts[2].strip();
+                        if (!newPath.isEmpty() && Files.isRegularFile(repoRoot.resolve(newPath))) {
+                            return newPath;
+                        }
+                    }
+                }
+            }
+            return null;
         });
     }
 

@@ -24,7 +24,9 @@ with `java -jar`.
 - `findings/` — collapse to stable-id findings, `InterfaceDiffAssembler` (Tier 2 method-set diff),
   baseline TSV + join.
 - `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`).
-- `render/` — report / quiet-log / auto-fix / coverage / findings.json / worklist renderers.
+- `render/` — report / quiet-log / auto-fix / suggestions / coverage / findings.json / worklist renderers.
+  (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first, else fuzzy
+  basename match; deliberately excluded from `findings.json` to keep it reproducible.)
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.

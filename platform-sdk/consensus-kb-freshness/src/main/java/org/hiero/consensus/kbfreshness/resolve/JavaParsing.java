@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.kbfreshness.resolve;
 
+import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.LineMap;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
@@ -146,8 +148,9 @@ public final class JavaParsing {
             final Map<String, TypeInfo> types = new LinkedHashMap<>();
             for (final CompilationUnitTree cu : task.parse()) {
                 final LineMap lineMap = cu.getLineMap();
+                final CharSequence src = cu.getSourceFile().getCharContent(true);
                 for (final Tree decl : cu.getTypeDecls()) {
-                    collectType(cu, decl, positions, lineMap, types);
+                    collectType(cu, decl, positions, lineMap, src, types);
                 }
             }
             return new ParsedFile(types);
@@ -164,6 +167,7 @@ public final class JavaParsing {
      * @param decl      the declaration to inspect.
      * @param positions source-position lookup for the unit.
      * @param lineMap   line-number lookup for the unit.
+     * @param src       the compilation unit's source text, for signature-line resolution.
      * @param out       the map to populate, keyed by simple type name.
      */
     private static void collectType(
@@ -171,6 +175,7 @@ public final class JavaParsing {
             final Tree decl,
             final SourcePositions positions,
             final LineMap lineMap,
+            final CharSequence src,
             final Map<String, TypeInfo> out) {
         // ClassTree covers class, interface, enum, record, and annotation declarations.
         if (!(decl instanceof ClassTree ct)) {
@@ -180,13 +185,15 @@ public final class JavaParsing {
         final List<MethodSig> methods = new ArrayList<>();
         for (final Tree member : ct.getMembers()) {
             if (member instanceof MethodTree mt) {
-                methods.add(signatureOf(cu, mt, positions, lineMap));
+                methods.add(signatureOf(cu, mt, positions, lineMap, src));
             } else if (member instanceof ClassTree nested) {
-                collectType(cu, nested, positions, lineMap, out);
+                collectType(cu, nested, positions, lineMap, src, out);
             }
         }
         if (!name.isEmpty()) {
-            out.putIfAbsent(name, new TypeInfo(lineOf(cu, ct, positions, lineMap), kindOf(ct), methods));
+            out.putIfAbsent(
+                    name,
+                    new TypeInfo(declLine(cu, ct, ct.getModifiers(), positions, lineMap, src), kindOf(ct), methods));
         }
     }
 
@@ -197,10 +204,15 @@ public final class JavaParsing {
      * @param mt        the method declaration.
      * @param positions source-position lookup for the unit.
      * @param lineMap   line-number lookup for the unit.
+     * @param src       the compilation unit's source text, for signature-line resolution.
      * @return the method's signature.
      */
     private static MethodSig signatureOf(
-            final CompilationUnitTree cu, final MethodTree mt, final SourcePositions positions, final LineMap lineMap) {
+            final CompilationUnitTree cu,
+            final MethodTree mt,
+            final SourcePositions positions,
+            final LineMap lineMap,
+            final CharSequence src) {
         final List<String> params = new ArrayList<>();
         for (final VariableTree p : mt.getParameters()) {
             params.add(p.getType().toString().replaceAll("\\s+", ""));
@@ -208,7 +220,11 @@ public final class JavaParsing {
         final String returnType = mt.getReturnType() == null
                 ? null
                 : mt.getReturnType().toString().replaceAll("\\s+", "");
-        return new MethodSig(mt.getName().toString(), params, returnType, lineOf(cu, mt, positions, lineMap));
+        return new MethodSig(
+                mt.getName().toString(),
+                params,
+                returnType,
+                declLine(cu, mt, mt.getModifiers(), positions, lineMap, src));
     }
 
     /**
@@ -229,17 +245,43 @@ public final class JavaParsing {
     }
 
     /**
-     * Resolves the 1-based start line of a tree node.
+     * Resolves the 1-based line of a type or method declaration's signature — the line a reader would
+     * cite as "the declaration". This is the first non-whitespace token after any leading annotations,
+     * so an annotation on its own line above the signature (e.g. {@code @Override}) does not shift the
+     * result. Leading Javadoc never counts: it precedes the tree's start position. When the node has no
+     * annotations, this is just the node's start line.
      *
      * @param cu        the enclosing compilation unit.
-     * @param t         the tree node.
+     * @param node      the type or method declaration.
+     * @param mods      the declaration's modifiers (its annotations).
      * @param positions source-position lookup for the unit.
      * @param lineMap   line-number lookup for the unit.
-     * @return the 1-based line number, or {@code -1} if the position is unknown.
+     * @param src       the compilation unit's source text.
+     * @return the 1-based signature line, or {@code -1} if the position is unknown.
      */
-    private static int lineOf(
-            final CompilationUnitTree cu, final Tree t, final SourcePositions positions, final LineMap lineMap) {
-        final long pos = positions.getStartPosition(cu, t);
-        return pos < 0 ? -1 : (int) lineMap.getLineNumber(pos);
+    private static int declLine(
+            final CompilationUnitTree cu,
+            final Tree node,
+            final ModifiersTree mods,
+            final SourcePositions positions,
+            final LineMap lineMap,
+            final CharSequence src) {
+        final long start = positions.getStartPosition(cu, node);
+        if (start < 0) {
+            return -1;
+        }
+        long from = start;
+        final List<? extends AnnotationTree> annotations = mods.getAnnotations();
+        if (!annotations.isEmpty()) {
+            final long lastAnnotationEnd = positions.getEndPosition(cu, annotations.get(annotations.size() - 1));
+            if (lastAnnotationEnd > from) {
+                from = lastAnnotationEnd;
+            }
+        }
+        int pos = (int) from;
+        while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) {
+            pos++;
+        }
+        return (int) lineMap.getLineNumber(pos >= src.length() ? start : pos);
     }
 }

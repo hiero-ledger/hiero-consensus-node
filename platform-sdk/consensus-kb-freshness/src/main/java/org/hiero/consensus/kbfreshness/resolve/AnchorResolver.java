@@ -85,6 +85,7 @@ public final class AnchorResolver {
             case DOC_HEADING -> resolveHeading(a);
             case CATALOG_ID -> resolveCatalogId(a);
             case SOURCE_PATH -> resolveSourcePath(a);
+            case SOURCE_BASENAME -> resolveSourceBasename(a);
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
             case METHOD_SIGNATURE -> resolveMethodSignature(a);
@@ -215,6 +216,18 @@ public final class AnchorResolver {
 
         final boolean abbreviated = target.contains("/.../");
         if (!abbreviated && index.fileExists(target)) {
+            final String actualModule = moduleOfPath(target);
+            if (a.statedModule() != null
+                    && actualModule != null
+                    && !a.statedModule().equals(actualModule)) {
+                return Resolution.finding(
+                        Outcome.PRESENT,
+                        Lane.ASSERT,
+                        q,
+                        "`" + basename + "` resolves in module `" + actualModule
+                                + "`, but the stated label is `Module: " + a.statedModule() + "`; update the label to `"
+                                + actualModule + "`.");
+            }
             if (a.citedLine() != Anchor.NO_LINE) {
                 final int declLine = primaryTypeDeclLine(target, simpleName);
                 if (declLine > 0 && declLine != a.citedLine()) {
@@ -246,13 +259,14 @@ public final class AnchorResolver {
                 final String m = moduleOfPath(p);
                 modules.add(m == null ? p : m);
             }
-            return Resolution.finding(
-                    Outcome.PRESENT,
-                    Lane.ASSERT,
-                    q,
-                    "`" + basename + "` is not at the cited location"
-                            + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
-                            + "; it now resolves in: " + String.join(", ", modules) + " (package/path move).");
+            String evidence = "`" + basename + "` is not at the cited location"
+                    + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
+                    + "; it now resolves in: " + String.join(", ", modules) + " (package/path move).";
+            if (a.statedModule() != null && !modules.contains(a.statedModule())) {
+                evidence += " Also update the stated `Module: " + a.statedModule() + "` label to "
+                        + String.join(", ", modules) + ".";
+            }
+            return Resolution.finding(Outcome.PRESENT, Lane.ASSERT, q, evidence);
         }
         if (allowlist.isExternalName(simpleName)) {
             return Resolution.finding(
@@ -266,6 +280,36 @@ public final class AnchorResolver {
                 Lane.ASSERT,
                 q,
                 "No file `" + basename + "` under any indexed module; cited source `" + target + "` is gone.");
+    }
+
+    /**
+     * Resolves a bare source-file basename cited in prose (no path). Existence only: present if the
+     * basename is indexed anywhere, allowlisted if generated/external, otherwise asserted gone. No location
+     * was cited, so a "moved" location is never asserted.
+     *
+     * @param a the anchor to resolve.
+     * @return the resolution reflecting whether the basename exists in the index.
+     */
+    private Resolution resolveSourceBasename(final Anchor a) {
+        final String basename = a.target();
+        final String simpleName = stripExt(basename);
+        final String q = "source exists: " + basename;
+
+        if (allowlist.isExternalName(simpleName)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "`" + simpleName + "` is an allowlisted external/generated type.");
+        }
+        if (!index.pathsForBasename(basename).isEmpty()) {
+            return Resolution.ok(Outcome.PRESENT, q);
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "No file `" + basename + "` under any indexed module; cited source `" + basename + "` is gone.");
     }
 
     /**

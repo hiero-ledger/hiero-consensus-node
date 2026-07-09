@@ -184,6 +184,13 @@ public final class FindingAssembler {
      */
     private static Anchor withoutLine(final Anchor a) {
         return new Anchor(
-                a.kind(), a.target(), a.citedModule(), a.citedScope(), a.docLine(), Anchor.NO_LINE, a.rawText());
+                a.kind(),
+                a.target(),
+                a.citedModule(),
+                a.citedScope(),
+                a.docLine(),
+                Anchor.NO_LINE,
+                a.rawText(),
+                a.statedModule());
     }
 }
