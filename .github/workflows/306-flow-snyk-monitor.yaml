@@ -44,13 +44,16 @@ jobs:
       - name: Compile
         run: ./gradlew assemble
 
+      - name: Setup Snyk
+        uses: step-security/snyk-actions/setup@v1
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+
       - name: Disable Gradle Isolated Projects
         run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
 
       - name: Run Snyk Monitor
-        uses: step-security/snyk-actions/gradle-9-jdk24@v1
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: "monitor"
-          args: "--subProject=aggregation --configuration-matching=mainRuntimeClasspath --policy-path=.snyk --trust-policies --org=hiero-consensus-node"
+        run: snyk monitor --subProject=aggregation --configuration-matching=mainRuntimeClasspath --policy-path=.snyk --trust-policies --org=hiero-consensus-node
