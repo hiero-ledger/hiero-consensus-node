@@ -26,8 +26,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.SignedStateValidationData;
-import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;

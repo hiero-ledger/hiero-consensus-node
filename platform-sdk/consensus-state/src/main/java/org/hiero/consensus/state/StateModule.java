@@ -2,6 +2,7 @@
 package org.hiero.consensus.state;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
@@ -37,7 +38,11 @@ import org.hiero.consensus.state.hashing.StateHasher;
 import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
 import org.hiero.consensus.state.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
+import org.hiero.consensus.state.sentinel.DefaultSignedStateSentinel;
+import org.hiero.consensus.state.sentinel.SignedStateSentinel;
+import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.state.signing.DefaultStateSignatureCollector;
 import org.hiero.consensus.state.signing.DefaultStateSigner;
@@ -49,7 +54,7 @@ import org.hiero.consensus.state.utils.SignedStateReserver;
 /**
  * Module for signed state management.
  */
-public class StateManagementModule {
+public class StateModule {
 
     private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
@@ -62,6 +67,8 @@ public class StateManagementModule {
     private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
 
     private final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring;
+
+    private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
 
     private final OutputWire<ReservedSignedState> hashedStateOutputWire;
 
@@ -79,8 +86,9 @@ public class StateManagementModule {
      * @param swirldName the swirld name
      * @param stateLifecycleManager the state lifecycle manager
      * @param latestCompleteStateNexus the latest complete state nexus
+     * @param savedStateController the saved state controller
      */
-    public StateManagementModule(
+    public StateModule(
             @NonNull final WiringModel model,
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
@@ -115,6 +123,10 @@ public class StateManagementModule {
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION);
         this.latestCompleteStateNexusWiring =
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
+        this.stateGarbageCollectorWiring =
+                new ComponentWiring<>(model, StateGarbageCollector.class, wiringConfig.stateGarbageCollector());
+        final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
+                new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
 
         // Eventually mark unhashed state for storage and forward to StateHasher
         savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
@@ -167,6 +179,12 @@ public class StateManagementModule {
                 })
                 .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::setStateIfNewer));
 
+        // Setup heartbeat
+        model.buildHeartbeatWire(wiringConfig.stateGarbageCollectorHeartbeatPeriod())
+                .solderTo(stateGarbageCollectorWiring.getInputWire(StateGarbageCollector::heartbeat), OFFER);
+        model.buildHeartbeatWire(wiringConfig.signedStateSentinelHeartbeatPeriod())
+                .solderTo(signedStateSentinelWiring.getInputWire(SignedStateSentinel::checkSignedStates), OFFER);
+
         // Force not soldered wires to be built
         stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
@@ -196,6 +214,10 @@ public class StateManagementModule {
         stateSnapshotManagerWiring.bind(stateSnapshotManager);
         savedStateControllerWiring.bind(savedStateController);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
+        final StateGarbageCollector garbageCollector = new DefaultStateGarbageCollector(metrics);
+        stateGarbageCollectorWiring.bind(garbageCollector);
+        final SignedStateSentinel signedStateSentinel = new DefaultSignedStateSentinel(configuration);
+        signedStateSentinelWiring.bind(signedStateSentinel);
     }
 
     /**
@@ -219,6 +241,17 @@ public class StateManagementModule {
     @NonNull
     public InputWire<ReservedSignedState> hashedStatesInputWire() {
         return stateDispatcher.getInputWire();
+    }
+
+    /**
+     * Get the input wire for registering states in the garbage collector
+     *
+     * @return the input wire for registering states
+     */
+    @InputWireLabel("hashed states")
+    @NonNull
+    public InputWire<ReservedSignedState> garbageCollectorRegistrationInputWire() {
+        return stateGarbageCollectorWiring.getInputWire(StateGarbageCollector::registerState);
     }
 
     /**
@@ -307,7 +340,7 @@ public class StateManagementModule {
     }
 
     /**
-     * Flush the {@code StateManagementModule}.
+     * Flush the {@code StateModule}.
      */
     public void flush() {
         stateHasherWiring.flush();
