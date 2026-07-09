@@ -26,7 +26,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -48,7 +47,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.StateManagementModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -95,8 +94,7 @@ class PlatformWiringTests {
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
-        final StateManagementModule stateManagementModule =
-                createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -108,7 +106,7 @@ class PlatformWiringTests {
                 gossipModule,
                 issDetectionModule,
                 transactionHandlingModule,
-                stateManagementModule);
+                stateModule);
         PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents, null);
 
         final PlatformComponentBuilder componentBuilder =
@@ -119,7 +117,6 @@ class PlatformWiringTests {
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
-                .withSignedStateSentinel(mock(SignedStateSentinel.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
         platformComponents.bind(componentBuilder, mock(EventWindowManager.class), mock(AppNotifier.class));

@@ -11,7 +11,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -24,7 +23,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.StateGarbageCollector;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -119,7 +117,7 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .preHandleSignaturesOutputWire()
-                .solderTo(components.stateManagementModule().preconsensusSystemTransactionsInputWire());
+                .solderTo(components.stateModule().preconsensusSystemTransactionsInputWire());
 
         solderEventWindow(components);
 
@@ -147,7 +145,7 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .handleSignaturesOutputWire()
-                .solderTo(components.stateManagementModule().postconsensusSystemTranscationsInputWire());
+                .solderTo(components.stateModule().postconsensusSystemTranscationsInputWire());
         components
                 .transactionHandlingModule()
                 .handleSignaturesOutputWire()
@@ -156,28 +154,15 @@ public class PlatformWiring {
         components
                 .transactionHandlingModule()
                 .stateWithHashComplexityOutputWire()
-                .solderTo(components.stateManagementModule().unhashedStatesInputWire());
+                .solderTo(components.stateModule().unhashedStatesInputWire());
 
         components
                 .transactionHandlingModule()
                 .stateOutputWire()
-                .solderTo(components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::registerState));
-
-        final var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-        components
-                .model()
-                .buildHeartbeatWire(config.stateGarbageCollectorHeartbeatPeriod())
-                .solderTo(
-                        components.stateGarbageCollectorWiring().getInputWire(StateGarbageCollector::heartbeat), OFFER);
-        components
-                .model()
-                .buildHeartbeatWire(config.signedStateSentinelHeartbeatPeriod())
-                .solderTo(
-                        components.signedStateSentinelWiring().getInputWire(SignedStateSentinel::checkSignedStates),
-                        OFFER);
+                .solderTo(components.stateModule().garbageCollectorRegistrationInputWire());
 
         final OutputWire<ReservedSignedState> hashedStateOutputWire =
-                components.stateManagementModule().hashedStateOutputWire();
+                components.stateModule().hashedStateOutputWire();
         hashedStateOutputWire.solderTo(components.issDetectionModule().stateInputWire());
         hashedStateOutputWire
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
@@ -185,17 +170,17 @@ public class PlatformWiring {
 
         // send state signatures to execution
         components
-                .stateManagementModule()
+                .stateModule()
                 .stateSignaturesOutputWire()
                 .solderTo("ExecutionSignatureSubmission", "state signatures", execution::submitStateSignature);
 
         components
-                .stateManagementModule()
+                .stateModule()
                 .oldestMinimumBirthRoundOnDiskOutputWire()
                 .solderTo(components.pcesModule().minimumBirthRoundInputWire(), INJECT);
 
         components
-                .stateManagementModule()
+                .stateModule()
                 .stateSavingResultOutputWire()
                 .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
 
@@ -233,7 +218,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(components.stateManagementModule().platformStatusInputWire(), INJECT);
+                .solderTo(components.stateModule().platformStatusInputWire(), INJECT);
 
         solderNotifier(components);
         buildUnsolderedWires(components);
@@ -250,7 +235,7 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(components.gossipModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(components.pcesModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(components.eventCreatorModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(components.stateManagementModule().eventWindowInputWire());
+        eventWindowOutputWire.solderTo(components.stateModule().eventWindowInputWire());
     }
 
     /**
@@ -258,7 +243,7 @@ public class PlatformWiring {
      */
     private static void solderNotifier(final PlatformComponents components) {
         components
-                .stateManagementModule()
+                .stateModule()
                 .stateSavingResultOutputWire()
                 .buildTransformer(
                         "stateSavedNotifier",
