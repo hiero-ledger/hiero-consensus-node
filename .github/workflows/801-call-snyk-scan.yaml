@@ -85,20 +85,22 @@ jobs:
       - name: Setup Snyk
         id: setup-snyk
         if: ${{ github.event.repository.private == false }}
+        uses: step-security/snyk-actions/setup@v1
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      - name: Setup Snyk utils
+        id: setup-snyk-utils
         run: |
-          SNYK_EXPECTED="sha512-40leKMq2ERMrQ433ruLKIVdUpBsvn4CsRhEb8YGw5zHoVcwijx8KB0qxNqhZ4ZZ3pczfpHT14TuY1yMpt8sQZQ=="
           SNYK_TO_HTML_EXPECTED="sha512-Uh1meOLSASLMvtoX+RkY4tb7ygKUfk5P3kHHzNqtlN9asirszaH+yXWg7CnwvECf3QzaX+GEdQK5gBgH02Ksiw=="
           HTML_TO_MD_EXPECTED="sha512-4AQ43YhcJ9qEJgL5Pf9yA4t0RrPD3IvJX/SGqAP/YMMkXilmdP7oVKNgpUDW1CtHyCKus/9png/o6RvJOFXfOw=="
 
-          SNYK_ACTUAL=$(npm view snyk@1.1306.0 dist.integrity)
           SNYK_TO_HTML_ACTUAL=$(npm view snyk-to-html@3.7.7 dist.integrity)
           HTML_TO_MD_ACTUAL=$(npm view @wcj/html-to-markdown-cli@2.1.1 dist.integrity)
 
-          [ "$SNYK_ACTUAL" = "$SNYK_EXPECTED" ] || { echo "Integrity mismatch for snyk! Got: $SNYK_ACTUAL"; exit 1; }
           [ "$SNYK_TO_HTML_ACTUAL" = "$SNYK_TO_HTML_EXPECTED" ] || { echo "Integrity mismatch for snyk-to-html! Got: $SNYK_TO_HTML_ACTUAL"; exit 1; }
           [ "$HTML_TO_MD_ACTUAL" = "$HTML_TO_MD_EXPECTED" ] || { echo "Integrity mismatch for @wcj/html-to-markdown-cli! Got: $HTML_TO_MD_ACTUAL"; exit 1; }
 
-          ${CG_EXEC} npm install -g snyk@1.1306.0 snyk-to-html@3.7.7 @wcj/html-to-markdown-cli@2.1.1
+          ${CG_EXEC} npm install -g snyk-to-html@3.7.7 @wcj/html-to-markdown-cli@2.1.1
 
       - name: Disable Gradle Isolated Projects
         run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
