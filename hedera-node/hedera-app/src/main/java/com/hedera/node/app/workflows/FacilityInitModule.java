@@ -248,12 +248,10 @@ public interface FacilityInitModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final ExchangeRateManager exchangeRateManager) {
         final var filesConfig = configProvider.getConfiguration().getConfigData(FilesConfig.class);
-        final var hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         final var fileNum = filesConfig.exchangeRates();
         final var file = requireNonNull(
                 getFileFromStorage(state, configProvider, fileNum),
-                "The initialized state had no exchange rates file " + hederaConfig.shard() + "." + hederaConfig.realm()
-                        + "." + fileNum);
+                "The initialized state had no exchange rates file " + fileNum);
         final var midnightRates = requireNonNull(
                 state.getReadableStates(FeeService.NAME)
                         .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
@@ -269,7 +267,6 @@ public interface FacilityInitModule {
             @NonNull final FeeManager feeManager) {
         log.info("Initializing fee schedules");
         final var filesConfig = configProvider.getConfiguration().getConfigData(FilesConfig.class);
-        final var hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         final var fileNum = filesConfig.feeSchedules();
         final var file = requireNonNull(
                 getFileFromStorage(state, configProvider, fileNum),
@@ -288,9 +285,7 @@ public interface FacilityInitModule {
         final Bytes simpleFeesContents;
         if (simpleFeesFile == null) {
             log.warn(
-                    "The initialized state had no simple fee schedule file {}.{}.{}, using bootstrap genesis schedules",
-                    hederaConfig.shard(),
-                    hederaConfig.realm(),
+                    "The initialized state had no simple fee schedule file {}, using bootstrap genesis schedules",
                     simpleFeesFileNum);
             simpleFeesContents = fileService.fileSchema().genesisSimpleFeesSchedules(configProvider.getConfiguration());
         } else {
@@ -299,8 +294,8 @@ public interface FacilityInitModule {
 
         final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
         if (simpleStatus != SUCCESS) {
-            throw new IllegalStateException("State file " + hederaConfig.shard() + "." + hederaConfig.realm() + "."
-                    + simpleFeesFileNum + " did not contain parseable simple fee schedules: " + simpleStatus);
+            throw new IllegalStateException("State file " + simpleFeesFileNum
+                    + " did not contain parseable simple fee schedules: " + simpleStatus);
         }
     }
 
