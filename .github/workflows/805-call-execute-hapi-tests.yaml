@@ -1023,15 +1023,12 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
-          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently, so 2 rayon
-          # threads x 3 nodes = 6 leaves headroom for the JVMs and the runner agent. At
-          # 4 x 3 = 12 the CPUs were oversubscribed and the runner was evicted mid-proof
-          # with no logs. HAPI_TEST_NODE_POOL_MIB caps each node JVM's heap share (4 GiB
-          # x 3); the 64 GiB pod (swap=0) leaves the remainder for the native provers.
-          RAYON_NUM_THREADS: "2"
+          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently; cap each
+          # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
+          RAYON_NUM_THREADS: "4"
           HAPI_TEST_NODE_POOL_MIB: "12288"
         # (TEMPORARY) Memory watchdog. The runner container's cgroup cap is 64 GiB with no
-        # swap; rayon 4->2 didn't change the ~32-min death, so the suspect is memory, and a
+        # swap; the ~32-min runner death with no in-JVM error points at memory, and a
         # container OOM kills the runner agent too (no logs). This samples every 5s and, at
         # 60 GiB, dumps the memory breakdown + top RSS and kills the JVMs so the agent stays
         # up and the logs + peak survive. Remove before merge.

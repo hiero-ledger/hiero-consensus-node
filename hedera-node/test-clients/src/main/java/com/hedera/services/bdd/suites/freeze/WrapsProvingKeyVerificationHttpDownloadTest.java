@@ -120,12 +120,12 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(120))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, downloadedHash),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Pending WRAPS proving key hash (\\S+) matches proving key in state",
-                                Duration.ofSeconds(120))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, persistedHash),
                 verify(() -> {
                     assertEquals(
@@ -157,7 +157,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Pending WRAPS proving key hash (\\S+) matches proving key in state",
-                                Duration.ofSeconds(120))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, persistedHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
@@ -194,11 +194,11 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "WRAPS proving key hash mismatch at .+ \\(expected=.+, actual=.+\\), initiating download",
-                        Duration.ofSeconds(120)),
+                        Duration.ofSeconds(30)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(120))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, downloadedHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),

@@ -105,7 +105,7 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Pending WRAPS proving key hash (\\S+) matches proving key in state",
-                                Duration.ofSeconds(120))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, selectedProvingKeyHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
@@ -131,7 +131,7 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Overwriting previous WRAPS proving key hash (\\S+) with new pending hash (\\S+)",
-                                Duration.ofSeconds(120))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, prevProvingKeyHash)
                         .exposingMatchGroupTo(2, selectedProvingKeyHash),
                 verify(() -> {
