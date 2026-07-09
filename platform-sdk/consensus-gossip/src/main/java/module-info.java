@@ -3,8 +3,8 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.gossip.config.GossipConfigurationExtension;
 
 module org.hiero.consensus.gossip {
-    exports org.hiero.consensus.gossip;
     exports org.hiero.consensus.gossip.config;
+    exports org.hiero.consensus.gossip;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
