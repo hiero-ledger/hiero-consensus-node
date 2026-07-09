@@ -1,46 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.otter.fixtures {
-    exports org.hiero.otter.fixtures.assertions;
-    exports org.hiero.otter.fixtures.chaosbot;
-    exports org.hiero.otter.fixtures.exceptions;
-    exports org.hiero.otter.fixtures.junit;
-    exports org.hiero.otter.fixtures.logging;
-    exports org.hiero.otter.fixtures.network.transactions;
-    exports org.hiero.otter.fixtures.network;
-    exports org.hiero.otter.fixtures.result;
-    exports org.hiero.otter.fixtures.specs;
-    exports org.hiero.otter.fixtures.util;
-    exports org.hiero.otter.fixtures;
-    exports org.hiero.otter.fixtures.app to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            org.hiero.otter.test,
-            org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.app.services.consistency to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl;
-    exports org.hiero.otter.fixtures.container to
-            com.swirlds.config.impl,
-            org.hiero.otter.fixtures.test;
-    exports org.hiero.otter.fixtures.container.proto to
-            org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.container.utils to
-            org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.internal to
-            com.swirlds.config.impl,
-            org.hiero.consensus.otter.docker.app,
-            org.hiero.otter.fixtures.test;
-    exports org.hiero.otter.fixtures.internal.helpers to
-            org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.logging.internal to
-            org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.turtle to
-            org.apache.logging.log4j.core,
-            org.hiero.otter.fixtures.test;
-
-    opens org.hiero.otter.fixtures.container.network to
-            com.fasterxml.jackson.databind;
-
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base.test.fixtures;
@@ -98,4 +57,45 @@ module org.hiero.otter.fixtures {
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
+
+    exports org.hiero.otter.fixtures;
+    exports org.hiero.otter.fixtures.assertions;
+    exports org.hiero.otter.fixtures.chaosbot;
+    exports org.hiero.otter.fixtures.exceptions;
+    exports org.hiero.otter.fixtures.junit;
+    exports org.hiero.otter.fixtures.logging;
+    exports org.hiero.otter.fixtures.network;
+    exports org.hiero.otter.fixtures.network.transactions;
+    exports org.hiero.otter.fixtures.result;
+    exports org.hiero.otter.fixtures.specs;
+    exports org.hiero.otter.fixtures.util;
+    exports org.hiero.otter.fixtures.app to
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl,
+            org.hiero.otter.test,
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.app.services.consistency to
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl;
+    exports org.hiero.otter.fixtures.container to
+            com.swirlds.config.impl,
+            org.hiero.otter.fixtures.test;
+    exports org.hiero.otter.fixtures.container.proto to
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.container.utils to
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.internal to
+            com.swirlds.config.impl,
+            org.hiero.consensus.otter.docker.app,
+            org.hiero.otter.fixtures.test;
+    exports org.hiero.otter.fixtures.internal.helpers to
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.logging.internal to
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.turtle to
+            org.apache.logging.log4j.core,
+            org.hiero.otter.fixtures.test;
+
+    opens org.hiero.otter.fixtures.container.network to
+            com.fasterxml.jackson.databind;
 }

@@ -8,8 +8,8 @@ module org.hiero.metrics.export.file {
     requires transitive org.hiero.metrics;
     requires static transitive com.github.spotbugs.annotations;
 
-    provides com.swirlds.config.api.ConfigurationExtension with
-            org.hiero.metrics.export.file.config.MetricsFileExportConfigurationExtension;
     provides org.hiero.metrics.core.MetricsExporterFactory with
             org.hiero.metrics.export.file.MetricsFileExporterFactory;
+    provides com.swirlds.config.api.ConfigurationExtension with
+            org.hiero.metrics.export.file.config.MetricsFileExportConfigurationExtension;
 }

@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.hapi.utils {
+    exports com.hedera.node.app.hapi.utils.fee;
+    exports com.hedera.node.app.hapi.utils.forensics;
     exports com.hedera.node.app.hapi.utils.blocks;
-    exports com.hedera.node.app.hapi.utils.builder;
     exports com.hedera.node.app.hapi.utils.contracts;
     exports com.hedera.node.app.hapi.utils.ethereum;
     exports com.hedera.node.app.hapi.utils.exports.recordstreaming;
-    exports com.hedera.node.app.hapi.utils.exports;
-    exports com.hedera.node.app.hapi.utils.fee;
-    exports com.hedera.node.app.hapi.utils.forensics;
     exports com.hedera.node.app.hapi.utils.keys;
-    exports com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
-    exports com.hedera.node.app.hapi.utils.sysfiles.domain;
     exports com.hedera.node.app.hapi.utils.sysfiles.serdes;
-    exports com.hedera.node.app.hapi.utils.sysfiles.validation;
-    exports com.hedera.node.app.hapi.utils.sysfiles;
-    exports com.hedera.node.app.hapi.utils.throttles;
+    exports com.hedera.node.app.hapi.utils.sysfiles.domain.throttling;
     exports com.hedera.node.app.hapi.utils;
+    exports com.hedera.node.app.hapi.utils.throttles;
+    exports com.hedera.node.app.hapi.utils.builder;
+    exports com.hedera.node.app.hapi.utils.sysfiles.domain;
+    exports com.hedera.node.app.hapi.utils.sysfiles;
+    exports com.hedera.node.app.hapi.utils.exports;
+    exports com.hedera.node.app.hapi.utils.sysfiles.validation;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

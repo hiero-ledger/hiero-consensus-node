@@ -3,15 +3,10 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.event.stream.config.EventStreamConfigurationExtension;
 
 module org.hiero.consensus.event.stream {
-    exports org.hiero.consensus.event.stream.config;
     exports org.hiero.consensus.event.stream;
+    exports org.hiero.consensus.event.stream.config;
     exports org.hiero.consensus.event.stream.internal to
             org.hiero.consensus.event.stream.test.fixtures;
-
-    opens org.hiero.consensus.event.stream to
-            com.fasterxml.jackson.databind;
-    opens org.hiero.consensus.event.stream.internal to
-            com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;
@@ -31,4 +26,9 @@ module org.hiero.consensus.event.stream {
 
     provides ConfigurationExtension with
             EventStreamConfigurationExtension;
+
+    opens org.hiero.consensus.event.stream to
+            com.fasterxml.jackson.databind;
+    opens org.hiero.consensus.event.stream.internal to
+            com.fasterxml.jackson.databind;
 }
