@@ -62,11 +62,6 @@ on:
         type: boolean
         default: true
         description: "Run Migration Testing Panel"
-      enable-hapi-tests-blocks-suite:
-        required: true
-        type: boolean
-        default: true
-        description: "Run XTS HAPI Tests with blockStream.streamMode=BLOCKS"
       execute-state-validator-build:
         required: true
         type: boolean
@@ -95,10 +90,39 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.bn-release-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
   compute-solo-ge-0440:
     name: Compute solo-ge-0440
     needs:
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/856-call-solo-ge044.yaml
     with:
       solo-version: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}
@@ -108,6 +132,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - extract-citr-vars
+      - verify-citr-vars
       - compute-solo-ge-0440
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
@@ -139,11 +164,11 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Enable HAPI Tests BLOCKS Suite: ${{ inputs.enable-hapi-tests-blocks-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "TCK Version: ${{ needs.extract-citr-vars.outputs.tck-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "JS SDK Version: ${{ needs.extract-citr-vars.outputs.js-sdk-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Release Version: ${{ needs.extract-citr-vars.outputs.bn-release-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Regression Mirror Node Version: ${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "JSON RPC Relay Regression Version: ${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${SOLO_VERSION}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version >= 0.44.0 (gates Migration Testing + Block Node Regression): ${SOLO_GE_0440}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -173,6 +198,7 @@ jobs:
       - parameters
       - extract-jdk-version
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -192,16 +218,16 @@ jobs:
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
       enable-migration-testing-panel: ${{ inputs.enable-migration-testing-panel }}
-      enable-hapi-tests-blocks-suite: ${{ inputs.enable-hapi-tests-blocks-suite }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
       bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
       custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}

@@ -133,7 +133,7 @@ public class CustomFractionalFeeAssessor {
                 map.merge(collector, collectedAmount, AdjustmentUtils::addExactOrThrow);
                 result.getMutableInputBalanceAdjustments().put(denom, map);
 
-                final var finalEffPayerNums = filteredOriginalCredits.keySet();
+                final var finalEffPayerNums = reclaimResult.paidByPayer().keySet();
                 final var finalEffPayerNumsArray = new AccountID[finalEffPayerNums.size()];
 
                 // Add assessed custom fees to the result. This is needed to build transaction record

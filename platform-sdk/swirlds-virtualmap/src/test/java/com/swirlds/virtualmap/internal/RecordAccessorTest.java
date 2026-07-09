@@ -2,7 +2,7 @@
 package com.swirlds.virtualmap.internal;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,7 +40,6 @@ public class RecordAccessorTest {
     private static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     private static final long UNCHANGED_INTERNAL_PATH = 1;
-    private static final long CHANGED_INTERNAL_PATH = 2;
     private static final long CHANGED_LEAF_PATH = 5;
     private static final long CHANGED_LEAF_KEY = 11;
     private static final long UNCHANGED_LEAF_PATH = 7;
@@ -58,7 +57,7 @@ public class RecordAccessorTest {
         dataSource = new BreakableDataSource();
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         final VirtualNodeCache cache =
-                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
+                new VirtualNodeCache(DEFAULT_VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
         records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
 
         // Prepopulate the database with some records
@@ -266,7 +265,8 @@ public class RecordAccessorTest {
         final InMemoryDataSource ds = new InMemoryDataSource("closeClosesDataSource");
         final int hashChunkHeight = ds.getHashChunkHeight();
 
-        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, ds::loadHashChunk);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(DEFAULT_VIRTUAL_MAP_CONFIG, hashChunkHeight, ds::loadHashChunk);
         cache.putLeaf(leaf(1));
         cache.copy();
 

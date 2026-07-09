@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -39,7 +38,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordFeeAmount;
@@ -83,9 +81,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_CONSEN
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_RECORD_ACCOUNT_ID;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_SCHEDULE_ID;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_TRANSACTION_VALID_START;
-import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_TRANSFER_LIST;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.scheduledVersionOf;
-import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.transferListCheck;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
@@ -105,7 +101,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MESSAGE_SIZE_TOO_LARGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.METADATA_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SOME_SIGNATURES_WERE_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -982,8 +977,6 @@ public class ScheduleExecutionTest {
         String schedulePayer = PAYER;
         String successTx = "good";
         String failedTx = "bad";
-        AtomicReference<Map<AccountID, Long>> successFeesObs = new AtomicReference<>();
-        AtomicReference<Map<AccountID, Long>> failureFeesObs = new AtomicReference<>();
 
         return hapiTest(
                 createTopic(immutableTopic),
@@ -998,7 +991,7 @@ public class ScheduleExecutionTest {
                                     .via(successTx)
                                     .signedBy(DEFAULT_PAYER, schedulePayer),
                             getTopicInfo(immutableTopic).hasSeqNo(1L),
-                            getTxnRecord(successTx).scheduled().logged().revealingDebitsTo(successFeesObs::set),
+                            getTxnRecord(successTx).scheduled().logged(),
                             scheduleCreate(
                                             invalidSchedule,
                                             submitMessageTo(immutableTopic).message(randomUppercase(maxValidLen + 1)))
@@ -1007,56 +1000,39 @@ public class ScheduleExecutionTest {
                                     .signedBy(DEFAULT_PAYER, schedulePayer));
                 }),
                 getTopicInfo(immutableTopic).hasSeqNo(1L),
-                getTxnRecord(failedTx)
-                        .scheduled()
-                        .hasPriority(recordWith().status(MESSAGE_SIZE_TOO_LARGE))
-                        .revealingDebitsTo(failureFeesObs::set),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        // Under simple fees, validate each scheduled execution's fee
-                        // independently against expected USD (same approach as
-                        // safeValidateChargedUsdWithin but for scheduled child records)
-                        return withOpContext((spec, opLog) -> {
-                            var successRecord =
-                                    getTxnRecord(successTx).scheduled().logged();
-                            var failureRecord =
-                                    getTxnRecord(failedTx).scheduled().logged();
-                            allRunFor(spec, successRecord, failureRecord);
-                            var rate = successRecord
-                                    .getResponseRecord()
-                                    .getReceipt()
-                                    .getExchangeRate()
-                                    .getCurrentRate();
-                            double successUsd =
-                                    (1.0 * successRecord.getResponseRecord().getTransactionFee())
-                                            / ONE_HBAR
-                                            / rate.getHbarEquiv()
-                                            * rate.getCentEquiv()
-                                            / 100;
-                            double failureUsd =
-                                    (1.0 * failureRecord.getResponseRecord().getTransactionFee())
-                                            / ONE_HBAR
-                                            / rate.getHbarEquiv()
-                                            * rate.getCentEquiv()
-                                            / 100;
-                            // Scheduled execution charges service-only: base + byte overage
-                            Assertions.assertEquals(
-                                    expectedTopicSubmitMessageServiceOnly(1024L, false),
-                                    successUsd,
-                                    0.01 * expectedTopicSubmitMessageServiceOnly(1024L, false),
-                                    String.format("Success fee (%s) not within 1%% of expected!", successUsd));
-                            Assertions.assertEquals(
-                                    expectedTopicSubmitMessageServiceOnly(1025L, false),
-                                    failureUsd,
-                                    0.01 * expectedTopicSubmitMessageServiceOnly(1025L, false),
-                                    String.format(
-                                            "Failure fee (%s) expectedTopicSubmitMessageServiceOnly within 1%% of expected!",
-                                            failureUsd));
-                        });
-                    } else {
-                        return assertionsHold((spec, opLog) ->
-                                assertBasicallyIdentical(successFeesObs.get(), failureFeesObs.get(), 1.0));
-                    }
+                getTxnRecord(failedTx).scheduled().hasPriority(recordWith().status(MESSAGE_SIZE_TOO_LARGE)),
+                withOpContext((spec, opLog) -> {
+                    var successRecord = getTxnRecord(successTx).scheduled().logged();
+                    var failureRecord = getTxnRecord(failedTx).scheduled().logged();
+                    allRunFor(spec, successRecord, failureRecord);
+                    var rate = successRecord
+                            .getResponseRecord()
+                            .getReceipt()
+                            .getExchangeRate()
+                            .getCurrentRate();
+                    double successUsd = (1.0 * successRecord.getResponseRecord().getTransactionFee())
+                            / ONE_HBAR
+                            / rate.getHbarEquiv()
+                            * rate.getCentEquiv()
+                            / 100;
+                    double failureUsd = (1.0 * failureRecord.getResponseRecord().getTransactionFee())
+                            / ONE_HBAR
+                            / rate.getHbarEquiv()
+                            * rate.getCentEquiv()
+                            / 100;
+                    // Scheduled execution charges service-only: base + byte overage
+                    Assertions.assertEquals(
+                            expectedTopicSubmitMessageServiceOnly(1024L, false),
+                            successUsd,
+                            0.01 * expectedTopicSubmitMessageServiceOnly(1024L, false),
+                            String.format("Success fee (%s) not within 1%% of expected!", successUsd));
+                    Assertions.assertEquals(
+                            expectedTopicSubmitMessageServiceOnly(1025L, false),
+                            failureUsd,
+                            0.01 * expectedTopicSubmitMessageServiceOnly(1025L, false),
+                            String.format(
+                                    "Failure fee (%s) expectedTopicSubmitMessageServiceOnly within 1%% of expected!",
+                                    failureUsd));
                 }));
     }
 
@@ -1302,17 +1278,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    if (!"true".equals(spec.startupProperties().get("fees.simpleFeesEnabled"))) {
-                        Assertions.assertTrue(
-                                transferListCheck(
-                                        triggeredTx,
-                                        asId(SENDER, spec),
-                                        asId(RECEIVER, spec),
-                                        asId(PAYING_ACCOUNT, spec),
-                                        transferAmount),
-                                WRONG_TRANSFER_LIST);
-                    }
                 }));
     }
 
@@ -1337,24 +1302,9 @@ public class ScheduleExecutionTest {
                 }))),
                 getAccountBalance(PAYING_ACCOUNT).hasTinyBars(noBalance),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).hasKnownStatus(SUCCESS),
-                doSeveralWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? specOps(
-                                        getAccountBalance(SENDER).hasTinyBars(0L),
-                                        getAccountBalance(RECEIVER).hasTinyBars(transferAmount))
-                                : specOps(
-                                        getAccountBalance(SENDER).hasTinyBars(transferAmount),
-                                        getAccountBalance(RECEIVER).hasTinyBars(0L))),
-                doWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith().status(SUCCESS))
-                                : getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith().statusFrom(INSUFFICIENT_PAYER_BALANCE))));
+                getAccountBalance(SENDER).hasTinyBars(0L),
+                getAccountBalance(RECEIVER).hasTinyBars(transferAmount),
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1405,24 +1355,9 @@ public class ScheduleExecutionTest {
                         .alsoSigningWith(SENDER, PAYING_ACCOUNT)
                         .via(SIGN_TXN)
                         .hasKnownStatus(SUCCESS),
-                doSeveralWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? specOps(
-                                        getAccountBalance(SENDER).hasTinyBars(0L),
-                                        getAccountBalance(RECEIVER).hasTinyBars(transferAmount))
-                                : specOps(
-                                        getAccountBalance(SENDER).hasTinyBars(transferAmount),
-                                        getAccountBalance(RECEIVER).hasTinyBars(0L))),
-                doWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith().status(SUCCESS))
-                                : getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith().statusFrom(INSUFFICIENT_PAYER_BALANCE))));
+                getAccountBalance(SENDER).hasTinyBars(0L),
+                getAccountBalance(RECEIVER).hasTinyBars(transferAmount),
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1442,16 +1377,7 @@ public class ScheduleExecutionTest {
                 cryptoDelete(PAYING_ACCOUNT),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).hasKnownStatus(SUCCESS),
                 getScheduleInfo(BASIC_XFER).isExecuted(),
-                doWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith().status(SUCCESS))
-                                : getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith()
-                                                .statusFrom(INSUFFICIENT_PAYER_BALANCE, PAYER_ACCOUNT_DELETED))));
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1469,26 +1395,10 @@ public class ScheduleExecutionTest {
                         .via(CREATE_TXN),
                 cryptoDelete(PAYING_ACCOUNT),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).via(SIGN_TXN).hasKnownStatus(SUCCESS),
-                doSeveralWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? specOps(
-                                        getAccountBalance(SENDER).hasTinyBars(0L),
-                                        getAccountBalance(RECEIVER).hasTinyBars(transferAmount))
-                                : specOps(
-                                        getAccountBalance(SENDER).hasTinyBars(transferAmount),
-                                        getAccountBalance(RECEIVER).hasTinyBars(0L))),
+                getAccountBalance(SENDER).hasTinyBars(0L),
+                getAccountBalance(RECEIVER).hasTinyBars(transferAmount),
                 getScheduleInfo(BASIC_XFER).isExecuted(),
-                doWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                ? getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith().status(SUCCESS))
-                                : getTxnRecord(CREATE_TXN)
-                                        .scheduled()
-                                        .hasPriority(recordWith()
-                                                .statusFrom(INSUFFICIENT_PAYER_BALANCE, PAYER_ACCOUNT_DELETED))));
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1651,17 +1561,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    if (!"true".equals(spec.startupProperties().get("fees.simpleFeesEnabled"))) {
-                        Assertions.assertTrue(
-                                transferListCheck(
-                                        triggeredTx,
-                                        asId(SENDER, spec),
-                                        asId(RECEIVER, spec),
-                                        asId(PAYING_ACCOUNT, spec),
-                                        transferAmount),
-                                WRONG_TRANSFER_LIST);
-                    }
                 }));
     }
 
@@ -1719,17 +1618,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    if (!"true".equals(spec.startupProperties().get("fees.simpleFeesEnabled"))) {
-                        Assertions.assertTrue(
-                                transferListCheck(
-                                        triggeredTx,
-                                        asId(SENDER, spec),
-                                        asId(RECEIVER, spec),
-                                        asId(PAYING_ACCOUNT, spec),
-                                        transferAmount),
-                                WRONG_TRANSFER_LIST);
-                    }
                 }));
     }
 
@@ -1783,17 +1671,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    if (!"true".equals(spec.startupProperties().get("fees.simpleFeesEnabled"))) {
-                        Assertions.assertTrue(
-                                transferListCheck(
-                                        triggeredTx,
-                                        asId(SENDER, spec),
-                                        asId(RECEIVER, spec),
-                                        asId(PAYING_ACCOUNT, spec),
-                                        transferAmount),
-                                WRONG_TRANSFER_LIST);
-                    }
                 }));
     }
 

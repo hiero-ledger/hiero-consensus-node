@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createDataSource;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -14,10 +14,12 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,7 +41,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
     }
 
     final MerkleDbDataSourceBuilder createDefaultBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, INITIAL_SIZE);
+        return new MerkleDbDataSourceBuilder(DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
     }
 
     @ParameterizedTest
@@ -120,6 +122,51 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         } finally {
             original.close();
             copy.close();
+        }
+    }
+
+    @Test
+    void canCreateDataSourceWithNoDefaultDir() throws Exception {
+        final String defaultFolderName = "merkledb-state";
+        final Path defaultPath = fileSystemManager.getTempPath().resolve(defaultFolderName);
+        if (Files.isDirectory(defaultPath)) {
+            Files.deleteIfExists(defaultPath);
+        }
+        final MerkleDbDataSourceBuilder builder =
+                new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
+        final VirtualDataSource dataSource = builder.build("test", null, false, false);
+        try {
+            // Check the folder gets created
+            Assertions.assertTrue(Files.isDirectory(defaultPath));
+            // Check the data source is empty
+            Assertions.assertEquals(-1, dataSource.getFirstLeafPath());
+            Assertions.assertEquals(-1, dataSource.getLastLeafPath());
+        } finally {
+            dataSource.close();
+        }
+    }
+
+    @Test
+    void canCreateDataSourceWithDefaultDir() throws Exception {
+        final String defaultFolderName = "merkledb-state";
+        final Path defaultPath = fileSystemManager.getTempPath().resolve(defaultFolderName);
+        if (Files.isDirectory(defaultPath)) {
+            Files.deleteIfExists(defaultPath);
+        }
+        final MerkleDbDataSourceBuilder builder =
+                new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
+        final VirtualDataSource dataSource1 = builder.build("test", null, false, false);
+        try {
+            dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);
+        } finally {
+            dataSource1.close(true);
+        }
+        final VirtualDataSource dataSource2 = builder.build("test", null, false, false);
+        try {
+            Assertions.assertEquals(100, dataSource2.getFirstLeafPath());
+            Assertions.assertEquals(200, dataSource2.getLastLeafPath());
+        } finally {
+            dataSource2.close();
         }
     }
 }

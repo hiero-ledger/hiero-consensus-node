@@ -1,7 +1,7 @@
 # Rules — Entry Format
 
 Specification for `rules/RUL-NNN-short-slug.md` entries. This file defines the
-structure only; allowed values for the `topics` field are the eleven topic
+structure only; allowed values for the `topics` field are the topic
 slugs under `architecture/topics/`. The test for whether something is a rule
 rather than an invariant is defined in `README.md` — apply it before filing
 here.

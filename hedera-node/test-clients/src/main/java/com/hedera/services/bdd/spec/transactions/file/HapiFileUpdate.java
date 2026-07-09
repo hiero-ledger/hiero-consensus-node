@@ -2,13 +2,10 @@
 package com.hedera.services.bdd.spec.transactions.file;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes.SYS_FILE_SERDES;
 import static java.util.Collections.EMPTY_MAP;
 
@@ -16,16 +13,12 @@ import com.google.common.base.MoreObjects;
 import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.StringValue;
-import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.queries.file.HapiGetFileContents;
-import com.hedera.services.bdd.spec.queries.file.HapiGetFileInfo;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.ExchangeRateSet;
-import com.hederahashgraph.api.proto.java.FileGetInfoResponse;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -35,7 +28,6 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.Setting;
 import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -323,38 +315,6 @@ public class HapiFileUpdate extends HapiTxnOp<HapiFileUpdate> {
     private List<Function<HapiSpec, Key>> oldDefaults() {
         return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), spec -> spec.registry()
                 .getKey(file));
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        try {
-            final FileGetInfoResponse.FileInfo info = lookupInfo(spec);
-            FeeCalculator.ActivityMetrics metricsCalc = (innerTxn, svo) -> {
-                var ctx = ExtantFileContext.newBuilder()
-                        .setCurrentExpiry(info.getExpirationTime().getSeconds())
-                        .setCurrentMemo(info.getMemo())
-                        .setCurrentWacl(info.getKeys())
-                        .setCurrentSize(info.getSize())
-                        .build();
-                return fileOpsUsage.fileUpdateUsage(innerTxn, suFrom(svo), ctx);
-            };
-            return spec.fees().forActivityBasedOp(HederaFunctionality.FileUpdate, metricsCalc, txn, numPayerKeys);
-        } catch (Throwable ignore) {
-            return ONE_HBAR;
-        }
-    }
-
-    @SuppressWarnings("java:S112")
-    private FileGetInfoResponse.FileInfo lookupInfo(HapiSpec spec) throws Throwable {
-        HapiGetFileInfo subOp = getFileInfo(file).noLogging().fee(ONE_HBAR);
-        Optional<Throwable> error = subOp.execFor(spec);
-        if (error.isPresent()) {
-            if (!loggingOff) {
-                LOG.warn("Unable to look up current file info!", error.get());
-            }
-            throw error.get();
-        }
-        return subOp.getResponse().getFileGetInfo().getFileInfo();
     }
 
     @Override
