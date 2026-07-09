@@ -113,7 +113,7 @@ jobs:
   validate:
     name: Validate
     runs-on: hl-cn-default-lin-md
-    if: ${{ !github.event.workflow_call.repository.fork }}
+    if: ${{ !github.event.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
       branch-name-lower: ${{ steps.parameters.outputs.branch-name-lower }}
