@@ -5,22 +5,30 @@ apply step once a TCK release includes it (then bump the tck-version pin in .cit
 1. Node-service tests sign createNode with the node account's key (required since
    HIP-1299/HIP-869 signature enforcement, #25061) and use their fixture account
    instead of the hardcoded 0.0.4.
-2. MirrorNodeClient routes /api/v1/network/nodes to the restjava base URL (the JS
-   rest module no longer serves it on mirror-node >= ~0.15x).
+2. MirrorNodeClient queries /api/v1/network/nodes on the restjava base URL, falling
+   back to the rest module for pre-migration mirror versions.
 
 diff --git a/src/services/MirrorNodeClient.ts b/src/services/MirrorNodeClient.ts
-index a539b92..ab3eacc 100644
+index a539b92..9debb20 100644
 --- a/src/services/MirrorNodeClient.ts
 +++ b/src/services/MirrorNodeClient.ts
-@@ -109,7 +109,7 @@ class MirrorNodeClient {
+@@ -109,8 +109,14 @@ class MirrorNodeClient {
    }
  
    async getNodeData(nodeId: string): Promise<NetworkNodesResponse> {
 -    const url = `${this.mirrorNodeRestUrl}/api/v1/network/nodes?node.id=${nodeId}`;
+-    return retryOnError(async () => fetchData(url));
++    // Current mirror node versions serve /api/v1/network/nodes from the rest-java
++    // module; older versions serve it from the rest module. Try rest-java first and
++    // fall back so the TCK works across mirror node versions.
 +    const url = `${this.mirrorNodeRestJavaUrl}/api/v1/network/nodes?node.id=${nodeId}`;
-     return retryOnError(async () => fetchData(url));
++    const legacyUrl = `${this.mirrorNodeRestUrl}/api/v1/network/nodes?node.id=${nodeId}`;
++    return retryOnError(async () =>
++      fetchData(url).catch(() => fetchData(legacyUrl)),
++    );
    }
  }
+ 
 diff --git a/src/tests/node-service/test-node-create-transaction.ts b/src/tests/node-service/test-node-create-transaction.ts
 index c59c3d3..b31ae58 100644
 --- a/src/tests/node-service/test-node-create-transaction.ts
