@@ -88,6 +88,7 @@ jobs:
         uses: step-security/snyk-actions/setup@v1
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
       - name: Setup Snyk utils
         id: setup-snyk-utils
         run: |
