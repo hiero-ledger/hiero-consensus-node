@@ -11,10 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermissions;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,12 +30,33 @@ class KeyUtilsTest {
     @Test
     void writeKeyToCreatesKey() {
         final var newKeyFile = tempDir.toPath().resolve("ed25519.pem");
-        final EdDSAPrivateKey edKey = new EdDSAPrivateKey(
-                new EdDSAPrivateKeySpec(new byte[32], EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519)));
+        final var edKey = ed25519PrivateKey();
 
         KeyUtils.writeKeyTo(edKey, newKeyFile.toString(), "testpass");
         final var recovered = Ed25519Utils.readKeyFrom(newKeyFile.toString(), "testpass");
         assertEquals(edKey, recovered);
+    }
+
+    @Test
+    void writeKeyToCreatesPemWithOwnerOnlyPermissions() throws Exception {
+        final var newKeyFile = tempDir.toPath().resolve("ed25519.pem");
+        assumePosixPermissionsSupported(newKeyFile);
+
+        KeyUtils.writeKeyTo(ed25519PrivateKey(), newKeyFile.toString(), "testpass");
+
+        assertEquals(PosixFilePermissions.fromString("rw-------"), Files.getPosixFilePermissions(newKeyFile));
+    }
+
+    @Test
+    void writeKeyToRepairsExistingPemPermissions() throws Exception {
+        final var existingKeyFile = tempDir.toPath().resolve("ed25519.pem");
+        assumePosixPermissionsSupported(existingKeyFile);
+        Files.writeString(existingKeyFile, "stale", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(existingKeyFile, PosixFilePermissions.fromString("rw-r--r--"));
+
+        KeyUtils.writeKeyTo(ed25519PrivateKey(), existingKeyFile.toString(), "testpass");
+
+        assertEquals(PosixFilePermissions.fromString("rw-------"), Files.getPosixFilePermissions(existingKeyFile));
     }
 
     @Test
@@ -167,5 +192,18 @@ class KeyUtilsTest {
 
     private static String pem(final String type, final String base64Body) {
         return "-----BEGIN " + type + "-----\n" + base64Body + "\n-----END " + type + "-----\n";
+    }
+
+    private static EdDSAPrivateKey ed25519PrivateKey() {
+        return new EdDSAPrivateKey(
+                new EdDSAPrivateKeySpec(new byte[32], EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519)));
+    }
+
+    private static void assumePosixPermissionsSupported(final Path path) throws Exception {
+        final var pathToCheck =
+                Files.exists(path) ? path : path.toAbsolutePath().getParent();
+        Assumptions.assumeTrue(
+                pathToCheck != null && Files.getFileStore(pathToCheck).supportsFileAttributeView("posix"),
+                "POSIX permissions not supported on this filesystem");
     }
 }

@@ -3,7 +3,8 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,8 +49,9 @@ class MerkleDbCompactionCoordinatorTest {
 
     @BeforeEach
     void setUp() {
-        final MerkleDbConfig defaultConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig defaultConfig = DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class);
         config = new MerkleDbConfig(
+                defaultConfig.defaultDbFolderName(),
                 defaultConfig.initialCapacity(),
                 defaultConfig.maxNumOfKeys(),
                 defaultConfig.hashesRamToDiskThreshold(),
@@ -85,8 +87,8 @@ class MerkleDbCompactionCoordinatorTest {
         coordinator.stopAndDisableBackgroundCompaction();
         assertEventuallyEquals(
                 0,
-                () -> ((ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
-                                CONFIGURATION.getConfigData(MerkleDbConfig.class)))
+                () -> ((ThreadPoolExecutor)
+                                MerkleDbCompactionCoordinator.getCompactionExecutor(DEFAULT_MERKLE_DB_CONFIG))
                         .getActiveCount(),
                 Duration.ofSeconds(2),
                 "Active task count is not 0");
@@ -1044,8 +1046,9 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     private MerkleDbConfig configWithConsolidation(int maxInputSizeMB, int minFileCount) {
-        final MerkleDbConfig d = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig d = DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbConfig(
+                d.defaultDbFolderName(),
                 d.initialCapacity(),
                 d.maxNumOfKeys(),
                 d.hashesRamToDiskThreshold(),

@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -31,17 +31,17 @@ public class IsAuthorizedTranslator extends AbstractCallTranslator<HasCallAttemp
     private static final int MESSAGE_ARG = 1;
     private static final int SIGNATURE_BLOB_ARG = 2;
 
-    private final CustomGasCalculator customGasCalculator;
+    private final HederaGasCalculatorImpl hederaGasCalculatorImpl;
 
     @Inject
     public IsAuthorizedTranslator(
             @ServicesV051 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CustomGasCalculator customGasCalculator,
+            @NonNull final HederaGasCalculatorImpl hederaGasCalculatorImpl,
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HAS, systemContractMethodRegistry, contractMetrics);
         requireNonNull(featureFlags, "featureFlags");
-        this.customGasCalculator = requireNonNull(customGasCalculator);
+        this.hederaGasCalculatorImpl = requireNonNull(hederaGasCalculatorImpl);
 
         registerMethods(IS_AUTHORIZED);
     }
@@ -69,7 +69,7 @@ public class IsAuthorizedTranslator extends AbstractCallTranslator<HasCallAttemp
             final var message = (byte[]) call.get(MESSAGE_ARG);
             final var signatureBlob = (byte[]) call.get(SIGNATURE_BLOB_ARG);
 
-            return new IsAuthorizedCall(attempt, address, message, signatureBlob, customGasCalculator);
+            return new IsAuthorizedCall(attempt, address, message, signatureBlob, hederaGasCalculatorImpl);
         }
         return null;
     }

@@ -2,6 +2,8 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.MerkleDbStatistics.STAT_CATEGORY;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -11,9 +13,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import java.util.concurrent.ScheduledExecutorService;
@@ -26,8 +25,6 @@ import org.junit.jupiter.api.Test;
 
 class MerkleDbStatisticsTest {
 
-    private Configuration configuration;
-
     private static final String LABEL = "LaBeL";
 
     private MetricsConfig metricsConfig;
@@ -37,8 +34,7 @@ class MerkleDbStatisticsTest {
 
     @BeforeEach
     void setupService() {
-        configuration = new TestConfigBuilder().getOrCreateConfig();
-        metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
 
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
@@ -48,7 +44,7 @@ class MerkleDbStatisticsTest {
                 mock(ScheduledExecutorService.class),
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
-        statistics = new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), LABEL);
+        statistics = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, LABEL);
         statistics.registerMetrics(metrics);
         compactionLevel = randomCompactionLevel();
     }
@@ -60,8 +56,7 @@ class MerkleDbStatisticsTest {
 
     @Test
     public void testMetricsDoesntThrowBeforeRegister() {
-        MerkleDbStatistics notRegisteredStatistics =
-                new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), LABEL);
+        MerkleDbStatistics notRegisteredStatistics = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, LABEL);
         verifyMetricsDoesntThrow(notRegisteredStatistics);
     }
 
@@ -94,16 +89,13 @@ class MerkleDbStatisticsTest {
 
     @Test
     void testConstructorWithNullParameter() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), null));
+        assertThrows(NullPointerException.class, () -> new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, null));
     }
 
     @Test
     void testRegisterWithNullParameter() {
         // given
-        final MerkleDbStatistics statistics =
-                new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), LABEL);
+        final MerkleDbStatistics statistics = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, LABEL);
 
         // then
         assertThrows(NullPointerException.class, () -> statistics.registerMetrics(null));
@@ -194,7 +186,7 @@ class MerkleDbStatisticsTest {
     @Test
     void testSetLeafKeysStoreFileCount() {
         // given
-        statistics = new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), LABEL);
+        statistics = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, LABEL);
         statistics.registerMetrics(metrics);
         final Metric metric = getMetric("files_", "leafKeysStoreFileCount_" + LABEL);
         // when
@@ -206,7 +198,7 @@ class MerkleDbStatisticsTest {
     @Test
     void testSetLeafKeysStoreTotalFileSizeMb() {
         // given
-        statistics = new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), LABEL);
+        statistics = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, LABEL);
         statistics.registerMetrics(metrics);
         final Metric metric = getMetric("files_", "leafKeysStoreFileSizeMb_" + LABEL);
         // when
@@ -256,8 +248,7 @@ class MerkleDbStatisticsTest {
                 mock(ScheduledExecutorService.class),
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
-        final MerkleDbStatistics statistics =
-                new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), LABEL);
+        final MerkleDbStatistics statistics = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, LABEL);
         statistics.registerMetrics(metrics);
         final Metric metric = getMetric(metrics, "compactions_level_" + compactionLevel, "_leafKeysTimeMs_" + LABEL);
         // when
@@ -360,8 +351,7 @@ class MerkleDbStatisticsTest {
     void testTableNameWithPeriod() {
         final String complexLabel = "service." + LABEL;
         final String expectedLabelSuffix = complexLabel.replace('.', '_');
-        final MerkleDbStatistics stats =
-                new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), complexLabel);
+        final MerkleDbStatistics stats = new MerkleDbStatistics(DEFAULT_MERKLE_DB_CONFIG, complexLabel);
         stats.registerMetrics(metrics);
 
         // given

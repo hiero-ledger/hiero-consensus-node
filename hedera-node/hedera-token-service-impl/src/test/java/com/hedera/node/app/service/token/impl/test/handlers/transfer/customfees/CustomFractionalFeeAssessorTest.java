@@ -78,6 +78,8 @@ public class CustomFractionalFeeAssessorTest {
     private final AccountID firstFractionalFeeCollector = asAccount(0L, 0L, 6666L);
     private final AccountID secondFractionalFeeCollector = asAccount(0L, 0L, 7777L);
     private final AccountID netOfTransfersFeeCollector = asAccount(0L, 0L, 8888L);
+    private final AccountID[] effPayersIncludingFirstCollector =
+            new AccountID[] {firstReclaimedAcount, secondReclaimedAcount, firstFractionalFeeCollector};
 
     final FractionalFee netOfTransferFractionalFee = FractionalFee.newBuilder()
             .maximumAmount(netOfTransfersMaxAmountOfFractionalFee)
@@ -193,7 +195,7 @@ public class CustomFractionalFeeAssessorTest {
                 .build();
         final var expectedAssessedFee2 = AssessedCustomFee.newBuilder()
                 .feeCollectorAccountId(secondFractionalFeeCollector)
-                .effectivePayerAccountId(effPayerAccountNums)
+                .effectivePayerAccountId(effPayersIncludingFirstCollector)
                 .amount(secondExpectedFee)
                 .tokenId(tokenWithFractionalFee)
                 .build();
@@ -296,6 +298,79 @@ public class CustomFractionalFeeAssessorTest {
         assertThat(assessedFees).contains(expectedAssessedFee1);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
+    }
+
+    @Test
+    void onlyAccountsThatActuallyPaidRemainderAreEffectivePayers() {
+        final TokenTransferList triggerTransferList = asTokenTransferList(
+                tokenWithFractionalFee,
+                List.of(
+                        asAccountAmount(payer, -100L),
+                        asAccountAmount(firstReclaimedAcount, 1L),
+                        asAccountAmount(secondReclaimedAcount, 99L)));
+        result = new AssessmentResult(List.of(triggerTransferList), List.of());
+        final var onePercentFee = FractionalFee.newBuilder()
+                .maximumAmount(0)
+                .minimumAmount(0)
+                .netOfTransfers(false)
+                .fractionalAmount(
+                        Fraction.newBuilder().numerator(1).denominator(100).build())
+                .build();
+        final Token token = withCustomToken(
+                List.of(
+                        withFractionalFee(onePercentFee, firstFractionalFeeCollector, false),
+                        withFractionalFee(onePercentFee, secondFractionalFeeCollector, false)),
+                FUNGIBLE_COMMON);
+
+        subject.assessFractionalFees(token, payer, result);
+
+        final var assessedFees = result.getItemizedAssessedFees().stream()
+                .map(ItemizedAssessedFee::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).hasSize(2);
+        assertThat(assessedFees.get(0).amount()).isEqualTo(1L);
+        assertThat(assessedFees.get(0).effectivePayerAccountId()).containsExactly(firstReclaimedAcount);
+        assertThat(assessedFees.get(1).amount()).isEqualTo(1L);
+        assertThat(assessedFees.get(1).effectivePayerAccountId()).containsExactly(secondReclaimedAcount);
+    }
+
+    @Test
+    void includesPriorCollectorWhenLaterFractionalFeeReclaimsCollectorCredit() {
+        final TokenTransferList triggerTransferList = asTokenTransferList(
+                tokenWithFractionalFee,
+                List.of(asAccountAmount(payer, -50L), asAccountAmount(firstReclaimedAcount, 50L)));
+        result = new AssessmentResult(List.of(triggerTransferList), List.of());
+        final var tenPercentFee = FractionalFee.newBuilder()
+                .maximumAmount(0)
+                .minimumAmount(0)
+                .netOfTransfers(false)
+                .fractionalAmount(
+                        Fraction.newBuilder().numerator(1).denominator(10).build())
+                .build();
+        final var twentyPercentFee = FractionalFee.newBuilder()
+                .maximumAmount(0)
+                .minimumAmount(0)
+                .netOfTransfers(false)
+                .fractionalAmount(
+                        Fraction.newBuilder().numerator(1).denominator(5).build())
+                .build();
+        final Token token = withCustomToken(
+                List.of(
+                        withFractionalFee(tenPercentFee, firstFractionalFeeCollector, false),
+                        withFractionalFee(twentyPercentFee, secondFractionalFeeCollector, false)),
+                FUNGIBLE_COMMON);
+
+        subject.assessFractionalFees(token, payer, result);
+
+        final var assessedFees = result.getItemizedAssessedFees().stream()
+                .map(ItemizedAssessedFee::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).hasSize(2);
+        assertThat(assessedFees.get(0).amount()).isEqualTo(5L);
+        assertThat(assessedFees.get(0).effectivePayerAccountId()).containsExactly(firstReclaimedAcount);
+        assertThat(assessedFees.get(1).amount()).isEqualTo(10L);
+        assertThat(assessedFees.get(1).effectivePayerAccountId())
+                .containsExactly(firstReclaimedAcount, firstFractionalFeeCollector);
     }
 
     @Test
@@ -474,7 +549,7 @@ public class CustomFractionalFeeAssessorTest {
                 .build();
         final var expectedAssessedFee2 = AssessedCustomFee.newBuilder()
                 .feeCollectorAccountId(secondFractionalFeeCollector)
-                .effectivePayerAccountId(effPayerAccountNums)
+                .effectivePayerAccountId(effPayersIncludingFirstCollector)
                 .amount(secondExpectedFee)
                 .tokenId(tokenWithFractionalFee)
                 .build();

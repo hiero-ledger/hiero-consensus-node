@@ -205,9 +205,9 @@ public final class SyncUtils {
      * @param sendList The list of events to sort.
      */
     static void sort(@NonNull final List<PlatformEvent> sendList) {
-        // Note: regardless of ancient mode, sorting uses generations and not birth rounds.
-        //       Sorting by generations yields a list in topological order, sorting by birth rounds does not.
-        sendList.sort(Comparator.comparingLong(PlatformEvent::getNGen));
+        // Note: regardless of ancient mode, sorting uses locally calculated sequence number and not birth rounds.
+        //       Sorting by sequence number yields a list in topological order, sorting by birth rounds does not.
+        sendList.sort(Comparator.comparingLong(PlatformEvent::getSequenceNumber));
     }
 
     /**

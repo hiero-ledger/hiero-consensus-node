@@ -13,9 +13,10 @@ import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.SecureRandom;
 import java.util.Set;
-import java.util.SplittableRandom;
 import java.util.StringJoiner;
+import org.hiero.base.crypto.CryptoUtils;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
@@ -23,7 +24,7 @@ import java.util.StringJoiner;
 public class HistoryLibraryImpl implements HistoryLibrary {
     private static final int SCHNORR_PUBLIC_KEY_LENGTH = (int) HistoryLibrary.MISSING_SCHNORR_KEY.length();
 
-    public static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
     public static final int WRAPS_VERIFICATION_KEY_LENGTH = 1768;
 

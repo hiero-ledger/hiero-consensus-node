@@ -65,6 +65,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithDecimals;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -341,7 +342,7 @@ public class CryptoTransferSuite {
                         .withCustom(royaltyFeeWithFallback(
                                 1, 2, fixedHtsFeeInheritingRoyaltyCollector(1, "FEE_DENOM"), collector)),
                 mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(TOKEN_METADATA))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     ftId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
@@ -372,7 +373,7 @@ public class CryptoTransferSuite {
 
         return hapiTest(
                 newKeyNamed(validAlias).shape(ED25519),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var validKey = registry.getKey(validAlias);
                     final var invalidBytes = new byte[validKey.getEd25519().size() + 8];
@@ -413,7 +414,7 @@ public class CryptoTransferSuite {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(MULTI_KEY),
                 mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(TOKEN_METADATA))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     ftId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
@@ -520,7 +521,7 @@ public class CryptoTransferSuite {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(MULTI_KEY),
                 mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(TOKEN_METADATA))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     ftId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
@@ -1158,8 +1159,8 @@ public class CryptoTransferSuite {
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
                     double expectedFeeOneToken = 10.0;
-                    double expectedFeeTwoToken = spec.simpleFeesEnabled() ? 14.0 : 20.0;
-                    double expectedFeeThreeToken = spec.simpleFeesEnabled() ? 18.0 : 30.0;
+                    double expectedFeeTwoToken = 14.0;
+                    double expectedFeeThreeToken = 18.0;
                     assertEquals(expectedFeeOneToken, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
                     assertEquals(expectedFeeTwoToken, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
                     assertEquals(expectedFeeThreeToken, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
@@ -1178,7 +1179,7 @@ public class CryptoTransferSuite {
         return hapiTest(
                 tokenCreate(TOKEN),
                 createTopic("something"),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     var topicId = spec.registry().getTopicID("something");
                     invalidAccountId.set(asTopicString(topicId));
                 }),
@@ -1237,7 +1238,7 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
-                .mapToObj(i -> withOpContext((spec, log) -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
+                .mapToObj(i -> doingContextual(spec -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
                         .logged())
                 .toArray(HapiSpecOperation[]::new));
     }
@@ -1632,7 +1633,7 @@ public class CryptoTransferSuite {
     final Stream<DynamicTest> transferInvalidTokenIdWithDecimals() {
         return hapiTest(
                 cryptoCreate(TREASURY),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var acctCreate = cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS);
                     allRunFor(spec, acctCreate);
                     // Here we take an account ID and store it as a token ID in the registry, so that when the "token
@@ -1669,7 +1670,7 @@ public class CryptoTransferSuite {
                 cryptoCreate(PARTY).balance(0L),
                 cryptoCreate(COUNTERPARTY).balance(0L),
                 cryptoCreate(OTHER_ACCOUNT).balance(0L),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     partyId.set(registry.getAccountID(PARTY));
                     counterId.set(registry.getAccountID(COUNTERPARTY));
@@ -1735,7 +1736,7 @@ public class CryptoTransferSuite {
                 // Mint NFTs
                 mintToken(tokenA, List.of(ByteString.copyFromUtf8("metadata1"))),
                 mintToken(tokenA, List.of(ByteString.copyFromUtf8("metadata2"))),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
                     treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
@@ -1749,7 +1750,7 @@ public class CryptoTransferSuite {
                     hollowAccountAlias.set(evmAddressBytes);
                     tokenIdA.set(registry.getTokenID(A_TOKEN));
                 }),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         // Create hollow account
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()

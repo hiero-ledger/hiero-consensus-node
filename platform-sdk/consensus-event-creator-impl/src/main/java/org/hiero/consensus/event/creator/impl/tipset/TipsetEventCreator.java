@@ -504,7 +504,6 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow();
-        lastSelfEvent = null;
     }
 
     @NonNull

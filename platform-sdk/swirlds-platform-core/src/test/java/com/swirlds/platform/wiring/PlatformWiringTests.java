@@ -5,7 +5,10 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventC
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,19 +26,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
-import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.platform.state.hashlogger.HashLogger;
-import com.swirlds.platform.state.iss.IssDetector;
-import com.swirlds.platform.state.iss.IssHandler;
-import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
-import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.signed.SignedStateSentinel;
-import com.swirlds.platform.state.signed.StateSignatureCollector;
-import com.swirlds.platform.state.signer.StateSigner;
-import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
@@ -51,12 +41,16 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.state.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -88,14 +82,19 @@ class PlatformWiringTests {
     void testBindings(final PlatformContext platformContext, @TempDir final Path tempDir) {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tempDir);
 
         final Configuration configuration = platformContext.getConfiguration();
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule =
-                createNoOpGossipModule(model, configuration, new TestFileSystemManager(tempDir));
+        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
+        final IssDetectionModule issDetectionModule =
+                createNoOpIssDetectionModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule =
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
+        final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,
@@ -104,7 +103,10 @@ class PlatformWiringTests {
                 eventIntakeModule,
                 pcesModule,
                 hashgraphModule,
-                gossipModule);
+                gossipModule,
+                issDetectionModule,
+                transactionHandlingModule,
+                stateModule);
         PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents, null);
 
         final PlatformComponentBuilder componentBuilder =
@@ -115,24 +117,9 @@ class PlatformWiringTests {
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
-                .withTransactionPrehandler(mock(TransactionPrehandler.class))
-                .withSignedStateSentinel(mock(SignedStateSentinel.class))
-                .withIssDetector(mock(IssDetector.class))
-                .withIssHandler(mock(IssHandler.class))
-                .withStateHasher(mock(StateHasher.class))
-                .withStateSnapshotManager(mock(StateSnapshotManager.class))
-                .withHashLogger(mock(HashLogger.class))
-                .withStateSigner(mock(StateSigner.class))
-                .withTransactionHandler(mock(DefaultTransactionHandler.class));
+                .withStateSnapshotManager(mock(StateSnapshotManager.class));
 
-        platformComponents.bind(
-                componentBuilder,
-                mock(StateSignatureCollector.class),
-                mock(EventWindowManager.class),
-                mock(SignedStateNexus.class),
-                mock(LatestCompleteStateNexus.class),
-                mock(SavedStateController.class),
-                mock(AppNotifier.class));
+        platformComponents.bind(componentBuilder, mock(EventWindowManager.class), mock(AppNotifier.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());

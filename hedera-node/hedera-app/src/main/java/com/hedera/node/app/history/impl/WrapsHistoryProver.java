@@ -236,7 +236,8 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Bytes targetMetadata,
             @NonNull final Map<Long, Bytes> targetProofKeys,
             @NonNull final TssConfig tssConfig,
-            @Nullable final Bytes ledgerId) {
+            @Nullable final Bytes ledgerId,
+            final boolean canSubmit) {
         requireNonNull(now);
         requireNonNull(construction);
         requireNonNull(targetMetadata);
@@ -258,6 +259,9 @@ public class WrapsHistoryProver implements HistoryProver {
             return new Outcome.Failed(MISSING_MESSAGES_FAILURE_PREFIX + missingNodes
                     + " after end of grace period for phase " + state.phase());
         } else {
+            if (!canSubmit) {
+                return Outcome.InProgress.INSTANCE;
+            }
             if (wrapsMessage == null) {
                 // Avoid caching a partial derived state if one of these computations throws.
                 final var computedTargetAddressBook =

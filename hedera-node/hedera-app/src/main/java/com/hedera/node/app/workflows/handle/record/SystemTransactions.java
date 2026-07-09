@@ -99,7 +99,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -477,25 +476,22 @@ public class SystemTransactions {
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in))));
-        final var feesConfig = config.getConfigData(FeesConfig.class);
-        if (feesConfig.createSimpleFeeSchedule()) {
-            final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
-            final var filesState =
-                    state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
-            if (filesState.get(simpleFeesFileId) == null) {
-                log.info(
-                        "Creating simple fee schedule file {}.{}.{} (upgrading from pre-simple-fees version)",
-                        simpleFeesFileId.shardNum(),
-                        simpleFeesFileId.realmNum(),
-                        simpleFeesFileId.fileNum());
-                fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
-            }
-            autoSysFileUpdates.add(new AutoEntityUpdate<>(
-                    (ctx, bytes) -> dispatchSynthFileUpdate(
-                            ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
-                    adminConfig.upgradeSimpleFeeSchedulesFile(),
-                    SystemTransactions::parseSimpleFeesSchedules));
+        final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
+        final var filesState =
+                state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
+        if (filesState.get(simpleFeesFileId) == null) {
+            log.info(
+                    "Creating simple fee schedule file {}.{}.{} (upgrading from pre-simple-fees version)",
+                    simpleFeesFileId.shardNum(),
+                    simpleFeesFileId.realmNum(),
+                    simpleFeesFileId.fileNum());
+            fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
         }
+        autoSysFileUpdates.add(new AutoEntityUpdate<>(
+                (ctx, bytes) ->
+                        dispatchSynthFileUpdate(ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
+                adminConfig.upgradeSimpleFeeSchedulesFile(),
+                SystemTransactions::parseSimpleFeesSchedules));
 
         autoSysFileUpdates.forEach(update -> update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext));
         final var autoNodeAdminKeyUpdates = new AutoEntityUpdate<Map<Long, Key>>(

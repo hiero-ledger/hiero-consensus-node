@@ -223,7 +223,6 @@ public class ThrottleAccumulatorTest {
     @BeforeEach
     void setUpFeatureFlagDefaults() {
         lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
-        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
         lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
         lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
     }
@@ -1405,6 +1404,108 @@ public class ThrottleAccumulatorTest {
 
         // then
         assertTrue(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void unparseableEthereumTransactionIsChargedToEthBucketNotCryptoCreate(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        // throttles-sans-creation.json defines an ETHEREUM_TRANSACTION bucket but no CRYPTO_CREATE bucket
+        final var defs = getThrottleDefs("bootstrap/throttles-sans-creation.json");
+
+        given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
+        // Empty (unparseable) ethereumData makes getImplicitCreationsCount return the
+        // UNKNOWN_NUM_IMPLICIT_CREATIONS sentinel (-1).
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .ethereumTransaction(ethTxnBody)
+                        .build());
+
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        assertFalse(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void unparseableEthereumTransactionChargesEthBucketNotCryptoCreate(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        // throttles.json is the mainnet shape: an ETHEREUM_TRANSACTION bucket AND CryptoCreate buckets
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .ethereumTransaction(ethTxnBody)
+                        .build());
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        subject.rebuildFor(defs);
+        // CryptoCreate shares bucket A with EthereumTransaction and additionally owns an exclusive bucket (C);
+        // that exclusive bucket is the clean discriminator — an eth txn must never touch it.
+        final var ethThrottles = subject.activeThrottlesFor(ETHEREUM_TRANSACTION);
+        final var cryptoCreateOnly = subject.activeThrottlesFor(CRYPTO_CREATE).stream()
+                .filter(t -> !ethThrottles.contains(t))
+                .toList();
+        assertFalse(cryptoCreateOnly.isEmpty(), "expected a CryptoCreate-exclusive bucket in throttles.json");
+
+        // when
+        final var throttled = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        assertFalse(throttled); // (a) not throttled
+        assertTrue(ethThrottles.stream().anyMatch(t -> t.used() > 0)); // (b) eth bucket charged
+        assertTrue(
+                cryptoCreateOnly.stream().allMatch(t -> t.used() == 0)); // (c) CryptoCreate-exclusive bucket untouched
     }
 
     @ParameterizedTest

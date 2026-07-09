@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNullElse;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -42,9 +42,9 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      * reserved buffer size are read from the provided configuration.
      *
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration MerkleDb configuration
      */
-    public LongListOffHeap(final long capacity, final Configuration configuration) {
+    public LongListOffHeap(final long capacity, final MerkleDbConfig configuration) {
         super(capacity, configuration);
     }
 
@@ -70,11 +70,11 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
      *
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration MerkleDb configuration
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListOffHeap(@NonNull final Path file, final long capacity, @NonNull final MerkleDbConfig configuration)
             throws IOException {
         super(capacity, configuration);
         loadFromFile(file);

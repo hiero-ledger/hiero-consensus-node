@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
@@ -25,24 +24,20 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
@@ -202,6 +197,8 @@ public class IssueRegressionTests {
     @LeakyHapiTest
     @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
+        // Verifies that a second node, having learned of a transaction via gossip, rejects a
+        // same-type duplicate at precheck.
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate("acct3").setNode(3).via("txnId1"),
@@ -210,16 +207,7 @@ public class IssueRegressionTests {
                         .setNode(5)
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
-                uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode(5)
-                                .txnId("txnId1"))
-                        .setNode(5),
-                sleepFor(2000),
-                getTxnRecord("txnId1")
-                        .andAnyDuplicates()
-                        .assertingNothingAboutHashes()
-                        .hasPriority(recordWith().status(SUCCESS))
-                        .hasDuplicates(inOrder(recordWith().status(DUPLICATE_TRANSACTION))));
+                getTxnRecord("txnId1").logged().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -285,7 +273,6 @@ public class IssueRegressionTests {
 
     @LeakyHapiTest
     final Stream<DynamicTest> transferAccountCannotBeDeleted() {
-        final var legacyDeletePriceUsd = 0.0113804;
         final var simpleDeletePriceUsd =
                 CRYPTO_DELETE_BASE_FEE_USD + NODE_AND_NETWORK_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         return customizedHapiTest(
@@ -301,7 +288,7 @@ public class IssueRegressionTests {
                         .transfer(TRANSFER)
                         .hasKnownStatus(ACCOUNT_DELETED),
                 getTxnRecord(DELETE_TXN).logged(),
-                validateFees(DELETE_TXN, legacyDeletePriceUsd, simpleDeletePriceUsd));
+                validateChargedUsdWithin(DELETE_TXN, simpleDeletePriceUsd, 0.1));
     }
 
     @HapiTest
@@ -323,24 +310,6 @@ public class IssueRegressionTests {
                         .via(DELETE_TXN)
                         .transferContract("PayReceivable")
                         .hasKnownStatus(INVALID_CONTRACT_ID));
-    }
-
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    final Stream<DynamicTest> canSwitchSimpleFeesFromFalseToTrueWithoutException() {
-        final var payer = "payerForSimpleFeeToggle";
-        return hapiTest(
-                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
-                uploadInitCode("CreateTrivial"),
-                overriding("fees.simpleFeesEnabled", "false"),
-                contractCreate("CreateTrivial").payingWith(payer).via("legacyContractCreate"),
-                overriding("fees.simpleFeesEnabled", "true"),
-                contractCreate("CreateTrivial")
-                        .payingWith(payer)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .via("simpleContractCreate"),
-                // simple fees are always used now, so the toggle no longer changes the charged fee
-                validateChargedUsd("legacyContractCreate", 1.02),
-                validateChargedUsd("simpleContractCreate", 1.02));
     }
 
     @HapiTest
