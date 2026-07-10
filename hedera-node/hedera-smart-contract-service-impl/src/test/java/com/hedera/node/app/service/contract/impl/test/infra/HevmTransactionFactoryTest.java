@@ -96,11 +96,9 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
-
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -249,7 +247,7 @@ class HevmTransactionFactoryTest {
     void fromHapiCallIgnoresDeletedContractIfFeatureFlagEnabled() {
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(
-                CONFIG_THROTTLE_BY_GAS, CALLED_CONTRACT_ID.contractNumOrThrow()))
+                        CONFIG_THROTTLE_BY_GAS, CALLED_CONTRACT_ID.contractNumOrThrow()))
                 .willReturn(true);
         final var transaction = getManufacturedCall(b -> b.amount(123L)
                 .functionParameters(CALL_DATA)
@@ -450,11 +448,12 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationValidatesFileInitcodeSize() {
         given(fileStore.getFileLeaf(INITCODE_FILE_ID))
                 .willReturn(File.newBuilder()
-                        .contents(Bytes.wrap("0".repeat(MAX_INITCODE_SIZE * 2 + 2).getBytes()))
+                        .contents(
+                                Bytes.wrap("0".repeat(MAX_INITCODE_SIZE * 2 + 2).getBytes()))
                         .build());
         assertCreateFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, b -> b.memo(SOME_MEMO)
                 .adminKey(AN_ED25519_KEY)
-                .constructorParameters(Bytes.wrap(new byte[]{(byte) 0xab}))
+                .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
                 .fileID(INITCODE_FILE_ID)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
                 .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
@@ -468,7 +467,7 @@ class HevmTransactionFactoryTest {
                 .willReturn(File.newBuilder().contents(CALL_DATA).build());
         assertCreateFailsWith(ERROR_DECODING_BYTESTRING, b -> b.memo(SOME_MEMO)
                 .adminKey(AN_ED25519_KEY)
-                .constructorParameters(Bytes.wrap(new byte[]{(byte) 0xab}))
+                .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
                 .fileID(INITCODE_FILE_ID)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
                 .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
@@ -578,15 +577,13 @@ class HevmTransactionFactoryTest {
     @Test
     void fromHapiEthFailsImmediatelyWithWrongChainId() {
         givenInsteadHydratedEthTx(HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false));
-        assertEthTxFailsWith(WRONG_CHAIN_ID, _ -> {
-        });
+        assertEthTxFailsWith(WRONG_CHAIN_ID, _ -> {});
     }
 
     @Test
     void fromHapiEthFailsImmediatelyWithoutToAddressButNoCallData() {
         givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]));
-        assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, _ -> {
-        });
+        assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, _ -> {});
     }
 
     @Test
@@ -596,8 +593,7 @@ class HevmTransactionFactoryTest {
         when(sigs.address()).thenReturn(Hex.decode("00000000000000000000000000000000cafebabe"));
         given(ethereumSignatures.computeIfAbsent(txData)).willReturn(sigs);
         givenInsteadHydratedEthTxWithRightChainId(txData);
-        assertEthTxFailsWith(MAX_GAS_LIMIT_EXCEEDED, _ -> {
-        });
+        assertEthTxFailsWith(MAX_GAS_LIMIT_EXCEEDED, _ -> {});
     }
 
     @Test
@@ -608,8 +604,7 @@ class HevmTransactionFactoryTest {
         given(ethereumSignatures.computeIfAbsent(dataToUse)).willReturn(sig);
 
         givenInsteadHydratedEthTxWithRightChainId(dataToUse);
-        assertEthTxFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, _ -> {
-        });
+        assertEthTxFailsWith(CONTRACT_SIZE_LIMIT_EXCEEDED, _ -> {});
     }
 
     @Test
