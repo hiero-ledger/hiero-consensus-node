@@ -23,7 +23,11 @@ with `java -jar`.
   external `Allowlist`, and `AnchorResolver` (Tier 0/1/2 per-anchor checks).
 - `findings/` — collapse to stable-id findings, `InterfaceDiffAssembler` (Tier 2 method-set diff),
   baseline TSV + join.
-- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`).
+- `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`). Anchored-source
+  resolution mirrors the resolver: abbreviated `module/.../File.java` citations are resolved through the
+  `SourceIndex` (by basename within the cited module), so an abbreviated-only topic is tracked rather
+  than reported as having no anchored sources. Each entry carries `anchoredSourceCount`; a zero count
+  (topic anchors nothing) is surfaced in the coverage lane, not the drift report.
 - `render/` — report / quiet-log / auto-fix / suggestions / coverage / findings.json / worklist renderers.
   `AutoFix` is the shared planner (structured `Edit`s) that both `AutoFixRenderer` (Markdown) and
   `apply/AutoFixApplier` (writes) consume, so the proposal a curator reads is exactly the edit `--fix`
@@ -63,8 +67,10 @@ with `java -jar`.
   `requires jdk.compiler` (for `com.sun.source.*`) and `requires java.compiler` (for `javax.tools`).
 - **Tier-2 interface method-set diff is opt-in.** It fires only on `architecture/interfaces/*`
   entries with explicit frontmatter `interface:` (a platform-sdk-relative source path) and
-  `methods:` (documented names). Loose interface prose is deliberately left to the semantic pass to
-  avoid false positives — do not "improve" it into scraping prose.
+  `methods:` (documented names) — see `InterfaceDiffAssembler.optsIntoTier2`. Loose interface prose is
+  deliberately left to the semantic pass to avoid false positives — do not "improve" it into scraping
+  prose. Interface docs that do *not* opt in are surfaced in the coverage lane so the dormancy is
+  visible rather than reading as "all clear".
 - **`components:`/`verification:` paths are platform-sdk-relative** (first segment = module dir); the
   extractor prefixes `platform-sdk/`. Body code spans accept both the full `platform-sdk/…` form and
   the same module-relative form (`<module>/src/…`). Markdown links resolve relative to the doc's

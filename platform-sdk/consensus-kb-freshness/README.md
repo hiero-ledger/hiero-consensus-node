@@ -113,8 +113,9 @@ own output file so the drift report itself stays pure signal:
   correction, applied only on request (`--fix`). Not drift. A package/path move with exactly one new
   location *is* drift (it asserts), but additionally gets a ready path-rewrite proposal here (which
   `--fix` also applies, along with any stale on-line `Module:` label).
-- **coverage-gap** → `coverage.md`. The *code* has something the *docs* do not (e.g. an interface
-  method with no documentation). The inverse of drift; tracked separately.
+- **coverage-gap** → `coverage.md`. A documentation gap — the inverse of drift — tracked separately:
+  code the docs do not mention (e.g. an interface method with no documentation), an architecture topic
+  that anchors no source, or an interface doc that does not opt into the Tier-2 method-set diff.
 
 ### Expected-gone citations (`historical:`)
 
@@ -185,7 +186,7 @@ drift report to act on; the rest are supporting lanes and inputs.
 | `quiet-log.md`                  | **quiet-log** — `unverifiable`         | Auditing what was skipped, and why.   |
 | `auto-fix.md`                   | **auto-fix** — ready line/path fixes   | Tidying stale lines/paths (`--fix`).  |
 | `suggestions.md`                | non-asserting "did you mean" hints     | Acting on a GONE finding.             |
-| `coverage.md`                   | **coverage-gap** — undocumented code   | Finding docs worth writing.           |
+| `coverage.md`                   | **coverage-gap** — documentation gaps  | Finding docs worth writing/anchoring. |
 | `worklist.md` / `worklist.json` | semantic-pass input                    | Driving or reviewing the Tier-3 pass. |
 | `baseline.proposed.tsv`         | the next baseline this run would write | Adopting or refreshing the baseline.  |
 
@@ -223,16 +224,22 @@ unambiguous it is made **actionable**: a topics-slug tag with a single strong ma
 `historical:` rather than repoint it. **Hints, not facts** (it never asserts, and `--fix` never
 applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
 
-**`coverage.md` — the `coverage-gap` lane.** The inverse of drift: code the docs don't mention — for
-example, a method present on a documented interface but absent from that interface's `methods:`
-frontmatter. Use it to find documentation worth adding; it is tracked apart from the drift report on
+**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in three
+sections: (1) code the docs don't mention (e.g. a method present on a documented interface but absent
+from its `methods:` frontmatter); (2) architecture *topics* that anchor no source, so no claim can be
+checked against code; (3) interface docs that carry no `interface:`/`methods:` frontmatter, so the
+Tier-2 method-set diff never runs for them (making its dormancy visible rather than reading as "all
+clear"). Use it to find documentation worth adding or anchoring; tracked apart from the drift report on
 purpose.
 
 **`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
 `review` (source changed since last review), `fresh` (up to date), or `unknown` (freshness can't be
 determined — the entry's note names the reason: no anchored sources, git unavailable, or no commit
-dates). The semantic pass consumes the JSON and reads only the `review`/`unknown` entries.
+dates). Anchored source includes the KB's abbreviated inline citations (`module/.../File.java`),
+resolved through the source index — so a topic anchored only in that style is tracked, not dropped to
+`unknown`. A topic that genuinely anchors nothing (`anchoredSourceCount` 0) is surfaced in
+`coverage.md`. The semantic pass consumes the JSON and reads only the `review`/`unknown` entries.
 
 **`baseline.proposed.tsv` — the next baseline.** The baseline this run *would* write. Adopt it with
 `--write-baseline`, or copy it over the committed baseline, then triage the rows.

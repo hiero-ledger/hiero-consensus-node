@@ -14,6 +14,7 @@ import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.Anchor;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.EntryType;
+import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 
 /**
  * Builds the semantic worklist: for each architecture topic/interface, whether any anchored source
@@ -34,17 +35,23 @@ public final class WorklistBuilder {
     /** Queries committed git history for source file commit dates. */
     private final Git git;
 
+    /** Resolves abbreviated {@code module/.../File.java} citations to concrete indexed paths. */
+    private final SourceIndex index;
+
     /**
      * Creates a builder from its collaborators.
      *
      * @param repoRoot  the repository root (resolved to an absolute, normalized path).
      * @param extractor the anchor extractor.
      * @param git       the git history accessor.
+     * @param index     the source index used to resolve abbreviated source citations.
      */
-    public WorklistBuilder(final Path repoRoot, final AnchorExtractor extractor, final Git git) {
+    public WorklistBuilder(
+            final Path repoRoot, final AnchorExtractor extractor, final Git git, final SourceIndex index) {
         this.repoRoot = repoRoot.toAbsolutePath().normalize();
         this.extractor = extractor;
         this.git = git;
+        this.index = index;
     }
 
     /**
@@ -83,15 +90,17 @@ public final class WorklistBuilder {
         final String lastReviewed = doc.entry().lastReviewed();
 
         final List<String> sourcePaths = anchoredSourcePaths(doc);
+        final int anchorCount = sourcePaths.size();
         if (lastReviewed == null || !ISO_DATE.matcher(lastReviewed.strip()).matches()) {
             // No usable freshness marker — always route to review.
-            return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of());
+            return new WorklistEntry(
+                    key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of(), anchorCount);
         }
         if (sourcePaths.isEmpty()) {
-            return unknown(key, path, lastReviewed, "no anchored sources");
+            return unknown(key, path, lastReviewed, "no anchored sources", anchorCount);
         }
         if (!git.available()) {
-            return unknown(key, path, lastReviewed, "git unavailable");
+            return unknown(key, path, lastReviewed, "git unavailable", anchorCount);
         }
 
         final String reviewedDate = lastReviewed.strip();
@@ -107,12 +116,12 @@ public final class WorklistBuilder {
             }
         }
         if (!anyDateKnown) {
-            return unknown(key, path, lastReviewed, "no commit dates for anchored sources");
+            return unknown(key, path, lastReviewed, "no commit dates for anchored sources", anchorCount);
         }
         changed.sort(Comparator.naturalOrder());
         final WorklistEntry.Status status =
                 changed.isEmpty() ? WorklistEntry.Status.FRESH : WorklistEntry.Status.REVIEW;
-        return new WorklistEntry(key, path, lastReviewed, status, null, changed);
+        return new WorklistEntry(key, path, lastReviewed, status, null, changed, anchorCount);
     }
 
     /**
@@ -123,15 +132,19 @@ public final class WorklistBuilder {
      * @param path         the topic's repo-relative path.
      * @param lastReviewed the topic's {@code last_reviewed} value.
      * @param note         the reason freshness is unknown.
+     * @param anchorCount  how many source files the topic anchors.
      * @return the unknown-status entry.
      */
     private static WorklistEntry unknown(
-            final String key, final String path, final String lastReviewed, final String note) {
-        return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, note, List.of());
+            final String key, final String path, final String lastReviewed, final String note, final int anchorCount) {
+        return new WorklistEntry(key, path, lastReviewed, WorklistEntry.Status.UNKNOWN, note, List.of(), anchorCount);
     }
 
     /**
-     * Distinct repo-relative source files anchored by the topic (existing, non-abbreviated).
+     * Distinct concrete repo-relative source files anchored by the topic. Full-path citations are used
+     * as-is when they exist; abbreviated {@code module/.../File.java} citations — the KB's mandated inline
+     * style — are resolved through the source index so freshness is measured against the same files the
+     * resolver sees, not silently dropped.
      *
      * @param doc the KB document whose anchors are scanned.
      * @return the sorted, distinct anchored source paths.
@@ -139,12 +152,51 @@ public final class WorklistBuilder {
     private List<String> anchoredSourcePaths(final KbDocument doc) {
         final TreeSet<String> paths = new TreeSet<>();
         for (final Anchor a : extractor.extract(doc)) {
-            if (a.kind() == AnchorKind.SOURCE_PATH
-                    && !a.target().contains("/.../")
-                    && Files.isRegularFile(repoRoot.resolve(a.target()))) {
-                paths.add(a.target());
+            if (a.kind() == AnchorKind.SOURCE_PATH) {
+                paths.addAll(resolveAnchoredSources(a));
             }
         }
         return new ArrayList<>(paths);
+    }
+
+    /**
+     * Resolves one {@link AnchorKind#SOURCE_PATH} anchor to the concrete repo-relative files it names. A
+     * full path resolves to itself when it exists on disk. An abbreviated {@code module/.../File.java}
+     * citation resolves through the source index by basename within the cited module (mirroring
+     * {@code AnchorResolver}); with no cited module, every indexed file of that basename is taken. A
+     * citation that resolves nowhere contributes no source — a gone anchor is reported as drift elsewhere.
+     *
+     * @param a a source-path anchor.
+     * @return the concrete repo-relative source paths the anchor names (possibly empty).
+     */
+    private List<String> resolveAnchoredSources(final Anchor a) {
+        final String target = a.target();
+        if (!target.contains("/.../")) {
+            return Files.isRegularFile(repoRoot.resolve(target)) ? List.of(target) : List.of();
+        }
+        final String basename = target.substring(target.lastIndexOf('/') + 1);
+        final List<String> resolved = new ArrayList<>();
+        for (final String p : index.pathsForBasename(basename)) {
+            if (a.citedModule() == null || a.citedModule().equals(moduleOf(p))) {
+                resolved.add(p);
+            }
+        }
+        return resolved;
+    }
+
+    /**
+     * The module directory of a repo-relative path (the segment preceding {@code src}).
+     *
+     * @param repoRelPath the repo-relative path.
+     * @return the module name, or {@code null} if the path has no {@code src} segment.
+     */
+    private static String moduleOf(final String repoRelPath) {
+        final String[] parts = repoRelPath.split("/");
+        for (int i = 1; i < parts.length; i++) {
+            if (parts[i].equals("src")) {
+                return parts[i - 1];
+            }
+        }
+        return null;
     }
 }

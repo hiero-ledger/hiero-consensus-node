@@ -30,7 +30,8 @@ It prints the output directory (default `<repo>/build/kb-freshness`). Read these
 - `findings.json` — the machine-readable finding set (stable ids; reproducible).
 - `quiet-log.md` — unverifiable checks (generated/external symbols) — **not** drift.
 - `auto-fix.md` — proposed line-reference corrections (suggestions only).
-- `coverage.md` — undocumented code (coverage lane) — **not** drift.
+- `coverage.md` — documentation gaps (coverage lane): undocumented code, topics anchoring no source,
+  and interface docs not checked at Tier-2 — **not** drift.
 - `worklist.json` — the semantic worklist (below).
 
 Do not re-derive or second-guess the deterministic findings; present them as-is.

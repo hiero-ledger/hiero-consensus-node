@@ -17,6 +17,7 @@ import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.render.AutoFixRenderer;
+import org.hiero.consensus.kbfreshness.render.CoverageRenderer;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
 import org.hiero.consensus.kbfreshness.render.ReportRenderer;
 import org.hiero.consensus.kbfreshness.render.SuggestionsRenderer;
@@ -300,6 +301,36 @@ class EngineFixtureTest {
         assertThat(myApi.status()).isEqualTo(WorklistEntry.Status.UNKNOWN);
         assertThat(myApi.note()).isEqualTo("no anchored sources");
         assertThat(WorklistRenderer.renderMarkdown(result)).contains("unknown (no anchored sources)");
+    }
+
+    @Test
+    void abbreviatedInlineAnchorsCountAsAnchoredSources() {
+        // abbrev-anchored.md cites its only source as `module-a/.../PresentClass.java` (the KB's inline
+        // abbreviation). The worklist must resolve it through the index, not drop it as un-anchored.
+        final WorklistEntry e = result.worklist().stream()
+                .filter(x -> x.entryPath().endsWith("abbrev-anchored.md"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(e.anchoredSourceCount()).isGreaterThan(0);
+        assertThat(e.note()).isNotEqualTo("no anchored sources");
+    }
+
+    @Test
+    void topicAnchoringNoSourceSurfacesInCoverageLane() {
+        // bare-prose.md cites no source at all; abbrev-anchored.md does (abbreviated) and must not appear.
+        final String coverage = CoverageRenderer.render(result);
+        assertThat(coverage).contains("## Architecture topics anchoring no source");
+        assertThat(coverage).contains("architecture/topics/bare-prose.md");
+        assertThat(coverage).doesNotContain("abbrev-anchored.md");
+    }
+
+    @Test
+    void interfaceDocWithoutTier2FrontmatterSurfacesInCoverageLane() {
+        // loose-api.md declares no interface:/methods: so the Tier-2 diff never runs; my-api.md opts in.
+        final String coverage = CoverageRenderer.render(result);
+        assertThat(coverage).contains("## Interface docs not checked at Tier-2");
+        assertThat(coverage).contains("architecture/interfaces/loose-api.md");
+        assertThat(coverage).doesNotContain("architecture/interfaces/my-api.md");
     }
 
     // ---- helpers ----

@@ -78,6 +78,7 @@ public final class WorklistRenderer {
             m.put("lastReviewed", e.lastReviewed());
             m.put("status", e.status().name().toLowerCase(Locale.ROOT));
             m.put("note", e.note());
+            m.put("anchoredSourceCount", e.anchoredSourceCount());
             m.put("changedPaths", new ArrayList<Object>(e.changedPaths()));
             items.add(m);
         }

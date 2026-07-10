@@ -57,7 +57,7 @@ public final class Engine {
         final BaselineJoin.Result join = BaselineJoin.join(findings, baseline, config.runDate());
 
         final Git git = new Git(config.repoRoot());
-        final List<WorklistEntry> worklist = new WorklistBuilder(config.repoRoot(), extractor, git).build(docs);
+        final List<WorklistEntry> worklist = new WorklistBuilder(config.repoRoot(), extractor, git, index).build(docs);
 
         return new RunResult(docs, findings, join, worklist, index);
     }

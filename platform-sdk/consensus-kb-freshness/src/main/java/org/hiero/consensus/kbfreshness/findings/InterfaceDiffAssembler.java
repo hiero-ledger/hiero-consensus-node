@@ -58,6 +58,20 @@ public final class InterfaceDiffAssembler {
     }
 
     /**
+     * Whether an interface entry opts into the Tier-2 method-set diff by declaring both its subject source
+     * ({@code interface:}) and the documented method names ({@code methods:}). Entries that do not opt in
+     * are never mechanically diffed — the coverage lane surfaces them so the dormancy is visible rather
+     * than reading as "all clear".
+     *
+     * @param doc a KB document (expected to be an {@code architecture/interfaces/*} entry).
+     * @return {@code true} when the entry declares both {@code interface:} and a non-empty {@code methods:}.
+     */
+    public static boolean optsIntoTier2(final KbDocument doc) {
+        return doc.frontmatter().scalar("interface") != null
+                && !doc.frontmatter().list("methods").isEmpty();
+    }
+
+    /**
      * Diffs one interface entry, or returns empty when it lacks the {@code interface:}/{@code methods:}
      * convention or the interface cannot be resolved.
      *
@@ -65,11 +79,11 @@ public final class InterfaceDiffAssembler {
      * @return the diff findings for the entry.
      */
     private List<Finding> diff(final KbDocument doc) {
-        final String ifacePath = doc.frontmatter().scalar("interface");
-        final List<String> documented = doc.frontmatter().list("methods");
-        if (ifacePath == null || documented.isEmpty()) {
+        if (!optsIntoTier2(doc)) {
             return List.of();
         }
+        final String ifacePath = doc.frontmatter().scalar("interface");
+        final List<String> documented = doc.frontmatter().list("methods");
         final String repoRel = "platform-sdk/" + ifacePath.strip().replace('\\', '/');
         final String className = classNameOf(repoRel);
         final String module = moduleOf(repoRel);
