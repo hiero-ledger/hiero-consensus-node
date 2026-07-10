@@ -54,12 +54,9 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 1)
     static SpecAccount NODE1_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
-    static SpecAccount NODE2_STAKER;
-
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo());
+        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo());
     }
 
     @HapiTest
@@ -125,6 +122,6 @@ public class WrapsHandoffsTest implements LifecycleTest {
     }
 
     private static List<SpecAccount> stakers() {
-        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER);
+        return List.of(NODE0_STAKER, NODE1_STAKER);
     }
 }
