@@ -3,8 +3,12 @@ package org.hiero.consensus.kbfreshness.render;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
+import org.hiero.consensus.kbfreshness.engine.ScanStats;
 import org.hiero.consensus.kbfreshness.findings.BaselineJoin;
+import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
@@ -71,6 +75,9 @@ public final class ReportRenderer {
                 .append(" |\n");
         sb.append("| Fixable now with `--fix` | ").append(lineMoves + pathMoves).append(" |\n\n");
 
+        scanCoverage(sb, result);
+        rollup(sb, asserts);
+
         section(sb, "New drift", newDrift, "New assertions since the baseline — the primary signal.");
         section(sb, "Carried drift", carried, "Previously-seen assertions still present.");
 
@@ -90,6 +97,134 @@ public final class ReportRenderer {
                 .append("`suggestions.md`; the semantic worklist is in `worklist.md`. ")
                 .append("The machine artifact is `findings.json`.\n");
         return sb.toString();
+    }
+
+    /**
+     * Appends the scan-coverage section: what was scanned and checked, so silence elsewhere reads as
+     * "checked and clean" rather than "never looked at".
+     *
+     * @param sb     the buffer to append to.
+     * @param result the run result.
+     */
+    private static void scanCoverage(final StringBuilder sb, final RunResult result) {
+        final ScanStats s = result.stats();
+        sb.append("## Scan coverage\n\n");
+        sb.append("_What this run scanned and checked — silence elsewhere means checked-and-clean, "
+                + "not not-looked-at._\n\n");
+        sb.append("- Entries scanned: ")
+                .append(s.totalEntries())
+                .append(" — ")
+                .append(countList(s.entriesByType()))
+                .append('\n');
+        sb.append("- Anchors extracted: ")
+                .append(s.totalAnchors())
+                .append(" — ")
+                .append(countList(s.anchorsByKind()))
+                .append('\n');
+        final long anchorFindings = result.findings().stream()
+                .filter(f -> f.kind() != AnchorKind.INTERFACE_METHOD
+                        && f.kind() != AnchorKind.CONFIG_KEY
+                        && f.kind() != AnchorKind.CONFIG_PREFIX
+                        && f.kind() != AnchorKind.CONFIG_DEFAULT)
+                .count();
+        sb.append("- Distinct anchor checks: ")
+                .append(s.checkGroups())
+                .append(" — ")
+                .append(anchorFindings)
+                .append(" produced a finding, ")
+                .append(s.checkGroups() - anchorFindings)
+                .append(" resolved clean\n");
+        sb.append("- Findings by lane: ").append(countList(s.findingsByLane())).append('\n');
+        sb.append("- Tier-2 diff surfaces: ")
+                .append(s.interfaceDocsOptedIn())
+                .append(" interface doc(s) opted in; tunables catalog ")
+                .append(s.tunableSections())
+                .append(" section(s) / ")
+                .append(s.tunableRows())
+                .append(" row(s)\n\n");
+    }
+
+    /**
+     * Formats an enum-keyed count map as {@code name 3, other-name 1}, in the enums' declaration order,
+     * with zero-count keys omitted.
+     *
+     * @param counts the counts keyed by enum constant.
+     * @return the formatted list, or {@code none} when empty.
+     */
+    private static String countList(final Map<? extends Enum<?>, Integer> counts) {
+        final List<String> parts = new ArrayList<>();
+        for (final Map.Entry<? extends Enum<?>, Integer> e : counts.entrySet()) {
+            parts.add(e.getKey().name().toLowerCase().replace('_', ' ') + " " + e.getValue());
+        }
+        return parts.isEmpty() ? "none" : String.join(", ", parts);
+    }
+
+    /**
+     * Appends the root-cause rollup: path moves grouped by their old-to-new rewrite (one underlying code
+     * move often stales many citations), and gone targets cited by more than one entry. Rendered only
+     * when at least one group exists, so the section never appears as empty noise.
+     *
+     * @param sb      the buffer to append to.
+     * @param asserts the non-dismissed assert-lane findings (new and carried).
+     */
+    private static void rollup(final StringBuilder sb, final List<BaselineJoin.Joined> asserts) {
+        final Map<String, List<Finding>> moves = new TreeMap<>();
+        final Map<String, List<Finding>> gone = new TreeMap<>();
+        for (final BaselineJoin.Joined j : asserts) {
+            final Finding f = j.finding();
+            if (f.resolvedPath() != null) {
+                moves.computeIfAbsent(f.target() + "` → `" + f.resolvedPath(), k -> new ArrayList<>())
+                        .add(f);
+            } else if (f.outcome() == Outcome.ABSENT) {
+                gone.computeIfAbsent(f.target(), k -> new ArrayList<>()).add(f);
+            }
+        }
+        gone.values().removeIf(fs -> fs.size() < 2);
+        if (moves.isEmpty() && gone.isEmpty()) {
+            return;
+        }
+        sb.append("## Root causes (rollup)\n\n");
+        sb.append("_The same underlying change grouped across entries — read this before the per-entry "
+                + "findings below._\n\n");
+        if (!moves.isEmpty()) {
+            sb.append("### Path moves\n\n");
+            for (final Map.Entry<String, List<Finding>> e : moves.entrySet()) {
+                sb.append("- `")
+                        .append(e.getKey())
+                        .append("` — ")
+                        .append(distinctEntries(e.getValue()).size())
+                        .append(" doc(s), ")
+                        .append(e.getValue().stream()
+                                .mapToInt(Finding::occurrenceCount)
+                                .sum())
+                        .append(" citation(s)\n");
+            }
+            sb.append('\n');
+        }
+        if (!gone.isEmpty()) {
+            sb.append("### Gone targets cited by multiple entries\n\n");
+            for (final Map.Entry<String, List<Finding>> e : gone.entrySet()) {
+                final List<String> entries = distinctEntries(e.getValue());
+                sb.append("- `")
+                        .append(e.getKey())
+                        .append("` — cited by ")
+                        .append(entries.size())
+                        .append(": ")
+                        .append(String.join(", ", entries))
+                        .append('\n');
+            }
+            sb.append('\n');
+        }
+    }
+
+    /**
+     * The sorted, distinct entry keys of a finding group.
+     *
+     * @param findings the grouped findings.
+     * @return the distinct entry keys.
+     */
+    private static List<String> distinctEntries(final List<Finding> findings) {
+        return findings.stream().map(Finding::entryKey).distinct().sorted().toList();
     }
 
     /**

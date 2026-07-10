@@ -3,9 +3,11 @@ package org.hiero.consensus.kbfreshness.render;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
@@ -29,6 +31,17 @@ public final class SuggestionsRenderer {
     /** Minimum similarity for a near-name match to be offered. */
     private static final double THRESHOLD = 0.5;
     /**
+     * Score assigned to weaker-but-identifying signals: a candidate whose frontmatter title covers the
+     * gone name's tokens, or one sharing a token that occurs in exactly one candidate. Above
+     * {@link #THRESHOLD} (offered) but below {@link #PROMOTE_SIMILARITY} — such a hint is never promoted
+     * to an actionable rename on its own.
+     */
+    private static final double WEAK_SIGNAL = 0.55;
+    /** Cap for title-token coverage so a title match alone can never reach promotion strength. */
+    private static final double TITLE_CAP = 0.65;
+    /** Minimum length of a shared token for the unique-token signal (short tokens identify nothing). */
+    private static final int UNIQUE_TOKEN_MIN_LENGTH = 4;
+    /**
      * Minimum edit similarity for a match whose head tokens differ. Long identifiers accumulate
      * incidental character overlap, so a plain edit-distance signal only counts on its own when it is
      * near-certain (a typo), not merely above {@link #THRESHOLD}.
@@ -51,6 +64,44 @@ public final class SuggestionsRenderer {
     private record Scored(String path, double score) {}
 
     /**
+     * A prepared candidate pool: the paths, each path's significant tokens (filename tokens plus, for KB
+     * docs, frontmatter-title tokens), and how many candidates carry each token (for the unique-token
+     * signal). Built once per pool and reused across findings.
+     *
+     * @param paths        the candidate paths.
+     * @param tokensByPath each path's token set.
+     * @param tokenFreq    the number of candidates whose token set contains each token.
+     */
+    private record Candidates(
+            List<String> paths, Map<String, Set<String>> tokensByPath, Map<String, Integer> tokenFreq) {
+
+        /**
+         * Prepares a candidate pool.
+         *
+         * @param paths       the candidate paths.
+         * @param titleByPath frontmatter titles keyed by doc path (empty for source pools).
+         * @return the prepared pool.
+         */
+        static Candidates of(final List<String> paths, final Map<String, String> titleByPath) {
+            final Map<String, Set<String>> tokensByPath = new HashMap<>();
+            final Map<String, Integer> tokenFreq = new HashMap<>();
+            for (final String p : paths) {
+                final Set<String> tokens = new TreeSet<>(sigTokens(stem(baseName(p))));
+                final String title = titleByPath.get(p);
+                if (title != null) {
+                    tokens.addAll(sigTokens(title));
+                }
+                if (tokensByPath.putIfAbsent(p, tokens) == null) {
+                    for (final String t : tokens) {
+                        tokenFreq.merge(t, 1, Integer::sum);
+                    }
+                }
+            }
+            return new Candidates(paths, tokensByPath, tokenFreq);
+        }
+    }
+
+    /**
      * The raw hints computed for a gone target before finding-specific composition: a definite git rename
      * (which suppresses near-name guessing), the deleting commit when git recorded one, and the near-name
      * candidates above the threshold.
@@ -70,7 +121,14 @@ public final class SuggestionsRenderer {
      */
     public static String render(final RunResult result, final Git git) {
         final List<String> docPaths = new ArrayList<>();
-        result.documents().forEach(d -> docPaths.add(d.entry().relativePath()));
+        final Map<String, String> titleByPath = new HashMap<>();
+        for (final var d : result.documents()) {
+            docPaths.add(d.entry().relativePath());
+            final String title = d.frontmatter().scalar("title");
+            if (title != null && !title.isBlank()) {
+                titleByPath.put(d.entry().relativePath(), title);
+            }
+        }
 
         // A gone architecture-topic target (typically a frontmatter topics: tag) can only plausibly be
         // another topic or interface document — never a decision, rule, or concept file.
@@ -82,6 +140,10 @@ public final class SuggestionsRenderer {
         for (final String basename : result.sourceIndex().basenames()) {
             sourcePaths.addAll(result.sourceIndex().pathsForBasename(basename));
         }
+
+        final Candidates docPool = Candidates.of(docPaths, titleByPath);
+        final Candidates topicDocPool = Candidates.of(topicDocPaths, titleByPath);
+        final Candidates sourcePool = Candidates.of(sourcePaths, Map.of());
 
         final StringBuilder sb = new StringBuilder();
         sb.append("# KB freshness — did-you-mean suggestions (gone targets)\n\n");
@@ -95,10 +157,10 @@ public final class SuggestionsRenderer {
             }
             final boolean topicTag =
                     f.kind() == AnchorKind.CROSS_DOC_LINK && f.target().contains("/architecture/topics/");
-            final List<String> candidates =
+            final Candidates candidates =
                     switch (f.kind()) {
-                        case CROSS_DOC_LINK -> topicTag ? topicDocPaths : docPaths;
-                        case SOURCE_PATH, SOURCE_BASENAME -> sourcePaths;
+                        case CROSS_DOC_LINK -> topicTag ? topicDocPool : docPool;
+                        case SOURCE_PATH, SOURCE_BASENAME -> sourcePool;
                         default -> null;
                     };
             if (candidates == null) {
@@ -180,21 +242,21 @@ public final class SuggestionsRenderer {
     /**
      * Computes the raw hints for a gone target: a definite git rename when available (which suppresses
      * near-name guessing), else the deleting commit when git recorded one, plus the near-name candidates
-     * above the similarity threshold.
+     * above the similarity threshold. Beyond plain name similarity, two weaker-but-identifying signals
+     * are scored (both capped below promotion strength): a candidate whose tokens — including its
+     * frontmatter title's — cover the gone name's tokens, and a candidate sharing a token that occurs in
+     * exactly one candidate (a distinctive token like {@code execution} pinpoints its owner even when
+     * edit distance sees nothing).
      *
-     * @param gone           the gone target (a repo-relative path, or a bare basename).
-     * @param self           the path of the entry that made the citation, excluded from candidates.
-     * @param hasPath        whether {@code gone} is a real path git can trace (false for bare basenames).
-     * @param candidatePaths the repo-relative paths to match against.
-     * @param git            the git wrapper, or {@code null} to skip rename/deletion detection.
+     * @param gone       the gone target (a repo-relative path, or a bare basename).
+     * @param self       the path of the entry that made the citation, excluded from candidates.
+     * @param hasPath    whether {@code gone} is a real path git can trace (false for bare basenames).
+     * @param candidates the prepared candidate pool to match against.
+     * @param git        the git wrapper, or {@code null} to skip rename/deletion detection.
      * @return the raw hints.
      */
     private static Hints computeHints(
-            final String gone,
-            final String self,
-            final boolean hasPath,
-            final List<String> candidatePaths,
-            final Git git) {
+            final String gone, final String self, final boolean hasPath, final Candidates candidates, final Git git) {
         String rename = null;
         String deletion = null;
         if (git != null) {
@@ -215,12 +277,15 @@ public final class SuggestionsRenderer {
         final List<Scored> scored = new ArrayList<>();
         if (rename == null) {
             final String goneStem = stem(baseName(gone));
+            final Set<String> goneTokens = sigTokens(goneStem);
             final Set<String> seen = new HashSet<>();
-            for (final String cand : candidatePaths) {
+            for (final String cand : candidates.paths()) {
                 if (cand.equals(gone) || cand.equals(self)) {
                     continue;
                 }
-                final double score = similarity(goneStem, stem(baseName(cand)));
+                double score = similarity(goneStem, stem(baseName(cand)));
+                final Set<String> candTokens = candidates.tokensByPath().get(cand);
+                score = Math.max(score, tokenSignals(goneTokens, candTokens, candidates.tokenFreq()));
                 if (score >= THRESHOLD && seen.add(cand)) {
                     scored.add(new Scored(cand, score));
                 }
@@ -228,6 +293,37 @@ public final class SuggestionsRenderer {
             scored.sort(Comparator.comparingDouble((Scored s) -> -s.score()).thenComparing(Scored::path));
         }
         return new Hints(rename, deletion, scored);
+    }
+
+    /**
+     * The token-level score of a candidate against a gone name: how much of the gone name's token set
+     * the candidate covers (filename plus title tokens, capped at {@link #TITLE_CAP}), floored at
+     * {@link #WEAK_SIGNAL} when the two share a distinctive token — one carried by exactly one candidate
+     * in the pool and long enough to identify it.
+     *
+     * @param goneTokens the gone name's significant tokens.
+     * @param candTokens the candidate's tokens (filename and title).
+     * @param tokenFreq  how many candidates in the pool carry each token.
+     * @return the token-signal score in {@code [0, TITLE_CAP]}.
+     */
+    private static double tokenSignals(
+            final Set<String> goneTokens, final Set<String> candTokens, final Map<String, Integer> tokenFreq) {
+        if (goneTokens.isEmpty() || candTokens == null || candTokens.isEmpty()) {
+            return 0;
+        }
+        final Set<String> shared = new TreeSet<>(goneTokens);
+        shared.retainAll(candTokens);
+        if (shared.isEmpty()) {
+            return 0;
+        }
+        double score = Math.min(TITLE_CAP, (double) shared.size() / goneTokens.size() * TITLE_CAP);
+        for (final String t : shared) {
+            if (t.length() >= UNIQUE_TOKEN_MIN_LENGTH && tokenFreq.getOrDefault(t, 0) == 1) {
+                score = Math.max(score, WEAK_SIGNAL);
+                break;
+            }
+        }
+        return score;
     }
 
     /**

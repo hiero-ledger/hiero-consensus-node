@@ -10,18 +10,20 @@ import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
  * The full deterministic output of a run: the scanned documents, the collapsed findings, the baseline
- * join, the semantic worklist, and the source index. Renderers turn this into the report, quiet log,
- * auto-fix proposals, machine artifact, worklist, and did-you-mean suggestions.
+ * join, the semantic worklist, the source index, and the scan-coverage stats. Renderers turn this into
+ * the report, quiet log, auto-fix proposals, machine artifact, worklist, and did-you-mean suggestions.
  *
  * @param documents   the scanned KB documents.
  * @param findings    the collapsed findings.
  * @param join        the baseline join result.
  * @param worklist    the semantic worklist.
  * @param sourceIndex the source index (for near-name suggestions on gone sources).
+ * @param stats       the scan-coverage statistics (what was scanned and checked).
  */
 public record RunResult(
         List<KbDocument> documents,
         List<Finding> findings,
         BaselineJoin.Result join,
         List<WorklistEntry> worklist,
-        SourceIndex sourceIndex) {}
+        SourceIndex sourceIndex,
+        ScanStats stats) {}

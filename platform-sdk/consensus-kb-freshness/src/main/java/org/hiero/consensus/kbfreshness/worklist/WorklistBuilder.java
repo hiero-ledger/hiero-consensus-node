@@ -164,24 +164,45 @@ public final class WorklistBuilder {
      * full path resolves to itself when it exists on disk. An abbreviated {@code module/.../File.java}
      * citation resolves through the source index by basename within the cited module (mirroring
      * {@code AnchorResolver}); with no cited module, every indexed file of that basename is taken. A
-     * citation that resolves nowhere contributes no source — a gone anchor is reported as drift elsewhere.
+     * citation whose cited location is stale but whose basename resolves at exactly one other indexed
+     * path — the resolver's package/path-move signal — is tracked at that new location: the topics whose
+     * code moved wholesale are exactly the ones whose prose most needs the semantic pass, so a moved
+     * anchor must keep feeding the freshness comparison rather than silently dropping out. Only a
+     * citation that resolves nowhere (or ambiguously) contributes no source — a gone anchor is reported
+     * as drift elsewhere.
      *
      * @param a a source-path anchor.
      * @return the concrete repo-relative source paths the anchor names (possibly empty).
      */
     private List<String> resolveAnchoredSources(final Anchor a) {
         final String target = a.target();
-        if (!target.contains("/.../")) {
-            return Files.isRegularFile(repoRoot.resolve(target)) ? List.of(target) : List.of();
-        }
         final String basename = target.substring(target.lastIndexOf('/') + 1);
+        if (!target.contains("/.../")) {
+            if (Files.isRegularFile(repoRoot.resolve(target))) {
+                return List.of(target);
+            }
+            return uniqueMove(basename);
+        }
         final List<String> resolved = new ArrayList<>();
         for (final String p : index.pathsForBasename(basename)) {
             if (a.citedModule() == null || a.citedModule().equals(moduleOf(p))) {
                 resolved.add(p);
             }
         }
-        return resolved;
+        return resolved.isEmpty() ? uniqueMove(basename) : resolved;
+    }
+
+    /**
+     * The single indexed path of a basename whose cited location is stale, or nothing when the basename
+     * is gone or ambiguous (mirroring the resolver, which only reports a resolved path for a unique
+     * package/path move).
+     *
+     * @param basename the cited file basename.
+     * @return the unique moved-to path, or an empty list.
+     */
+    private List<String> uniqueMove(final String basename) {
+        final List<String> candidates = index.pathsForBasename(basename);
+        return candidates.size() == 1 ? List.of(candidates.get(0)) : List.of();
     }
 
     /**

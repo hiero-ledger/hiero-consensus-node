@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.kbfreshness.render;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.findings.InterfaceDiffAssembler;
+import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
+import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
@@ -38,6 +44,7 @@ public final class CoverageRenderer {
         renderUndocumentedCode(sb, result);
         renderUnanchoredTopics(sb, result);
         renderUncheckedInterfaces(sb, result);
+        renderMissingTopicDocs(sb, result);
         return sb.toString();
     }
 
@@ -91,6 +98,48 @@ public final class CoverageRenderer {
             }
         }
         sb.append(any ? "\n" : "_None._\n\n");
+    }
+
+    /**
+     * Section: cited topic slugs whose document does not exist. Each is already asserted as drift in the
+     * report; this lens groups them by slug as documentation gaps — when several entries tag a topic
+     * that was never written, the fix may be to write it rather than retarget every citation.
+     *
+     * @param sb     the buffer to append to.
+     * @param result the run result.
+     */
+    private static void renderMissingTopicDocs(final StringBuilder sb, final RunResult result) {
+        sb.append("## Cited topic slugs with no document\n\n");
+        sb.append("_Frontmatter `topics:` tags (and topic links) whose target document does not exist — "
+                + "candidate topics to write, or slugs to retarget (see `suggestions.md`)._\n\n");
+        final Map<String, List<String>> citersBySlug = new TreeMap<>();
+        for (final Finding f : result.findings()) {
+            if (f.kind() == AnchorKind.CROSS_DOC_LINK
+                    && f.outcome() == Outcome.ABSENT
+                    && f.lane() == Lane.ASSERT
+                    && f.target().contains("/architecture/topics/")) {
+                final String name = f.target().substring(f.target().lastIndexOf('/') + 1);
+                final String slug = name.endsWith(".md") ? name.substring(0, name.length() - 3) : name;
+                final List<String> citers = citersBySlug.computeIfAbsent(slug, k -> new ArrayList<>());
+                if (!citers.contains(f.entryKey())) {
+                    citers.add(f.entryKey());
+                }
+            }
+        }
+        if (citersBySlug.isEmpty()) {
+            sb.append("_None._\n\n");
+            return;
+        }
+        for (final Map.Entry<String, List<String>> e : citersBySlug.entrySet()) {
+            sb.append("- `")
+                    .append(e.getKey())
+                    .append("` — cited by ")
+                    .append(e.getValue().size())
+                    .append(": ")
+                    .append(String.join(", ", e.getValue().stream().sorted().toList()))
+                    .append('\n');
+        }
+        sb.append('\n');
     }
 
     /**

@@ -2,7 +2,7 @@
 type: decision
 id: ADR-001
 title: Fixture decision
-topics: [present-topic, my-api, missing-topic, rul-001-fixture, present]
+topics: [present-topic, my-api, missing-topic, rul-001-fixture, present, backpressure]
 ---
 
 # ADR-001 — Fixture decision

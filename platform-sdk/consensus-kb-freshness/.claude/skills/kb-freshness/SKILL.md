@@ -26,12 +26,16 @@ bash "${CLAUDE_SKILL_DIR}/scripts/run.sh"
 
 It prints the output directory (default `<repo>/build/kb-freshness`). Read these artifacts from it:
 
-- `report.md` — the human drift report (deterministic assertions a curator acts on).
+- `report.md` — the human drift report (deterministic assertions a curator acts on). Its
+  **Scan coverage** section states what was scanned and checked; its **Root causes (rollup)** section
+  groups findings that share one underlying change.
 - `findings.json` — the machine-readable finding set (stable ids; reproducible).
 - `quiet-log.md` — unverifiable checks (generated/external symbols) — **not** drift.
-- `auto-fix.md` — proposed line-reference corrections (suggestions only).
-- `coverage.md` — documentation gaps (coverage lane): undocumented code, topics anchoring no source,
-  and interface docs not checked at Tier-2 — **not** drift.
+- `auto-fix.md` — proposed line-reference and path corrections (applied only by `--fix`).
+- `suggestions.md` — non-asserting did-you-mean hints for gone targets.
+- `coverage.md` — documentation gaps (coverage lane): undocumented code and config keys, topics
+  anchoring no source, interface docs not checked at Tier-2, and cited topic slugs with no
+  document — **not** drift.
 - `worklist.json` — the semantic worklist (below).
 
 Do not re-derive or second-guess the deterministic findings; present them as-is.
@@ -41,7 +45,7 @@ Do not re-derive or second-guess the deterministic findings; present them as-is.
 Read `worklist.json`. Process **only** entries whose `status` is `review` or `unknown` (their
 anchored source changed since `last_reviewed`, or freshness is unknown). Skip `fresh` entries.
 
-For each such entry:
+For each `review` entry:
 
 1. Read the topic doc at `entryPath`.
 2. Read the **current** source files listed in `changedPaths` (and any other source the topic
@@ -50,6 +54,17 @@ For each such entry:
    - `supported` — the current code backs the claim.
    - `contradicted` — the current code makes the claim false.
    - `can't-determine` — you cannot tell from the source available.
+
+An `unknown` entry has no `changedPaths` to read — its `note` names why (usually
+`no anchored sources`). Handle it by the note:
+
+- `no anchored sources` — the doc carries no mechanically-checkable code anchor (it also appears in
+  `coverage.md`). Read the doc, **locate** the code it describes (search by the class/component names
+  in its prose), and judge its claims against what you find. If you can identify the code, also
+  recommend anchoring the doc to it (add source citations) so future runs can track freshness. If you
+  cannot identify the code, say so — do not guess.
+- `git unavailable` / `no commit dates for anchored sources` — freshness could not be dated; treat the
+  entry like `review` and read the sources the doc anchors.
 
 ## Step 3 — Report only contradicted-with-citation
 
@@ -66,9 +81,26 @@ it. An uncited judgment is dropped, not reported.
 ## Step 4 — Present the combined result
 
 Show, in order:
-1. The deterministic **report.md** (new drift, carried drift, resolved), summarized.
+1. The deterministic **report.md** (new drift, carried drift, resolved), summarized — lead with the
+   **Root causes (rollup)** section when present: one underlying code move often explains dozens of
+   findings, and the curator should read cause-level first.
 2. Pointers to `quiet-log.md`, `auto-fix.md`, `coverage.md` for the non-drift lanes.
 3. Your **`## Advisory (semantic)`** section (or "none" if nothing survived).
+
+## Step 5 — Recommend next actions
+
+Close with a short, concrete action list derived from this run (skip lines that do not apply):
+
+1. **Apply the certain fixes**: if the summary counts anything under "Fixable now with `--fix`",
+   suggest re-running the engine with `--fix` (it applies exactly the `auto-fix.md` diffs).
+2. **Hand-fix the GONE findings**: point at `suggestions.md` for did-you-mean hints; renames there
+   need a human decision and are never auto-applied.
+3. **Close coverage gaps**: mention `coverage.md` items worth acting on (unanchored topics, interface
+   docs not opted into Tier-2, undocumented config keys, topic slugs with no document).
+4. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
+   copying `baseline.proposed.tsv`) and triaging the rows.
+
+Do **not** perform any of these yourself unless the user asks.
 
 If the user asks to triage or dismiss a finding, explain the baseline flow (see the module README):
 add the finding's `id` to `platform-sdk/consensus-kb-freshness/baseline/kb-freshness-baseline.tsv` with

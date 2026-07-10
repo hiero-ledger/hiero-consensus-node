@@ -2,9 +2,12 @@
 package org.hiero.consensus.kbfreshness.resolve;
 
 import com.sun.source.tree.AnnotationTree;
+import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.LineMap;
+import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.Tree;
@@ -21,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
+import javax.lang.model.element.Modifier;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
@@ -61,13 +65,45 @@ public final class JavaParsing {
     public record MethodSig(String name, List<String> paramTypes, String returnType, int line) {}
 
     /**
-     * A declared type: its kind, declaration line, and methods (overloads preserved).
+     * One record component read as a config property, for {@code @ConfigData} record checks.
      *
-     * @param declLine 1-based line of the type declaration.
-     * @param kind     the declaration flavor.
-     * @param methods  every declared method, in source order (overloads share a name).
+     * @param keyName           the property name the config system binds — the {@code @ConfigProperty}
+     *                          {@code value} attribute when written, else the component name.
+     * @param componentName     the record component's declared name.
+     * @param type              the component's type exactly as written.
+     * @param defaultValue      the {@code @ConfigProperty(defaultValue = "…")} string literal, or
+     *                          {@code null} when absent or not a plain literal.
+     * @param defaultIsLiteral  whether a {@code defaultValue} attribute was written as a plain string
+     *                          literal (only then can it be compared as a fact).
+     * @param line              the 1-based line of the component declaration.
      */
-    public record TypeInfo(int declLine, Kind kind, List<MethodSig> methods) {
+    public record ConfigComponent(
+            String keyName,
+            String componentName,
+            String type,
+            String defaultValue,
+            boolean defaultIsLiteral,
+            int line) {}
+
+    /**
+     * A declared type: its kind, declaration line, methods (overloads preserved), and — for
+     * {@code @ConfigData} records — its config prefix and components.
+     *
+     * @param declLine         1-based line of the type declaration.
+     * @param kind             the declaration flavor.
+     * @param methods          every declared method, in source order (overloads share a name).
+     * @param configPrefix     the {@code @ConfigData} value as written ({@code ""} for a bare
+     *                         {@code @ConfigData}), or {@code null} when the type carries no
+     *                         {@code @ConfigData} annotation.
+     * @param configComponents the record components read as config properties, in declaration order
+     *                         (empty for non-records and records without components).
+     */
+    public record TypeInfo(
+            int declLine,
+            Kind kind,
+            List<MethodSig> methods,
+            String configPrefix,
+            List<ConfigComponent> configComponents) {
 
         /**
          * Whether the type declares a method with the given name (any overload).
@@ -183,18 +219,131 @@ public final class JavaParsing {
         }
         final String name = ct.getSimpleName().toString();
         final List<MethodSig> methods = new ArrayList<>();
+        final List<ConfigComponent> components = new ArrayList<>();
+        final boolean isRecord = kindOf(ct) == Kind.RECORD;
         for (final Tree member : ct.getMembers()) {
             if (member instanceof MethodTree mt) {
                 methods.add(signatureOf(cu, mt, positions, lineMap, src));
             } else if (member instanceof ClassTree nested) {
                 collectType(cu, nested, positions, lineMap, src, out);
+            } else if (isRecord
+                    && member instanceof VariableTree vt
+                    && !vt.getModifiers().getFlags().contains(Modifier.STATIC)) {
+                // A record's non-static variable members are exactly its components (the parser lowers
+                // the record header into member declarations; instance fields are illegal in records).
+                components.add(configComponentOf(cu, vt, positions, lineMap, src));
             }
         }
         if (!name.isEmpty()) {
             out.putIfAbsent(
                     name,
-                    new TypeInfo(declLine(cu, ct, ct.getModifiers(), positions, lineMap, src), kindOf(ct), methods));
+                    new TypeInfo(
+                            declLine(cu, ct, ct.getModifiers(), positions, lineMap, src),
+                            kindOf(ct),
+                            methods,
+                            annotationValue(ct.getModifiers(), "ConfigData"),
+                            components));
         }
+    }
+
+    /**
+     * Reads one record component as a config property: its bound key name ({@code @ConfigProperty}
+     * {@code value} attribute or the component name), as-written type, and — when written as a plain
+     * string literal — its {@code defaultValue}.
+     *
+     * @param cu        the enclosing compilation unit.
+     * @param vt        the component declaration.
+     * @param positions source-position lookup for the unit.
+     * @param lineMap   line-number lookup for the unit.
+     * @param src       the compilation unit's source text.
+     * @return the component's config-property view.
+     */
+    private static ConfigComponent configComponentOf(
+            final CompilationUnitTree cu,
+            final VariableTree vt,
+            final SourcePositions positions,
+            final LineMap lineMap,
+            final CharSequence src) {
+        final String componentName = vt.getName().toString();
+        String keyName = componentName;
+        String defaultValue = null;
+        boolean defaultIsLiteral = false;
+        for (final AnnotationTree at : vt.getModifiers().getAnnotations()) {
+            if (!simpleAnnotationName(at).equals("ConfigProperty")) {
+                continue;
+            }
+            final String named = attributeLiteral(at, "value");
+            if (named != null) {
+                keyName = named;
+            }
+            defaultValue = attributeLiteral(at, "defaultValue");
+            defaultIsLiteral = defaultValue != null;
+        }
+        return new ConfigComponent(
+                keyName,
+                componentName,
+                vt.getType() == null ? "" : vt.getType().toString().replaceAll("\\s+", ""),
+                defaultValue,
+                defaultIsLiteral,
+                declLine(cu, vt, vt.getModifiers(), positions, lineMap, src));
+    }
+
+    /**
+     * The string-literal value of a named annotation on the given modifiers, or {@code null} when the
+     * annotation is absent. A bare annotation (no arguments) yields {@code ""}; a non-literal value
+     * yields {@code ""} as well — callers needing to distinguish literals use
+     * {@link #attributeLiteral(AnnotationTree, String)} directly.
+     *
+     * @param mods           the modifiers to scan.
+     * @param annotationName the annotation's simple name.
+     * @return the annotation's {@code value} literal, {@code ""} when bare/non-literal, or {@code null}
+     *     when the annotation is not present.
+     */
+    private static String annotationValue(final ModifiersTree mods, final String annotationName) {
+        for (final AnnotationTree at : mods.getAnnotations()) {
+            if (simpleAnnotationName(at).equals(annotationName)) {
+                final String v = attributeLiteral(at, "value");
+                return v == null ? "" : v;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The string literal assigned to a named attribute of an annotation, handling both the explicit
+     * ({@code name = "x"}) and the single-element shorthand ({@code @A("x")}, an implicit {@code value})
+     * forms. Returns {@code null} when the attribute is absent or its expression is not a plain string
+     * literal (e.g. a constant reference) — a non-literal is never compared as a fact.
+     *
+     * @param at   the annotation.
+     * @param name the attribute name to read.
+     * @return the attribute's string literal, or {@code null}.
+     */
+    private static String attributeLiteral(final AnnotationTree at, final String name) {
+        for (final ExpressionTree arg : at.getArguments()) {
+            if (arg instanceof AssignmentTree assign) {
+                if (assign.getVariable().toString().equals(name)
+                        && assign.getExpression() instanceof LiteralTree lit
+                        && lit.getValue() instanceof String s) {
+                    return s;
+                }
+            } else if (name.equals("value") && arg instanceof LiteralTree lit && lit.getValue() instanceof String s) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The simple name of an annotation's type (the last dot-segment of its as-written type).
+     *
+     * @param at the annotation.
+     * @return the annotation type's simple name.
+     */
+    private static String simpleAnnotationName(final AnnotationTree at) {
+        final String t = at.getAnnotationType().toString();
+        final int dot = t.lastIndexOf('.');
+        return dot >= 0 ? t.substring(dot + 1) : t;
     }
 
     /**

@@ -36,12 +36,19 @@ public enum AnchorKind {
     ENUM_CONSTANT(1),
     /** A config key resolved against its {@code *Config} class. */
     CONFIG_KEY(1),
+    /**
+     * A tunables-catalog section's binding of a config prefix to its record class, checked against the
+     * {@code @ConfigData} annotation of the resolved (or prefix-located) record.
+     */
+    CONFIG_PREFIX(1),
 
     // ---- Tier 2: signature / value equality ----
     /** A method cited with a parameter list, e.g. {@code Class.method(ParamType)}, checked for signature equality. */
     METHOD_SIGNATURE(2),
     /** A documented interface method compared against the interface's declared method set. */
-    INTERFACE_METHOD(2);
+    INTERFACE_METHOD(2),
+    /** A documented config default compared against the {@code @ConfigProperty(defaultValue = …)} literal. */
+    CONFIG_DEFAULT(2);
 
     /** The resolution tier of this kind (0 = text/filesystem, 1 = symbol, 2 = signature/value). */
     private final int tier;

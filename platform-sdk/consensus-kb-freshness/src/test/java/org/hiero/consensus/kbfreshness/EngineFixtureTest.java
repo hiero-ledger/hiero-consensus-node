@@ -267,11 +267,132 @@ class EngineFixtureTest {
 
     @Test
     void reportSummaryCountsWhatIsFixableWithFix() {
-        // The fixture has one unique path move (MovedClass) and two moved line references (foo, run).
+        // Path moves: MovedClass cited by RUL-001 and topic:moved-anchored, plus the renamed config
+        // class (CONFIG_PREFIX). Moved line references: foo, run.
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("| Auto-fix — moved lines | 2 |");
-        assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 1 |");
-        assertThat(report).contains("| Fixable now with `--fix` | 3 |");
+        assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 3 |");
+        assertThat(report).contains("| Fixable now with `--fix` | 5 |");
+    }
+
+    @Test
+    void reportShowsScanCoverageAndRootCauseRollup() {
+        final String report = ReportRenderer.render(result, "");
+        assertThat(report).contains("## Scan coverage");
+        assertThat(report).contains("- Entries scanned: ");
+        assertThat(report).contains("- Anchors extracted: ");
+        assertThat(report).contains("## Root causes (rollup)");
+        // MovedClass is cited by RUL-001 and topic:moved-anchored — one move, two docs.
+        assertThat(report)
+                .contains("`platform-sdk/module-a/src/main/java/com/y/MovedClass.java` → "
+                        + "`platform-sdk/module-b/src/main/java/com/y/MovedClass.java` — 2 doc(s)");
+    }
+
+    @Test
+    void movedSourceStillFeedsTheWorklist() {
+        // moved-anchored.md cites MovedClass at its stale module-a path; the worklist must track it at
+        // its unique new location instead of dropping the topic to "no anchored sources".
+        final WorklistEntry e = result.worklist().stream()
+                .filter(x -> x.entryPath().endsWith("moved-anchored.md"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(e.anchoredSourceCount()).isEqualTo(1);
+        assertThat(e.note()).isNotEqualTo("no anchored sources");
+    }
+
+    @Test
+    void externalCitedFileThatExistsResolvesCleanly() {
+        assertThat(byKind(AnchorKind.SOURCE_PATH, t -> t.endsWith("present.proto")))
+                .isEmpty();
+    }
+
+    @Test
+    void externalCitedFileThatIsMissingStaysQuietWithAbsenceNote() {
+        final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("missing.proto"));
+        assertThat(f.outcome()).isEqualTo(Outcome.UNVERIFIABLE);
+        assertThat(f.lane()).isEqualTo(Lane.QUIET_LOG);
+        assertThat(f.evidence()).contains("Not found on disk");
+    }
+
+    @Test
+    void documentedConfigKeyGoneFromRecordAsserts() {
+        final Finding f = require(AnchorKind.CONFIG_KEY, t -> t.equals("fix.a.goneKey"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.evidence()).contains("declares no property `goneKey`");
+        // A key that matches produces nothing.
+        assertThat(byKind(AnchorKind.CONFIG_KEY, t -> t.equals("fix.a.alpha"))).isEmpty();
+    }
+
+    @Test
+    void changedConfigDefaultAssertsButMatchingDefaultIsClean() {
+        final Finding f = require(AnchorKind.CONFIG_DEFAULT, t -> t.equals("fix.a.beta"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.evidence()).contains("10s").contains("20s");
+        assertThat(byKind(AnchorKind.CONFIG_DEFAULT, t -> t.equals("fix.a.alpha")))
+                .isEmpty();
+    }
+
+    @Test
+    void semanticTypeDifferenceIsQuietNotAssert() {
+        // Documented `Path` for a String-typed key: possibly stylistic, never asserted.
+        final Finding f = require(AnchorKind.CONFIG_KEY, t -> t.equals("fix.a.gamma"));
+        assertThat(f.outcome()).isEqualTo(Outcome.PRESENT);
+        assertThat(f.lane()).isEqualTo(Lane.QUIET_LOG);
+    }
+
+    @Test
+    void nonLiteralConfigDefaultIsUnverifiableAndQuiet() {
+        final Finding f = require(AnchorKind.CONFIG_DEFAULT, t -> t.equals("fix.a.delta"));
+        assertThat(f.outcome()).isEqualTo(Outcome.UNVERIFIABLE);
+        assertThat(f.lane()).isEqualTo(Lane.QUIET_LOG);
+    }
+
+    @Test
+    void catalogEscapedGenericsAndEmptySpellingAreNormalizedNotFindings() {
+        // The catalog writes `List&lt;String&gt;` in table cells and `(empty)` for an empty default;
+        // both are conventions, not drift.
+        assertThat(byKind(AnchorKind.CONFIG_KEY, t -> t.equals("fix.a.listy"))).isEmpty();
+        assertThat(byKind(AnchorKind.CONFIG_DEFAULT, t -> t.equals("fix.a.listy")))
+                .isEmpty();
+    }
+
+    @Test
+    void undocumentedConfigKeyIsCoverageGapNotDrift() {
+        final Finding f = require(AnchorKind.CONFIG_KEY, t -> t.equals("fix.a.undocumented"));
+        assertThat(f.lane()).isEqualTo(Lane.COVERAGE_GAP);
+        assertThat(CoverageRenderer.render(result)).contains("fix.a.undocumented");
+    }
+
+    @Test
+    void renamedConfigClassResolvesByPrefixAndRewritesHeadingSourceAndModule() {
+        final Finding f = require(AnchorKind.CONFIG_PREFIX, t -> t.endsWith("OldNameConfig.java"));
+        assertThat(f.outcome()).isEqualTo(Outcome.PRESENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.resolvedPath()).isEqualTo("platform-sdk/module-b/src/main/java/com/y/NewNameConfig.java");
+        final String autoFix = AutoFixRenderer.render(result);
+        assertThat(autoFix).contains("+ ## `fix.b.*` — NewNameConfig");
+        assertThat(autoFix)
+                .contains("+ Module: `module-b`. Source: [NewNameConfig.java]"
+                        + "(../../module-b/src/main/java/com/y/NewNameConfig.java).");
+    }
+
+    @Test
+    void goneSlugWithDistinctiveTitleTokenIsSuggestedButNeverPromoted() {
+        // `backpressure` shares no name similarity with flow-control.md, but the doc's title carries the
+        // distinctive token; that yields a plain hint, never an actionable rename.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("architecture/topics/flow-control.md");
+        assertThat(md).doesNotContain("rename `topics:` slug `backpressure`");
+    }
+
+    @Test
+    void citedTopicSlugsWithNoDocumentSurfaceInCoverageLane() {
+        final String coverage = CoverageRenderer.render(result);
+        assertThat(coverage).contains("## Cited topic slugs with no document");
+        assertThat(coverage).contains("- `backpressure` — cited by 1: ADR-001");
+        assertThat(coverage).contains("- `missing-topic` — cited by 1: ADR-001");
     }
 
     @Test

@@ -89,9 +89,10 @@ public final class AnchorResolver {
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
             case METHOD_SIGNATURE -> resolveMethodSignature(a);
-            // Kinds resolved outside the per-anchor pipeline (INTERFACE_METHOD) or not extracted in
-            // this version resolve as unverifiable if reached here.
-            case CLASS, ENUM_CONSTANT, CONFIG_KEY, INTERFACE_METHOD ->
+            // Kinds resolved outside the per-anchor pipeline (INTERFACE_METHOD, CONFIG_KEY,
+            // CONFIG_PREFIX, CONFIG_DEFAULT — the Tier-2 diff assemblers) or not extracted in this
+            // version resolve as unverifiable if reached here.
+            case CLASS, ENUM_CONSTANT, CONFIG_KEY, CONFIG_PREFIX, CONFIG_DEFAULT, INTERFACE_METHOD ->
                 Resolution.finding(
                         Outcome.UNVERIFIABLE, Lane.QUIET_LOG, "symbol check", "not implemented in this version");
         };
@@ -236,15 +237,23 @@ public final class AnchorResolver {
         if (a.historical()) {
             return resolveHistoricalSource(a, q, basename);
         }
+        final boolean abbreviated = target.contains("/.../");
         if (allowlist.isExternalPath(target)) {
+            // Existence is still a filesystem fact even for a source the engine cannot parse: a cited
+            // external file that is present resolves cleanly (Tier 0). A missing one stays unverifiable —
+            // it may be generated at build time — but the quiet-log evidence flags the absence so a
+            // curator skimming the log sees it.
+            if (!abbreviated && index.fileExists(target)) {
+                return Resolution.ok(Outcome.PRESENT, q);
+            }
+            final String note = abbreviated ? "" : " Not found on disk either (may be generated at build time).";
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
-                    "External/generated source (not indexed): `" + target + "`.");
+                    "External/generated source (not indexed): `" + target + "`." + note);
         }
 
-        final boolean abbreviated = target.contains("/.../");
         if (!abbreviated && index.fileExists(target)) {
             final String actualModule = moduleOfPath(target);
             if (a.statedModule() != null

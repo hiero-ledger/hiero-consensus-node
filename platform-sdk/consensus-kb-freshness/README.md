@@ -57,12 +57,12 @@ checks run first and assert freely; the deeper a check reaches, the more careful
 anything too fuzzy to settle mechanically is pushed up to the semantic pass rather than risk a false
 assert.
 
-|    Tier    |                                                         What it verifies                                                          |                                                    How                                                    |                                     Asserts drift?                                     |
-|------------|-----------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| **Tier 0** | Existence of cited files, module directories, cross-doc links, `#headings`, and catalog IDs (INV/RUL/ADR/SCN/HEU/SYM/TUN).        | Filesystem + text. Near-zero false-positive risk.                                                         | Yes — a cited file, link target, or catalog ID that is simply absent.                  |
-| **Tier 1** | A cited *type* still exists in the *module the doc names*; a `verification:` method still exists on its class.                    | Parse the cited source; look for the declared type/method.                                                | Yes — but a type found in a *different* module is reported as a **move**, not as gone. |
-| **Tier 2** | A cited *method signature* still matches (parameters/return), and a documented *interface's method set* still matches the source. | Parse and compare *as-written* signatures. Opt-in for interfaces via `interface:`/`methods:` frontmatter. | Yes — a signature that no longer matches, or a documented method that is gone.         |
-| **Tier 3** | *Behavioral* prose claims — what the code actually does.                                                                          | The **semantic pass** (the skill). Not deterministic.                                                     | No — advisory only, and only a `contradicted`-with-citation claim.                     |
+|    Tier    |                                                                     What it verifies                                                                      |                                                                     How                                                                     |                                     Asserts drift?                                     |
+|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| **Tier 0** | Existence of cited files (including allowlisted external ones), module directories, cross-doc links, `#headings`, and catalog IDs (INV/RUL/ADR/SCN/HEU/SYM/TUN). | Filesystem + text. Near-zero false-positive risk. A *missing* external file stays quiet (it may be generated), but its absence is flagged in the quiet log. | Yes — a cited file, link target, or catalog ID that is simply absent.                  |
+| **Tier 1** | A cited *type* still exists in the *module the doc names*; a `verification:` method still exists on its class; a tunables-catalog *key* is still a declared `@ConfigProperty` of its `@ConfigData` record. | Parse the cited source; look for the declared type/method/record component.                                                                  | Yes — but a type found in a *different* module is reported as a **move**, not as gone. |
+| **Tier 2** | A cited *method signature* still matches (parameters/return), a documented *interface's method set* still matches the source, and a tunables-catalog *default* still matches the `@ConfigProperty(defaultValue = …)` literal. | Parse and compare *as-written* signatures and annotation literals. Opt-in for interfaces via `interface:`/`methods:` frontmatter; automatic for the tunables catalog (its column conventions are the contract). | Yes — a signature that no longer matches, a documented method that is gone, or a default that changed. |
+| **Tier 3** | *Behavioral* prose claims — what the code actually does.                                                                                                    | The **semantic pass** (the skill). Not deterministic.                                                                                        | No — advisory only, and only a `contradicted`-with-citation claim.                     |
 
 Two principles drive the split:
 
@@ -190,7 +190,11 @@ drift report to act on; the rest are supporting lanes and inputs.
 | `worklist.md` / `worklist.json` | semantic-pass input                    | Driving or reviewing the Tier-3 pass. |
 | `baseline.proposed.tsv`         | the next baseline this run would write | Adopting or refreshing the baseline.  |
 
-**`report.md` — the drift report.** The one file to act on. It is split into **new**, **carried**,
+**`report.md` — the drift report.** The one file to act on. It opens with a **Scan coverage**
+section — entries scanned, anchors extracted, checks resolved — so "no findings" is auditable as
+*checked and clean* rather than *never looked at*, and a **Root causes (rollup)** section that
+groups findings sharing one underlying change (a single package move often stales dozens of
+citations; the curator reads cause-level first). The findings are split into **new**, **carried**,
 and **resolved** sections (from the baseline join, below). Each finding states the exact question
 that was asked, one-look **evidence**, and the KB **occurrences** (line-hints) where the claim
 appears. A finding is labelled **GONE** (the cited class/file is absent) or **MOVED** (it exists,
@@ -211,26 +215,34 @@ over a guess. Skim it to confirm nothing that *should* be checkable is silently 
 cited line number moved (a navigation nit, never a drift finding), and a **MOVED** source that
 resolves at exactly one new path (a drift finding in `report.md`, repeated here as a ready
 before/after path rewrite in whatever citation style the KB line uses, plus a stale on-line
-`Module:` label). These are the *certain* fixes, so **`--fix` applies them in place** (guarded by an
+`Module:` label). When the move is also a *rename* — certain only for a config record located by its
+`@ConfigData` prefix (below) — mentions of the old class name in link text and section headings are
+rewritten too. These are the *certain* fixes, so **`--fix` applies them in place** (guarded by an
 exact line match, hence idempotent); without it they are shown for hand-editing.
 
 **`suggestions.md` — non-asserting "did you mean" hints.** For each **GONE** target (a missing
 cross-doc link, source path, or bare source basename) the tool offers replacement candidates — a
 definite git rename when history has one, else the commit that deleted the target when git recorded
 one, plus the closest near-name matches against the KB docs or the source index (for a gone
-architecture-topic target, only other topic/interface docs are considered). Where a hint is
-unambiguous it is made **actionable**: a topics-slug tag with a single strong match becomes a
-`rename topics: slug X → Y`, and a source an ADR cites as removed gets a nudge to mark it
-`historical:` rather than repoint it. **Hints, not facts** (it never asserts, and `--fix` never
-applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
+architecture-topic target, only other topic/interface docs are considered). Beyond name similarity,
+two weaker signals are scored, both capped so they can only ever *offer*, never promote: a doc whose
+frontmatter **title** covers the gone name's tokens, and a candidate sharing a **distinctive token**
+carried by exactly one candidate in the pool (so `backpressure` finds `flow-control.md` through its
+title even when edit distance sees nothing). Where a hint is unambiguous it is made **actionable**:
+a topics-slug tag with a single strong match becomes a `rename topics: slug X → Y`, and a source an
+ADR cites as removed gets a nudge to mark it `historical:` rather than repoint it. **Hints, not
+facts** (it never asserts, and `--fix` never applies them), and kept out of `findings.json` so the
+machine artifact stays reproducible.
 
-**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in three
-sections: (1) code the docs don't mention (e.g. a method present on a documented interface but absent
-from its `methods:` frontmatter); (2) architecture *topics* that anchor no source, so no claim can be
-checked against code; (3) interface docs that carry no `interface:`/`methods:` frontmatter, so the
-Tier-2 method-set diff never runs for them (making its dormancy visible rather than reading as "all
-clear"). Use it to find documentation worth adding or anchoring; tracked apart from the drift report on
-purpose.
+**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in four
+sections: (1) code the docs don't mention (a method present on a documented interface but absent
+from its `methods:` frontmatter, or a `@ConfigProperty` its tunables section doesn't document);
+(2) architecture *topics* that anchor no source, so no claim can be checked against code;
+(3) interface docs that carry no `interface:`/`methods:` frontmatter, so the Tier-2 method-set diff
+never runs for them (making its dormancy visible rather than reading as "all clear"); (4) cited
+topic *slugs* whose document does not exist — when several entries tag a topic that was never
+written, the fix may be to write it rather than retarget every citation. Use it to find
+documentation worth adding or anchoring; tracked apart from the drift report on purpose.
 
 **`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
@@ -238,8 +250,12 @@ the last-commit date of its anchored source against its `last_reviewed` date and
 determined — the entry's note names the reason: no anchored sources, git unavailable, or no commit
 dates). Anchored source includes the KB's abbreviated inline citations (`module/.../File.java`),
 resolved through the source index — so a topic anchored only in that style is tracked, not dropped to
-`unknown`. A topic that genuinely anchors nothing (`anchoredSourceCount` 0) is surfaced in
-`coverage.md`. The semantic pass consumes the JSON and reads only the `review`/`unknown` entries.
+`unknown`. A **moved** anchor — a citation whose location is stale but whose basename resolves at
+exactly one other indexed path — is tracked at its *new* location: the topics whose code moved
+wholesale are exactly the ones whose prose most needs re-reading, so a move must never silently
+weaken the freshness signal. A topic that genuinely anchors nothing (`anchoredSourceCount` 0) is
+surfaced in `coverage.md`. The semantic pass consumes the JSON and reads only the
+`review`/`unknown` entries.
 
 **`baseline.proposed.tsv` — the next baseline.** The baseline this run *would* write. Adopt it with
 `--write-baseline`, or copy it over the committed baseline, then triage the rows.
@@ -276,11 +292,20 @@ To adopt the current findings wholesale as the baseline, run with `--write-basel
 ## What it checks (and deliberately doesn't)
 
 - **Tier 0** — files, module dirs, cross-doc links, `#headings`, catalog IDs (INV/RUL/ADR/SCN/HEU/
-  SYM/TUN).
-- **Tier 1** — class/file existence in the cited module (with package-move detection), and
-  `verification:` method-on-class.
-- **Tier 2** — method-signature equality (`Class.method(params)` citations) and interface method-set
-  diffs (opt-in via `interface:`/`methods:` frontmatter; undocumented methods → coverage lane).
+  SYM/TUN), and existence of cited allowlisted-external files (present resolves cleanly; missing
+  stays quiet but is flagged).
+- **Tier 1** — class/file existence in the cited module (with package-move detection),
+  `verification:` method-on-class, and tunables-catalog key existence (each documented key must be a
+  declared `@ConfigProperty` of its section's `@ConfigData` record).
+- **Tier 2** — method-signature equality (`Class.method(params)` citations), interface method-set
+  diffs (opt-in via `interface:`/`methods:` frontmatter; undocumented methods → coverage lane), and
+  tunables-catalog default equality (documented default vs the `defaultValue` string literal;
+  non-literal defaults → quiet log, type differences → quiet log since the catalog may document a
+  semantic type, undocumented keys → coverage lane). A section whose cited config class is gone is
+  additionally resolved by its `@ConfigData` **prefix**: exactly one indexed record declaring the
+  prefix *and* every documented key is a certain rename/move — asserted, with the heading, `Source:`
+  link, and `Module:` label rewrite ready for `--fix`. (The prefix scan covers indexed
+  `*Config.java` files — the repo's config-record naming convention.)
 - **Tier 3 (semantic)** — prose-vs-behavior, performed by the skill against current source; advisory
   only, `contradicted`-with-citation only.
 

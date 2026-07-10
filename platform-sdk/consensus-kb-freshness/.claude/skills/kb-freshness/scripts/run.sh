@@ -22,7 +22,9 @@ kb="${1:-platform-sdk/docs/consensus-layer}"
 out="${2:-$repo/build/kb-freshness}"
 baseline="${3:-platform-sdk/consensus-kb-freshness/baseline/kb-freshness-baseline.tsv}"
 
+# Pass the run date so newly-seen findings get a first_seen in the proposed baseline; findings.json
+# stays byte-identical (dates live only in the baseline).
 "$repo/gradlew" -q -p "$repo" :consensus-kb-freshness:run \
-  --args="--kb $kb --repo $repo --out $out --baseline $baseline" >&2
+  --args="--kb $kb --repo $repo --out $out --baseline $baseline --date $(date +%F)" >&2
 
 echo "$out"

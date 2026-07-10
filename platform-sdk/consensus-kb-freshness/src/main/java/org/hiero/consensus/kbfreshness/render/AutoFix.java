@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.model.Finding;
@@ -176,7 +178,10 @@ public final class AutoFix {
      * Rewrites the cited path within a KB line to the resolved path, trying the citation styles the KB
      * uses: the abbreviated {@code module/.../File.java} form, the full repo-relative path (code spans),
      * and the root-relative form without its first segment (frontmatter {@code components:} entries and
-     * relative markdown links, whose {@code ../} prefix is preserved by substring replacement).
+     * relative markdown links, whose {@code ../} prefix is preserved by substring replacement). When the
+     * move is also a rename (the basenames differ — e.g. a config record renamed during a module merge),
+     * remaining mentions of the old file name and its bare class name on the line are rewritten too, so
+     * link text and section headings do not keep naming the old class next to the corrected path.
      *
      * @param line    the KB line containing the citation.
      * @param oldPath the cited path (the finding's target).
@@ -184,6 +189,19 @@ public final class AutoFix {
      * @return the rewritten line, or the original line when no citation style matched.
      */
     static String rewritePath(final String line, final String oldPath, final String newPath) {
+        return rewriteRename(rewritePathStyles(line, oldPath, newPath), oldPath, newPath);
+    }
+
+    /**
+     * The path-portion rewrite of {@link #rewritePath}: the three citation styles, basename untouched
+     * unless it is part of the matched path.
+     *
+     * @param line    the KB line containing the citation.
+     * @param oldPath the cited path (the finding's target).
+     * @param newPath the repo-relative path the source actually resolves at.
+     * @return the rewritten line, or the original line when no citation style matched.
+     */
+    private static String rewritePathStyles(final String line, final String oldPath, final String newPath) {
         if (oldPath.contains("/.../")) {
             final String newModule = moduleOf(newPath);
             if (newModule != null && line.contains(oldPath)) {
@@ -200,6 +218,31 @@ public final class AutoFix {
             return line.replace(oldRel, newRel);
         }
         return line;
+    }
+
+    /**
+     * For a move that is also a rename, rewrites leftover mentions of the old basename (link text) and
+     * bare old class name (headings, prose) to the new one. A same-name move — every finding the
+     * per-anchor pipeline produces — passes through untouched.
+     *
+     * @param line    the (already path-rewritten) KB line.
+     * @param oldPath the cited path.
+     * @param newPath the resolved path.
+     * @return the line with renamed-class mentions updated.
+     */
+    private static String rewriteRename(final String line, final String oldPath, final String newPath) {
+        final String oldBase = lastSegment(oldPath);
+        final String newBase = lastSegment(newPath);
+        if (oldBase.equals(newBase)) {
+            return line;
+        }
+        String out = line.replace(oldBase, newBase);
+        final String oldStem = stripExt(oldBase);
+        final String newStem = stripExt(newBase);
+        if (!oldStem.equals(newStem)) {
+            out = out.replaceAll("\\b" + Pattern.quote(oldStem) + "\\b", Matcher.quoteReplacement(newStem));
+        }
+        return out;
     }
 
     /**
@@ -273,5 +316,16 @@ public final class AutoFix {
     private static String withoutFirstSegment(final String path) {
         final int slash = path.indexOf('/');
         return slash >= 0 ? path.substring(slash + 1) : null;
+    }
+
+    /**
+     * A filename with its first extension (and anything after) removed.
+     *
+     * @param name the filename.
+     * @return the name up to the first dot, or the whole name if it has no leading-dot extension.
+     */
+    private static String stripExt(final String name) {
+        final int dot = name.indexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
     }
 }

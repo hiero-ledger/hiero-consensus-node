@@ -52,6 +52,38 @@ class AutoFixTest {
     }
 
     @Test
+    void renamedClassRewritesBareClassNameMentions() {
+        // A move that is also a rename (e.g. a config record renamed during a module merge) must fix
+        // heading/prose mentions of the old class name, not just the path.
+        final String heading = "## `fix.b.*` — OldNameConfig";
+        assertThat(AutoFix.rewritePath(
+                        heading,
+                        "platform-sdk/module-a/src/main/java/com/x/OldNameConfig.java",
+                        "platform-sdk/module-b/src/main/java/com/y/NewNameConfig.java"))
+                .isEqualTo("## `fix.b.*` — NewNameConfig");
+    }
+
+    @Test
+    void renamedClassRewritesLinkTextAlongWithThePath() {
+        final String line = "Source: [OldNameConfig.java](../../module-a/src/main/java/com/x/OldNameConfig.java).";
+        assertThat(AutoFix.rewritePath(
+                        line,
+                        "platform-sdk/module-a/src/main/java/com/x/OldNameConfig.java",
+                        "platform-sdk/module-b/src/main/java/com/y/NewNameConfig.java"))
+                .isEqualTo("Source: [NewNameConfig.java](../../module-b/src/main/java/com/y/NewNameConfig.java).");
+    }
+
+    @Test
+    void sameNameMoveNeverTouchesUnrelatedClassNameMentions() {
+        final String line = "prose naming Moved elsewhere: `platform-sdk/module-a/src/main/java/com/x/Moved.java`";
+        assertThat(AutoFix.rewritePath(
+                        line,
+                        "platform-sdk/module-a/src/main/java/com/x/Moved.java",
+                        "platform-sdk/module-b/src/main/java/com/y/Moved.java"))
+                .isEqualTo("prose naming Moved elsewhere: `platform-sdk/module-b/src/main/java/com/y/Moved.java`");
+    }
+
+    @Test
     void rewritesStaleModuleLabelToNewModule() {
         final String before = "Module: `swirlds-platform-core`. Source: [Config.java](x).";
         assertThat(AutoFix.rewriteModuleLabel(before, "swirlds-platform-core", "consensus-utility"))
