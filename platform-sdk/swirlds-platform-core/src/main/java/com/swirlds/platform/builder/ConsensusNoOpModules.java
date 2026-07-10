@@ -14,6 +14,10 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.reconnect.ReconnectModule;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -70,7 +74,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link EventCreatorModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code EventCreatorModule}
      */
@@ -98,7 +102,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link EventIntakeModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code EventIntakeModule}
      */
@@ -131,7 +135,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link PcesModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code PcesModule}
      */
@@ -174,7 +178,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link HashgraphModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code HashgraphModule}
      */
@@ -195,8 +199,8 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link GossipModule}.
      *
-     * @param model the wiring model
-     * @param configuration the configuration
+     * @param model             the wiring model
+     * @param configuration     the configuration
      * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code GossipModule}
      */
@@ -248,8 +252,8 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link IssDetectionModule}.
      *
-     * @param model the wiring model
-     * @param configuration the configuration
+     * @param model             the wiring model
+     * @param configuration     the configuration
      * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code IssDetectionModule}
      */
@@ -283,8 +287,8 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link TransactionHandlingModule}.
      *
-     * @param model the wiring model
-     * @param configuration the configuration
+     * @param model             the wiring model
+     * @param configuration     the configuration
      * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code TransactionHandlingModule}
      */
@@ -320,8 +324,8 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link StateModule}.
      *
-     * @param model the wiring model
-     * @param configuration the configuration
+     * @param model             the wiring model
+     * @param configuration     the configuration
      * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code StateModule}
      */
@@ -360,5 +364,39 @@ public class ConsensusNoOpModules {
                 stateLifecycleManager,
                 latestCompleteStateNexus,
                 savedStateController);
+    }
+
+    public static ReconnectModule createNoOpReconnectModule(
+            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
+        final Time time = Time.getCurrent();
+        final Metrics metrics = new NoOpMetrics();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final PlatformComponents platformComponents = null;
+        final PlatformCoordinator platformCoordinator = null;
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+        final ConsensusStateEventHandler consensusStateEventHandler = NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
+
+        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
+        reconnectModule.initialize(
+                configuration,
+                time,
+                roster,
+                platformComponents,
+                null,
+                platformCoordinator,
+                stateLifecycleManager,
+                savedStateController,
+                consensusStateEventHandler,
+                reservedSignedStateResultPromise,
+                selfId,
+                fallenBehindMonitor);
+        return reconnectModule;
     }
 }
