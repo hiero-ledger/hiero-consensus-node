@@ -66,7 +66,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Atomic Batch Tests")
-@Disabled
 @HapiTestLifecycle
 public class CodeDelegationAtomicBatchTest {
     private static final String CODE_DELEGATION_CONTRACT = "CodeDelegationContract";
@@ -550,7 +549,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((_, _) -> {
                     assertEquals(
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
@@ -608,7 +607,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((_, _) -> {
                     assertEquals(
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
@@ -665,7 +664,7 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var type4Record = getTxnRecord(type4Txn);
@@ -749,7 +748,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountBalance(successSender).exposingBalanceTo(successSenderAfter::set),
 
                 // Compare gas charges between success and rollback paths
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var successRecord = getTxnRecord(successType4Txn);
@@ -847,7 +846,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var accountInBatchRollbackKey = spec.registry().getKey(accountInBatchRollback);
                     final var accountInRollbackEvmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
                             accountInBatchRollbackKey.getECDSASecp256K1().toByteArray()));
@@ -888,7 +887,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress),
                 getAccountBalance(successPayer).exposingBalanceTo(successPayerBalanceAfter::set),
                 getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterBoth::set),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var type4RecordRollback =
