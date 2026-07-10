@@ -67,6 +67,7 @@ public class BlockStreamingObs implements AutoCloseable {
     // ConcurrentMap<SecondTick, ThroughputBucket>
     private final ConcurrentMap<Long, ThroughputBucket> throughputBuckets =
             new ConcurrentHashMap<>(THROUGHPUT_BUCKETS_CAPACITY_HINT);
+    private final AtomicLong latestBlockCloseTick = new AtomicLong(-1);
     private final long initialNanosTick;
     private final ScheduledExecutorService scheduledExecutorService;
 
@@ -144,7 +145,15 @@ public class BlockStreamingObs implements AutoCloseable {
         }
 
         final long nanosTick = nanoClock.getAsLong();
-        if (stats.markOpened(nanosTick)) {
+        final long prevBlockCloseTick = latestBlockCloseTick.get();
+        final long openDelayNanos;
+        if (prevBlockCloseTick == -1) {
+            openDelayNanos = -1;
+        } else {
+            openDelayNanos = nanosTick - prevBlockCloseTick;
+        }
+
+        if (stats.markOpened(nanosTick, openDelayNanos)) {
             getThroughputBucket(nanosTick).blocksOpened.increment();
         }
     }
@@ -251,6 +260,7 @@ public class BlockStreamingObs implements AutoCloseable {
         final long nanosTick = nanoClock.getAsLong();
         if (stats.markClosed(nanosTick)) {
             getThroughputBucket(nanosTick).blocksClosed.increment();
+            latestBlockCloseTick.set(nanosTick);
         }
     }
 
@@ -598,7 +608,7 @@ public class BlockStreamingObs implements AutoCloseable {
      * callers never touch the raw fields, so the sentinel contract stays internal to this class.
      *
      * <p>Magnitudes quoted in the span docs are from a sampled {@code hapiTestSmartContract} run (27
-     * acked blocks) and are illustrative of typical behaviour, not guarantees.
+     * acked blocks) and are illustrative of typical behavior, not guarantees.
      */
     private static class BlockStats {
         private final long initNanosTick;
@@ -611,6 +621,7 @@ public class BlockStreamingObs implements AutoCloseable {
         private final AtomicReference<StartAndEndTicks> headerSentNanosTicks = new AtomicReference<>();
         private final AtomicReference<StartAndEndTicks> endSentNanosTicks = new AtomicReference<>();
         private final ConcurrentMap<Integer, BlockItemStats> items = new ConcurrentHashMap<>();
+        private final AtomicLong openDelayNanos = new AtomicLong(-1);
 
         private final StatisticsProbe itemIdleProbe = new StatisticsProbe("ItemIdle", ObsUnit.NANOS);
         private final StatisticsProbe itemSendLatencyProbe = new StatisticsProbe("ItemSendLatency", ObsUnit.NANOS);
@@ -627,8 +638,8 @@ public class BlockStreamingObs implements AutoCloseable {
             this.initNanosTick = initNanosTick;
         }
 
-        boolean markOpened(final long tick) {
-            return openedNanosTick.compareAndSet(-1, tick);
+        boolean markOpened(final long openTick, final long openDelayNanos) {
+            return openedNanosTick.compareAndSet(-1, openTick) && this.openDelayNanos.compareAndSet(-1, openDelayNanos);
         }
 
         boolean markClosed(final long tick) {
@@ -765,6 +776,10 @@ public class BlockStreamingObs implements AutoCloseable {
             return endSentNanosTicks.get() != null;
         }
 
+        boolean hasOpenDelay() {
+            return openDelayNanos.get() != -1;
+        }
+
         long initToOpen() {
             return openedNanosTick.get() - initNanosTick;
         }
@@ -836,6 +851,10 @@ public class BlockStreamingObs implements AutoCloseable {
         int itemCount() {
             return itemCount;
         }
+
+        long openDelay() {
+            return openDelayNanos.get();
+        }
     }
 
     /** Aggregates per-block latency and per-item statistics across all blocks in a reporting window. */
@@ -854,6 +873,7 @@ public class BlockStreamingObs implements AutoCloseable {
         private final StatisticsProbe openToProofCreated = new StatisticsProbe("OpenToProofCreated", ObsUnit.NANOS);
         private final StatisticsProbe footerCreatedToProofCreated =
                 new StatisticsProbe("FooterCreatedToProofCreated", ObsUnit.NANOS);
+        private final StatisticsProbe blockOpenDelay = new StatisticsProbe("OpenDelay", ObsUnit.NANOS);
 
         private final StatisticsProbe blockSize = new StatisticsProbe("BlockSize", ObsUnit.BYTES);
         private final StatisticsProbe itemsPerBlock = new StatisticsProbe("ItemsPerBlock", ObsUnit.COUNT);
@@ -904,6 +924,9 @@ public class BlockStreamingObs implements AutoCloseable {
                     headerSentToEndSent.add(blockStats.headerSentToEndSent());
                 }
             }
+            if (blockStats.hasOpenDelay()) {
+                blockOpenDelay.add(blockStats.openDelay());
+            }
 
             itemIdleComposite.add(blockStats.itemIdleStatistics());
             itemSendLatencyComposite.add(blockStats.itemSendLatencyStatistics());
@@ -941,7 +964,8 @@ public class BlockStreamingObs implements AutoCloseable {
                     openToProofCreated,
                     footerCreatedToProofCreated,
                     blockSize,
-                    itemsPerBlock);
+                    itemsPerBlock,
+                    blockOpenDelay);
         }
 
         void complete() {

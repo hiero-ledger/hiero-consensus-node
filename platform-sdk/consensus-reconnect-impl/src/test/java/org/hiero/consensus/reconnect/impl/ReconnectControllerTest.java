@@ -26,8 +26,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.SignedStateValidationData;
-import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -49,6 +47,7 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.config.FallenBehindConfig_;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -160,7 +159,10 @@ class ReconnectControllerTest {
         reconnectCoordinator = mock(ReconnectCoordinator.class);
 
         // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
-        fallenBehindMonitor = new FallenBehindMonitor(roster, 0.5, selfId);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
+                .getOrCreateConfig();
+        fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
 
         // Configure platformCoordinator.pauseGossip() to call fallenBehindMonitor.notifySyncProtocolPaused()
         doAnswer(inv -> {
