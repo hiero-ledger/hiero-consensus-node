@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "826: [CALL] Solo 0.76 to 0.77 Cutover"
+name: "826: [CALL] Solo 076-077 Cutover"
 on:
   workflow_call:
     inputs:
