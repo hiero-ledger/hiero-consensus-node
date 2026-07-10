@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
@@ -30,9 +31,11 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+
 import org.bouncycastle.util.encoders.Hex;
 
 /**
@@ -84,9 +87,9 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                         switch (ethTxOutput.transactionResult().kind()) {
                                             case UNSET -> throw new IllegalStateException("Missing EVM tx result");
                                             case EVM_CALL_TRANSACTION_RESULT ->
-                                                ethTxOutput.evmCallTransactionResultOrThrow();
+                                                    ethTxOutput.evmCallTransactionResultOrThrow();
                                             case EVM_CREATE_TRANSACTION_RESULT ->
-                                                ethTxOutput.evmCreateTransactionResultOrThrow();
+                                                    ethTxOutput.evmCreateTransactionResultOrThrow();
                                         };
                                 final ContractFunctionResult result;
                                 final var derivedBuilder = resultBuilderFrom(evmResult);
@@ -107,8 +110,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             // logs and implied bloom
                                             if (!parts.hasTraces()
                                                     && parts.transactionIdOrThrow()
-                                                                    .nonce()
-                                                            == 0) {
+                                                    .nonce()
+                                                    == 0) {
                                                 derivedBuilder
                                                         .logInfo(List.of())
                                                         .bloom(bloomForAll(List.of()))
@@ -133,7 +136,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                             new String(removeIfAnyLeading0x(initcode));
                                                     initcode = Bytes.fromHex(hexedInitcode
                                                             + Bytes.wrap(finalEthTxData.callData())
-                                                                    .toHex());
+                                                            .toHex());
                                                 }
                                             }
                                             if (initcode != null) {
@@ -151,6 +154,13 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                         baseTranslator.addChangedContractNonces(
                                                 derivedBuilder, evmResult.contractNonces());
                                     }
+                                }
+                                //TODO Glib:
+                                if (parts.status() == REVERTED_SUCCESS
+                                        && parts.isTopLevel() || parts.isInnerBatchTxn()) {
+                                    // if we are on REVERTED_SUCCESS, we do not have remainingStateChanges to find "createdContractIDs"
+                                    // so we are trying to find "createdContractIDs" from traces data
+                                    baseTranslator.addCreatedIdsFromTraces(derivedBuilder, parts.traces());
                                 }
                                 if (knownCreation) {
                                     if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
