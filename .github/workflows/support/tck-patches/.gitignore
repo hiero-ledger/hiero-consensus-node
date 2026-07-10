@@ -1,2 +1,0 @@
-# TCK workaround patches are tracked sources, not build artifacts.
-!*.patch
