@@ -154,10 +154,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                         baseTranslator.addChangedContractNonces(
                                                 derivedBuilder, evmResult.contractNonces());
                                     }
-                                }
-                                //TODO Glib:
-                                if (parts.status() == REVERTED_SUCCESS
-                                        && parts.isTopLevel() || parts.isInnerBatchTxn()) {
+                                } else if (parts.status() == REVERTED_SUCCESS
+                                        && (parts.isTopLevel() || parts.isInnerBatchTxn())) {
                                     // if we are on REVERTED_SUCCESS, we do not have remainingStateChanges to find "createdContractIDs"
                                     // so we are trying to find "createdContractIDs" from traces data
                                     baseTranslator.addCreatedIdsFromTraces(derivedBuilder, parts.traces());

@@ -456,7 +456,7 @@ public class BaseTranslator {
             log.error("No created numbers found for entity type {} when consuming {}", type, num);
             return false;
         }
-        return createdNums.remove(Long.valueOf(num));
+        return createdNums.remove(num);
     }
 
     /**
@@ -683,13 +683,13 @@ public class BaseTranslator {
                 .filter(change -> change.stateId() == STATE_ID_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
-                .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
+                .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), _ -> Bytes.EMPTY));
         writtenSlots.putAll(slotRemovals);
         final var hookSlotRemovals = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
-                .collect(toMap(d -> d.keyOrThrow().evmHookSlotKeyOrThrow(), d -> Bytes.EMPTY));
+                .collect(toMap(d -> d.keyOrThrow().evmHookSlotKeyOrThrow(), _ -> Bytes.EMPTY));
         writtenHookSlots.putAll(hookSlotRemovals);
 
         // Now filter to just EVM traces and build the sidecars
@@ -760,8 +760,8 @@ public class BaseTranslator {
                             }
                             builder.slot(writtenKey).valueWritten(value);
                         } else if (parts.status() != REVERTED_SUCCESS) {
-                            //TODO Glib:
-                            // for status == REVERTED_SUCCESS slot changes was cleaned up from contractStateChanges
+                            // for status == REVERTED_SUCCESS slot changes was cleaned up from 'contractStateChanges'
+                            // see com.hedera.node.app.workflows.handle.record.RecordStreamBuilder.build() status == REVERTED_SUCCESS logic
                             builder.slot(read.keyOrThrow());
                         }
                         recoveredChanges.add(builder.build());
@@ -1214,7 +1214,7 @@ public class BaseTranslator {
                     // add missing token serials
                     highestPutSerialNos.computeIfAbsent(token, ignore -> serials);
                     // merge serials for present tokens
-                    highestPutSerialNos.computeIfPresent(token, (key, list) -> {
+                    highestPutSerialNos.computeIfPresent(token, (_, list) -> {
                         Set<Long> mergedSet = new HashSet<>(list);
                         mergedSet.addAll(serials);
                         return new ArrayList<>(mergedSet);
