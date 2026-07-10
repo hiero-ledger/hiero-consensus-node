@@ -63,11 +63,14 @@ import java.util.HashMap;
  */
 @java.lang.SuppressWarnings("unused")
 public final class HashgraphInfo {
+    /** throw exceptions if update() is called on a round after it reaches consensus, or if it skips a round */
+    public static boolean ENFORCE_ROUND_ADVANCE = false;
     /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public static final RoundInfoPrev FIRST_ROUND_INFO_PREV =
             new RoundInfoPrev(1, false, new EventInfo[0], false, 0, 0, 0);
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
+    private boolean newRound = true; // true iff update() has never been called for the pending round
     private boolean lastUpdateUsedCoin; // true iff the last round to reach consensus used a coin round
     private long[] benchmarks = new long[NUM_BENCHMARKS]; // total nanoseconds spent in various code sections
     private long pendingRound;
@@ -87,10 +90,9 @@ public final class HashgraphInfo {
     private int candCount; // how many candidates found so far during the pending round
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
     private EventInfo[] candEventInfo; // for each node, the list of candidate events
-    private long[] candStakeCollected; // the total stake of all votes for each candidate event
+    private long[] candStakeCollected; // the total stake of all votes collected, for each candidate event
 
-    // these define what each element in benchmarks currently means. Always at least 1. Element 0 must never change.
-    public static final int NUM_BENCHMARKS = 9; // number of elements in long[] getBenchmarks()
+    // define what each element in benchmarks[] currently means. Always at least 1. Elements 0/1 must never change
     private static final int BENCHMARK_UPDATE = 0; // time spent in update()
     private static final int BENCHMARK_UPDATE_COUNT = 1; // number of times update() was called
     private static final int BENCHMARK_SEARCH = 2; // graphSearch()
@@ -100,6 +102,7 @@ public final class HashgraphInfo {
     private static final int BENCHMARK_LOOP4 = 6; // numNodes numNodes (in stronglySeeP)
     private static final int BENCHMARK_LOOP5 = 7; // numNodes numNodes (in stakeAgrees)
     private static final int BENCHMARK_LOOP6 = 8; // numNodes numNodes (in vote (when voteD==2))
+    public static final int NUM_BENCHMARKS = 1 + BENCHMARK_LOOP6; // number of elements in long[] getBenchmarks()
 
     /** true iff the last round to reach consensus used a coin round */
     public boolean isLastUpdateUsedCoin() {
@@ -608,22 +611,28 @@ public final class HashgraphInfo {
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
             }
-            if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
+            if (ENFORCE_ROUND_ADVANCE && roundInfo.pendingRound != roundInfoPrev.pendingRound) {
                 throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound ("
                         + roundInfo.pendingRound + " != " + roundInfoPrev.pendingRound + ")");
             }
-            if (r.pendingRound != h.pendingRound && r.pendingRound != h.pendingRound + 1 && h.pendingRound != 0) {
+            if (ENFORCE_ROUND_ADVANCE && roundInfo.pendingRound != h.pendingRound &&
+                    (roundInfo.pendingRound != 1 || h.pendingRound != 0)) {
+                throw new IllegalArgumentException("roundInfo.pendingRound should be " + h.pendingRound + ", not "
+                        + roundInfo.pendingRound);
+            }
+            if (ENFORCE_ROUND_ADVANCE &&
+                    r.pendingRound != h.pendingRound && r.pendingRound != h.pendingRound + 1 && h.pendingRound != 0) {
                 throw new IllegalArgumentException("roundInfo.pendingRound should be " + h.pendingRound + " or "
                         + (h.pendingRound + 1) + ", not " + roundInfo.pendingRound);
             }
 
-            // If this is the first time update has ever been called on this hashgraph.
-            if (h.pendingRound == 0) {
-                h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
-            }
-
             // if this is a new round (or the first called on this hashgraph), calculate the HashgraphInfo fields
             if (h.pendingRound != r.pendingRound) {
+                // If this is the first time update has ever been called on this hashgraph.
+                if (h.pendingRound == 0) {
+                    h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
+                    h.newRound = false;
+                }
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
 
@@ -861,11 +870,6 @@ public final class HashgraphInfo {
                     stronglySeeP[m] = (s >= h.supermajorityThreshold) ? y : null;
                 }
             }
-
-            if (gen == 20) {
-                gen = 20;
-            }/**/
-
 
             { // function votingRound /---------------------------------------------------------------------------
                 long p = parentRound;
@@ -1159,10 +1163,12 @@ public final class HashgraphInfo {
             }
 
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
+            h.pendingRound++; // require the next call to update to be for the next round
+            h.newRound = true;
             return new UpdateResults(
                     consensusEventsArray, // consensusEvents
                     new RoundInfoPrev(
-                            h.pendingRound + 1, // pendingRound
+                            h.pendingRound, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
                             roundJudgesArray, // prevJudges
                             prevJudgesCopied, // prevJudgesCopied
