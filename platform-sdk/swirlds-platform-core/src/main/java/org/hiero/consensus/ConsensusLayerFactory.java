@@ -50,7 +50,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -210,8 +209,7 @@ public class ConsensusLayerFactory {
      */
     public record ConsensusLayerFactoryResult(
             @NonNull PlatformCoordinator platformCoordinator,
-            @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {
-    }
+            @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {}
 
     /**
      * Constructs most of the components and modules required to create the platform.
@@ -248,7 +246,8 @@ public class ConsensusLayerFactory {
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
                 RunningEventHashOverrideWiring.create(wiringModel);
 
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = createEventWindowManagerWiring();
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
+                createEventWindowManagerWiring();
 
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
         final ComponentWiring<AppNotifier, Void> notifierWiring = createNotifierWiring(notificationEngine);
@@ -299,9 +298,12 @@ public class ConsensusLayerFactory {
                         intakeEventCounter));
     }
 
+    @NonNull
     private ComponentWiring<PlatformMonitor, PlatformStatus> createPlatformMonitorWiring() {
-        final PlatformSchedulersConfig platformSchedulersConfig = configuration.getConfigData(PlatformSchedulersConfig.class);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring = new ComponentWiring<>(wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
+        final PlatformSchedulersConfig platformSchedulersConfig =
+                configuration.getConfigData(PlatformSchedulersConfig.class);
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
         final PlatformMonitor platformMonitor = new DefaultPlatformMonitor(configuration, metrics, time, selfId);
         platformMonitorWiring.bind(platformMonitor);
         // Create unbound wires
@@ -311,8 +313,10 @@ public class ConsensusLayerFactory {
     }
 
     @NonNull
-    private ComponentWiring<AppNotifier, Void> createNotifierWiring(@NonNull final NotificationEngine notificationEngine) {
-        final ComponentWiring<AppNotifier, Void> notifierWiring = new ComponentWiring<>(wiringModel, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+    private ComponentWiring<AppNotifier, Void> createNotifierWiring(
+            @NonNull final NotificationEngine notificationEngine) {
+        final ComponentWiring<AppNotifier, Void> notifierWiring =
+                new ComponentWiring<>(wiringModel, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
         final AppNotifier appNotifier = new DefaultAppNotifier(notificationEngine);
         notifierWiring.bind(appNotifier);
         // Create unbound wires
@@ -323,8 +327,8 @@ public class ConsensusLayerFactory {
 
     @NonNull
     private ComponentWiring<EventWindowManager, EventWindow> createEventWindowManagerWiring() {
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring = new ComponentWiring<>(wiringModel,
-                EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
+                new ComponentWiring<>(wiringModel, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
         eventWindowManagerWiring.bind(eventWindowManager);
         // Create unbound wires
@@ -339,7 +343,8 @@ public class ConsensusLayerFactory {
      */
     @NonNull
     private ComponentWiring<ConsensusEventStream, Void> createConsensusEventStreamWiring() {
-        final EventStreamWiringConfig eventStreamWiringConfig = configuration.getConfigData(EventStreamWiringConfig.class);
+        final EventStreamWiringConfig eventStreamWiringConfig =
+                configuration.getConfigData(EventStreamWiringConfig.class);
         final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring = new ComponentWiring<>(
                 wiringModel, ConsensusEventStream.class, eventStreamWiringConfig.consensusEventStream());
         final Predicate<CesEvent> isLastEventInFreezePeriod = (CesEvent event) -> {
@@ -414,8 +419,8 @@ public class ConsensusLayerFactory {
     private TransactionHandlingModule createTransactionHandlingModule(
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {
-        final StatusActionSubmitter statusActionSubmitter = action -> platformMonitorWiring.getInputWire(
-                        PlatformMonitor::submitStatusAction)
+        final StatusActionSubmitter statusActionSubmitter = action -> platformMonitorWiring
+                .getInputWire(PlatformMonitor::submitStatusAction)
                 .put(action);
         return new TransactionHandlingModule(
                 wiringModel,

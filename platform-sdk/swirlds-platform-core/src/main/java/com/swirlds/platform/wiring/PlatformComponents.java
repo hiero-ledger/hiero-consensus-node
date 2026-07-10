@@ -37,5 +37,4 @@ public record PlatformComponents(
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
-        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {
-}
+        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {}

@@ -4,7 +4,6 @@ package com.swirlds.platform.wiring;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
-import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;

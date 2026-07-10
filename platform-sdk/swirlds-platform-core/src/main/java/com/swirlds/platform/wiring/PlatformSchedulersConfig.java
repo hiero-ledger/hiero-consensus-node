@@ -12,6 +12,5 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("platformSchedulers")
 public record PlatformSchedulersConfig(
-
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration platformMonitor) {}
