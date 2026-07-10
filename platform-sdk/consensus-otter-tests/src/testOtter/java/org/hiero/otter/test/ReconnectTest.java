@@ -201,6 +201,13 @@ public class ReconnectTest {
                                     + "frame after synthetic bottleneck was enabled on iteration %d.",
                             i));
 
+            // Wait just a little longer. The check above can complete when the nodes is
+            // just barely behind but still have self events that are non-ancient. Reconnect
+            // in this environment is so fast that some of those self events will STILL be
+            // non-ancient after the node completes reconnect and cause the node to
+            // accidentally branch (#26277).
+            timeManager.waitFor(Duration.ofSeconds(20));
+
             disableSyntheticBottleneck(node0, node1, node2);
 
             // Verify that the node recovers when the bottleneck is lifted
