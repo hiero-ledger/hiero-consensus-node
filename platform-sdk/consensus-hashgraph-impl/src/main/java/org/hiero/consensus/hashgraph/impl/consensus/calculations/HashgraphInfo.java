@@ -599,9 +599,9 @@ public final class HashgraphInfo {
             final RoundInfoPrev rp = roundInfoPrev;
             final HashgraphInfo h = hashgraph;
             long parentRound;
-            ArrayList<EventInfo> roundJudges;
+            ArrayList<EventInfo> judges;
             ArrayList<EventInfo> consensusEvents;
-            EventInfo[] roundJudgesArray;
+            EventInfo[] judgesArray;
             EventInfo[] consensusEventsArray;
             long minJudgeBirthRound;
             boolean witness;
@@ -1058,25 +1058,25 @@ public final class HashgraphInfo {
                 return null;
             }
 
-            // function roundJudges /-----------------------------------------------------------------------------
-            roundJudges = new ArrayList<>();
+            // function judges /-----------------------------------------------------------------------------
+            judges = new ArrayList<>();
             long s = 0; // total stake of all the elected judges
             for (int m = 0; m < numNodes; m++) {
                 if (voteE[m] != null) {
-                    roundJudges.add(voteE[m]);
+                    judges.add(voteE[m]);
                     s += r.stake[voteE[m].creator];
                 }
             }
             prevJudgesCopied = (s <= h.supermajorityThreshold);
             if (prevJudgesCopied) { // if not a supermajority, copy previous judges. This is VERY rare.
-                roundJudges.clear();
+                judges.clear();
                 for (EventInfo judge : rp.prevJudges) {
                     if (judge.creator != -1) { // add only the previous judges that are in the current address book
-                        roundJudges.add(judge);
+                        judges.add(judge);
                     }
                 }
             }
-            roundJudgesArray = roundJudges.toArray(new EventInfo[0]);
+            judgesArray = judges.toArray(new EventInfo[0]);
 
             // function isReceived /------------------------------------------------------------------------------
             // function reachedCon /------------------------------------------------------------------------------
@@ -1086,7 +1086,7 @@ public final class HashgraphInfo {
             // sets isConsensus for it, finds all its receivedEvent events, and sets its receivedTim[] to be the
             // times from those received events.
             consensusEvents = new ArrayList<>(3 * numNodes);
-            h.graphSearch(roundJudgesArray, r.judgeCon1, consensusEvents);
+            h.graphSearch(judgesArray, r.judgeCon1, consensusEvents);
             consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
 
             // function timeCon /---------------------------------------------------------------------------------
@@ -1105,8 +1105,8 @@ public final class HashgraphInfo {
             // If judgeCon1 is false, then f first compares the extended medians, then the searchOrder.
             if (r.judgeCon1) { // each new consensus event is an ancestor of at least one judge
                 Instant roundTime;
-                Arrays.sort(roundJudgesArray, Comparator.comparing(e -> e.timeCreated));
-                roundTime = roundJudgesArray[roundJudgesArray.length / 2].timeCreated;
+                Arrays.sort(judgesArray, Comparator.comparing(e -> e.timeCreated));
+                roundTime = judgesArray[judgesArray.length / 2].timeCreated;
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
                     if (e1 == e2) {
                         return 0;
@@ -1124,13 +1124,13 @@ public final class HashgraphInfo {
                     consensusEventsArray[i].consensusTimestamp = roundTime.plusNanos(i);
                 }
             } else { // each new consensus event is an ancestor of all judges
-                final int m = roundJudgesArray.length / 2; // median position in the array of times received by judges
+                final int m = judgesArray.length / 2; // median position in the array of times received by judges
                 Arrays.sort(consensusEventsArray, (e1, e2) -> {
                     if (e1 == e2) {
                         return 0;
                     } // an event is <= itself (comparing the actual references)
                     // f is the extended median, with ties broken by search order
-                    for (int i = 0; i < roundJudgesArray.length; i++) { // compare extended median
+                    for (int i = 0; i < judgesArray.length; i++) { // compare extended median
                         int k = m - ((i % 2) * 2 - 1) * ((i + 1) / 2); // k is m, m-1, m+1, m-2, m+2, m-3, m+3, ...
                         Instant t1 = e1.receivedTime[k];
                         Instant t2 = e2.receivedTime[k];
@@ -1153,12 +1153,12 @@ public final class HashgraphInfo {
             for (EventInfo judge : rp.prevJudges) {
                 judge.prevJudge = false;
             }
-            for (EventInfo judge : roundJudges) {
+            for (EventInfo judge : judges) {
                 judge.prevJudge = true;
             }
 
             minJudgeBirthRound = 0;
-            for (EventInfo judge : roundJudges) {
+            for (EventInfo judge : judges) {
                 minJudgeBirthRound = Math.max(minJudgeBirthRound, judge.birthRound);
             }
 
@@ -1170,7 +1170,7 @@ public final class HashgraphInfo {
                     new RoundInfoPrev(
                             h.pendingRound, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
-                            roundJudgesArray, // prevJudges
+                            judgesArray, // prevJudges
                             prevJudgesCopied, // prevJudgesCopied
                             h.minNonAncientRound, // prevMinNonAncientRound
                             rp.prevNumCons + consensusEvents.size(), // prevNumCons
