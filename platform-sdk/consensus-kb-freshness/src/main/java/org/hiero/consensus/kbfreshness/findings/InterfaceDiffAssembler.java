@@ -158,6 +158,7 @@ public final class InterfaceDiffAssembler {
                 evidence,
                 List.of(new Occurrence(docLine, Anchor.NO_LINE, method)),
                 null,
+                null,
                 null);
     }
 

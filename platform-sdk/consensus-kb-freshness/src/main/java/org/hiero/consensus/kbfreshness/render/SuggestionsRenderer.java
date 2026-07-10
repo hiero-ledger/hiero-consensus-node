@@ -10,6 +10,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.git.Git;
+import org.hiero.consensus.kbfreshness.model.AnchorKind;
+import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
@@ -18,7 +20,9 @@ import org.hiero.consensus.kbfreshness.model.Outcome;
  * Renders non-asserting "did you mean" hints for gone targets: a cited doc, source path, or bare source
  * file no longer resolves. Each hint is either a definite git rename or a near-name match against the KB
  * docs / source index — a suggestion, never a fact, so it respects the "never assert" invariant and is
- * kept out of the machine artifact. Deterministic for a given checkout.
+ * kept out of the machine artifact. Where a hint is unambiguous it is made actionable — a topics-slug
+ * rename with a single strong match, or (for a source an ADR cites as removed) a nudge to mark it
+ * {@code historical:}. Deterministic for a given checkout.
  */
 public final class SuggestionsRenderer {
 
@@ -30,17 +34,32 @@ public final class SuggestionsRenderer {
      * near-certain (a typo), not merely above {@link #THRESHOLD}.
      */
     private static final double HIGH_EDIT_SIM = 0.8;
+    /**
+     * Minimum similarity for a topics-slug match to be promoted to an actionable rename. Combined with a
+     * uniqueness check (exactly one candidate above {@link #THRESHOLD}), this keeps the promotion to cases
+     * like {@code pces → restart-and-pces} while leaving genuinely ambiguous slugs (two plausible topics)
+     * as plain near-name hints.
+     */
+    private static final double PROMOTE_SIMILARITY = 0.7;
     /** Maximum number of near-name suggestions offered per gone target. */
     private static final int MAX_SUGGESTIONS = 3;
 
     /** Prevents instantiation of this static-only renderer. */
     private SuggestionsRenderer() {}
 
-    /** A suggested replacement path with the reason it was offered. */
-    private record Suggestion(String path, String reason) {}
-
     /** A candidate path with its similarity score, for ranking. */
     private record Scored(String path, double score) {}
+
+    /**
+     * The raw hints computed for a gone target before finding-specific composition: a definite git rename
+     * (which suppresses near-name guessing), the deleting commit when git recorded one, and the near-name
+     * candidates above the threshold.
+     *
+     * @param gitRename  the path the target was renamed to, or {@code null}.
+     * @param gitDeletion the {@code "<hash> <subject>"} of the deleting commit, or {@code null}.
+     * @param nearNames  the near-name candidates above the threshold, best first (empty on a rename).
+     */
+    private record Hints(String gitRename, String gitDeletion, List<Scored> nearNames) {}
 
     /**
      * Renders the did-you-mean suggestions as Markdown.
@@ -74,20 +93,21 @@ public final class SuggestionsRenderer {
             if (f.outcome() != Outcome.ABSENT || f.lane() != Lane.ASSERT) {
                 continue;
             }
-            final List<Suggestion> suggestions =
+            final boolean topicTag =
+                    f.kind() == AnchorKind.CROSS_DOC_LINK && f.target().contains("/architecture/topics/");
+            final List<String> candidates =
                     switch (f.kind()) {
-                        case CROSS_DOC_LINK ->
-                            suggest(
-                                    f.target(),
-                                    f.entryPath(),
-                                    true,
-                                    f.target().contains("/architecture/topics/") ? topicDocPaths : docPaths,
-                                    git);
-                        case SOURCE_PATH -> suggest(f.target(), f.entryPath(), true, sourcePaths, git);
-                        case SOURCE_BASENAME -> suggest(f.target(), f.entryPath(), false, sourcePaths, git);
-                        default -> List.of();
+                        case CROSS_DOC_LINK -> topicTag ? topicDocPaths : docPaths;
+                        case SOURCE_PATH, SOURCE_BASENAME -> sourcePaths;
+                        default -> null;
                     };
-            if (suggestions.isEmpty()) {
+            if (candidates == null) {
+                continue;
+            }
+            final boolean hasPath = f.kind() != AnchorKind.SOURCE_BASENAME;
+            final Hints hints = computeHints(f.target(), f.entryPath(), hasPath, candidates, git);
+            final List<String> bullets = composeBullets(f, hints, topicTag);
+            if (bullets.isEmpty()) {
                 continue;
             }
             any = true;
@@ -97,12 +117,8 @@ public final class SuggestionsRenderer {
                     .append(f.target())
                     .append("`\n");
             sb.append("`").append(f.entryPath()).append("`\n\n");
-            for (final Suggestion s : suggestions) {
-                sb.append("- ")
-                        .append(s.reason())
-                        .append(": `")
-                        .append(s.path())
-                        .append("`\n");
+            for (final String bullet : bullets) {
+                sb.append("- ").append(bullet).append('\n');
             }
             sb.append('\n');
         }
@@ -113,64 +129,116 @@ public final class SuggestionsRenderer {
     }
 
     /**
-     * Suggests replacements for a gone target: a definite git rename when available, else the deleting
-     * commit when git recorded one, plus the closest near-name matches above the similarity threshold.
+     * Composes the rendered bullet lines for one gone finding from its raw hints. A definite git rename is
+     * conclusive and stands alone; otherwise the deleting commit, an actionable topics-slug rename (when a
+     * single strong match exists), the near-name matches, and — for a source an ADR cites — a nudge to mark
+     * it {@code historical:} are offered in that order.
+     *
+     * @param f        the gone finding.
+     * @param hints    the raw hints for its target.
+     * @param topicTag whether the finding is a frontmatter topics tag (eligible for slug promotion).
+     * @return the bullet lines, most useful first (possibly empty).
+     */
+    private static List<String> composeBullets(final Finding f, final Hints hints, final boolean topicTag) {
+        final List<String> bullets = new ArrayList<>();
+        if (hints.gitRename() != null) {
+            bullets.add("renamed in git to: `" + hints.gitRename() + "`");
+            return bullets;
+        }
+        if (hints.gitDeletion() != null) {
+            bullets.add("deleted in: `" + hints.gitDeletion() + "`");
+        }
+
+        String promotedPath = null;
+        if (topicTag
+                && hints.nearNames().size() == 1
+                && hints.nearNames().get(0).score() >= PROMOTE_SIMILARITY) {
+            promotedPath = hints.nearNames().get(0).path();
+            bullets.add("rename `topics:` slug `" + slug(f.target()) + "` → `" + slug(promotedPath) + "`");
+        }
+
+        int shown = 0;
+        for (final Scored s : hints.nearNames()) {
+            if (shown >= MAX_SUGGESTIONS) {
+                break;
+            }
+            if (s.path().equals(promotedPath)) {
+                continue;
+            }
+            bullets.add("similar name: `" + s.path() + "`");
+            shown++;
+        }
+
+        if ((f.kind() == AnchorKind.SOURCE_PATH || f.kind() == AnchorKind.SOURCE_BASENAME)
+                && f.entryType() == EntryType.DECISION) {
+            bullets.add("cited by an ADR — if this code was deliberately removed, mark it `historical:` in the "
+                    + "frontmatter instead of repointing");
+        }
+        return bullets;
+    }
+
+    /**
+     * Computes the raw hints for a gone target: a definite git rename when available (which suppresses
+     * near-name guessing), else the deleting commit when git recorded one, plus the near-name candidates
+     * above the similarity threshold.
      *
      * @param gone           the gone target (a repo-relative path, or a bare basename).
      * @param self           the path of the entry that made the citation, excluded from candidates.
      * @param hasPath        whether {@code gone} is a real path git can trace (false for bare basenames).
      * @param candidatePaths the repo-relative paths to match against.
      * @param git            the git wrapper, or {@code null} to skip rename/deletion detection.
-     * @return the suggestions, most relevant first (possibly empty).
+     * @return the raw hints.
      */
-    private static List<Suggestion> suggest(
+    private static Hints computeHints(
             final String gone,
             final String self,
             final boolean hasPath,
             final List<String> candidatePaths,
             final Git git) {
-        final List<Suggestion> suggestions = new ArrayList<>();
+        String rename = null;
+        String deletion = null;
         if (git != null) {
             if (hasPath && !gone.contains("/.../")) {
                 final String renamed = git.findRename(gone);
                 if (renamed != null && !renamed.equals(gone)) {
-                    return List.of(new Suggestion(renamed, "renamed in git to"));
+                    rename = renamed;
                 }
             }
-            // No rename recorded — a deletion commit explains where the target went (or that it is
-            // simply gone). Bare and abbreviated citations are traced by basename pathspec.
-            final String pathspec = hasPath && !gone.contains("/.../") ? gone : "*/" + baseName(gone);
-            final String deleted = git.findDeletion(pathspec);
-            if (deleted != null) {
-                suggestions.add(new Suggestion(deleted, "deleted in"));
+            if (rename == null) {
+                // No rename recorded — a deletion commit explains where the target went (or that it is
+                // simply gone). Bare and abbreviated citations are traced by basename pathspec.
+                final String pathspec = hasPath && !gone.contains("/.../") ? gone : "*/" + baseName(gone);
+                deletion = git.findDeletion(pathspec);
             }
         }
 
-        final String goneStem = stem(baseName(gone));
         final List<Scored> scored = new ArrayList<>();
-        for (final String cand : candidatePaths) {
-            if (cand.equals(gone) || cand.equals(self)) {
-                continue;
+        if (rename == null) {
+            final String goneStem = stem(baseName(gone));
+            final Set<String> seen = new HashSet<>();
+            for (final String cand : candidatePaths) {
+                if (cand.equals(gone) || cand.equals(self)) {
+                    continue;
+                }
+                final double score = similarity(goneStem, stem(baseName(cand)));
+                if (score >= THRESHOLD && seen.add(cand)) {
+                    scored.add(new Scored(cand, score));
+                }
             }
-            final double score = similarity(goneStem, stem(baseName(cand)));
-            if (score >= THRESHOLD) {
-                scored.add(new Scored(cand, score));
-            }
+            scored.sort(Comparator.comparingDouble((Scored s) -> -s.score()).thenComparing(Scored::path));
         }
-        scored.sort(Comparator.comparingDouble((Scored s) -> -s.score()).thenComparing(Scored::path));
+        return new Hints(rename, deletion, scored);
+    }
 
-        int nearNames = 0;
-        final Set<String> seen = new HashSet<>();
-        for (final Scored s : scored) {
-            if (nearNames >= MAX_SUGGESTIONS) {
-                break;
-            }
-            if (seen.add(s.path())) {
-                suggestions.add(new Suggestion(s.path(), "similar name"));
-                nearNames++;
-            }
-        }
-        return suggestions;
+    /**
+     * The bare slug of a doc path: its basename without the {@code .md} extension (e.g.
+     * {@code .../topics/restart-and-pces.md} to {@code restart-and-pces}).
+     *
+     * @param docPath the doc path.
+     * @return the slug used in a frontmatter {@code topics:} list.
+     */
+    private static String slug(final String docPath) {
+        return stem(baseName(docPath));
     }
 
     /**

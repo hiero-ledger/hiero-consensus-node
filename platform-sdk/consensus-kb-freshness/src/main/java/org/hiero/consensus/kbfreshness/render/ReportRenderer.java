@@ -45,7 +45,11 @@ public final class ReportRenderer {
                 .filter(j -> j.finding().lane() == Lane.ASSERT && j.triage() == Triage.DISMISSED)
                 .count();
         final long quiet = countLane(result, Lane.QUIET_LOG);
-        final long autoFix = countLane(result, Lane.AUTO_FIX);
+        final long lineMoves = countLane(result, Lane.AUTO_FIX);
+        // Path-move asserts still assert (the KB claim is wrong until edited) but each carries a ready
+        // path-rewrite, so they are mechanically fixable alongside the line moves.
+        final long pathMoves =
+                asserts.stream().filter(j -> j.finding().resolvedPath() != null).count();
 
         final StringBuilder sb = new StringBuilder();
         sb.append("# KB freshness report\n\n");
@@ -61,7 +65,11 @@ public final class ReportRenderer {
                 .append(result.join().resolvedIds().size())
                 .append(" |\n");
         sb.append("| Unverifiable (quiet log) | ").append(quiet).append(" |\n");
-        sb.append("| Auto-fix proposals | ").append(autoFix).append(" |\n\n");
+        sb.append("| Auto-fix — moved lines | ").append(lineMoves).append(" |\n");
+        sb.append("| Auto-fix — path moves (assert + ready rewrite) | ")
+                .append(pathMoves)
+                .append(" |\n");
+        sb.append("| Fixable now with `--fix` | ").append(lineMoves + pathMoves).append(" |\n\n");
 
         section(sb, "New drift", newDrift, "New assertions since the baseline — the primary signal.");
         section(sb, "Carried drift", carried, "Previously-seen assertions still present.");
@@ -77,8 +85,9 @@ public final class ReportRenderer {
         }
 
         sb.append("---\n\n");
-        sb.append("Unverifiable results are in `quiet-log.md`; line-reference fixes are in ")
-                .append("`auto-fix.md`; the semantic worklist is in `worklist.md`. ")
+        sb.append("Unverifiable results are in `quiet-log.md`; ready line-and-path fixes are in ")
+                .append("`auto-fix.md` (apply with `--fix`); did-you-mean hints for gone targets are in ")
+                .append("`suggestions.md`; the semantic worklist is in `worklist.md`. ")
                 .append("The machine artifact is `findings.json`.\n");
         return sb.toString();
     }

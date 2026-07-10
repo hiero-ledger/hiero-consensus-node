@@ -27,6 +27,9 @@ import java.util.List;
  * @param resolvedPath for a package/path move with exactly one candidate, the repo-relative path the
  *                    cited source actually resolves at (drives a path-rewrite auto-fix proposal);
  *                    otherwise {@code null}.
+ * @param statedModule the module asserted in prose next to the citation (e.g. a {@code Module: `X`}
+ *                    label), or {@code null} when none is stated. Kept off the machine artifact; used
+ *                    only to complete a path-move auto-fix by rewriting a stale on-line module label.
  */
 public record Finding(
         String id,
@@ -43,7 +46,8 @@ public record Finding(
         String evidence,
         List<Occurrence> occurrences,
         Integer autoFixLine,
-        String resolvedPath) {
+        String resolvedPath,
+        String statedModule) {
 
     /**
      * Returns the number of places the target is cited in the entry.

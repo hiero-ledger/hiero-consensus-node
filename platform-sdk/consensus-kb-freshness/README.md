@@ -109,9 +109,10 @@ own output file so the drift report itself stays pure signal:
 - **assert** → `report.md`. A certain `absent` (or a move). The drift a curator acts on.
 - **quiet-log** → `quiet-log.md`. `unverifiable` — the symbol is generated or external (PBJ,
   protobuf, `.proto` sources), so the engine cannot see its source and refuses to guess. Not drift.
-- **auto-fix** → `auto-fix.md`. The symbol resolves but a cited line number moved. A suggested
-  correction, never applied automatically. Not drift. A package/path move with exactly one new
-  location *is* drift (it asserts), but additionally gets a ready path-rewrite proposal here.
+- **auto-fix** → `auto-fix.md`. The symbol resolves but a cited line number moved. A ready
+  correction, applied only on request (`--fix`). Not drift. A package/path move with exactly one new
+  location *is* drift (it asserts), but additionally gets a ready path-rewrite proposal here (which
+  `--fix` also applies, along with any stale on-line `Module:` label).
 - **coverage-gap** → `coverage.md`. The *code* has something the *docs* do not (e.g. an interface
   method with no documentation). The inverse of drift; tracked separately.
 
@@ -162,8 +163,15 @@ Options (`--help` for the full list):
 | `--date <str>`       | `""`                        | Run date recorded as `first_seen` for newly-seen findings.                             |
 | `--write-baseline`   | off                         | Overwrite `--baseline` with the proposed baseline.                                     |
 | `--fail-on-drift`    | off                         | Exit `2` if any new (not-baselined, not-dismissed) assertion is found — for future CI. |
+| `--fix`              | off                         | Apply the certain auto-fix edits (moved lines and unique path moves) to the KB in place. |
 
 Exit codes: `0` success · `1` usage/IO error · `2` new drift with `--fail-on-drift`.
+
+`--fix` writes exactly the diffs shown in `auto-fix.md` — moved line numbers and unique package/path
+moves (including a stale on-line `Module:` label) — straight into the KB files. Each edit is guarded by
+an exact match of the line it rewrites, so it is idempotent (a re-run finds nothing left to do) and
+never touches a line that has since diverged. Fuzzy "did you mean" renames in `suggestions.md` are
+deliberately **not** applied — those need a human decision. Re-run afterwards to refresh the artifacts.
 
 ## The generated files
 
@@ -175,7 +183,7 @@ drift report to act on; the rest are supporting lanes and inputs.
 | `report.md`                     | **assert** — the drift report          | Always. This is the signal.           |
 | `findings.json`                 | machine-readable finding set           | Tooling / CI; diffing two runs.       |
 | `quiet-log.md`                  | **quiet-log** — `unverifiable`         | Auditing what was skipped, and why.   |
-| `auto-fix.md`                   | **auto-fix** — line corrections        | Tidying stale line numbers.           |
+| `auto-fix.md`                   | **auto-fix** — ready line/path fixes   | Tidying stale lines/paths (`--fix`).  |
 | `suggestions.md`                | non-asserting "did you mean" hints     | Acting on a GONE finding.             |
 | `coverage.md`                   | **coverage-gap** — undocumented code   | Finding docs worth writing.           |
 | `worklist.md` / `worklist.json` | semantic-pass input                    | Driving or reviewing the Tier-3 pass. |
@@ -201,15 +209,19 @@ over a guess. Skim it to confirm nothing that *should* be checkable is silently 
 **`auto-fix.md` — ready corrections.** Two shapes: a *named* symbol that still resolves but whose
 cited line number moved (a navigation nit, never a drift finding), and a **MOVED** source that
 resolves at exactly one new path (a drift finding in `report.md`, repeated here as a ready
-before/after path rewrite in whatever citation style the KB line uses). **Never applied
-automatically.**
+before/after path rewrite in whatever citation style the KB line uses, plus a stale on-line
+`Module:` label). These are the *certain* fixes, so **`--fix` applies them in place** (guarded by an
+exact line match, hence idempotent); without it they are shown for hand-editing.
 
 **`suggestions.md` — non-asserting "did you mean" hints.** For each **GONE** target (a missing
 cross-doc link, source path, or bare source basename) the tool offers replacement candidates — a
 definite git rename when history has one, else the commit that deleted the target when git recorded
 one, plus the closest near-name matches against the KB docs or the source index (for a gone
-architecture-topic target, only other topic/interface docs are considered). **Hints, not facts**
-(it never asserts), and kept out of `findings.json` so the machine artifact stays reproducible.
+architecture-topic target, only other topic/interface docs are considered). Where a hint is
+unambiguous it is made **actionable**: a topics-slug tag with a single strong match becomes a
+`rename topics: slug X → Y`, and a source an ADR cites as removed gets a nudge to mark it
+`historical:` rather than repoint it. **Hints, not facts** (it never asserts, and `--fix` never
+applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
 
 **`coverage.md` — the `coverage-gap` lane.** The inverse of drift: code the docs don't mention — for
 example, a method present on a documented interface but absent from that interface's `methods:`

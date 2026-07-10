@@ -25,9 +25,14 @@ with `java -jar`.
   baseline TSV + join.
 - `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`).
 - `render/` — report / quiet-log / auto-fix / suggestions / coverage / findings.json / worklist renderers.
-  (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first, else the
-  deleting commit, plus guarded fuzzy basename matches; deliberately excluded from `findings.json` to
-  keep it reproducible.)
+  `AutoFix` is the shared planner (structured `Edit`s) that both `AutoFixRenderer` (Markdown) and
+  `apply/AutoFixApplier` (writes) consume, so the proposal a curator reads is exactly the edit `--fix`
+  would apply. (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first,
+  else the deleting commit, plus guarded fuzzy basename matches — a unique strong topics-slug match is
+  promoted to an actionable `rename topics: slug X → Y`, and an ADR-cited gone source gets a `historical:`
+  nudge; deliberately excluded from `findings.json` to keep it reproducible.)
+- `apply/` — `AutoFixApplier` (`--fix`): writes the certain auto-fix `Edit`s to the KB in place, guarded
+  by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames.
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.
@@ -40,6 +45,9 @@ with `java -jar`.
   `resolvedPath` (in `findings.json`) and a ready path-rewrite diff in `auto-fix.md`.
 - **Never assert on line numbers.** A moved line for a *named* symbol → an `auto-fix` proposal, never
   an assert. Bare `File.java:NN` links carry no line (the KB uses them for members too).
+- **`--fix` applies only the certain fixes** (moved lines, unique path moves, on-line `Module:` label) —
+  the exact `auto-fix.md` diffs, guarded by a full-line before-match so it is idempotent. It must never
+  apply fuzzy `suggestions.md` renames (topics-slug, near-name): those need a human decision.
 - **Determinism**: `findings.json` is byte-identical across runs — it contains only reproducible
   fields (no dates, no triage; those live in the baseline). Keep all ordering stable.
 - **Identity** = hash of `(entry key, target, check kind)` — no line numbers, no file path — so a

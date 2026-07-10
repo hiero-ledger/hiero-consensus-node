@@ -18,6 +18,7 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.render.AutoFixRenderer;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
+import org.hiero.consensus.kbfreshness.render.ReportRenderer;
 import org.hiero.consensus.kbfreshness.render.SuggestionsRenderer;
 import org.hiero.consensus.kbfreshness.render.WorklistRenderer;
 import org.hiero.consensus.kbfreshness.resolve.Allowlist;
@@ -261,6 +262,33 @@ class EngineFixtureTest {
         assertThat(stillThere.outcome()).isEqualTo(Outcome.PRESENT);
         assertThat(stillThere.lane()).isEqualTo(Lane.ASSERT);
         assertThat(stillThere.evidence()).contains("exists");
+    }
+
+    @Test
+    void reportSummaryCountsWhatIsFixableWithFix() {
+        // The fixture has one unique path move (MovedClass) and two moved line references (foo, run).
+        final String report = ReportRenderer.render(result, "");
+        assertThat(report).contains("| Auto-fix — moved lines | 2 |");
+        assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 1 |");
+        assertThat(report).contains("| Fixable now with `--fix` | 3 |");
+    }
+
+    @Test
+    void topicSlugWithUniqueStrongMatchIsPromotedToActionableRename() {
+        // topics: [... present] has no topics/present.md, but present-topic.md is the single strong match,
+        // so the hint is promoted to an actionable slug rename.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("rename `topics:` slug `present` → `present-topic`");
+        // missing-topic has only a weak (0.5) match, so it is offered as a plain near-name, never promoted.
+        assertThat(md).doesNotContain("slug `missing-topic`");
+    }
+
+    @Test
+    void adrCitedGoneSourceGetsHistoricalNudge() {
+        // ADR-001 is a decision citing gone sources not marked historical: the suggestion nudges toward
+        // marking them historical: rather than repointing to a live file.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("mark it `historical:`");
     }
 
     @Test

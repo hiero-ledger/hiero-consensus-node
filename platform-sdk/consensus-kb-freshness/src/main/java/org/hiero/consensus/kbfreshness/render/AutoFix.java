@@ -1,0 +1,277 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.kbfreshness.render;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.hiero.consensus.kbfreshness.engine.RunResult;
+import org.hiero.consensus.kbfreshness.extract.KbDocument;
+import org.hiero.consensus.kbfreshness.model.Finding;
+import org.hiero.consensus.kbfreshness.model.Lane;
+import org.hiero.consensus.kbfreshness.model.Occurrence;
+
+/**
+ * The single source of truth for deterministic auto-fix edits: a citation that still resolves but is
+ * cited wrongly (a moved line reference, or a package/path move with exactly one new location) yields a
+ * precise before/after edit for one KB line. {@link AutoFixRenderer} turns these into Markdown proposals
+ * and {@code AutoFixApplier} writes them to disk under {@code --fix}; both consume this plan so the
+ * proposal a curator reads is exactly the edit the tool would apply. Only certain fixes are produced —
+ * fuzzy renames (did-you-mean) are never auto-fixes.
+ */
+public final class AutoFix {
+
+    /** Prevents instantiation of this static-only planner. */
+    private AutoFix() {}
+
+    /**
+     * One concrete edit: replace the 1-based {@code line} of {@code docRelPath} — whose current text is
+     * {@code before} — with {@code after}.
+     *
+     * @param docRelPath the repo-relative path of the KB document to edit.
+     * @param line       the 1-based line to replace.
+     * @param before     the line's current text (a guard: the edit applies only if the line still matches).
+     * @param after      the replacement text.
+     */
+    public record Edit(String docRelPath, int line, String before, String after) {}
+
+    /**
+     * One rendered change within a proposal: a human-readable {@code header} and the concrete {@code edit}
+     * it corresponds to (or {@code null} when the citation could not be located to diff).
+     *
+     * @param header the Markdown bullet describing the change.
+     * @param edit   the concrete edit, or {@code null} when only the header is shown.
+     */
+    public record Change(String header, Edit edit) {}
+
+    /**
+     * All changes proposed for one finding, plus the finding itself for header rendering.
+     *
+     * @param finding the finding the changes correct.
+     * @param changes the per-occurrence changes.
+     */
+    public record Proposal(Finding finding, List<Change> changes) {}
+
+    /**
+     * Builds the auto-fix plan for a run: one {@link Proposal} per line-move or path-move finding, in the
+     * findings' deterministic order.
+     *
+     * @param result the run result.
+     * @return the ordered proposals (possibly empty).
+     */
+    public static List<Proposal> plan(final RunResult result) {
+        final Map<String, KbDocument> byKey = new HashMap<>();
+        for (final KbDocument d : result.documents()) {
+            byKey.put(d.entry().key(), d);
+        }
+        final List<Proposal> proposals = new ArrayList<>();
+        for (final Finding f : result.findings()) {
+            if (f.lane() == Lane.AUTO_FIX && f.autoFixLine() != null) {
+                proposals.add(new Proposal(f, lineChanges(f, byKey.get(f.entryKey()))));
+            } else if (f.resolvedPath() != null) {
+                proposals.add(new Proposal(f, pathChanges(f, byKey.get(f.entryKey()))));
+            }
+        }
+        return proposals;
+    }
+
+    /**
+     * The flat list of concrete edits across every proposal — what {@code AutoFixApplier} writes.
+     *
+     * @param result the run result.
+     * @return every non-null edit, in plan order.
+     */
+    public static List<Edit> edits(final RunResult result) {
+        final List<Edit> edits = new ArrayList<>();
+        for (final Proposal p : plan(result)) {
+            for (final Change c : p.changes()) {
+                if (c.edit() != null) {
+                    edits.add(c.edit());
+                }
+            }
+        }
+        return edits;
+    }
+
+    /**
+     * The changes for a moved-line finding: the cited {@code :NN} suffix updated to the declaration line.
+     *
+     * @param f   the auto-fix finding carrying the corrected line.
+     * @param doc the citing document, or {@code null} when unavailable.
+     * @return the per-occurrence changes.
+     */
+    private static List<Change> lineChanges(final Finding f, final KbDocument doc) {
+        final List<Change> changes = new ArrayList<>();
+        final int corrected = f.autoFixLine();
+        for (final Occurrence o : f.occurrences()) {
+            final String header = "KB line " + o.docLine() + ": update `:" + o.citedLine() + "` → `:" + corrected + "`";
+            final String before = docLine(doc, o.docLine());
+            Edit edit = null;
+            if (before != null && o.citedLine() >= 0) {
+                final String after = before.replace(":" + o.citedLine(), ":" + corrected);
+                if (!after.equals(before)) {
+                    edit = new Edit(f.entryPath(), o.docLine(), before, after);
+                }
+            }
+            changes.add(new Change(header, edit));
+        }
+        return changes;
+    }
+
+    /**
+     * The changes for a package/path-move finding: the cited path rewritten to the single location the file
+     * resolves at, plus a stale on-line {@code Module: `X`} label rewritten to the new module.
+     *
+     * @param f   the finding carrying the resolved path.
+     * @param doc the citing document, or {@code null} when unavailable.
+     * @return the per-occurrence changes.
+     */
+    private static List<Change> pathChanges(final Finding f, final KbDocument doc) {
+        final List<Change> changes = new ArrayList<>();
+        for (final Occurrence o : f.occurrences()) {
+            final String header = "KB line " + o.docLine() + ": update path to `" + f.resolvedPath() + "`";
+            final int diffLine = rewritableLine(doc, o.docLine(), f.target(), f.resolvedPath());
+            Edit edit = null;
+            if (diffLine > 0) {
+                final String before = docLine(doc, diffLine);
+                final String after = rewriteModuleLabel(
+                        rewritePath(before, f.target(), f.resolvedPath()),
+                        f.statedModule(),
+                        moduleOf(f.resolvedPath()));
+                if (!after.equals(before)) {
+                    edit = new Edit(f.entryPath(), diffLine, before, after);
+                }
+            }
+            changes.add(new Change(header, edit));
+        }
+        return changes;
+    }
+
+    /**
+     * Finds the KB line to diff for a path rewrite: the occurrence line itself, or — when the occurrence
+     * points at a frontmatter key line ({@code components:}) rather than the item carrying the path — the
+     * first following line where the citation actually rewrites.
+     *
+     * @param doc     the citing document, possibly {@code null}.
+     * @param docLine the occurrence's 1-based line hint.
+     * @param oldPath the cited path (the finding's target).
+     * @param newPath the repo-relative path the source actually resolves at.
+     * @return the 1-based line to diff, or {@code 0} when no line rewrites.
+     */
+    private static int rewritableLine(
+            final KbDocument doc, final int docLine, final String oldPath, final String newPath) {
+        if (doc == null) {
+            return 0;
+        }
+        for (int line = docLine; line <= doc.lines().size(); line++) {
+            final String text = docLine(doc, line);
+            if (text != null && !rewritePath(text, oldPath, newPath).equals(text)) {
+                return line;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Rewrites the cited path within a KB line to the resolved path, trying the citation styles the KB
+     * uses: the abbreviated {@code module/.../File.java} form, the full repo-relative path (code spans),
+     * and the root-relative form without its first segment (frontmatter {@code components:} entries and
+     * relative markdown links, whose {@code ../} prefix is preserved by substring replacement).
+     *
+     * @param line    the KB line containing the citation.
+     * @param oldPath the cited path (the finding's target).
+     * @param newPath the repo-relative path the source actually resolves at.
+     * @return the rewritten line, or the original line when no citation style matched.
+     */
+    static String rewritePath(final String line, final String oldPath, final String newPath) {
+        if (oldPath.contains("/.../")) {
+            final String newModule = moduleOf(newPath);
+            if (newModule != null && line.contains(oldPath)) {
+                return line.replace(oldPath, newModule + "/.../" + lastSegment(newPath));
+            }
+            return line;
+        }
+        if (line.contains(oldPath)) {
+            return line.replace(oldPath, newPath);
+        }
+        final String oldRel = withoutFirstSegment(oldPath);
+        final String newRel = withoutFirstSegment(newPath);
+        if (oldRel != null && newRel != null && line.contains(oldRel)) {
+            return line.replace(oldRel, newRel);
+        }
+        return line;
+    }
+
+    /**
+     * Rewrites a stale {@code Module: `<oldModule>`} label on a line to the new module. Applied only when a
+     * stated module was recorded and it differs from the new module, and only to the exact backtick-wrapped
+     * token following {@code Module:} — so unrelated occurrences of the module name are left untouched.
+     *
+     * @param line      the line (already path-rewritten).
+     * @param oldModule the stated module label to correct, or {@code null} when none was stated.
+     * @param newModule the module the source now resolves in, or {@code null} when indeterminable.
+     * @return the line with the module label corrected, or unchanged when nothing applies.
+     */
+    static String rewriteModuleLabel(final String line, final String oldModule, final String newModule) {
+        if (oldModule == null || newModule == null || oldModule.equals(newModule)) {
+            return line;
+        }
+        final String token = "Module: `" + oldModule + "`";
+        return line.contains(token) ? line.replace(token, "Module: `" + newModule + "`") : line;
+    }
+
+    /**
+     * Returns a document's 1-based line text, or {@code null} when the document is missing or the line is
+     * out of range.
+     *
+     * @param doc  the document, possibly {@code null}.
+     * @param line the 1-based line number.
+     * @return the line text, or {@code null} if unavailable.
+     */
+    private static String docLine(final KbDocument doc, final int line) {
+        if (doc == null) {
+            return null;
+        }
+        final List<String> lines = doc.lines();
+        return (line >= 1 && line <= lines.size()) ? lines.get(line - 1) : null;
+    }
+
+    /**
+     * The module directory of a repo-relative path (the segment preceding {@code src}).
+     *
+     * @param repoRelPath the repo-relative path.
+     * @return the module directory name, or {@code null} if the path has no {@code src} segment.
+     */
+    private static String moduleOf(final String repoRelPath) {
+        final String[] parts = repoRelPath.split("/");
+        for (int i = 1; i < parts.length; i++) {
+            if (parts[i].equals("src")) {
+                return parts[i - 1];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The last {@code /}-separated segment of a path.
+     *
+     * @param path the path.
+     * @return the final segment, or the whole path if it contains no slash.
+     */
+    private static String lastSegment(final String path) {
+        final int slash = path.lastIndexOf('/');
+        return slash >= 0 ? path.substring(slash + 1) : path;
+    }
+
+    /**
+     * The path with its first {@code /}-separated segment removed (e.g. {@code platform-sdk/m/F.java}
+     * to {@code m/F.java}), or {@code null} when the path has no slash.
+     *
+     * @param path the path.
+     * @return the path without its first segment, or {@code null}.
+     */
+    private static String withoutFirstSegment(final String path) {
+        final int slash = path.indexOf('/');
+        return slash >= 0 ? path.substring(slash + 1) : null;
+    }
+}

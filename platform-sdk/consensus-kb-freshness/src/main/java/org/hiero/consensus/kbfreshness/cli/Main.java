@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.hiero.consensus.kbfreshness.apply.AutoFixApplier;
 import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
@@ -97,6 +98,12 @@ public final class Main implements Callable<Integer> {
     @Option(names = "--fail-on-drift", description = "Exit 2 if any new assertion is found.")
     private boolean failOnDrift;
 
+    /** When set, write the certain auto-fix edits (moved lines and unique path moves) into the KB files. */
+    @Option(
+            names = "--fix",
+            description = "Apply the certain auto-fix edits (moved lines and unique path moves) to the KB in place.")
+    private boolean fix;
+
     /**
      * Process entry point: parses arguments with picocli and exits with the command's return code.
      *
@@ -133,6 +140,15 @@ public final class Main implements Callable<Integer> {
         final RunResult result = new Engine(config).run();
 
         writeArtifacts(outDir, result, baselineFile);
+
+        if (fix) {
+            final AutoFixApplier.Result applied = AutoFixApplier.apply(result, repoRoot);
+            System.out.printf(
+                    "kb-freshness --fix: applied %d edit(s) across %d file(s)%s. Re-run to refresh artifacts.%n",
+                    applied.applied(),
+                    applied.filesChanged().size(),
+                    applied.skipped() > 0 ? " (" + applied.skipped() + " skipped: line diverged)" : "");
+        }
 
         final long newDrift = countNewDrift(result);
         System.out.printf(

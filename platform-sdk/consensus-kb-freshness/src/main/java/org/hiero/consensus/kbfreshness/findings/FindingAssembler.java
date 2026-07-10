@@ -159,7 +159,8 @@ public final class FindingAssembler {
                 res.evidence(),
                 occurrences,
                 res.autoFixLine(),
-                res.resolvedPath());
+                res.resolvedPath(),
+                rep.statedModule());
     }
 
     /**
