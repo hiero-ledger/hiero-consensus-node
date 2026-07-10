@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.metrics;
+package org.hiero.consensus.reconnect.impl;
 
 import com.swirlds.base.units.TimeUnit;
 import com.swirlds.metrics.api.Counter;
