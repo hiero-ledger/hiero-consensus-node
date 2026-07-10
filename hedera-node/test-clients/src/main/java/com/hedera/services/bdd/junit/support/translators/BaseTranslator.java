@@ -83,7 +83,6 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -97,7 +96,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.ByteUtils;
@@ -155,8 +153,7 @@ public class BaseTranslator {
     private final Map<EntityType, List<Long>> nextCreatedNums = new EnumMap<>(EntityType.class);
     private final Set<ScheduleID> purgedScheduleIds = new HashSet<>();
 
-    private record BackfillInitcode(ExecutedInitcode initcode, boolean isEthTx) {
-    }
+    private record BackfillInitcode(ExecutedInitcode initcode, boolean isEthTx) {}
 
     /**
      * Defines how a translator specifies details of a translated transaction record.
@@ -512,8 +509,7 @@ public class BaseTranslator {
      * @param traces        the list of traces
      */
     public void addCreatedIdsFromTraces(
-            @NonNull final ContractFunctionResult.Builder resultBuilder,
-            @Nullable final List<TraceData> traces) {
+            @NonNull final ContractFunctionResult.Builder resultBuilder, @Nullable final List<TraceData> traces) {
         if (traces != null) {
             final var createdIds = traces.stream()
                     .filter(TraceData::hasEvmTraceData)
@@ -723,17 +719,17 @@ public class BaseTranslator {
                                         || executingHookId.equals(nextHookId)) {
                                     nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
                                             .filter(nextUsages -> nextUsages
-                                                    .contractIdOrThrow()
-                                                    .equals(contractId)
+                                                            .contractIdOrThrow()
+                                                            .equals(contractId)
                                                     && writtenKeysFrom(nextUsages, remainingStateChanges).stream()
-                                                    .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
+                                                            .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
                                             .findFirst();
                                 } else {
                                     nextTracedWriteUsage = Optional.empty();
                                 }
                                 if (nextTracedWriteUsage.isPresent()) {
                                     final int finalWriteIndex = writtenKeysFrom(
-                                            nextTracedWriteUsage.get(), remainingStateChanges)
+                                                    nextTracedWriteUsage.get(), remainingStateChanges)
                                             .indexOf(writtenKey);
                                     final var nextRead = nextTracedWriteUsage.get().slotReads().stream()
                                             .filter(r -> r.hasIndex() && r.indexOrThrow() == finalWriteIndex)
@@ -761,7 +757,8 @@ public class BaseTranslator {
                             builder.slot(writtenKey).valueWritten(value);
                         } else if (parts.status() != REVERTED_SUCCESS) {
                             // for status == REVERTED_SUCCESS slot changes was cleaned up from 'contractStateChanges'
-                            // see com.hedera.node.app.workflows.handle.record.RecordStreamBuilder.build() status == REVERTED_SUCCESS logic
+                            // see com.hedera.node.app.workflows.handle.record.RecordStreamBuilder.build() status ==
+                            // REVERTED_SUCCESS logic
                             builder.slot(read.keyOrThrow());
                         }
                         recoveredChanges.add(builder.build());
