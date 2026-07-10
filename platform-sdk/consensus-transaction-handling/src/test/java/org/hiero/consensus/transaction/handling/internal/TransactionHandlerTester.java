@@ -78,14 +78,12 @@ public class TransactionHandlerTester implements AutoCloseable {
                 })
                 .when(consensusStateEventHandler)
                 .onHandleConsensusRound(any(), same(stateLifecycleManager.getMutableState()), any());
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference =
-                new AtomicReference<>(submittedActions::add);
         defaultTransactionHandler = new DefaultTransactionHandler(
                 time,
                 configuration,
                 metrics,
                 stateLifecycleManager,
-                statusActionSubmitterReference,
+                submittedActions::add,
                 SemanticVersion.DEFAULT,
                 consensusStateEventHandler,
                 NodeId.of(1),

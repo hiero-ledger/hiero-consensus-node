@@ -171,7 +171,10 @@ class PlatformWiringTests {
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
 
-        platformComponents.bind(inputs, mock(EventWindowManager.class), mock(AppNotifier.class));
+        eventWindowManagerWiring.bind(mock(EventWindowManager.class));
+        eventStreamWiring.bind(mock(ConsensusEventStream.class));
+        notifierWiring.bind(mock(AppNotifier.class));
+        platformMonitorWiring.bind(mock(PlatformMonitor.class));
 
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());

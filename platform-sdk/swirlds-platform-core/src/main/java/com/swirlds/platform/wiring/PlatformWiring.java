@@ -220,7 +220,6 @@ public class PlatformWiring {
                 .solderTo(buildingBlocks.stateModule().platformStatusInputWire(), INJECT);
 
         solderNotifier(buildingBlocks);
-        buildUnsolderedWires(buildingBlocks);
     }
 
     /**
@@ -263,18 +262,5 @@ public class PlatformWiring {
                 .solderTo(buildingBlocks
                         .notifierWiring()
                         .getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
-    }
-
-    /**
-     * {@link ComponentWiring} objects build their input wires when you first request them. Normally that happens when
-     * we are soldering things together, but there are a few wires that aren't soldered and aren't used until later in
-     * the lifecycle. This method forces those wires to be built.
-     */
-    private static void buildUnsolderedWires(final ConsensusLayerBuildingBlocks buildingBlocks) {
-        buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
-        buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
-        buildingBlocks.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
-        buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
-        buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
     }
 }

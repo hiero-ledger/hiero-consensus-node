@@ -302,7 +302,7 @@ public class ConsensusNoOpModules {
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
+        final StatusActionSubmitter statusActionSubmitter = action -> {};
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final long transactionOffsetNanos = 0L;
@@ -315,7 +315,7 @@ public class ConsensusNoOpModules {
                 latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
-                statusActionSubmitterReference,
+                statusActionSubmitter,
                 appVersion,
                 selfId,
                 transactionOffsetNanos);
