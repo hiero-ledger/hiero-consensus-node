@@ -54,6 +54,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -240,24 +243,41 @@ public class AddressBookValidator {
     }
 
     /**
-     * Validates the given bytes encode an X509 certificate can be serialized and deserialized from
-     * PEM format to recover a usable certificate.
-     * @param x509CertBytes the bytes to validate
-     * @throws PreCheckException if the certificate is invalid
+     * Parses the given bytes as an X509 certificate after serializing and deserializing from PEM format.
+     * @param x509CertBytes the bytes to parse
+     * @return the parsed certificate
+     * @throws PreCheckException if the certificate cannot be parsed
      */
-    public static void validateX509Certificate(@NonNull final Bytes x509CertBytes) throws PreCheckException {
+    public static X509Certificate parseX509Certificate(@NonNull final Bytes x509CertBytes) throws PreCheckException {
         try {
-            // Serialize the given bytes to a PEM file just as we would on a PREPARE_UPGRADE
-            final var baos = new ByteArrayOutputStream();
-            writeCertificatePemFile(x509CertBytes.toByteArray(), baos);
-            // Deserialize an X509 certificate from the resulting PEM file
-            final var bais = new ByteArrayInputStream(baos.toByteArray());
-            final var cert = readCertificatePemFile(bais);
-            // And check its validity for completeness
-            cert.checkValidity();
+            return parseX509CertificateOrThrow(x509CertBytes);
         } catch (Exception ignore) {
             throw new PreCheckException(INVALID_GOSSIP_CA_CERTIFICATE);
         }
+    }
+
+    /**
+     * Validates the given bytes encode an X509 certificate that is usable at the given deterministic time.
+     * @param x509CertBytes the bytes to validate
+     * @param validAt the consensus time to use for certificate validity checks
+     * @throws HandleException if the certificate is invalid
+     */
+    public static void validateX509Certificate(@NonNull final Bytes x509CertBytes, @NonNull final Instant validAt) {
+        requireNonNull(validAt, "validAt must not be null");
+        try {
+            parseX509CertificateOrThrow(x509CertBytes).checkValidity(Date.from(validAt));
+        } catch (Exception ignore) {
+            throw new HandleException(INVALID_GOSSIP_CA_CERTIFICATE);
+        }
+    }
+
+    private static X509Certificate parseX509CertificateOrThrow(@NonNull final Bytes x509CertBytes) throws Exception {
+        // Serialize the given bytes to a PEM file just as we would on a PREPARE_UPGRADE
+        final var baos = new ByteArrayOutputStream();
+        writeCertificatePemFile(x509CertBytes.toByteArray(), baos);
+        // Deserialize an X509 certificate from the resulting PEM file
+        final var bais = new ByteArrayInputStream(baos.toByteArray());
+        return readCertificatePemFile(bais);
     }
 
     /**

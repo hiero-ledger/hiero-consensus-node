@@ -60,6 +60,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,6 +94,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     private TransactionBody txn;
     private NodeCreateHandler subject;
 
+    private static final Instant VALID_CERT_TIME = Instant.parse("2010-01-01T00:00:00Z");
     private static List<X509Certificate> certList;
 
     @BeforeAll
@@ -530,6 +532,27 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleFailsWhenGossipCaCertificateIsInvalid() {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .withAdminKey(key)
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .getOrCreateConfig();
+        setupHandle(config);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
+    }
+
+    @Test
     void handleWorksAsExpected() throws CertificateEncodingException {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
@@ -885,6 +908,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -941,6 +965,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -997,6 +1022,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -1064,6 +1090,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     private void setupHandle(Configuration config) {
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);

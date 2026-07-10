@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOIN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
+import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.parseX509Certificate;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -72,7 +73,7 @@ public class NodeCreateHandler implements TransactionHandler {
                 op.gossipCaCertificate().length() == 0
                         || op.gossipCaCertificate().equals(Bytes.EMPTY),
                 INVALID_GOSSIP_CA_CERTIFICATE);
-        validateX509Certificate(op.gossipCaCertificate());
+        parseX509Certificate(op.gossipCaCertificate());
         final var adminKey = op.adminKey();
         addressBookValidator.validateAdminKey(adminKey);
     }
@@ -114,6 +115,9 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
+        if (!op.gossipCaCertificate().equals(Bytes.EMPTY)) {
+            validateX509Certificate(op.gossipCaCertificate(), handleContext.consensusNow());
+        }
         if (op.hasGrpcProxyEndpoint()) {
             validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
             addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);

@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
+import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.parseX509Certificate;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -72,7 +73,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         validateFalsePreCheck(op.nodeId() < 0, INVALID_NODE_ID);
         if (op.hasGossipCaCertificate()) {
             validateFalsePreCheck(op.gossipCaCertificate().equals(Bytes.EMPTY), INVALID_GOSSIP_CA_CERTIFICATE);
-            validateX509Certificate(op.gossipCaCertificate());
+            parseX509Certificate(op.gossipCaCertificate());
         }
         if (op.hasAdminKey()) {
             final var adminKey = op.adminKey();
@@ -130,6 +131,9 @@ public class NodeUpdateHandler implements TransactionHandler {
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalse(existingNode == null, INVALID_NODE_ID);
+        if (op.hasGossipCaCertificate()) {
+            validateX509Certificate(op.gossipCaCertificateOrThrow(), handleContext.consensusNow());
+        }
         if (op.hasAccountId()) {
             final var accountId = op.accountIdOrThrow();
             validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
