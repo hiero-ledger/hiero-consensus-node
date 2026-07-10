@@ -65,7 +65,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 @OrderedInIsolation
 @HapiTestLifecycle
 @DisplayName("SELFDESTRUCT")

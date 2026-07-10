@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
 public class LeakyEthereumTestsSuite {
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";

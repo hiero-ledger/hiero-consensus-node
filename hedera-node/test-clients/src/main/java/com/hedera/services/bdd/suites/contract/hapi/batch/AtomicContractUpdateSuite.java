@@ -310,7 +310,7 @@ class AtomicContractUpdateSuite {
     }
 
     @HapiTest
-    //@Tag(SERIAL)
+    @Tag(SERIAL)
     final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";

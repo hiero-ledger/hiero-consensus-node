@@ -100,7 +100,7 @@ public class UpdateNodeAccountTestSubprocess {
     }
 
     @Nested
-    //@Tag(SERIAL)
+    @Tag(SERIAL)
     class UpdateNodeAccountIdNegativeTests {
         @Tag(ONLY_SUBPROCESS)
         @HapiTest

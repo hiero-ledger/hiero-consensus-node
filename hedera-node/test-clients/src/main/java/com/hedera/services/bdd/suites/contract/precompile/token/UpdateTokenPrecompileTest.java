@@ -50,7 +50,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 @DisplayName("updateToken")
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle

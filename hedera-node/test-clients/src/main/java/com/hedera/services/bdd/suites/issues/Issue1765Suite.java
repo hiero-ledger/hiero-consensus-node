@@ -36,7 +36,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SERIAL)
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class Issue1765Suite {
     private static final String ACCOUNT = "1.1.1";

@@ -88,7 +88,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class HelloWorldEthereumSuite {
     public static final long depositAmount = 20_000L;
 
@@ -373,7 +373,7 @@ public class HelloWorldEthereumSuite {
     }
 
     @HapiTest
-    //@Tag(SERIAL)
+    @Tag(SERIAL)
     final Stream<DynamicTest> customizedEvmValuesAreCustomized() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

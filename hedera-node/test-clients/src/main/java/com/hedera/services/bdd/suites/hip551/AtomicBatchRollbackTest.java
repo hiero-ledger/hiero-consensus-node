@@ -1,20 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
-
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.dsl.annotations.Account;
-import com.hedera.services.bdd.spec.dsl.annotations.Contract;
-import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
-import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -32,6 +17,21 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
+
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class AtomicBatchRollbackTest {
@@ -42,17 +42,16 @@ public class AtomicBatchRollbackTest {
 
     @Contract(contract = CONTRACT, creationGas = 5_000_000)
     static SpecContract contract;
+
     @Account(name = INSUFFICIENT_BALANCE_ACCOUNT)
     static SpecAccount insufficientBalanceAccount;
+
     @Account(name = RELAYER, tinybarBalance = ONE_MILLION_HBARS)
     static SpecAccount relayer;
 
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                contract.getInfo(),
-                insufficientBalanceAccount.getInfo(),
-                relayer.getInfo());
+        lifecycle.doAdhoc(contract.getInfo(), insufficientBalanceAccount.getInfo(), relayer.getInfo());
     }
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {
@@ -67,15 +66,15 @@ public class AtomicBatchRollbackTest {
         return hapiTest(
                 createFundedAccount(delegatingAccount),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(delegatingAccount)
+                                        .payingWith(RELAYER)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }

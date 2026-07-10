@@ -57,7 +57,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
 public class NonceSuite {
     private static final long LOW_GAS_PRICE = 1L;
@@ -155,7 +155,7 @@ public class NonceSuite {
     }
 
     @HapiTest
-    //@Tag(SERIAL)
+    @Tag(SERIAL)
     final Stream<DynamicTest> nonceNotUpdatedWhenMaxGasPerSecPrecheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

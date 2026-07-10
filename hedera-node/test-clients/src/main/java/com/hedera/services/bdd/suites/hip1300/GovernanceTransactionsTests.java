@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Tag;
 /**
  * A class with Governance Transactions tests.
  */
-//@Tag(SERIAL)
+@Tag(SERIAL)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @DisplayName("Governance Transactions Tests")

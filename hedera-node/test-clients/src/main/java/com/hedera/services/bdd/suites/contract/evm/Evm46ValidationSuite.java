@@ -74,7 +74,7 @@ import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class Evm46ValidationSuite {
 
     private static final long FIRST_NONEXISTENT_CONTRACT_NUM = 4303224382569680425L;

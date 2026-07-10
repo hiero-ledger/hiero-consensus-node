@@ -43,7 +43,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-//@Tag(SERIAL)
+@Tag(SERIAL)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @HapiTestLifecycle
 public class DisabledLongTermExecutionScheduleTest {

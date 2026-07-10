@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Tag;
  * Test suite for contract call tests that are valid _only_ as HAPI contract calls, not as
  * Ethereum transactions.
  */
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class ContractCallHapiOnlySuite {
 
     public static final String TOKEN = "yahcliToken";

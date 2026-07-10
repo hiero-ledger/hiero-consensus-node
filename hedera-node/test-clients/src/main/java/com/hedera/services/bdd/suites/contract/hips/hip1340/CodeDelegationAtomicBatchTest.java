@@ -63,7 +63,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Atomic Batch Tests")
 @HapiTestLifecycle
 public class CodeDelegationAtomicBatchTest {
@@ -110,7 +110,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 1.1: atomicBatch(type-4 sets delegation on A, valid transfer) - batch succeeds
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationCommitedInSuccessfulAtomicBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var delegatingAccount = "DelegatingAccount";
@@ -134,9 +134,8 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
-    //TODO
     // 1.2: atomicBatch(type-4 sets delegation on A, invalid transfer) - batch fails
-//    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationSurvivesAtomicBatchRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var delegatingAccount = "DelegatingAccount";
@@ -163,7 +162,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 1.3: atomicBatch(type-4 sets delegation + calls contract that reverts) - batch fails due to
     // CONTRACT_REVERT_EXECUTED
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationSurvivesRevertingType4InAtomicBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var delegatingAccount = "DelegatingAccount";
@@ -185,7 +184,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 1.4: atomicBatch(invalid transfer, type-4 sets delegation on A) - batch fails before type-4 tx is dispatched
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testNoDelegationWhenBatchFailsBeforeType4TxDispatched() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var delegatingAccount = "DelegatingAccount";
@@ -211,7 +210,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 2.1: atomicBatch(CryptoCreate(A), type-4 delegates A) - batch succeeds
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchCryptoCreateThenType4DelegatesInSameBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var accountInBatch = "AccountCreatedInBatch";
@@ -237,7 +236,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 2.2: atomicBatch(CryptoCreate(A), type-4 delegates A, invalid transfer) - batch fails
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchCryptoCreateAndType4DelegateRolledBackOnFailure() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var delegatingAccount = "DelegatingAccount";
@@ -270,7 +269,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 2.3: atomicBatch(CryptoCreate(A, initialDelegation=D1), type-4 updates A delegation to D2) - batch succeeds
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get())); // D1
         final var delegationTargetAddress = DELEGATION_TARGET_2.get(); // D2
@@ -298,7 +297,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 3.1: Account A exists with no delegation. atomicBatch(type-4 delegates to A, invalid transfer) - batch fails
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testExistingAccountDelegationSurvivesRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var sender = "SenderAccount";
@@ -329,7 +328,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 3.2: Account A exists with delegation D1. atomicBatch(type-4 changes A delegation to D2, invalid transfer) -
     // batch fails
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testExistingDelegationUpdatedByType4SurvivesRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get(); // d1
         final var revertingDelegationTargetAddress = DELEGATION_TARGET_2.get(); // d2
@@ -362,7 +361,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 4.1: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, valid transfer) - batch
     // succeeds
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationClearedByZeroAddress() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var sender = "SenderAccount";
@@ -391,7 +390,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 4.2: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, invalid transfer) - batch
     // fails
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationClearedByZeroAddressSurvivesRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var sender = "SenderAccount";
@@ -422,7 +421,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 6.1: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries) - batch
     // succeeds
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitAcrossAccountsWithInvalidAuthorization() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var delegationAddress = ByteString.copyFrom(explicitFromHeadlong(delegationTargetAddress));
@@ -466,7 +465,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 6.2: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries, invalid
     // transfer) - batch fails
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccounts() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(delegationTargetAddress));
@@ -516,7 +515,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 8.1: atomicBatch(type-4 with 3 auth entries) - batch succeeds. Nonces incremented.
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchType4NoncesOnSuccess() {
         final var sender = "SenderAccount";
         final var authAccount1 = "Auth1";
@@ -569,7 +568,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 8.2: atomicBatch(type-4 tx, invalid transfer) - batch fails. Nonces and delegations should survive.
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchType4NoncesOnRollback() {
         final var sender = "SenderAccount";
         final var authAccount1 = "Auth1";
@@ -629,7 +628,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 9.1: atomicBatch(type-4 delegates A, valid transfer) - batch succeeds.
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testTx4GasChargesOnSuccessfulBatch() {
         // Intrinsic gas components
         final long TX_BASE_COST = 21_000L;
@@ -690,7 +689,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 9.1.1: Compare sender gas charges between successful and failed batch.
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testSenderGasChargesSameOnSuccessAndRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
 
@@ -795,7 +794,7 @@ public class CodeDelegationAtomicBatchTest {
     // Gas charged for all inner txs despite rollback. Account creation fee for CryptoCreate correctly replayed despite
     // account being rolled back and is included as part of the tx4 tx charge. Successful path should charge less fees
     // (minus account creation), since account creation was successful.
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testGasAndFeesChargedOnRollbackWithCryptoCreate() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var rollbackPayer = "PayerOnRollbackAccount";
@@ -929,7 +928,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 10.1: atomicBatch(CryptoUpdate sets delegation on A, invalid transfer) - batch fails
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCryptoUpdateDelegationRolledBackOnBatchFailure() {
         final var delegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var preCreatedAccount = "PreCreatedAccount";
@@ -952,7 +951,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     // 10.2: atomicBatch(CryptoUpdate sets delegation on A, type-4 sets delegation on B, invalid transfer)
-    //@LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testAtomicBatchRevertsAllDelegationTransactionsOnInnerTxFailure() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegatingAccount = "DelegatingAccount";

@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class LogsSuite {
 
     private static final long GAS_TO_OFFER = 25_000L;

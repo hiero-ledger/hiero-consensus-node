@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 @OrderedInIsolation
 public class Evm50ValidationSuite {
     private static final String Module05OpcodesExist_CONTRACT = "Module050OpcodesExist";

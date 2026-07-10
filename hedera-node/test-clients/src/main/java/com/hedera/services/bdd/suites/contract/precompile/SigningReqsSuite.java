@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Tag;
 // since they use admin keys, which are held by the txn payer.
 // In the case of an eth txn, we revoke the payers keys and the txn would fail.
 // The only way an eth account to create a token is the admin key to be of a contractId type.
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class SigningReqsSuite {
     private static final String FIRST_CREATE_TXN = "firstCreateTxn";
     private static final String SECOND_CREATE_TXN = "secondCreateTxn";

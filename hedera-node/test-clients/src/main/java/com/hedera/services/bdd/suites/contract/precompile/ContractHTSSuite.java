@@ -62,7 +62,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class ContractHTSSuite {
     public static final String VERSATILE_TRANSFERS_CONTRACT = "VersatileTransfers";
     public static final String TOKEN_TRANSFERS_CONTRACT = "TokenTransferContract";

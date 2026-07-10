@@ -71,7 +71,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-//@Tag(SMART_CONTRACT)
+@Tag(SMART_CONTRACT)
 public class ContractDeleteSuite {
     private static final String CONTRACT = "Multipurpose";
     private static final String PAYABLE_CONSTRUCTOR = "PayableConstructor";
