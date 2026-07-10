@@ -183,7 +183,7 @@ jobs:
         run: |
           RAW_VERSION=$(cat version.txt)
           echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_VERSION env var"
-          echo "CN_VERSION=${RAW_VERSION}" >> "$GITHUB_ENV"
+          echo "CN_VERSION=${RAW_VERSION}" >> "${GITHUB_ENV}"
 
       - name: Install Solo
         run: |
