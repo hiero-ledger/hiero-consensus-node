@@ -68,10 +68,7 @@ public class FallenBehindMonitor {
             @NonNull final Configuration config,
             @NonNull final Metrics metrics,
             final NodeId selfId) {
-        this(
-                roster,
-                requireNonNull(config).getConfigData(FallenBehindConfig.class).fallenBehindThreshold(),
-                selfId);
+        this(roster, requireNonNull(config), selfId);
         requireNonNull(metrics)
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
@@ -86,7 +83,10 @@ public class FallenBehindMonitor {
                 .withUnit("fraction"));
     }
 
-    public FallenBehindMonitor(@NonNull final Roster roster, final double fallenBehindThreshold, final NodeId selfId) {
+    public FallenBehindMonitor(
+            @NonNull final Roster roster, @NonNull final Configuration configuration, @NonNull final NodeId selfId) {
+        final double fallenBehindThreshold =
+                configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
         this.rosterLookup = new RosterLookup(requireNonNull(roster));
         this.totalWeightExceptSelf = rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId);
         this.fallenBehindWeightThreshold = Math.round(totalWeightExceptSelf * fallenBehindThreshold);
