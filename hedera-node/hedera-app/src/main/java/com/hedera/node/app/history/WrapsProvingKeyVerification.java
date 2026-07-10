@@ -41,7 +41,8 @@ import org.apache.logging.log4j.Logger;
  * is logged and a recurring retry is scheduled. The node continues startup regardless.
  *
  * <p>After successful hash verification, the proving key archive (.tar.gz) is extracted
- * to the parent directory of the proving key path.
+ * to the directory specified by the {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} environment variable.
+ * The {@code tss.wrapsProvingKeyPath} config controls only where the archive file is stored on disk.
  */
 public class WrapsProvingKeyVerification {
     private static final Logger log = LogManager.getLogger(WrapsProvingKeyVerification.class);
