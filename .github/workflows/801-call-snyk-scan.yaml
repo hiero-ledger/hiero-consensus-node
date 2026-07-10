@@ -85,7 +85,7 @@ jobs:
       - name: Setup Snyk
         id: setup-snyk
         if: ${{ github.event.repository.private == false }}
-        uses: step-security/snyk-actions/setup@v1
+        uses: step-security/snyk-actions/setup@3ccbd440152e3235d4b9d631c16badbc85807eca # v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
