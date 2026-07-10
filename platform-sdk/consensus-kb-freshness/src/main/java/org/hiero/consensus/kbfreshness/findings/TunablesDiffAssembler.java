@@ -3,9 +3,12 @@ package org.hiero.consensus.kbfreshness.findings;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.extract.TunablesCatalog;
 import org.hiero.consensus.kbfreshness.extract.TunablesCatalog.Row;
@@ -17,6 +20,7 @@ import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
+import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
@@ -33,8 +37,12 @@ import org.hiero.consensus.kbfreshness.util.Hashing;
  *   <li>a documented type that differs from the declared component type → quiet log only (the catalog
  *       documents semantic types, e.g. {@code Path} for a {@code String}-typed key, so a mismatch is
  *       not certainly drift);</li>
- *   <li>a non-literal {@code defaultValue} (constant reference) → quiet log (never compared as fact);</li>
- *   <li>a declared property the section does not document → coverage lane, never the drift report.</li>
+ *   <li>a non-literal {@code defaultValue} (constant reference) → quiet log (never compared as fact),
+ *       except the closed whitelist of well-known config-API constants ({@code Configuration.EMPTY_LIST}),
+ *       whose values are compile-time facts and compare as literals;</li>
+ *   <li>a declared property the section does not document → coverage lane, never the drift report;</li>
+ *   <li>an in-scope config record with no catalog section at all → coverage lane (see
+ *       {@link #undocumentedRecords}).</li>
  * </ul>
  * A section whose cited source is gone is additionally resolved <em>by config prefix</em>: when exactly
  * one indexed {@code *Config.java} record declares {@code @ConfigData} with the section's prefix and
@@ -43,20 +51,31 @@ import org.hiero.consensus.kbfreshness.util.Hashing;
  */
 public final class TunablesDiffAssembler {
 
+    /**
+     * Module-name prefix that puts a config record in scope for the undocumented-record coverage check
+     * regardless of what the catalog already documents. The KB is the consensus layer's, so every
+     * {@code consensus-*} module's tunables belong in its catalog; other modules are in scope only once
+     * the catalog documents them (which keeps e.g. hedera-node and storage-engine records out of the lane).
+     */
+    private static final String IN_SCOPE_MODULE_PREFIX = "consensus-";
+
+    /**
+     * Well-known config-API constants accepted as {@code defaultValue}: as-written reference to its
+     * string value. A closed whitelist — each value is a compile-time constant of
+     * {@code com.swirlds.config.api.Configuration}, so comparing it is comparing a literal, not guessing.
+     */
+    private static final Map<String, String> WELL_KNOWN_DEFAULTS = Map.of(
+            "Configuration.EMPTY_LIST", "[]",
+            "com.swirlds.config.api.Configuration.EMPTY_LIST", "[]");
+
     /** Source index used to resolve and parse the documented config records. */
     private final SourceIndex index;
 
-    /** Lazily-built map of {@code @ConfigData} prefix to the indexed records declaring it. */
-    private Map<String, List<ConfigOwner>> ownersByPrefix;
+    /** Lazily-built scan of every indexed config record (see {@link ConfigRecords}). */
+    private List<ConfigRecords.Owner> allOwners;
 
-    /**
-     * One indexed config record: where it lives and its parsed view.
-     *
-     * @param path      the repo-relative source path.
-     * @param className the record's simple name.
-     * @param type      the parsed type info (carries prefix and components).
-     */
-    private record ConfigOwner(String path, String className, TypeInfo type) {}
+    /** Lazily-built map of {@code @ConfigData} prefix to the indexed records declaring it. */
+    private Map<String, List<ConfigRecords.Owner>> ownersByPrefix;
 
     /**
      * Creates an assembler over the given source index.
@@ -77,9 +96,13 @@ public final class TunablesDiffAssembler {
         final List<Finding> findings = new ArrayList<>();
         for (final KbDocument doc : docs) {
             if (doc.entry().type() == EntryType.TUNABLE_CATALOG) {
-                for (final Section s : TunablesCatalog.parse(doc)) {
-                    findings.addAll(checkSection(doc, s));
+                final List<Section> sections = TunablesCatalog.parse(doc);
+                final Set<String> documentedRecords = new LinkedHashSet<>();
+                final Set<String> documentedModules = new TreeSet<>();
+                for (final Section s : sections) {
+                    findings.addAll(checkSection(doc, s, documentedRecords, documentedModules));
                 }
+                findings.addAll(undocumentedRecords(doc, sections, documentedRecords, documentedModules));
             }
         }
         return findings;
@@ -87,17 +110,32 @@ public final class TunablesDiffAssembler {
 
     /**
      * Checks one catalog section: resolves its config record (by cited path, unique basename, or unique
-     * prefix owner) and diffs the documented rows against the record's declared properties.
+     * prefix owner) and diffs the documented rows against the record's declared properties. The resolved
+     * record and its module are recorded so the undocumented-record coverage check knows what the
+     * catalog already covers.
      *
-     * @param doc the tunables catalog document.
-     * @param s   the section to check.
+     * @param doc               the tunables catalog document.
+     * @param s                 the section to check.
+     * @param documentedRecords set collecting {@code path|className} of every resolved record.
+     * @param documentedModules set collecting the modules the catalog documents (resolved and labeled).
      * @return the section's findings (possibly empty).
      */
-    private List<Finding> checkSection(final KbDocument doc, final Section s) {
+    private List<Finding> checkSection(
+            final KbDocument doc,
+            final Section s,
+            final Set<String> documentedRecords,
+            final Set<String> documentedModules) {
         final List<Finding> findings = new ArrayList<>();
-        final ConfigOwner owner = resolveRecord(doc, s, findings);
+        if (s.moduleLabel() != null) {
+            documentedModules.add(s.moduleLabel());
+        }
+        final ConfigRecords.Owner owner = resolveRecord(doc, s, findings);
         if (owner == null) {
             return findings;
+        }
+        documentedRecords.add(owner.path() + "|" + owner.className());
+        if (owner.module() != null) {
+            documentedModules.add(owner.module());
         }
         final String declaredPrefix = owner.type().configPrefix();
         if (declaredPrefix == null) {
@@ -137,7 +175,7 @@ public final class TunablesDiffAssembler {
      * @param findings the list to append findings to.
      */
     private static void checkRows(
-            final KbDocument doc, final Section s, final ConfigOwner owner, final List<Finding> findings) {
+            final KbDocument doc, final Section s, final ConfigRecords.Owner owner, final List<Finding> findings) {
         final String fqPrefix = s.prefix().isEmpty() ? "" : s.prefix() + ".";
         final Map<String, ConfigComponent> byKeyName = new LinkedHashMap<>();
         for (final ConfigComponent c : owner.type().configComponents()) {
@@ -227,7 +265,7 @@ public final class TunablesDiffAssembler {
     private static void checkDefault(
             final KbDocument doc,
             final Section s,
-            final ConfigOwner owner,
+            final ConfigRecords.Owner owner,
             final Row row,
             final ConfigComponent c,
             final List<Finding> findings) {
@@ -237,17 +275,35 @@ public final class TunablesDiffAssembler {
         }
         final String question = "default of `" + row.key() + "` matches `@ConfigProperty(defaultValue = …)`";
         if (!c.defaultIsLiteral()) {
-            findings.add(defaultFinding(
-                    doc,
-                    s,
-                    owner,
-                    row,
-                    Outcome.UNVERIFIABLE,
-                    Lane.QUIET_LOG,
-                    question,
-                    "`defaultValue` of `" + row.key() + "` in `" + owner.className()
-                            + "` is not a plain string literal; documented default `" + documented
-                            + "` is unverifiable."));
+            final String known = c.defaultExpr() == null ? null : WELL_KNOWN_DEFAULTS.get(c.defaultExpr());
+            if (known == null) {
+                findings.add(defaultFinding(
+                        doc,
+                        s,
+                        owner,
+                        row,
+                        Outcome.UNVERIFIABLE,
+                        Lane.QUIET_LOG,
+                        question,
+                        "`defaultValue` of `" + row.key() + "` in `" + owner.className()
+                                + "` is not a plain string literal; documented default `" + documented
+                                + "` is unverifiable."));
+                return;
+            }
+            // A whitelisted config-API constant is a compile-time fact; compare it like a literal.
+            if (!normalizeDefault(documented).equals(normalizeDefault(known))) {
+                findings.add(defaultFinding(
+                        doc,
+                        s,
+                        owner,
+                        row,
+                        Outcome.ABSENT,
+                        Lane.ASSERT,
+                        question,
+                        "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
+                                + "`@ConfigProperty(defaultValue = " + c.defaultExpr() + ")` (= `" + known
+                                + "`) in `" + owner.className() + "` (`" + owner.path() + "`)."));
+            }
             return;
         }
         if (!normalizeDefault(documented).equals(normalizeDefault(c.defaultValue()))) {
@@ -278,16 +334,16 @@ public final class TunablesDiffAssembler {
      * @return the resolved record, or {@code null} when the section cannot be resolved with certainty
      *     (the generic source-path anchor reports the gone citation).
      */
-    private ConfigOwner resolveRecord(final KbDocument doc, final Section s, final List<Finding> findings) {
+    private ConfigRecords.Owner resolveRecord(final KbDocument doc, final Section s, final List<Finding> findings) {
         if (s.sourcePath() != null && index.fileExists(s.sourcePath())) {
             final TypeInfo type = index.parse(s.sourcePath()).types().get(s.className());
-            return type == null ? null : new ConfigOwner(s.sourcePath(), s.className(), type);
+            return type == null ? null : new ConfigRecords.Owner(s.sourcePath(), s.className(), type);
         }
-        final List<ConfigOwner> byBasename = new ArrayList<>();
+        final List<ConfigRecords.Owner> byBasename = new ArrayList<>();
         for (final String p : index.pathsForBasename(s.className() + ".java")) {
             final TypeInfo type = index.parse(p).types().get(s.className());
             if (type != null && type.configPrefix() != null) {
-                byBasename.add(new ConfigOwner(p, s.className(), type));
+                byBasename.add(new ConfigRecords.Owner(p, s.className(), type));
             }
         }
         if (byBasename.size() == 1) {
@@ -298,9 +354,9 @@ public final class TunablesDiffAssembler {
         if (!byBasename.isEmpty()) {
             return null;
         }
-        final List<ConfigOwner> owners = ownersOf(s.prefix());
+        final List<ConfigRecords.Owner> owners = ownersOf(s.prefix());
         if (owners.size() == 1 && declaresAllDocumentedKeys(owners.get(0), s)) {
-            final ConfigOwner owner = owners.get(0);
+            final ConfigRecords.Owner owner = owners.get(0);
             findings.add(prefixFinding(
                     doc,
                     s,
@@ -325,7 +381,7 @@ public final class TunablesDiffAssembler {
      * @param s     the section whose rows must all resolve.
      * @return {@code true} when every documented key is declared.
      */
-    private static boolean declaresAllDocumentedKeys(final ConfigOwner owner, final Section s) {
+    private static boolean declaresAllDocumentedKeys(final ConfigRecords.Owner owner, final Section s) {
         final String fqPrefix = s.prefix().isEmpty() ? "" : s.prefix() + ".";
         final List<String> declared = new ArrayList<>();
         for (final ConfigComponent c : owner.type().configComponents()) {
@@ -343,33 +399,94 @@ public final class TunablesDiffAssembler {
     }
 
     /**
-     * The indexed config records declaring {@code @ConfigData} with the given prefix, from a lazily-built
-     * scan of every indexed {@code *Config.java} (the repo's config-record naming convention).
+     * The indexed config records declaring {@code @ConfigData} with the given prefix, from the lazily-run
+     * {@link ConfigRecords} scan.
      *
      * @param prefix the config prefix to look up ({@code ""} for bare {@code @ConfigData}).
-     * @return the owners of the prefix, in deterministic (path-sorted) order; possibly empty.
+     * @return the owners of the prefix, in deterministic (basename, path) order; possibly empty.
      */
-    private List<ConfigOwner> ownersOf(final String prefix) {
+    private List<ConfigRecords.Owner> ownersOf(final String prefix) {
         if (ownersByPrefix == null) {
             ownersByPrefix = new LinkedHashMap<>();
-            for (final String basename : index.basenames()) {
-                if (!basename.endsWith("Config.java")) {
-                    continue;
-                }
-                for (final String path : index.pathsForBasename(basename)) {
-                    for (final Map.Entry<String, TypeInfo> e :
-                            index.parse(path).types().entrySet()) {
-                        final String p = e.getValue().configPrefix();
-                        if (p != null) {
-                            ownersByPrefix
-                                    .computeIfAbsent(p, k -> new ArrayList<>())
-                                    .add(new ConfigOwner(path, e.getKey(), e.getValue()));
-                        }
-                    }
-                }
+            for (final ConfigRecords.Owner owner : allOwners()) {
+                ownersByPrefix
+                        .computeIfAbsent(owner.type().configPrefix(), k -> new ArrayList<>())
+                        .add(owner);
             }
         }
         return ownersByPrefix.getOrDefault(prefix, List.of());
+    }
+
+    /**
+     * Every indexed config record, scanned once per run.
+     *
+     * @return the records in deterministic (basename, path) order.
+     */
+    private List<ConfigRecords.Owner> allOwners() {
+        if (allOwners == null) {
+            allOwners = ConfigRecords.scan(index);
+        }
+        return allOwners;
+    }
+
+    /**
+     * The inverse of the per-section checks: in-scope config records the catalog has no section for at
+     * all. A record is in scope when its module is a {@code consensus-*} module (the layer this KB
+     * documents) or a module the catalog already documents. A record is "documented" when a section
+     * resolved to it, or names its class or its prefix — a stale-but-present section is drift, not a
+     * coverage gap, and must not be double-reported here. Never asserted: coverage lane only.
+     *
+     * @param doc               the tunables catalog document.
+     * @param sections          the catalog's parsed sections.
+     * @param documentedRecords {@code path|className} of every record a section resolved to.
+     * @param documentedModules the modules the catalog documents.
+     * @return one coverage finding per undocumented in-scope record.
+     */
+    private List<Finding> undocumentedRecords(
+            final KbDocument doc,
+            final List<Section> sections,
+            final Set<String> documentedRecords,
+            final Set<String> documentedModules) {
+        final Set<String> sectionClassNames = new TreeSet<>();
+        final Set<String> sectionPrefixes = new TreeSet<>();
+        for (final Section s : sections) {
+            sectionClassNames.add(s.className());
+            sectionPrefixes.add(s.prefix());
+        }
+        final List<Finding> findings = new ArrayList<>();
+        for (final ConfigRecords.Owner owner : allOwners()) {
+            final String module = owner.module();
+            final boolean inScope =
+                    module != null && (module.startsWith(IN_SCOPE_MODULE_PREFIX) || documentedModules.contains(module));
+            if (!inScope
+                    || documentedRecords.contains(owner.path() + "|" + owner.className())
+                    || sectionClassNames.contains(owner.className())
+                    || sectionPrefixes.contains(owner.type().configPrefix())) {
+                continue;
+            }
+            final String prefix = owner.type().configPrefix();
+            findings.add(new Finding(
+                    Hashing.id(doc.entry().key(), owner.path(), AnchorKind.CONFIG_PREFIX.name()),
+                    doc.entry().key(),
+                    doc.entry().relativePath(),
+                    doc.entry().type(),
+                    AnchorKind.CONFIG_PREFIX,
+                    owner.path(),
+                    module,
+                    owner.className(),
+                    Outcome.PRESENT,
+                    Lane.COVERAGE_GAP,
+                    "config record `" + owner.className() + "` has a section in this catalog",
+                    "Config record `" + owner.className() + "` (`@ConfigData(\""
+                            + prefix + "\")`, "
+                            + owner.type().configComponents().size() + " key(s)) at `"
+                            + owner.path() + "` has no section in this catalog.",
+                    List.of(new Occurrence(1, Anchor.NO_LINE, owner.className())),
+                    null,
+                    null,
+                    null));
+        }
+        return findings;
     }
 
     // ---- Finding builders ----
@@ -433,7 +550,7 @@ public final class TunablesDiffAssembler {
     private static Finding keyFinding(
             final KbDocument doc,
             final Section s,
-            final ConfigOwner owner,
+            final ConfigRecords.Owner owner,
             final Row row,
             final Outcome outcome,
             final Lane lane,
@@ -473,7 +590,7 @@ public final class TunablesDiffAssembler {
     private static Finding defaultFinding(
             final KbDocument doc,
             final Section s,
-            final ConfigOwner owner,
+            final ConfigRecords.Owner owner,
             final Row row,
             final Outcome outcome,
             final Lane lane,
@@ -541,15 +658,17 @@ public final class TunablesDiffAssembler {
     }
 
     /**
-     * Normalizes a default literal for comparison: trimmed, whitespace runs collapsed, and the
-     * catalog's empty-string spellings ({@code ""} and {@code (empty)}) mapped to the empty string.
+     * Normalizes a default literal for comparison: trimmed, whitespace runs collapsed, and the empty
+     * spellings mapped to the empty string — the catalog's {@code ""} and {@code (empty)}, plus the
+     * config API's empty-list value {@code []} ({@code Configuration.EMPTY_LIST}), so a documented
+     * {@code (empty)} matches an empty-list default.
      *
      * @param s the default text.
      * @return the normalized value.
      */
     private static String normalizeDefault(final String s) {
         final String t = s.strip().replaceAll("\\s+", " ");
-        return t.equals("\"\"") || t.equals("(empty)") ? "" : t;
+        return t.equals("\"\"") || t.equals("(empty)") || t.equals("[]") ? "" : t;
     }
 
     /**

@@ -75,6 +75,10 @@ public final class JavaParsing {
      *                          {@code null} when absent or not a plain literal.
      * @param defaultIsLiteral  whether a {@code defaultValue} attribute was written as a plain string
      *                          literal (only then can it be compared as a fact).
+     * @param defaultExpr       for a non-literal {@code defaultValue} (a constant reference), its
+     *                          expression exactly as written (e.g. {@code Configuration.EMPTY_LIST});
+     *                          {@code null} when the attribute is absent or a plain literal. Recorded
+     *                          as a fact only — interpreting it is the caller's decision.
      * @param line              the 1-based line of the component declaration.
      */
     public record ConfigComponent(
@@ -83,6 +87,7 @@ public final class JavaParsing {
             String type,
             String defaultValue,
             boolean defaultIsLiteral,
+            String defaultExpr,
             int line) {}
 
     /**
@@ -268,6 +273,7 @@ public final class JavaParsing {
         String keyName = componentName;
         String defaultValue = null;
         boolean defaultIsLiteral = false;
+        String defaultExpr = null;
         for (final AnnotationTree at : vt.getModifiers().getAnnotations()) {
             if (!simpleAnnotationName(at).equals("ConfigProperty")) {
                 continue;
@@ -278,6 +284,7 @@ public final class JavaParsing {
             }
             defaultValue = attributeLiteral(at, "defaultValue");
             defaultIsLiteral = defaultValue != null;
+            defaultExpr = defaultIsLiteral ? null : attributeExpression(at, "defaultValue");
         }
         return new ConfigComponent(
                 keyName,
@@ -285,6 +292,7 @@ public final class JavaParsing {
                 vt.getType() == null ? "" : vt.getType().toString().replaceAll("\\s+", ""),
                 defaultValue,
                 defaultIsLiteral,
+                defaultExpr,
                 declLine(cu, vt, vt.getModifiers(), positions, lineMap, src));
     }
 
@@ -329,6 +337,27 @@ public final class JavaParsing {
                 }
             } else if (name.equals("value") && arg instanceof LiteralTree lit && lit.getValue() instanceof String s) {
                 return s;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The as-written expression assigned to a named attribute of an annotation when it is <em>not</em> a
+     * plain string literal (e.g. a constant reference like {@code Configuration.EMPTY_LIST}). Returns
+     * {@code null} when the attribute is absent or is a plain literal (which
+     * {@link #attributeLiteral(AnnotationTree, String)} reads instead).
+     *
+     * @param at   the annotation.
+     * @param name the attribute name to read.
+     * @return the attribute's non-literal expression as written, or {@code null}.
+     */
+    private static String attributeExpression(final AnnotationTree at, final String name) {
+        for (final ExpressionTree arg : at.getArguments()) {
+            if (arg instanceof AssignmentTree assign
+                    && assign.getVariable().toString().equals(name)
+                    && !(assign.getExpression() instanceof LiteralTree)) {
+                return assign.getExpression().toString();
             }
         }
         return null;

@@ -20,6 +20,7 @@ import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
  * drift report by design. Three kinds are surfaced, each tracked separately for a curator closing gaps:
  * <ul>
  *   <li>code that exists but the KB does not document (e.g. an interface method absent from its entry);</li>
+ *   <li>in-scope config records the tunables catalog has no section for at all;</li>
  *   <li>architecture topics that anchor no source — no mechanically-checkable claim;</li>
  *   <li>interface docs that do not opt into the Tier-2 method-set diff, so it never runs for them.</li>
  * </ul>
@@ -42,6 +43,7 @@ public final class CoverageRenderer {
         sb.append("_The inverse of drift: code the KB does not describe, and KB docs that carry no "
                 + "mechanically-checkable anchor. Not drift; never asserted._\n\n");
         renderUndocumentedCode(sb, result);
+        renderUndocumentedRecords(sb, result);
         renderUnanchoredTopics(sb, result);
         renderUncheckedInterfaces(sb, result);
         renderMissingTopicDocs(sb, result);
@@ -49,7 +51,8 @@ public final class CoverageRenderer {
     }
 
     /**
-     * Section: code that exists but the KB does not document (the {@link Lane#COVERAGE_GAP} findings).
+     * Section: code that exists but the KB does not document (the {@link Lane#COVERAGE_GAP} findings,
+     * except whole undocumented config records, which get their own section below).
      *
      * @param sb     the buffer to append to.
      * @param result the run result.
@@ -60,7 +63,7 @@ public final class CoverageRenderer {
                 + "its entry)._\n\n");
         boolean any = false;
         for (final Finding f : result.findings()) {
-            if (f.lane() != Lane.COVERAGE_GAP) {
+            if (f.lane() != Lane.COVERAGE_GAP || f.kind() == AnchorKind.CONFIG_PREFIX) {
                 continue;
             }
             any = true;
@@ -69,6 +72,29 @@ public final class CoverageRenderer {
                     .append("` — ")
                     .append(f.evidence())
                     .append('\n');
+        }
+        sb.append(any ? "\n" : "_None._\n\n");
+    }
+
+    /**
+     * Section: in-scope config records the tunables catalog carries no section for. Keys that migrate
+     * into a brand-new config record would otherwise vanish from coverage entirely — the old key asserts
+     * as gone, but nothing would say the successor record is undocumented.
+     *
+     * @param sb     the buffer to append to.
+     * @param result the run result.
+     */
+    private static void renderUndocumentedRecords(final StringBuilder sb, final RunResult result) {
+        sb.append("## Config records with no tunables section\n\n");
+        sb.append("_`@ConfigData` records in consensus-layer (or already-documented) modules that the "
+                + "tunables catalog has no section for — candidate sections to write._\n\n");
+        boolean any = false;
+        for (final Finding f : result.findings()) {
+            if (f.lane() != Lane.COVERAGE_GAP || f.kind() != AnchorKind.CONFIG_PREFIX) {
+                continue;
+            }
+            any = true;
+            sb.append("- ").append(f.evidence()).append('\n');
         }
         sb.append(any ? "\n" : "_None._\n\n");
     }

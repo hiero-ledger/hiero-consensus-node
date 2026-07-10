@@ -22,6 +22,7 @@ import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
+import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.AnchorResolver;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.worklist.WorklistBuilder;
@@ -62,6 +63,7 @@ public final class Engine {
         final List<Finding> findings = new ArrayList<>(assembler.assembleAll(docs));
         findings.addAll(new InterfaceDiffAssembler(index).assembleAll(docs));
         findings.addAll(new TunablesDiffAssembler(index).assembleAll(docs));
+        subsumeConfigClassMoves(findings);
         findings.sort(FindingAssembler.ORDER);
 
         final Baseline baseline = Baseline.load(config.baselineFile());
@@ -71,6 +73,29 @@ public final class Engine {
         final List<WorklistEntry> worklist = new WorklistBuilder(config.repoRoot(), extractor, git, index).build(docs);
 
         return new RunResult(docs, findings, join, worklist, index, stats(docs, extractor, findings));
+    }
+
+    /**
+     * Drops a source-path GONE finding whose citation is already asserted as a config-class move by a
+     * {@code CONFIG_PREFIX} finding for the same entry and cited path. Both describe the same line — the
+     * section's {@code Source:} link — and the prefix finding is the stronger one (it names the successor
+     * record and carries the ready rewrite), so keeping both would double-report one root cause.
+     *
+     * @param findings the assembled findings, filtered in place.
+     */
+    private static void subsumeConfigClassMoves(final List<Finding> findings) {
+        final Set<String> prefixMoves = new HashSet<>();
+        for (final Finding f : findings) {
+            if (f.kind() == AnchorKind.CONFIG_PREFIX && f.lane() == Lane.ASSERT && f.resolvedPath() != null) {
+                prefixMoves.add(f.entryKey() + "|" + f.target());
+            }
+        }
+        if (prefixMoves.isEmpty()) {
+            return;
+        }
+        findings.removeIf(f -> f.kind() == AnchorKind.SOURCE_PATH
+                && f.outcome() == Outcome.ABSENT
+                && prefixMoves.contains(f.entryKey() + "|" + f.target()));
     }
 
     /**

@@ -18,8 +18,8 @@ import org.hiero.consensus.kbfreshness.model.AnchorKind;
  * carry enough context to be verified as a fact are emitted. Frontmatter yields {@code components:}
  * source paths, {@code verification:} method-on-class, and {@code related:}/{@code topics:} references;
  * the body yields markdown links (doc/source/module), abbreviated {@code module/.../File.java} paths,
- * and bare catalog IDs. Fenced code blocks are skipped. Bare prose symbol names are intentionally not
- * asserted on in this version.
+ * and bare catalog IDs. Fenced code blocks and HTML comments are skipped — commented-out text is not a
+ * claim. Bare prose symbol names are intentionally not asserted on in this version.
  */
 public final class AnchorExtractor {
 
@@ -218,19 +218,22 @@ public final class AnchorExtractor {
         final int bodyStart = doc.frontmatter().bodyLine();
         final String docDir = parentDir(doc.entry().relativePath());
 
-        // A fence-blanked copy of the body (one entry per file line, line count preserved) drives the
-        // whole-body markdown-link and code-span passes; lineStart maps a match offset back to a line.
+        // A fence-and-comment-blanked copy of the body (one entry per file line, line count preserved)
+        // drives the whole-body markdown-link and code-span passes; lineStart maps a match offset back to
+        // a line. HTML comments are blanked because commented-out text is not a claim — an index README's
+        // row-convention template would otherwise assert.
         final StringBuilder body = new StringBuilder();
         final long[] lineStart = new long[lines.size()];
         // Stated "Module: `x`" label keyed by the file line it sits on, for the adjacent source link.
         final Map<Integer, String> statedModuleByLine = new HashMap<>();
         boolean inFence = false;
+        final boolean[] inComment = {false};
 
         for (int idx = 0; idx < lines.size(); idx++) {
             lineStart[idx] = body.length();
-            final String line = lines.get(idx);
+            final String rawLine = lines.get(idx);
             final int fileLine = idx + 1;
-            final String stripped = line.strip();
+            final String stripped = rawLine.strip();
 
             if (idx < bodyStart - 1) {
                 body.append('\n'); // frontmatter: keep line offsets but nothing to match.
@@ -245,6 +248,7 @@ public final class AnchorExtractor {
                 body.append('\n');
                 continue;
             }
+            final String line = blankComments(rawLine, inComment);
             body.append(line).append('\n');
 
             // Abbreviated module/.../File.java paths.
@@ -330,6 +334,39 @@ public final class AnchorExtractor {
         if (bare.matches()) {
             out.add(new Anchor(AnchorKind.SOURCE_BASENAME, bare.group(1), null, null, fileLine, Anchor.NO_LINE, span));
         }
+    }
+
+    /**
+     * Blanks the HTML-comment regions of a line, preserving its length, and tracks multi-line comment
+     * state across calls. Commented-out text is not a claim, so nothing inside {@code <!-- … -->} may
+     * feed an anchor. Fenced lines never reach this method, so a comment marker shown inside a code
+     * fence cannot toggle the state.
+     *
+     * @param line      the raw line.
+     * @param inComment single-element carry-over state: whether the previous line left a comment open.
+     * @return the line with commented regions replaced by spaces.
+     */
+    private static String blankComments(final String line, final boolean[] inComment) {
+        if (!inComment[0] && !line.contains("<!--")) {
+            return line;
+        }
+        final StringBuilder out = new StringBuilder(line.length());
+        int i = 0;
+        while (i < line.length()) {
+            if (!inComment[0] && line.startsWith("<!--", i)) {
+                inComment[0] = true;
+                out.append("    ");
+                i += 4;
+            } else if (inComment[0] && line.startsWith("-->", i)) {
+                inComment[0] = false;
+                out.append("   ");
+                i += 3;
+            } else {
+                out.append(inComment[0] ? ' ' : line.charAt(i));
+                i++;
+            }
+        }
+        return out.toString();
     }
 
     /**

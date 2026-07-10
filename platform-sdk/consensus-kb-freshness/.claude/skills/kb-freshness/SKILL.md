@@ -26,16 +26,19 @@ bash "${CLAUDE_SKILL_DIR}/scripts/run.sh"
 
 It prints the output directory (default `<repo>/build/kb-freshness`). Read these artifacts from it:
 
-- `report.md` — the human drift report (deterministic assertions a curator acts on). Its
-  **Scan coverage** section states what was scanned and checked; its **Root causes (rollup)** section
-  groups findings that share one underlying change.
+- `report.md` — the human drift report (deterministic assertions a curator acts on). Its **Summary**
+  counts the pending semantic worklist (your Step 2 workload); its **Scan coverage** section states
+  what was scanned and checked; its **Root causes (rollup)** section groups findings that share one
+  underlying change.
 - `findings.json` — the machine-readable finding set (stable ids; reproducible).
 - `quiet-log.md` — unverifiable checks (generated/external symbols) — **not** drift.
 - `auto-fix.md` — proposed line-reference and path corrections (applied only by `--fix`).
-- `suggestions.md` — non-asserting did-you-mean hints for gone targets.
-- `coverage.md` — documentation gaps (coverage lane): undocumented code and config keys, topics
-  anchoring no source, interface docs not checked at Tier-2, and cited topic slugs with no
-  document — **not** drift.
+- `suggestions.md` — non-asserting did-you-mean hints for gone targets, including config-key
+  migrations (a gone key another record now declares) and ready link rewrites for misdirected doc
+  links.
+- `coverage.md` — documentation gaps (coverage lane): undocumented code and config keys, config
+  records with no tunables section at all, topics anchoring no source, interface docs not checked at
+  Tier-2, and cited topic slugs with no document — **not** drift.
 - `worklist.json` — the semantic worklist (below).
 
 Do not re-derive or second-guess the deterministic findings; present them as-is.
@@ -93,10 +96,12 @@ Close with a short, concrete action list derived from this run (skip lines that 
 
 1. **Apply the certain fixes**: if the summary counts anything under "Fixable now with `--fix`",
    suggest re-running the engine with `--fix` (it applies exactly the `auto-fix.md` diffs).
-2. **Hand-fix the GONE findings**: point at `suggestions.md` for did-you-mean hints; renames there
-   need a human decision and are never auto-applied.
+2. **Hand-fix the GONE findings**: point at `suggestions.md` for did-you-mean hints — including
+   config-key migration hints and ready link rewrites; all of them need a human decision and are
+   never auto-applied.
 3. **Close coverage gaps**: mention `coverage.md` items worth acting on (unanchored topics, interface
-   docs not opted into Tier-2, undocumented config keys, topic slugs with no document).
+   docs not opted into Tier-2, undocumented config keys, config records with no tunables section,
+   topic slugs with no document).
 4. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
    copying `baseline.proposed.tsv`) and triaging the rows.
 

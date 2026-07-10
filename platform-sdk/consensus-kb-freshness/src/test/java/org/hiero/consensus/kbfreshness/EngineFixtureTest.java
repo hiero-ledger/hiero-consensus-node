@@ -454,6 +454,93 @@ class EngineFixtureTest {
         assertThat(coverage).doesNotContain("architecture/interfaces/my-api.md");
     }
 
+    @Test
+    void configPrefixMoveSubsumesTheSourcePathGoneFinding() {
+        // The fix.b section's Source: link cites the gone OldNameConfig.java; the CONFIG_PREFIX finding
+        // already asserts that citation as a class move with a ready rewrite, so the Tier-0 source-path
+        // GONE finding for the same line must not double-report it.
+        assertThat(byKind(AnchorKind.SOURCE_PATH, t -> t.endsWith("OldNameConfig.java")))
+                .isEmpty();
+        require(AnchorKind.CONFIG_PREFIX, t -> t.endsWith("OldNameConfig.java"));
+    }
+
+    @Test
+    void emptyListConstantDefaultComparesAsLiteral() {
+        // Configuration.EMPTY_LIST is a whitelisted compile-time constant (= "[]"): a documented
+        // `(empty)` matches it cleanly instead of landing in the quiet log...
+        assertThat(byKind(AnchorKind.CONFIG_DEFAULT, t -> t.equals("fix.a.emptyListy")))
+                .isEmpty();
+        // ...and a documented non-empty default contradicting it asserts.
+        final Finding f = require(AnchorKind.CONFIG_DEFAULT, t -> t.equals("fix.a.emptyMismatch"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.evidence()).contains("EMPTY_LIST");
+    }
+
+    @Test
+    void goneConfigKeyGetsMigrationHints() {
+        // fix.a.goneKey is gone from FixtureConfig, but MigratedConfig declares a same-named component
+        // (a key migration — actionable) and a similar-named one (a possible rename). Weak token overlap
+        // (unrelatedThing) stays below the bar.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("key `goneKey` is now declared by `MigratedConfig` — full key `fix.c.goneKey`");
+        assertThat(md).contains("similar key: `fix.c.legacyGoneKey` in `MigratedConfig`");
+        assertThat(md).doesNotContain("unrelatedThing");
+    }
+
+    @Test
+    void undocumentedConfigRecordSurfacesInCoverageLane() {
+        // MigratedConfig lives in a module the catalog documents but has no section of its own; records
+        // the catalog covers (even via a prefix-resolved rename) must not be listed.
+        final String coverage = CoverageRenderer.render(result);
+        assertThat(coverage).contains("## Config records with no tunables section");
+        assertThat(coverage).contains("Config record `MigratedConfig` (`@ConfigData(\"fix.c\")`, 3 key(s))");
+        assertThat(coverage).doesNotContain("`NewNameConfig` (`@ConfigData");
+        assertThat(coverage).doesNotContain("`FixtureConfig` (`@ConfigData");
+    }
+
+    @Test
+    void uniqueBasenameDocLinkGetsRewriteHint() {
+        // concepts/link-rot.md links flow-control.md against the wrong directory; exactly one KB doc
+        // carries that basename, so the hint is a ready link rewrite.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("rewrite the link to `../architecture/topics/flow-control.md`");
+    }
+
+    @Test
+    void readmeIndexRowsAreDriftChecked() {
+        // decisions/README.md is scanned as an index entry: its rotted row asserts both as a broken
+        // entry link and as a gone catalog ID.
+        final Finding link = findings.stream()
+                .filter(f -> f.kind() == AnchorKind.CROSS_DOC_LINK
+                        && f.target().endsWith("ADR-009-gone.md")
+                        && f.entryKey().equals("index:decisions"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(link.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(link.lane()).isEqualTo(Lane.ASSERT);
+        final Finding id = require(AnchorKind.CATALOG_ID, t -> t.equals("ADR-009"));
+        assertThat(id.outcome()).isEqualTo(Outcome.ABSENT);
+    }
+
+    @Test
+    void htmlCommentsAreNotClaims() {
+        // The commented-out row-convention template in decisions/README.md cites a gone file (as a link
+        // and as an abbreviated path) and a gone catalog ID; none of it may assert.
+        assertThat(findings.stream().filter(f -> f.target().contains("GhostCommented")))
+                .isEmpty();
+        assertThat(findings.stream()
+                        .filter(f -> f.entryKey().equals("index:decisions")
+                                && f.target().equals("INV-999")))
+                .isEmpty();
+    }
+
+    @Test
+    void reportSummaryShowsPendingSemanticWorklist() {
+        final String report = ReportRenderer.render(result, "");
+        assertThat(report).contains("| Semantic worklist pending (run by the skill, not this engine) | ");
+    }
+
     // ---- helpers ----
 
     private static List<Finding> byKind(final AnchorKind kind, final Predicate<String> target) {

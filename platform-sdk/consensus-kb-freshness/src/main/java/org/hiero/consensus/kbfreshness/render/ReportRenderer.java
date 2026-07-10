@@ -14,6 +14,7 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.model.Triage;
+import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
  * Renders the human-readable drift report — the assertions a curator acts on. Only {@code assert}-lane
@@ -73,7 +74,16 @@ public final class ReportRenderer {
         sb.append("| Auto-fix — path moves (assert + ready rewrite) | ")
                 .append(pathMoves)
                 .append(" |\n");
-        sb.append("| Fixable now with `--fix` | ").append(lineMoves + pathMoves).append(" |\n\n");
+        sb.append("| Fixable now with `--fix` | ").append(lineMoves + pathMoves).append(" |\n");
+        // The Tier-3 semantic pass runs outside this engine (the skill); surfacing its pending workload
+        // here keeps a standalone engine run from reading as "everything was checked".
+        final long review = countWorklist(result, WorklistEntry.Status.REVIEW);
+        final long unknown = countWorklist(result, WorklistEntry.Status.UNKNOWN);
+        sb.append("| Semantic worklist pending (run by the skill, not this engine) | ")
+                .append(review)
+                .append(" review / ")
+                .append(unknown)
+                .append(" unknown |\n\n");
 
         scanCoverage(sb, result);
         rollup(sb, asserts);
@@ -291,5 +301,16 @@ public final class ReportRenderer {
      */
     private static long countLane(final RunResult result, final Lane lane) {
         return result.findings().stream().filter(f -> f.lane() == lane).count();
+    }
+
+    /**
+     * Counts the semantic-worklist entries with a given status.
+     *
+     * @param result the run result.
+     * @param status the worklist status to count.
+     * @return the number of worklist entries with that status.
+     */
+    private static long countWorklist(final RunResult result, final WorklistEntry.Status status) {
+        return result.worklist().stream().filter(e -> e.status() == status).count();
     }
 }

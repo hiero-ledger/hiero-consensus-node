@@ -190,7 +190,9 @@ drift report to act on; the rest are supporting lanes and inputs.
 | `worklist.md` / `worklist.json` | semantic-pass input                    | Driving or reviewing the Tier-3 pass. |
 | `baseline.proposed.tsv`         | the next baseline this run would write | Adopting or refreshing the baseline.  |
 
-**`report.md` — the drift report.** The one file to act on. It opens with a **Scan coverage**
+**`report.md` — the drift report.** The one file to act on. Its summary counts the pending
+**semantic worklist** (`review`/`unknown` topics) so a standalone engine run never reads as
+"everything was checked" when the Tier-3 pass has not run. It opens with a **Scan coverage**
 section — entries scanned, anchors extracted, checks resolved — so "no findings" is auditable as
 *checked and clean* rather than *never looked at*, and a **Root causes (rollup)** section that
 groups findings sharing one underlying change (a single package move often stales dozens of
@@ -221,28 +223,34 @@ rewritten too. These are the *certain* fixes, so **`--fix` applies them in place
 exact line match, hence idempotent); without it they are shown for hand-editing.
 
 **`suggestions.md` — non-asserting "did you mean" hints.** For each **GONE** target (a missing
-cross-doc link, source path, or bare source basename) the tool offers replacement candidates — a
-definite git rename when history has one, else the commit that deleted the target when git recorded
-one, plus the closest near-name matches against the KB docs or the source index (for a gone
-architecture-topic target, only other topic/interface docs are considered). Beyond name similarity,
-two weaker signals are scored, both capped so they can only ever *offer*, never promote: a doc whose
-frontmatter **title** covers the gone name's tokens, and a candidate sharing a **distinctive token**
-carried by exactly one candidate in the pool (so `backpressure` finds `flow-control.md` through its
-title even when edit distance sees nothing). Where a hint is unambiguous it is made **actionable**:
-a topics-slug tag with a single strong match becomes a `rename topics: slug X → Y`, and a source an
-ADR cites as removed gets a nudge to mark it `historical:` rather than repoint it. **Hints, not
-facts** (it never asserts, and `--fix` never applies them), and kept out of `findings.json` so the
-machine artifact stays reproducible.
+cross-doc link, source path, bare source basename, or config key) the tool offers replacement
+candidates — a definite git rename when history has one, else the commit that deleted the target when
+git recorded one, plus the closest near-name matches against the KB docs or the source index (for a
+gone architecture-topic target, only other topic/interface docs are considered). Beyond name
+similarity, two weaker signals are scored, both capped so they can only ever *offer*, never promote:
+a doc whose frontmatter **title** covers the gone name's tokens, and a candidate sharing a
+**distinctive token** carried by exactly one candidate in the pool (so `backpressure` finds
+`flow-control.md` through its title even when edit distance sees nothing). Where a hint is unambiguous
+it is made **actionable**: a topics-slug tag with a single strong match becomes a
+`rename topics: slug X → Y`, a body doc link whose basename resolves at exactly one other KB doc gets
+the ready relative-link rewrite, a gone config key declared same-named by another indexed
+`@ConfigData` record is reported as a **key migration** (with the full new key; similar-named
+components are offered as possible renames), and a source an ADR cites as removed gets a nudge to
+mark it `historical:` rather than repoint it. **Hints, not facts** (it never asserts, and `--fix`
+never applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
 
-**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in four
+**`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in five
 sections: (1) code the docs don't mention (a method present on a documented interface but absent
 from its `methods:` frontmatter, or a `@ConfigProperty` its tunables section doesn't document);
-(2) architecture *topics* that anchor no source, so no claim can be checked against code;
-(3) interface docs that carry no `interface:`/`methods:` frontmatter, so the Tier-2 method-set diff
-never runs for them (making its dormancy visible rather than reading as "all clear"); (4) cited
-topic *slugs* whose document does not exist — when several entries tag a topic that was never
-written, the fix may be to write it rather than retarget every citation. Use it to find
-documentation worth adding or anchoring; tracked apart from the drift report on purpose.
+(2) config *records* the tunables catalog has no section for at all — scoped to `consensus-*`
+modules and modules the catalog already documents, so a key that migrates into a brand-new config
+record cannot silently fall out of coverage; (3) architecture *topics* that anchor no source, so no
+claim can be checked against code; (4) interface docs that carry no `interface:`/`methods:`
+frontmatter, so the Tier-2 method-set diff never runs for them (making its dormancy visible rather
+than reading as "all clear"); (5) cited topic *slugs* whose document does not exist — when several
+entries tag a topic that was never written, the fix may be to write it rather than retarget every
+citation. Use it to find documentation worth adding or anchoring; tracked apart from the drift
+report on purpose.
 
 **`worklist.md` / `worklist.json` — the semantic-pass input.** For each topic, the engine compares
 the last-commit date of its anchored source against its `last_reviewed` date and assigns a status:
@@ -293,19 +301,24 @@ To adopt the current findings wholesale as the baseline, run with `--write-basel
 
 - **Tier 0** — files, module dirs, cross-doc links, `#headings`, catalog IDs (INV/RUL/ADR/SCN/HEU/
   SYM/TUN), and existence of cited allowlisted-external files (present resolves cleanly; missing
-  stays quiet but is flagged).
+  stays quiet but is flagged). Catalog `README.md` index files are scanned like entries — their rows
+  are a sanctioned duplication with a sync obligation — while `FORMAT`/`LAYOUT`/`CLAUDE` stay
+  unscanned (placeholder examples by design). Fenced code blocks and HTML comments are never claims.
 - **Tier 1** — class/file existence in the cited module (with package-move detection),
   `verification:` method-on-class, and tunables-catalog key existence (each documented key must be a
   declared `@ConfigProperty` of its section's `@ConfigData` record).
 - **Tier 2** — method-signature equality (`Class.method(params)` citations), interface method-set
   diffs (opt-in via `interface:`/`methods:` frontmatter; undocumented methods → coverage lane), and
   tunables-catalog default equality (documented default vs the `defaultValue` string literal;
-  non-literal defaults → quiet log, type differences → quiet log since the catalog may document a
-  semantic type, undocumented keys → coverage lane). A section whose cited config class is gone is
-  additionally resolved by its `@ConfigData` **prefix**: exactly one indexed record declaring the
-  prefix *and* every documented key is a certain rename/move — asserted, with the heading, `Source:`
-  link, and `Module:` label rewrite ready for `--fix`. (The prefix scan covers indexed
-  `*Config.java` files — the repo's config-record naming convention.)
+  non-literal defaults → quiet log — except the closed whitelist of well-known config-API constants
+  (`Configuration.EMPTY_LIST` = `[]`), whose values are compile-time facts and compare as literals —
+  type differences → quiet log since the catalog may document a semantic type, undocumented keys →
+  coverage lane, whole undocumented config records → coverage lane). A section whose cited config
+  class is gone is additionally resolved by its `@ConfigData` **prefix**: exactly one indexed record
+  declaring the prefix *and* every documented key is a certain rename/move — asserted, with the
+  heading, `Source:` link, and `Module:` label rewrite ready for `--fix`, and the Tier-0 source-path
+  GONE finding for the same citation subsumed rather than double-reported. (The prefix scan covers
+  indexed `*Config.java` files under `src/main/java` — the repo's config-record naming convention.)
 - **Tier 3 (semantic)** — prose-vs-behavior, performed by the skill against current source; advisory
   only, `contradicted`-with-citation only.
 

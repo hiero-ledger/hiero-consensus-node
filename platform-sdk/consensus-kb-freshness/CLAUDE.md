@@ -19,12 +19,20 @@ with `java -jar`.
 ## Structure
 
 - `extract/` — KB scanner + minimal-YAML frontmatter parser + anchor extractor + `TunablesCatalog`
-  (parses tunables.md sections/rows for the config-record checks).
+  (parses tunables.md sections/rows for the config-record checks). Catalog `README.md` files are
+  scanned as `INDEX` entries (their rows carry a sync obligation); `FORMAT`/`LAYOUT`/`CLAUDE` are
+  skipped (placeholder examples by design). Fenced code blocks and HTML comments are blanked before
+  anchor extraction — commented-out text is not a claim.
 - `resolve/` — parse-only source index (`JavaParsing` via the JDK Compiler Tree API; also reads
-  `@ConfigData` prefixes and `@ConfigProperty` record components), the generated/external
-  `Allowlist`, and `AnchorResolver` (Tier 0/1/2 per-anchor checks).
+  `@ConfigData` prefixes and `@ConfigProperty` record components, plus the as-written expression of a
+  non-literal `defaultValue`), the generated/external `Allowlist`, `AnchorResolver` (Tier 0/1/2
+  per-anchor checks), and `ConfigRecords` (the shared scan of every indexed `@ConfigData` record —
+  `src/main/java` trees only, so a test-resource fixture copy never masquerades as a real record).
 - `findings/` — collapse to stable-id findings, `InterfaceDiffAssembler` (Tier 2 method-set diff),
-  `TunablesDiffAssembler` (Tier 1/2 config key/default/prefix checks), baseline TSV + join.
+  `TunablesDiffAssembler` (Tier 1/2 config key/default/prefix checks; also the undocumented-record
+  coverage check, scoped to `consensus-*` modules plus modules the catalog already documents),
+  baseline TSV + join. The engine subsumes a Tier-0 source-path GONE finding when a `CONFIG_PREFIX`
+  finding already asserts the same citation as a class move (one root cause, one finding).
 - `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`). Anchored-source
   resolution mirrors the resolver: abbreviated `module/.../File.java` citations are resolved through the
   `SourceIndex` (by basename within the cited module), so an abbreviated-only topic is tracked rather
@@ -43,10 +51,12 @@ with `java -jar`.
   `apply/AutoFixApplier` (writes) consume, so the proposal a curator reads is exactly the edit `--fix`
   would apply. (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first,
   else the deleting commit, plus guarded fuzzy basename matches — a unique strong topics-slug match is
-  promoted to an actionable `rename topics: slug X → Y`, and an ADR-cited gone source gets a `historical:`
-  nudge. Frontmatter-title tokens and pool-unique distinctive tokens also score, capped below promotion
-  strength — they may offer, never promote. Deliberately excluded from `findings.json` to keep it
-  reproducible.)
+  promoted to an actionable `rename topics: slug X → Y`, a body doc link whose basename resolves at
+  exactly one other KB doc gets the ready relative-link rewrite, a gone config key declared same-named by
+  another indexed record is reported as a key migration (similar names, held to the promotion bar, as
+  possible renames), and an ADR-cited gone source gets a `historical:` nudge. Frontmatter-title tokens
+  and pool-unique distinctive tokens also score, capped below promotion strength — they may offer, never
+  promote. Deliberately excluded from `findings.json` to keep it reproducible.)
 - `apply/` — `AutoFixApplier` (`--fix`): writes the certain auto-fix `Edit`s to the KB in place, guarded
   by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames.
 - `engine/` + `cli/` — orchestration and the picocli entry point.
@@ -68,9 +78,17 @@ with `java -jar`.
 - **Tunables checks assert only on literal facts.** A documented key missing from its resolved
   `@ConfigData` record asserts; a documented default differing from a plain-literal `defaultValue`
   asserts. A *type* difference is quiet-log only (the catalog documents semantic types, e.g. `Path`
-  for a `String` key); a non-literal `defaultValue` (constant reference) is quiet. Prefix-based
-  resolution of a gone config class asserts a move only when exactly one indexed record declares the
-  prefix **and** declares every documented key — do not weaken either guard.
+  for a `String` key); a non-literal `defaultValue` (constant reference) is quiet — except the closed
+  `WELL_KNOWN_DEFAULTS` whitelist (`Configuration.EMPTY_LIST` = `[]`), whose values are compile-time
+  facts of the config API and compare as literals. Extend that whitelist only with constants whose
+  values are equally fixed. Prefix-based resolution of a gone config class asserts a move only when
+  exactly one indexed record declares the prefix **and** declares every documented key — do not weaken
+  either guard. When it fires, the engine drops the co-located Tier-0 source-path GONE finding
+  (`Engine.subsumeConfigClassMoves`) so one root cause is one finding.
+- **Coverage stays scoped and quiet.** The undocumented-record check lists a config record only when
+  its module is `consensus-*` or already documented by the catalog, and only records under the
+  module's own `src/main/java` (see `ConfigRecords.isMainSource` — fixture copies never count). It is
+  coverage-lane only; never assert from it.
 - **External files still get the Tier-0 existence look.** An allowlisted external path that exists
   resolves cleanly (no quiet-log noise); a missing one stays unverifiable (it may be generated at
   build time) but its quiet-log evidence flags the absence. Never assert absence for external paths.

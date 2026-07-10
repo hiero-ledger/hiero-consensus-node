@@ -17,14 +17,18 @@ import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
+import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
+import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 
 /**
- * Renders non-asserting "did you mean" hints for gone targets: a cited doc, source path, or bare source
- * file no longer resolves. Each hint is either a definite git rename or a near-name match against the KB
- * docs / source index — a suggestion, never a fact, so it respects the "never assert" invariant and is
- * kept out of the machine artifact. Where a hint is unambiguous it is made actionable — a topics-slug
- * rename with a single strong match, or (for a source an ADR cites as removed) a nudge to mark it
- * {@code historical:}. Deterministic for a given checkout.
+ * Renders non-asserting "did you mean" hints for gone targets: a cited doc, source path, bare source
+ * file, or config key no longer resolves. Each hint is either a definite git rename or a near-name match
+ * against the KB docs / source index / indexed config records — a suggestion, never a fact, so it
+ * respects the "never assert" invariant and is kept out of the machine artifact. Where a hint is
+ * unambiguous it is made actionable — a topics-slug rename with a single strong match, a doc link whose
+ * basename resolves at exactly one other KB doc (a ready link rewrite), a gone config key declared
+ * same-named by another record (a key migration), or (for a source an ADR cites as removed) a nudge to
+ * mark it {@code historical:}. Deterministic for a given checkout.
  */
 public final class SuggestionsRenderer {
 
@@ -150,25 +154,37 @@ public final class SuggestionsRenderer {
         sb.append("_The cited target no longer exists. Each hint is a git rename or a near-name match — a "
                 + "suggestion, not a fact. Verify before applying._\n\n");
 
+        List<ConfigRecords.Owner> configOwners = null;
         boolean any = false;
         for (final Finding f : result.findings()) {
             if (f.outcome() != Outcome.ABSENT || f.lane() != Lane.ASSERT) {
                 continue;
             }
-            final boolean topicTag =
-                    f.kind() == AnchorKind.CROSS_DOC_LINK && f.target().contains("/architecture/topics/");
-            final Candidates candidates =
-                    switch (f.kind()) {
-                        case CROSS_DOC_LINK -> topicTag ? topicDocPool : docPool;
-                        case SOURCE_PATH, SOURCE_BASENAME -> sourcePool;
-                        default -> null;
-                    };
-            if (candidates == null) {
-                continue;
+            final List<String> bullets;
+            if (f.kind() == AnchorKind.CONFIG_KEY) {
+                if (configOwners == null) {
+                    configOwners = ConfigRecords.scan(result.sourceIndex());
+                }
+                bullets = configKeyBullets(f, configOwners);
+            } else {
+                final boolean topicTag =
+                        f.kind() == AnchorKind.CROSS_DOC_LINK && f.target().contains("/architecture/topics/");
+                final Candidates candidates =
+                        switch (f.kind()) {
+                            case CROSS_DOC_LINK -> topicTag ? topicDocPool : docPool;
+                            case SOURCE_PATH, SOURCE_BASENAME -> sourcePool;
+                            default -> null;
+                        };
+                if (candidates == null) {
+                    continue;
+                }
+                final boolean hasPath = f.kind() != AnchorKind.SOURCE_BASENAME;
+                final Hints hints = computeHints(f.target(), f.entryPath(), hasPath, candidates, git);
+                final String uniqueDocMatch = f.kind() == AnchorKind.CROSS_DOC_LINK && !topicTag
+                        ? uniqueBasenameDoc(f.target(), f.entryPath(), docPaths)
+                        : null;
+                bullets = composeBullets(f, hints, topicTag, uniqueDocMatch);
             }
-            final boolean hasPath = f.kind() != AnchorKind.SOURCE_BASENAME;
-            final Hints hints = computeHints(f.target(), f.entryPath(), hasPath, candidates, git);
-            final List<String> bullets = composeBullets(f, hints, topicTag);
             if (bullets.isEmpty()) {
                 continue;
             }
@@ -193,15 +209,19 @@ public final class SuggestionsRenderer {
     /**
      * Composes the rendered bullet lines for one gone finding from its raw hints. A definite git rename is
      * conclusive and stands alone; otherwise the deleting commit, an actionable topics-slug rename (when a
-     * single strong match exists), the near-name matches, and — for a source an ADR cites — a nudge to mark
+     * single strong match exists), an actionable link rewrite (when the linked doc's basename resolves at
+     * exactly one other KB doc), the near-name matches, and — for a source an ADR cites — a nudge to mark
      * it {@code historical:} are offered in that order.
      *
-     * @param f        the gone finding.
-     * @param hints    the raw hints for its target.
-     * @param topicTag whether the finding is a frontmatter topics tag (eligible for slug promotion).
+     * @param f              the gone finding.
+     * @param hints          the raw hints for its target.
+     * @param topicTag       whether the finding is a frontmatter topics tag (eligible for slug promotion).
+     * @param uniqueDocMatch for a body doc link, the single KB doc sharing the gone target's basename, or
+     *                       {@code null} when there is none (or more than one).
      * @return the bullet lines, most useful first (possibly empty).
      */
-    private static List<String> composeBullets(final Finding f, final Hints hints, final boolean topicTag) {
+    private static List<String> composeBullets(
+            final Finding f, final Hints hints, final boolean topicTag, final String uniqueDocMatch) {
         final List<String> bullets = new ArrayList<>();
         if (hints.gitRename() != null) {
             bullets.add("renamed in git to: `" + hints.gitRename() + "`");
@@ -217,6 +237,10 @@ public final class SuggestionsRenderer {
                 && hints.nearNames().get(0).score() >= PROMOTE_SIMILARITY) {
             promotedPath = hints.nearNames().get(0).path();
             bullets.add("rename `topics:` slug `" + slug(f.target()) + "` → `" + slug(promotedPath) + "`");
+        } else if (uniqueDocMatch != null) {
+            promotedPath = uniqueDocMatch;
+            bullets.add("unique name match — rewrite the link to `" + relativeHref(f.entryPath(), uniqueDocMatch)
+                    + "` (`" + uniqueDocMatch + "`)");
         }
 
         int shown = 0;
@@ -237,6 +261,108 @@ public final class SuggestionsRenderer {
                     + "frontmatter instead of repointing");
         }
         return bullets;
+    }
+
+    /**
+     * Composes the hints for a gone config key: other indexed {@code @ConfigData} records declaring a
+     * component with the same name (a key migration — strong, actionable) or a similar one (a possible
+     * rename). Matched purely against declared record components; a hint, never a fact. The similarity
+     * bar is {@link #PROMOTE_SIMILARITY}, not the looser near-name {@link #THRESHOLD} — config keys are
+     * short, so weak token overlap (e.g. a shared {@code Detector}) identifies nothing.
+     *
+     * @param f      the gone config-key finding; its target is the fully-qualified documented key.
+     * @param owners every indexed config record.
+     * @return the bullet lines, exact matches first (possibly empty).
+     */
+    private static List<String> configKeyBullets(final Finding f, final List<ConfigRecords.Owner> owners) {
+        final String goneProp = lastDotSegment(f.target());
+        record KeyMatch(double score, ConfigRecords.Owner owner, String keyName) {}
+        final List<KeyMatch> matches = new ArrayList<>();
+        for (final ConfigRecords.Owner owner : owners) {
+            for (final ConfigComponent c : owner.type().configComponents()) {
+                final String fqKey = owner.type().configPrefix().isEmpty()
+                        ? c.keyName()
+                        : owner.type().configPrefix() + "." + c.keyName();
+                if (fqKey.equals(f.target())) {
+                    continue; // the documented key itself — it would not be gone.
+                }
+                final double score = c.keyName().equals(goneProp) ? 1.0 : similarity(goneProp, c.keyName());
+                if (score >= PROMOTE_SIMILARITY) {
+                    matches.add(new KeyMatch(score, owner, c.keyName()));
+                }
+            }
+        }
+        matches.sort(Comparator.comparingDouble((KeyMatch m) -> -m.score())
+                .thenComparing(m -> m.owner().path())
+                .thenComparing(KeyMatch::keyName));
+        final List<String> bullets = new ArrayList<>();
+        for (final KeyMatch m : matches) {
+            if (bullets.size() >= MAX_SUGGESTIONS) {
+                break;
+            }
+            final String fqKey = m.owner().type().configPrefix().isEmpty()
+                    ? m.keyName()
+                    : m.owner().type().configPrefix() + "." + m.keyName();
+            if (m.score() == 1.0) {
+                bullets.add("key `" + goneProp + "` is now declared by `"
+                        + m.owner().className() + "` — full key `" + fqKey + "` (`"
+                        + m.owner().path() + "`)");
+            } else {
+                bullets.add("similar key: `" + fqKey + "` in `" + m.owner().className() + "` (`"
+                        + m.owner().path() + "`)");
+            }
+        }
+        return bullets;
+    }
+
+    /**
+     * The single KB doc sharing a gone doc-link target's basename, or {@code null} when none or several
+     * do. Exactly-one is what makes the rewrite hint actionable: the link was written against the wrong
+     * directory, and only one document it could have meant exists.
+     *
+     * @param gone     the gone link target (repo-relative).
+     * @param self     the citing entry's path, excluded from candidates.
+     * @param docPaths every scanned KB doc path.
+     * @return the unique same-basename doc path, or {@code null}.
+     */
+    private static String uniqueBasenameDoc(final String gone, final String self, final List<String> docPaths) {
+        final String basename = baseName(gone);
+        String match = null;
+        for (final String p : docPaths) {
+            if (!p.equals(gone) && !p.equals(self) && baseName(p).equals(basename)) {
+                if (match != null) {
+                    return null;
+                }
+                match = p;
+            }
+        }
+        return match;
+    }
+
+    /**
+     * The relative href from a citing doc to a target doc (both repo-relative), as it would be written
+     * in a markdown link.
+     *
+     * @param fromDocPath the citing doc's repo-relative path.
+     * @param toDocPath   the target doc's repo-relative path.
+     * @return the forward-slashed relative href.
+     */
+    private static String relativeHref(final String fromDocPath, final String toDocPath) {
+        final java.nio.file.Path fromDir = java.nio.file.Path.of(fromDocPath).getParent();
+        final java.nio.file.Path to = java.nio.file.Path.of(toDocPath);
+        final java.nio.file.Path rel = fromDir == null ? to : fromDir.relativize(to);
+        return rel.toString().replace('\\', '/');
+    }
+
+    /**
+     * The last dot-separated segment of a fully-qualified config key (the bare property name).
+     *
+     * @param fqKey the fully-qualified key.
+     * @return the property name.
+     */
+    private static String lastDotSegment(final String fqKey) {
+        final int dot = fqKey.lastIndexOf('.');
+        return dot >= 0 ? fqKey.substring(dot + 1) : fqKey;
     }
 
     /**

@@ -18,6 +18,8 @@ Module: `module-a`. Source: [FixtureConfig.java](../../module-a/src/main/java/co
 | TUN-004 | `fix.a.gamma`  | Path     | `x`     | Semantic type for a String. |       | —         |
 | TUN-005 | `fix.a.delta`  | int      | `7`     | Non-literal default.        |       | —         |
 | TUN-007 | `fix.a.listy`  | List&lt;String&gt; | (empty) | Escaped generics, empty default. |       | —         |
+| TUN-008 | `fix.a.emptyListy` | List&lt;String&gt; | (empty) | Well-known EMPTY_LIST constant default. |       | —         |
+| TUN-009 | `fix.a.emptyMismatch` | List&lt;String&gt; | `x,y` | Documented default contradicts EMPTY_LIST. |       | —         |
 
 ## `fix.b.*` — OldNameConfig
 

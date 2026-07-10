@@ -11,6 +11,8 @@ public record FixtureConfig(
         @ConfigProperty(defaultValue = "x") String gamma,
         @ConfigProperty(defaultValue = FixtureConfig.CONST) int delta,
         @ConfigProperty(defaultValue = "") List<String> listy,
+        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<String> emptyListy,
+        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<String> emptyMismatch,
         @ConfigProperty(defaultValue = "true") boolean undocumented) {
     static final String CONST = "7";
 }
