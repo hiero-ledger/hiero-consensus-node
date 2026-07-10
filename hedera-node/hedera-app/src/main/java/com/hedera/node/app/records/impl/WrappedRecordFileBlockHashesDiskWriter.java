@@ -10,6 +10,7 @@ import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
@@ -185,8 +186,8 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                     com.hedera.pbj.runtime.io.buffer.Bytes.wrap(allBytes).toReadableSequentialData(),
                     true,
                     false,
-                    512,
-                    allBytes.length);
+                    Codec.DEFAULT_MAX_DEPTH,
+                    allBytes.length + allBytes.length / 10);
             for (final var entry : log.entries()) {
                 index.add(entry.blockNumber());
             }

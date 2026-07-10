@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -15,6 +16,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -419,6 +421,38 @@ class WrappedRecordBlockHashMigrationTest {
                 Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
+    }
+
+    @Test
+    void loadRecentHashesParsesLargeFileWithoutException() throws Exception {
+        final int entryCount = 4_000_000;
+        final var entries = new ArrayList<WrappedRecordFileBlockHashes>(entryCount);
+        final byte[] fakeHash = new byte[HASH_SIZE];
+        final var hashBytes = Bytes.wrap(fakeHash);
+        for (int i = 0; i < entryCount; i++) {
+            entries.add(WrappedRecordFileBlockHashes.newBuilder()
+                    .blockNumber(i + 1L)
+                    .consensusTimestampHash(hashBytes)
+                    .outputItemsTreeRootHash(hashBytes)
+                    .build());
+        }
+
+        final var log =
+                WrappedRecordFileBlockHashesLog.newBuilder().entries(entries).build();
+        final byte[] serialized =
+                WrappedRecordFileBlockHashesLog.PROTOBUF.toBytes(log).toByteArray();
+
+        final var file = tempDir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+        Files.write(file, serialized);
+
+        final Method loadRecentHashes =
+                WrappedRecordBlockHashMigration.class.getDeclaredMethod("loadRecentHashes", Path.class);
+        loadRecentHashes.setAccessible(true);
+
+        final var result =
+                assertDoesNotThrow(() -> (WrappedRecordFileBlockHashesLog) loadRecentHashes.invoke(subject, file));
+        assertThat(result).isNotNull();
+        assertThat(result.entries().size()).isEqualTo(entryCount);
     }
 
     private Path createRecentHashesDir(List<WrappedRecordFileBlockHashes> entries) throws Exception {
