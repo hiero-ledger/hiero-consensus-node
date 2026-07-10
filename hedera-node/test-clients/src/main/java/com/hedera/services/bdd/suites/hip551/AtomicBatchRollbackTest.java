@@ -61,7 +61,7 @@ public class AtomicBatchRollbackTest {
     }
 
     @LeakyHapiTest
-    final Stream<DynamicTest> test() {
+    final Stream<DynamicTest> nestedContractCreationWithAtomicBatchRollback() {
         final var delegatingAccount = "TestAccount";
         return hapiTest(
                 createFundedAccount(delegatingAccount),
