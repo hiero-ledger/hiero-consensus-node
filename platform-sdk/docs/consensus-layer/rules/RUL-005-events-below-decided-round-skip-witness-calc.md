@@ -9,7 +9,7 @@ components:
   - consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusRounds.java
   - consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java
 related:
-  invariants: [INV-001]
+  invariants: [INV-001, INV-007, INV-009]
   decisions: [ADR-008]
   scenarios: [SCN-001]
   heuristics: []
@@ -105,10 +105,11 @@ reintroduces an agreement / liveness risk.
 
 ## Notes
 
-- The claim that a decided round's famous-witness set is final rests on the
-  immutability theorem in the `ConsensusImpl` class JavaDoc — a permanent,
-  proof-backed property and a candidate to be cataloged as an invariant; if it
-  is, this rule should reference it under `related.invariants` alongside INV-001.
+- The safety of the short-circuit rests on the immutability of a decided round:
+  a decided election never flips (INV-009), so a decided round's judge set is
+  fixed once decided (INV-007) and no event below those judges can still become a
+  famous witness. The underlying theorem is stated and proved in the
+  `ConsensusImpl` class JavaDoc.
 - INV-001 (voting round monotonic along ancestry) and SCN-001 (same-round judge
   ancestry stalls consensus) both concern how old events' rounds are frozen or
   cleared across roster changes; the sentinel assigned here is part of that
