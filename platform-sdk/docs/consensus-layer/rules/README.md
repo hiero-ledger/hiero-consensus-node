@@ -12,7 +12,7 @@ Change Reviewer must still flag any change that breaks one, because an
 confirms intent.
 
 - Entry format: see `FORMAT.md`.
-- Allowed `topics` values: see top-level `topics.md`.
+- Allowed `topics` values: the topic slugs under `architecture/topics/`.
 
 Pair this catalog with `invariants/` (permanent properties that must never
 change). When unsure where an entry belongs, apply the test: "if a correct
@@ -33,6 +33,7 @@ load-bearing — a `retired` rule must not be enforced by review, and a
 | RUL-002 | The intake pipeline is flushed component-by-component in topological order so every event advances as far as it can | structural | restart-and-pces, event-intake, wiring-framework                    | holds  |
 | RUL-003 | Every node contributing to consensus is independently restartable                                                   | structural | restart-and-pces, signed-state-management, reconnect, event-creator | holds  |
 | RUL-004 | Consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent           | protocol   | event-intake, hashgraph                                             | holds  |
+| RUL-005 | Events below the latest decided round's judges are excluded from witness calculation                                | protocol   | hashgraph                                                           | holds  |
 
 <!--
 Row convention, one line per entry, kept in RUL-NNN order:
