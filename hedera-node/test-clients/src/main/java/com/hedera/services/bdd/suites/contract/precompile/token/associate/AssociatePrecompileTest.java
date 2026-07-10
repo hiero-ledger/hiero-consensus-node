@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.contract.precompile;
+package com.hedera.services.bdd.suites.contract.precompile.token.associate;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
@@ -43,7 +44,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.keys.KeyShape;
-import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -53,7 +53,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-public class AssociatePrecompileSuite {
+public class AssociatePrecompileTest {
     private static final long GAS_TO_OFFER = 4_000_000L;
     private static final KeyShape DELEGATE_CONTRACT_KEY_SHAPE = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
     private static final String TOKEN_TREASURY = "treasury";
@@ -83,8 +83,8 @@ public class AssociatePrecompileSuite {
                 contractCall(
                                 THE_GRACEFULLY_FAILING_CONTRACT,
                                 "performLessThanFourBytesFunctionCall",
-                                HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS),
-                                HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS))
+                                asHeadlongAddress(ACCOUNT_ADDRESS),
+                                asHeadlongAddress(TOKEN_ADDRESS))
                         .notTryingAsHexedliteral()
                         .via("Function call with less than 4 bytes txn")
                         .gas(100_000),
@@ -100,11 +100,8 @@ public class AssociatePrecompileSuite {
                 contractCall(
                                 THE_GRACEFULLY_FAILING_CONTRACT,
                                 "performInvalidlyFormattedFunctionCall",
-                                HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS),
-                                new Address[] {
-                                    HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS),
-                                    HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS)
-                                })
+                                asHeadlongAddress(ACCOUNT_ADDRESS),
+                                new Address[] {asHeadlongAddress(TOKEN_ADDRESS), asHeadlongAddress(TOKEN_ADDRESS)})
                         .notTryingAsHexedliteral()
                         .via("Invalid Abi Function call txn"),
                 childRecordsCheck("Invalid Abi Function call txn", SUCCESS));
@@ -119,8 +116,8 @@ public class AssociatePrecompileSuite {
                 contractCall(
                                 THE_GRACEFULLY_FAILING_CONTRACT,
                                 "performNonExistingServiceFunctionCall",
-                                HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS),
-                                HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS))
+                                asHeadlongAddress(ACCOUNT_ADDRESS),
+                                asHeadlongAddress(TOKEN_ADDRESS))
                         .notTryingAsHexedliteral()
                         .via("nonExistingFunctionCallTxn"),
                 childRecordsCheck("nonExistingFunctionCallTxn", SUCCESS));
@@ -148,16 +145,16 @@ public class AssociatePrecompileSuite {
                         contractCall(
                                         THE_CONTRACT,
                                         "nonSupportedFunction",
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("notSupportedFunctionCallTxn")
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                         contractCall(
                                         THE_CONTRACT,
                                         TOKEN_ASSOCIATE_FUNCTION,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                 .gas(GAS_TO_OFFER))),
@@ -196,8 +193,8 @@ public class AssociatePrecompileSuite {
                         contractCall(
                                         THE_CONTRACT,
                                         TOKEN_ASSOCIATE_FUNCTION,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(invalidAbiArgument))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(invalidAbiArgument))
                                 .payingWith(GENESIS)
                                 .via("functionCallWithInvalidArgumentTxn")
                                 .gas(GAS_TO_OFFER)
@@ -205,8 +202,8 @@ public class AssociatePrecompileSuite {
                         contractCall(
                                         THE_CONTRACT,
                                         TOKEN_ASSOCIATE_FUNCTION,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                 .gas(GAS_TO_OFFER))),
@@ -262,7 +259,7 @@ public class AssociatePrecompileSuite {
                 contractCall(
                                 THE_GRACEFULLY_FAILING_CONTRACT,
                                 "performInvalidlyFormattedSingleFunctionCall",
-                                HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS))
+                                asHeadlongAddress(ACCOUNT_ADDRESS))
                         .notTryingAsHexedliteral()
                         .via(INVALID_SINGLE_ABI_CALL_TXN)
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
