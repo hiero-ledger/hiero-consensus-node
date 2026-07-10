@@ -20,13 +20,14 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -46,13 +47,15 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  *   <i>non-halting</i> ISS — which never reaches {@code CATASTROPHIC_FAILURE} — and grabs the gRPC buffer before it is
  *   pruned. The poll is bounded by {@code captureTimeout} and runs off the consensus hot path.</li>
  *   <li><b>At {@code CATASTROPHIC_FAILURE}</b> ({@link #uploadDetectedIssOnFailure}, called synchronously from
- *   {@code Hedera.newPlatformStatus} after {@code awaitFatalShutdown} has flushed the open/pending blocks to disk):
- *   resolves the recorded ISS round's block from the now-durable disk artifacts <i>once</i> (no polling) and uploads
- *   it. Running on the status thread before the node halts — and after the flush guarantees the block is on disk —
- *   makes the <i>halting</i> case race-free, with no indefinite wait (bounded by {@code uploadTimeout}).</li>
+ *   {@code Hedera.newPlatformStatus} after {@code awaitFatalShutdown} has flushed the open/pending blocks to disk and
+ *   <b>before</b> the block-node connections are shut down): resolves the recorded ISS round's block <i>once</i> (no
+ *   polling) from the correct source for the writer mode — disk in {@code FILE}/{@code FILE_AND_GRPC}, or the in-memory
+ *   buffer in {@code GRPC} (where a closed block is never on disk and the connection shutdown would soon clear the
+ *   buffer) — and uploads it. Running on the status thread before the node halts makes the <i>halting</i> case
+ *   race-free, with no indefinite wait (bounded by {@code uploadTimeout}).</li>
  * </ol>
  *
- * <p>The two paths de-duplicate via {@link #uploadedRound}: whichever uploads the round first marks it, and the other
+ * <p>The two paths de-duplicate via {@link #uploadedRounds}: whichever uploads the round first marks it, and the other
  * skips. The captured block is staged under a per-incident timestamp dir of the node-local {@code issBlockDir} (kept
  * for local triage, mirroring the {@code iss/{timestamp}/} cloud layout). This is distinct from
  * {@code TriageBlockUploadCoordinator}, which uploads the whole flushed open/pending set to the {@code triage/} folder.
@@ -69,7 +72,15 @@ public class IssDetectionUploadCoordinator {
     /** How often the detection path re-checks disk while waiting for the ISS-round block to become durable. */
     private static final long POLL_INTERVAL_MS = 250L;
 
-    private static final long NO_ROUND = Long.MIN_VALUE;
+    /**
+     * Per-path staging subdirectories under a shared incident dir. The detection path and the CATASTROPHIC_FAILURE path
+     * can capture the SAME round concurrently; staging each into its own subdir keeps the failure path from truncating
+     * (via {@code REPLACE_EXISTING} / a fresh gzip) a file the detection path is mid-stream uploading, and vice versa.
+     * The cloud object key is derived from the incident timestamp + block number only, so the subdir never leaks into it.
+     */
+    private static final String STAGE_DETECTION = "detect";
+
+    private static final String STAGE_FAILURE = "failure";
 
     private final ConfigProvider configProvider;
     private final BlockUploader uploader;
@@ -83,10 +94,14 @@ public class IssDetectionUploadCoordinator {
 
     /** The latest detected fatal ISS, recorded at detection so the {@code CATASTROPHIC_FAILURE} path can upload it. */
     private final AtomicReference<RecordedIss> lastIss = new AtomicReference<>();
-    /** The ISS round already uploaded to {@code iss/}, so the detection and failure paths never double-upload it. */
-    private final AtomicLong uploadedRound = new AtomicLong(NO_ROUND);
-    /** The ISS round whose upload is in flight, claimed atomically so the two paths never upload it concurrently. */
-    private final AtomicLong uploadInProgressRound = new AtomicLong(NO_ROUND);
+    /** ISS rounds already uploaded to {@code iss/}, so the detection and failure paths never double-upload a round. */
+    private final Set<Long> uploadedRounds = ConcurrentHashMap.newKeySet();
+    /**
+     * ISS rounds whose upload is currently in flight, each claimed by the first path to reach it so the detection and
+     * failure paths never upload the SAME round concurrently. A per-round set (not a single slot) so two DISTINCT ISS
+     * rounds detected close together are both uploaded rather than one being silently dropped.
+     */
+    private final Set<Long> uploadInProgressRounds = ConcurrentHashMap.newKeySet();
 
     private record RecordedIss(
             @NonNull IssType issType, long round, @NonNull String incidentFolder) {}
@@ -154,7 +169,7 @@ public class IssDetectionUploadCoordinator {
             // below is still running.
             final String incidentFolder = INCIDENT_FOLDER_FORMAT.format(instantSource.instant());
             lastIss.set(new RecordedIss(issType, round, incidentFolder));
-            if (uploadedRound.get() == round) {
+            if (uploadedRounds.contains(round)) {
                 return;
             }
             // Offload the blocking work (resolveWithWait polls disk up to captureTimeout; uploadBounded blocks up to
@@ -173,14 +188,14 @@ public class IssDetectionUploadCoordinator {
             final long round,
             @NonNull final String incidentFolder) {
         try {
-            if (uploadedRound.get() == round) {
+            if (uploadedRounds.contains(round)) {
                 return;
             }
             final var writerMode = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
                     .writerMode();
-            final Path incidentDir = incidentDirFor(config, incidentFolder);
+            final Path incidentDir = incidentDirFor(config, incidentFolder).resolve(STAGE_DETECTION);
             final List<Path> files =
                     switch (writerMode) {
                         // The ISS-round block may still be the open block at detection (not yet a finished file on
@@ -203,8 +218,14 @@ public class IssDetectionUploadCoordinator {
     /**
      * Synchronous capture on {@code CATASTROPHIC_FAILURE}, invoked from {@code Hedera.newPlatformStatus} after
      * {@code awaitFatalShutdown} has flushed the open/pending blocks to disk. Resolves the recorded ISS round's block
-     * from the now-durable disk artifacts <i>once</i> (no polling) and uploads it to {@code iss/}, unless the detection
-     * path already uploaded it. Bounded by {@code uploadTimeout}; best-effort, never throws — must not stall the halt.
+     * <i>once</i> (no polling) from the correct source for the writer mode and uploads it to {@code iss/}, unless the
+     * detection path already uploaded it. Bounded by {@code uploadTimeout}; best-effort, never throws — must not stall
+     * the halt.
+     *
+     * <p><b>Must run before {@code blockNodeConnectionManager.shutdown()}</b>: in {@code GRPC} mode a closed, proven
+     * ISS block is never written to disk — it lives only in the in-memory buffer, which that shutdown clears. Resolving
+     * it from disk (as this used to, unconditionally) would find nothing for exactly the halting ISS this is built to
+     * capture.
      */
     public void uploadDetectedIssOnFailure() {
         try {
@@ -213,15 +234,38 @@ public class IssDetectionUploadCoordinator {
                 return;
             }
             final RecordedIss iss = lastIss.get();
-            if (iss == null || uploadedRound.get() == iss.round()) {
+            if (iss == null || uploadedRounds.contains(iss.round())) {
                 return;
             }
-            // The catastrophic-failure flush has made the ISS-round block durable on disk for every writer mode, so
-            // resolve it from disk once (no polling) and upload synchronously, before the node halts.
-            final Path incidentDir = incidentDirFor(config, iss.incidentFolder());
-            final List<Path> files = materializeFromDisk(
-                    diskResolver.resolve(iss.issType(), iss.round(), config.precedingBlocks()), incidentDir);
+            final var writerMode = configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .writerMode();
+            final Path incidentDir =
+                    incidentDirFor(config, iss.incidentFolder()).resolve(STAGE_FAILURE);
+            final List<Path> files =
+                    switch (writerMode) {
+                        // FILE / FILE_AND_GRPC: closed blocks are durable .blk.gz on disk and awaitFatalShutdown has
+                        // already flushed the open/pending set, so resolve from disk once (no polling).
+                        case FILE, FILE_AND_GRPC ->
+                            materializeFromDisk(
+                                    diskResolver.resolve(iss.issType(), iss.round(), config.precedingBlocks()),
+                                    incidentDir);
+                        // GRPC: a closed ISS block is never on disk; capture it from the in-memory buffer. This is why
+                        // the call must precede blockNodeConnectionManager.shutdown() (which clears the buffer).
+                        case GRPC -> bufferReader.captureToDir(iss.round(), config.precedingBlocks(), incidentDir);
+                    };
             uploadAndMark(config, iss.round(), iss.incidentFolder(), files);
+            // This is the authoritative, last-chance capture for a halting ISS. If the round is still not preserved
+            // (neither this path nor the detection path uploaded it), surface it as ONE distinct high-severity signal
+            // an operator can alert on — instead of only the routine-looking WARNs emitted by the individual steps.
+            if (!uploadedRounds.contains(iss.round())) {
+                log.fatal(
+                        "ISS block for round {} was NOT preserved to iss/ (writerMode={}); the exact ISS block may be "
+                                + "unavailable for triage",
+                        iss.round(),
+                        writerMode);
+            }
         } catch (final Throwable t) {
             log.error("ISS block upload on catastrophic failure failed", t);
         }
@@ -241,28 +285,28 @@ public class IssDetectionUploadCoordinator {
             log.warn("No ISS block located for round {}; skipping iss/ upload", round);
             return;
         }
-        if (uploadedRound.get() == round) {
+        if (uploadedRounds.contains(round)) {
             return;
         }
         // Claim the round; if the other path already claimed it, return without uploading so it is never uploaded
-        // twice.
-        if (!uploadInProgressRound.compareAndSet(NO_ROUND, round)) {
+        // twice. add() returns false when the round is already in flight.
+        if (!uploadInProgressRounds.add(round)) {
             return;
         }
         boolean uploaded = false;
         try {
-            if (uploadedRound.get() == round) {
+            if (uploadedRounds.contains(round)) {
                 return; // completed by the other path between the check above and our claim
             }
             uploaded = !uploadBounded(config, incidentFolder, files).isEmpty();
             if (uploaded) {
-                uploadedRound.set(round);
+                uploadedRounds.add(round);
             }
         } finally {
-            // Release the claim (even on success — a completed round stays guarded by uploadedRound) so a later,
+            // Release the claim (even on success — a completed round stays guarded by uploadedRounds) so a later,
             // distinct ISS round can still be uploaded, and so a failed upload does not permanently block a retry by
             // the other path.
-            uploadInProgressRound.compareAndSet(round, NO_ROUND);
+            uploadInProgressRounds.remove(round);
         }
     }
 

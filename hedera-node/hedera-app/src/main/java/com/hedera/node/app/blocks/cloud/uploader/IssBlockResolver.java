@@ -4,12 +4,13 @@ package com.hedera.node.app.blocks.cloud.uploader;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,9 +20,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import javax.inject.Inject;
@@ -37,10 +41,10 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  * <p>Block files are named by block number, not round number, so the round is found by searching: the node writes a
  * {@code RoundHeader} as the first item of every round, block files are 36-digit zero-padded (lexicographic order ==
  * numeric order), and a block's first round increases monotonically with its block number. The search therefore reads
- * each candidate's first {@code RoundHeader} and uses an exponential ("gallop") probe inward from the newest block —
- * the ISS round is almost always recent — narrowing to a binary search. It considers all three on-disk content kinds:
- * {@code .blk.gz} (complete), {@code .pnd.gz} (pending, with its {@code .pnd.json} proof sidecar), and {@code .open.gz}
- * (the open block flushed at catastrophic failure).
+ * each candidate's first {@code RoundHeader}, scanning from the newest block inward — the ISS round is almost always
+ * recent — and skipping any candidate whose first round cannot be read (e.g. a header-only {@code .open.gz}) rather
+ * than aborting. It considers all three on-disk content kinds: {@code .blk.gz} (complete), {@code .pnd.gz} (pending,
+ * with its {@code .pnd.json} proof sidecar), and {@code .open.gz} (the open block flushed at catastrophic failure).
  */
 public class IssBlockResolver {
     private static final Logger log = LogManager.getLogger(IssBlockResolver.class);
@@ -55,6 +59,14 @@ public class IssBlockResolver {
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final FileSystem fileSystem;
+
+    /**
+     * Memoized first-round-per-block-number so the detection path's poll loop (resolveWithWait re-invokes resolve
+     * every 250ms) does not re-decompress and re-parse the same block files each iteration. A block's first round is
+     * invariant, so entries never go stale; the map is pruned to the currently-retained blocks on each resolve to stay
+     * bounded by the retention window.
+     */
+    private final Map<Long, Long> firstRoundByBlockNumber = new ConcurrentHashMap<>();
 
     @Inject
     public IssBlockResolver(
@@ -92,19 +104,42 @@ public class IssBlockResolver {
             return List.of();
         }
 
-        final var firstRounds = new FirstRoundReader(blocks, config.maxReadDepth(), config.maxReadBytesSize());
-        final int issIndex;
-        try {
-            issIndex = indexOfBlockContaining(round, blocks.size(), firstRounds);
-        } catch (final ResolutionException e) {
-            log.warn("Could not read a block's first round while locating ISS round {}: {}", round, e.getMessage());
-            return List.of();
+        // Prune cached first-rounds to the currently-retained blocks so the cache stays bounded to the window.
+        final Set<Long> currentNumbers = new HashSet<>();
+        for (final BlockFile bf : blocks) {
+            currentNumbers.add(bf.blockNumber());
+        }
+        firstRoundByBlockNumber.keySet().retainAll(currentNumbers);
+
+        // Find the block containing the round: the rightmost block whose first round is <= round (first round
+        // increases monotonically with block number). Scan from the newest end so a recent ISS — the common case — is
+        // found quickly. A candidate whose first RoundHeader cannot be read (a header-only .open.gz flushed after
+        // writes were dropped at fatal shutdown, or a corrupt gzip) is SKIPPED, never fatal: one unreadable block must
+        // not abort the resolve and drop an ISS block that is present on disk as a readable .blk.gz.
+        final int maxReadDepth = config.maxReadDepth();
+        final int maxReadSize = config.maxReadBytesSize();
+        int issIndex = -1;
+        Long oldestReadableRound = null;
+        for (int i = blocks.size() - 1; i >= 0; i--) {
+            final OptionalLong firstRound = cachedFirstRound(blocks.get(i), maxReadDepth, maxReadSize);
+            if (firstRound.isEmpty()) {
+                log.warn(
+                        "Skipping block file {} while locating ISS round {}: first round not readable",
+                        blocks.get(i).contents(),
+                        round);
+                continue;
+            }
+            oldestReadableRound = firstRound.getAsLong();
+            if (firstRound.getAsLong() <= round) {
+                issIndex = i;
+                break;
+            }
         }
         if (issIndex < 0) {
             log.warn(
                     "ISS round {} precedes the earliest retained block (first retained round {}); nothing to upload",
                     round,
-                    firstRounds.safeGet(0));
+                    oldestReadableRound);
             return List.of();
         }
 
@@ -178,83 +213,32 @@ public class IssBlockResolver {
                 .toList();
     }
 
-    /**
-     * Exponential (gallop-from-newest) + binary search for the index of the block containing {@code round}: the
-     * rightmost block whose first round is {@code <= round}. Returns -1 if {@code round} precedes the earliest block.
-     */
-    private static int indexOfBlockContaining(
-            final long round, final int n, @NonNull final FirstRoundReader firstRounds) throws ResolutionException {
-        if (firstRounds.get(0) > round) {
-            return -1; // older than anything retained
+    /** {@link #firstRoundOf} with per-block-number memoization (see {@link #firstRoundByBlockNumber}). */
+    private OptionalLong cachedFirstRound(
+            @NonNull final BlockFile block, final int maxReadDepth, final int maxReadSize) {
+        final Long cached = firstRoundByBlockNumber.get(block.blockNumber());
+        if (cached != null) {
+            return OptionalLong.of(cached);
         }
-        if (firstRounds.get(n - 1) <= round) {
-            return n - 1; // in (or after) the newest block
-        }
-        // firstRound(0) <= round < firstRound(n-1): gallop left from the newest end to bracket the answer.
-        int off = 1;
-        while (n - 1 - off >= 0 && firstRounds.get(n - 1 - off) > round) {
-            off <<= 1;
-        }
-        int lo = Math.max(0, n - 1 - off); // firstRound(lo) <= round
-        int hi = n - 1 - (off >> 1); // firstRound(hi) > round
-        while (lo + 1 < hi) {
-            final int mid = lo + (hi - lo) / 2;
-            if (firstRounds.get(mid) <= round) {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-        }
-        return lo;
-    }
-
-    /** Reads (and memoizes) the first round number of each candidate block, parsed from its first {@code RoundHeader}. */
-    private static final class FirstRoundReader {
-        private final List<BlockFile> blocks;
-        private final int maxReadDepth;
-        private final int maxReadSize;
-        private final Long[] cache;
-
-        FirstRoundReader(@NonNull final List<BlockFile> blocks, final int maxReadDepth, final int maxReadSize) {
-            this.blocks = blocks;
-            this.maxReadDepth = maxReadDepth;
-            this.maxReadSize = maxReadSize;
-            this.cache = new Long[blocks.size()];
-        }
-
-        long get(final int index) throws ResolutionException {
-            Long cached = cache[index];
-            if (cached == null) {
-                final Path contents = blocks.get(index).contents();
-                final OptionalLong firstRound = firstRoundOf(contents, maxReadDepth, maxReadSize);
-                if (firstRound.isEmpty()) {
-                    throw new ResolutionException("no round header in " + contents);
-                }
-                cached = firstRound.getAsLong();
-                cache[index] = cached;
-            }
-            return cached;
-        }
-
-        @Nullable
-        Long safeGet(final int index) {
-            try {
-                return get(index);
-            } catch (final ResolutionException e) {
-                return null;
-            }
-        }
+        final OptionalLong firstRound = firstRoundOf(block.contents(), maxReadDepth, maxReadSize);
+        firstRound.ifPresent(r -> firstRoundByBlockNumber.put(block.blockNumber(), r));
+        return firstRound;
     }
 
     /** Parses {@code contents} and returns the round number of its first {@code RoundHeader} item, if present. */
     static OptionalLong firstRoundOf(@NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
-        final Block block;
-        // Stream the gzip straight into the parser rather than decompressing the whole block into a byte[] first: that
-        // byte[] is not bounded by maxReadSize (which caps only the parser) and would be a full-block heap spike per
-        // candidate probed during the search. The parser stays bounded by maxReadSize.
-        try (final ReadableStreamingData in =
-                new ReadableStreamingData(new GZIPInputStream(Files.newInputStream(contents)))) {
-            block = Block.PROTOBUF.parse(in, false, false, maxReadDepth, maxReadSize);
+        final BlockBytes blockBytes;
+        // Parse into raw per-item bytes (BlockBytes is wire-identical to a Block, as in IssBufferBlockReader) rather
+        // than the full Block object graph, then deserialize items one at a time only until the first RoundHeader —
+        // usually the second item — so a large block is not fully materialized just to read one round number. The gzip
+        // is streamed straight in (no intermediate decompressed byte[]) and the parse stays bounded by maxReadSize.
+        // Each stream stage is its own resource: GZIPInputStream's constructor eagerly reads the gzip header and can
+        // throw on an empty/truncated/corrupt file, so nesting the constructors would leak the already-opened
+        // Files.newInputStream file descriptor (try-with-resources would have nothing to close).
+        try (final var fileIn = Files.newInputStream(contents);
+                final var gzipIn = new GZIPInputStream(fileIn);
+                final ReadableStreamingData in = new ReadableStreamingData(gzipIn)) {
+            blockBytes = BlockBytes.PROTOBUF.parse(in, false, false, maxReadDepth, maxReadSize);
         } catch (final IOException e) {
             log.warn("Failed to read block file {}", contents, e);
             return OptionalLong.empty();
@@ -262,9 +246,15 @@ public class IssBlockResolver {
             log.warn("Failed to parse block file {}", contents, e);
             return OptionalLong.empty();
         }
-        for (final BlockItem item : block.items()) {
-            if (item.hasRoundHeader()) {
-                return OptionalLong.of(item.roundHeaderOrThrow().roundNumber());
+        for (final Bytes itemBytes : blockBytes.items()) {
+            try {
+                final BlockItem item = BlockItem.PROTOBUF.parse(itemBytes);
+                if (item.hasRoundHeader()) {
+                    return OptionalLong.of(item.roundHeaderOrThrow().roundNumber());
+                }
+            } catch (final ParseException e) {
+                log.warn("Failed to parse a block item in {}", contents, e);
+                return OptionalLong.empty();
             }
         }
         return OptionalLong.empty();
@@ -289,13 +279,6 @@ public class IssBlockResolver {
             @Nullable Path sidecar) {
         List<Path> files() {
             return sidecar == null ? List.of(contents) : List.of(contents, sidecar);
-        }
-    }
-
-    /** Thrown when a candidate block's first round cannot be read, aborting the search. */
-    private static final class ResolutionException extends Exception {
-        ResolutionException(@NonNull final String message) {
-            super(message);
         }
     }
 }

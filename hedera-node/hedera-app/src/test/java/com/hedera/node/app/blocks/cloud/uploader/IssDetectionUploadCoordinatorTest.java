@@ -168,9 +168,12 @@ class IssDetectionUploadCoordinatorTest {
         subject.captureAndUpload(IssType.SELF_ISS, 9);
 
         verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
-        // Staged under a per-incident timestamp dir and kept on disk.
-        final Path copied =
-                issBlockDir.resolve("block-0.0.3").resolve(EXPECTED_FOLDER).resolve(base + ".blk.gz");
+        // Staged under a per-incident timestamp dir, in the detection path's own subdir, and kept on disk.
+        final Path copied = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("detect")
+                .resolve(base + ".blk.gz");
         assertThat(filesCaptor.getValue()).containsExactly(copied);
         assertThat(copied).exists();
         verifyNoInteractions(bufferReader);
@@ -193,8 +196,11 @@ class IssDetectionUploadCoordinatorTest {
         subject.captureAndUpload(IssType.SELF_ISS, 9);
 
         verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
-        final Path copied =
-                issBlockDir.resolve("block-0.0.3").resolve(EXPECTED_FOLDER).resolve(base + ".blk.gz");
+        final Path copied = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("detect")
+                .resolve(base + ".blk.gz");
         assertThat(filesCaptor.getValue()).containsExactly(copied);
     }
 
@@ -288,9 +294,35 @@ class IssDetectionUploadCoordinatorTest {
         subject.uploadDetectedIssOnFailure();
 
         verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
-        final Path copied =
-                issBlockDir.resolve("block-0.0.3").resolve(EXPECTED_FOLDER).resolve(base + ".blk.gz");
+        final Path copied = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("failure")
+                .resolve(base + ".blk.gz");
         assertThat(filesCaptor.getValue()).containsExactly(copied);
+    }
+
+    @Test
+    void uploadDetectedIssOnFailureCapturesFromBufferInGrpcMode() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        // Detection records the ISS but captures nothing yet (buffer read empty for this attempt).
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+        verify(uploader, never()).uploadBlockFiles(any(), anyString(), any());
+
+        // On CATASTROPHIC_FAILURE the failure path must capture the closed gRPC ISS block from the BUFFER (a closed
+        // gRPC block is never written to disk), and must never consult the disk resolver.
+        final Path issGz =
+                issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.gz");
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of(issGz));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), eq(List.of(issGz))))
+                .thenReturn(List.of("uri"));
+
+        subject.uploadDetectedIssOnFailure();
+
+        verify(uploader).uploadBlockFiles(UploadCategory.ISS, EXPECTED_FOLDER, List.of(issGz));
+        verifyNoInteractions(diskResolver);
     }
 
     @Test
@@ -310,5 +342,29 @@ class IssDetectionUploadCoordinatorTest {
         subject.uploadDetectedIssOnFailure();
 
         verify(uploader, times(1)).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any());
+    }
+
+    @Test
+    void twoDistinctConcurrentRoundsAreBothUploaded() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        final Path gzA = issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.gz");
+        final Path gzB = issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(8L) + ".iss.gz");
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of(gzA));
+        when(bufferReader.captureToDir(eq(10L), eq(0), any())).thenReturn(List.of(gzB));
+        // While round 9's upload is in flight (so 9 is in the in-progress set), a DISTINCT round 10 arrives. With a
+        // single global in-progress slot it would be dropped; a per-round set must let it through.
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(gzA))))
+                .thenAnswer(inv -> {
+                    subject.captureAndUpload(IssType.SELF_ISS, 10);
+                    return List.of("uriA");
+                });
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(gzB))))
+                .thenReturn(List.of("uriB"));
+
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+
+        verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(gzA)));
+        verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(gzB)));
     }
 }

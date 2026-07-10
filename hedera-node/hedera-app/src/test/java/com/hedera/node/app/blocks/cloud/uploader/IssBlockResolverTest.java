@@ -153,7 +153,7 @@ class IssBlockResolverTest {
     }
 
     @Test
-    void gallopResolvesRecentRoundAmongManyBlocks() throws IOException {
+    void resolvesRecentRoundAmongManyBlocks() throws IOException {
         for (int i = 1; i <= 200; i++) {
             writeBlock(i, i, ".blk.gz");
         }
@@ -162,6 +162,52 @@ class IssBlockResolverTest {
         final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 201, 0);
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(201);
+    }
+
+    @Test
+    void headerlessNewestOpenBlockDoesNotAbortResolve() throws IOException {
+        // The real ISS block is a completed .blk.gz...
+        writeBlock(1, 1, ".blk.gz");
+        writeBlock(2, 5, ".blk.gz");
+        // ...but the newest artifact is a header-only .open.gz: writes were dropped after notifyFatalEvent, so it has
+        // a BlockHeader but no RoundHeader. It must be skipped, not abort the whole resolve and drop the real block.
+        writeHeaderlessOpenBlock(3);
+
+        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+
+        assertThat(refs).hasSize(1);
+        assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void corruptGzipCandidateIsSkippedNotFatal() throws IOException {
+        writeBlock(1, 1, ".blk.gz");
+        writeBlock(2, 5, ".blk.gz");
+        // The newest artifact is a corrupt .open.gz whose gzip header is invalid, so GZIPInputStream's constructor
+        // throws (this is the file-descriptor-leak site). It must be skipped, not abort the resolve.
+        final Path nodeDir = tempDir.resolve("block-0.0.3");
+        Files.createDirectories(nodeDir);
+        Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".open.gz"), new byte[] {0, 1, 2, 3});
+
+        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+
+        assertThat(refs).hasSize(1);
+        assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
+    }
+
+    private void writeHeaderlessOpenBlock(final long number) throws IOException {
+        final var block = Block.newBuilder()
+                .items(List.of(BlockItem.newBuilder()
+                        .blockHeader(BlockHeader.newBuilder().number(number).build())
+                        .build()))
+                .build();
+        final byte[] raw = Block.PROTOBUF.toBytes(block).toByteArray();
+        final Path nodeDir = tempDir.resolve("block-0.0.3");
+        Files.createDirectories(nodeDir);
+        try (final GZIPOutputStream out = new GZIPOutputStream(
+                Files.newOutputStream(nodeDir.resolve(FileBlockItemWriter.longToFileName(number) + ".open.gz")))) {
+            out.write(raw);
+        }
     }
 
     private void writeBlock(final long number, final long firstRound, final String ext) throws IOException {

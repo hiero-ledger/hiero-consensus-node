@@ -685,6 +685,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Always clear the in-progress flag, even if endRoundInternal threw, so a concurrent fatal-shutdown
             // waiter does not block on a round boundary that will never arrive.
             roundInProgress = false;
+            // A fatal shutdown can be signalled AFTER endRoundInternal's own fatalShutdownRequested check (so it took
+            // the normal path and did not flush). Capture the open/pending blocks now, on the handler thread that owns
+            // the writer: this completes fatalShutdownFuture so awaitFatalShutdown's waiter is released immediately
+            // (rather than stalling the whole timeout) and the open block is not lost. Idempotent, and a no-op on the
+            // normal, non-fatal path.
+            if (fatalShutdownRequested) {
+                flushOpenAndPendingBlocksForTriage();
+            }
         }
     }
 
