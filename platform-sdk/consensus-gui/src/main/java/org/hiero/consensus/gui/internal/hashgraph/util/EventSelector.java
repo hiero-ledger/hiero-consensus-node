@@ -79,8 +79,10 @@ public class EventSelector implements MouseListener {
             if (distanceSquared <= rSquared - 20) {
                 if (selectedEvent == e) {
                     selectedEvent = null;
+                    HashgraphGuiControls.printEventInfo(null);
                 } else {
                     selectedEvent = e;
+                    HashgraphGuiControls.printEventInfo(selectedEvent.getEventInfo());
                     if (selectedEvent.getStronglySeeP() != null) {
                         Arrays.stream(selectedEvent.getStronglySeeP())
                                 .filter(Objects::nonNull)

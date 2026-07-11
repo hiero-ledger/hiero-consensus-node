@@ -4,22 +4,15 @@ package org.hiero.consensus.gui.internal.hashgraph.util;
 import static org.hiero.consensus.gui.internal.GuiUtils.wrap;
 import static org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
 
-import java.awt.Checkbox;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.Label;
+import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import javax.swing.JPanel;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.*;
 
 import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.GuiUtils;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
+import org.hiero.consensus.hashgraph.impl.consensus.calculations.HashgraphInfo;
 import org.hiero.consensus.model.event.EventConstants;
 
 /**
@@ -62,10 +55,29 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
 
     private final JSpinner startGeneration;
 
+    /** the text block on the left side of the screen, showing fields in the selected event's EventInfo */
+    private static JTextArea eventInfoText;
+
+    /** description of the graph image, printed in the left column */
+    private final static String ABOUT_TEXT = """
+                                - Witnesses are colored circles, non-witnesses are black/gray\s
+                                - Dark circles are part of the consensus, light are not\s
+                                - Judges are blue\s
+                                - Non-famous witnesses are yellow\s
+                                - Famous witnesses are green\s
+                                - Undecided witnesses are red\s
+                                - The selected event is magenta with green border\s
+                                - The parents of the selected event have magenta borders\s
+                                - The events the selected event can strongly see are cyan\s""";
+
     public HashgraphGuiControls(final ItemListener freezeListener) {
         freezeCheckbox = new Checkbox("Freeze: don't change this window");
         freezeCheckbox.addItemListener(freezeListener);
         simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not");
+        simpleColorsCheckbox.setState(true);
+        labelNGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                ? "Labels: EventID (nGen)" : "Labels: NGen (non-deterministic generation)");
+        labelNGenCheckbox.setState(true);
         labelRoundCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
                 ? "Labels: Voting round" : "Labels: Round created");
         labelVoteCheckbox = new Checkbox("Labels: Vote");
@@ -73,8 +85,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelRoundRecCheckbox = new Checkbox("Labels: Round received (consensus)");
         labelConsOrderCheckbox = new Checkbox("Labels: Order (consensus)");
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
-        labelNGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                ? "Labels: EventID (nGen)" : "Labels: NGen (non-deterministic generation)");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
         labelDeGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
@@ -108,18 +118,71 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         comps = new Component[] {
             freezeCheckbox,
             simpleColorsCheckbox,
+            labelNGenCheckbox,
             labelRoundCheckbox,
             labelVoteCheckbox,
             labelEventHashCheckbox,
             labelRoundRecCheckbox,
             labelConsOrderCheckbox,
             labelConsTimestampCheckbox,
-            labelNGenCheckbox,
             labelBirthroundCheckbox,
             labelBranchNumberCheckbox,
             labelDeGenCheckbox,
             displayLatestEvents
         };
+    }
+
+    /** convert an EventInfo[] to a string of the EventID of each element */
+    private static String eventInfosToString(HashgraphInfo.EventInfo[] events) {
+        String str = "[ ";
+        for (HashgraphInfo.EventInfo event : events) {
+            str += ((event == null) ? "-" : event.getEventID()) + " ";
+        }
+        str += "]";
+        return str;
+    }
+
+    /** convert a boolean[] to a string */
+    private static String booleanssToString(boolean[] booleans) {
+        String str = "[ ";
+        for (boolean b : booleans) {
+            str += (b ? "T " : "F ");
+        }
+        str += "]";
+        return str;
+    }
+
+    /** display the fields of this EventInfo on the left side of the window */
+    public static void printEventInfo(HashgraphInfo.EventInfo eventInfo) {
+        if (eventInfo == null) {
+            eventInfoText.setText(ABOUT_TEXT);}
+        else {
+            String str = "SELECTED EVENT:                                               ";
+            str += "\n                ID  " + eventInfo.getEventID();
+            str += "\n       timeCreated  " + eventInfo.getTimeCreated();
+            str += "\n           creator  " + eventInfo.getCreator();
+            str += "\n        birthRound  " + eventInfo.getBirthRound();
+            str += "\n              coin  " + eventInfo.getCoin();
+            str += "\n     parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());
+            str += "\n";
+            str += "\n        selfParent  " + eventInfo.getSelfParent().getEventID();
+            str += "\n     ancestorJudge  " + booleanssToString(eventInfo.getAncestorJudge());
+            str += "\n         prevJudge  " + eventInfo.isPrevJudge(); //need prevJudgeDesc
+            str += "\n               gen  " + eventInfo.getGen();
+            str += "\n           lastSee  " + eventInfosToString(eventInfo.getLastSee());
+            str += "\n      stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
+            str += "\n firstSelfWitnessS  " + eventInfo.getFirstSelfWitnessS().getEventID();
+            str += "\n       votingRound  " + eventInfo.getVotingRound();
+            str += "\n     firstWitnessS  " + eventInfo.getFirstWitnessS().getEventID();
+            str += "\n     stronglySeeS1  " + eventInfosToString(eventInfo.getStronglySeeS1());
+            str += "\n             voteE  " + eventInfosToString(eventInfo.getVoteE());
+            str += "\n             voteB  " + booleanssToString(eventInfo.getVoteB());
+            str += "\n       isConsensus  " + eventInfo.isConsensus();
+            str += "\n    consensusOrder  " + eventInfo.getConsensusOrder();
+            str += "\nconsensusTimestamp  " + eventInfo.getConsensusTimestamp();
+
+            eventInfoText.setText(str);
+        }
     }
 
     /**
@@ -184,16 +247,10 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         constr.gridy++;
         checkboxesPanel.add(new Label(" "), constr);
         constr.gridy++;
-        checkboxesPanel.add(GuiUtils.newJTextArea(wrap(50, """
-                                - Witnesses are colored circles, non-witnesses are black/gray\s
-                                - Dark circles are part of the consensus, light are not\s
-                                - Judges are blue\s
-                                - Non-famous witnesses are yellow\s
-                                - Famous witnesses are green\s
-                                - Undecided witnesses are red\s
-                                - The selected event is magenta with green border\s
-                                - The parents of the selected event have magenta borders\s
-                                - The events the selected event can strongly see are cyan\s""")), constr);
+        eventInfoText = GuiUtils.newJTextArea(wrap(50, ABOUT_TEXT));
+        eventInfoText.setFont(new Font(Font.MONOSPACED,Font.PLAIN, 12));
+        eventInfoText.setText(ABOUT_TEXT);
+        checkboxesPanel.add(eventInfoText, constr);
         constr.gridy++;
         constr.weighty = 1.0; // give this spacer all the leftover vertical space in column
         checkboxesPanel.add(new Label(" "), constr); // the spacer that is stretched vertically
