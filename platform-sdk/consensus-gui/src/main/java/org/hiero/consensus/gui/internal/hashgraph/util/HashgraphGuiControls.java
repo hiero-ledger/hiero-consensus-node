@@ -152,35 +152,42 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         return str;
     }
 
+    private static String eventID(HashgraphInfo.EventInfo event) {
+        return (event == null) ? "-" : ("" + event.getEventID());
+    }
+
     /** display the fields of this EventInfo on the left side of the window */
     public static void printEventInfo(HashgraphInfo.EventInfo eventInfo) {
         if (eventInfo == null) {
             eventInfoText.setText(ABOUT_TEXT);}
         else {
-            String str = "SELECTED EVENT:                                               ";
-            str += "\n                ID  " + eventInfo.getEventID();
-            str += "\n       timeCreated  " + eventInfo.getTimeCreated();
-            str += "\n           creator  " + eventInfo.getCreator();
-            str += "\n        birthRound  " + eventInfo.getBirthRound();
-            str += "\n              coin  " + eventInfo.getCoin();
-            str += "\n     parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());
-            str += "\n";
-            str += "\n        selfParent  " + eventInfo.getSelfParent().getEventID();
-            str += "\n     ancestorJudge  " + booleanssToString(eventInfo.getAncestorJudge());
-            str += "\n         prevJudge  " + eventInfo.isPrevJudge(); //need prevJudgeDesc
-            str += "\n               gen  " + eventInfo.getGen();
-            str += "\n           lastSee  " + eventInfosToString(eventInfo.getLastSee());
-            str += "\n      stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
-            str += "\n firstSelfWitnessS  " + eventInfo.getFirstSelfWitnessS().getEventID();
-            str += "\n       votingRound  " + eventInfo.getVotingRound();
-            str += "\n     firstWitnessS  " + eventInfo.getFirstWitnessS().getEventID();
-            str += "\n     stronglySeeS1  " + eventInfosToString(eventInfo.getStronglySeeS1());
-            str += "\n             voteE  " + eventInfosToString(eventInfo.getVoteE());
-            str += "\n             voteB  " + booleanssToString(eventInfo.getVoteB());
-            str += "\n       isConsensus  " + eventInfo.isConsensus();
-            str += "\n    consensusOrder  " + eventInfo.getConsensusOrder();
-            str += "\nconsensusTimestamp  " + eventInfo.getConsensusTimestamp();
-
+                String str = "SELECTED EVENT:                                               ";
+            try {
+                str += "\n                ID  " + eventInfo.getEventID();
+                str += "\n       timeCreated  " + eventInfo.getTimeCreated();
+                str += "\n           creator  " + eventInfo.getCreator();
+                str += "\n        birthRound  " + eventInfo.getBirthRound();
+                str += "\n              coin  " + eventInfo.getCoin();
+                str += "\n     parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());
+                str += "\n";
+                str += "\n        selfParent  " + eventID(eventInfo.getSelfParent());
+                str += "\n     ancestorJudge  " + booleanssToString(eventInfo.getAncestorJudge());
+                str += "\n         prevJudge  " + eventInfo.isPrevJudge(); //need prevJudgeDesc
+                str += "\n               gen  " + eventInfo.getGen();
+                str += "\n           lastSee  " + eventInfosToString(eventInfo.getLastSee());
+                str += "\n      stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
+                str += "\n firstSelfWitnessS  " + eventID(eventInfo.getFirstSelfWitnessS());
+                str += "\n       votingRound  " + eventInfo.getVotingRound();
+                str += "\n     firstWitnessS  " + eventID(eventInfo.getFirstWitnessS());
+                str += "\n     stronglySeeS1  " + eventInfosToString(eventInfo.getStronglySeeS1());
+                str += "\n             voteE  " + eventInfosToString(eventInfo.getVoteE());
+                str += "\n             voteB  " + booleanssToString(eventInfo.getVoteB());
+                str += "\n       isConsensus  " + eventInfo.isConsensus();
+                str += "\n    consensusOrder  " + eventInfo.getConsensusOrder();
+                str += "\nconsensusTimestamp  " + eventInfo.getConsensusTimestamp();
+            } catch (Exception e) {
+                str = "\n" + e.toString() + "\n" + e.getMessage();
+            }
             eventInfoText.setText(str);
         }
     }
