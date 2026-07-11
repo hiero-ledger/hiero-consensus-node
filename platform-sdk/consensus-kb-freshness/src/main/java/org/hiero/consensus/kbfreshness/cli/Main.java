@@ -13,9 +13,7 @@ import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.findings.Baseline;
-import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.Lane;
-import org.hiero.consensus.kbfreshness.model.Triage;
 import org.hiero.consensus.kbfreshness.render.AutoFixRenderer;
 import org.hiero.consensus.kbfreshness.render.CoverageRenderer;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
@@ -175,17 +173,13 @@ public final class Main implements Callable<Integer> {
             }
         }
 
-        final long newDrift = countNewDrift(result);
+        final long newDrift = result.newDriftCount();
         System.out.printf(
                 "kb-freshness: %d findings (%d new assert, %d quiet, %d auto-fix). Artifacts in %s%n",
                 result.findings().size(),
                 newDrift,
-                result.findings().stream()
-                        .filter(f -> f.lane() == Lane.QUIET_LOG)
-                        .count(),
-                result.findings().stream()
-                        .filter(f -> f.lane() == Lane.AUTO_FIX)
-                        .count(),
+                result.stats().findingsByLane().getOrDefault(Lane.QUIET_LOG, 0),
+                result.stats().findingsByLane().getOrDefault(Lane.AUTO_FIX, 0),
                 outDir);
 
         return failOnDrift && newDrift > 0 ? 2 : 0;
@@ -206,9 +200,7 @@ public final class Main implements Callable<Integer> {
         write(outDir.resolve("report.md"), ReportRenderer.render(result, date));
         write(outDir.resolve("quiet-log.md"), QuietLogRenderer.render(result));
         write(outDir.resolve("auto-fix.md"), AutoFixRenderer.render(result));
-        write(
-                outDir.resolve("suggestions.md"),
-                SuggestionsRenderer.render(result, new Git(result.sourceIndex().repoRoot())));
+        write(outDir.resolve("suggestions.md"), SuggestionsRenderer.render(result, result.git()));
         write(outDir.resolve("coverage.md"), CoverageRenderer.render(result));
         write(outDir.resolve("worklist.md"), WorklistRenderer.renderMarkdown(result));
         write(outDir.resolve("worklist.json"), WorklistRenderer.renderJson(result));
@@ -218,18 +210,6 @@ public final class Main implements Callable<Integer> {
         if (writeBaseline && baselineFile != null) {
             write(baselineFile, proposed);
         }
-    }
-
-    /**
-     * Counts findings that assert new drift: assert-lane, not previously baselined, and not dismissed.
-     *
-     * @param result the run result.
-     * @return the number of new asserted-drift findings.
-     */
-    private static long countNewDrift(final RunResult result) {
-        return result.join().joined().stream()
-                .filter(j -> j.finding().lane() == Lane.ASSERT && j.isNew() && j.triage() != Triage.DISMISSED)
-                .count();
     }
 
     /**
