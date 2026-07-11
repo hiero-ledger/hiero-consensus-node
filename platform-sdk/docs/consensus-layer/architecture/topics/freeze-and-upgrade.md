@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Freeze and upgrade
-last_reviewed: 2026-06-08
+last_reviewed: 2026-06-30
 ---
 
 # Freeze and upgrade
@@ -60,7 +60,7 @@ interface; the live binding is built as a lambda in
 that closes over the mutable platform state.
 
 `lastFrozenTime` is written by
-[`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#createSignedState`
+[`DefaultTransactionHandler`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/DefaultTransactionHandler.java)`#createSignedState`
 (via `PlatformStateUtils#updateLastFrozenTime`) before `copyMutableState`
 is called, so the `lastFrozenTime = freezeTime` write is committed to
 disk only as part of the freeze state itself. Execution always writes
@@ -159,12 +159,12 @@ immediately rather than being buffered.
 ### State save
 
 A signed state is marked for disk via
-[`DefaultSavedStateController`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java)`#shouldSaveToDisk`.
+[`DefaultSavedStateController`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java)`#shouldSaveToDisk`.
 The first branch is `if (signedState.isFreezeState()) return FREEZE_STATE`,
 which short-circuits the periodic-snapshot logic and uses the
 [`StateToDiskReason`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java)`.FREEZE_STATE`
 marker. The actual write happens in
-[`DefaultStateSnapshotManager`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/DefaultStateSnapshotManager.java)`#saveStateTask`,
+[`DefaultStateSnapshotManager`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultStateSnapshotManager.java)`#saveStateTask`,
 which runs downstream of the handle thread (not on it); the resulting
 `StateSavingResult` carries the freeze flag further down the pipeline.
 
@@ -177,7 +177,7 @@ orchestrator class.
    [Trigger](#trigger)).
 2. The first consensus round whose timestamp falls in the freeze
    period is detected in
-   [`DefaultTransactionHandler`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java)`#handleConsensusRound`.
+   [`DefaultTransactionHandler`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/DefaultTransactionHandler.java)`#handleConsensusRound`.
    The handler submits a `FreezePeriodEnteredAction(round)` and sets a
    `freezeRoundReceived` flag; subsequent rounds are then ignored by
    the same handler.
@@ -191,9 +191,9 @@ orchestrator class.
 5. The status state machine transitions `FREEZING` → `FREEZE_COMPLETE`
    when the freeze state has been written. The transition logic lives
    in
-   [`FreezingStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/FreezingStatusLogic.java)
+   [`FreezingStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/FreezingStatusLogic.java)
    and the terminal status in
-   [`FreezeCompleteStatusLogic`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/logic/FreezeCompleteStatusLogic.java).
+   [`FreezeCompleteStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/FreezeCompleteStatusLogic.java).
 6. Gossip continues in `FREEZE_COMPLETE` so that signatures on the
    freeze state can be distributed to laggards; event creation does
    not resume because neither `ACTIVE` nor `CHECKING` is reached again

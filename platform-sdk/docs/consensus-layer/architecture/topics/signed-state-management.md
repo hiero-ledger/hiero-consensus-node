@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Signed state management
-last_reviewed: 2026-05-28
+last_reviewed: 2026-07-02
 ---
 
 # Signed state management
@@ -68,7 +68,7 @@ under [Latest-state exposure](#latest-state-exposure) instead.
 ### `StateWithHashComplexity`
 
 Defined in
-[`StateWithHashComplexity.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/StateWithHashComplexity.java).
+[`StateWithHashComplexity.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/StateWithHashComplexity.java).
 Record that pairs a `ReservedSignedState` with an estimate of how
 expensive hashing the state will be (measured in applied transactions,
 minimum 1). The wiring graph carries this record from the
@@ -82,7 +82,7 @@ A signed state passes through six phases.
 1. **Create.** Only consensus rounds that close a block, plus the
    freeze round, produce a `SignedState`.
    `DefaultTransactionHandler#handleConsensusRound`
-   ([`DefaultTransactionHandler.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/eventhandling/DefaultTransactionHandler.java))
+   ([`DefaultTransactionHandler.java`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/DefaultTransactionHandler.java))
    applies each round's transactions to the mutable state and then
    calls `ConsensusStateEventHandler#onSealConsensusRound`, which
    returns whether the round aligns with the end of a block. If it
@@ -97,10 +97,10 @@ A signed state passes through six phases.
    genesis state — follows this same lifecycle but is marked with
    `FIRST_ROUND_AFTER_GENESIS` so that it is always written to disk.
 2. **Hash and locally sign.** `DefaultStateHasher#hashState`
-   ([`DefaultStateHasher.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/hasher/DefaultStateHasher.java))
+   ([`DefaultStateHasher.java`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/hashing/DefaultStateHasher.java))
    forces computation of the merkle root, and
    `DefaultStateSigner#signState`
-   ([`DefaultStateSigner.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signer/DefaultStateSigner.java))
+   ([`DefaultStateSigner.java`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/signing/DefaultStateSigner.java))
    produces a `StateSignatureTransaction` containing this node's
    signature over the hash. The transaction is submitted to Execution
    for inclusion in the gossiped event stream. (PCES-replay rounds are
@@ -109,7 +109,7 @@ A signed state passes through six phases.
    re-signing would only duplicate what replay is about to surface.)
 3. **Collect peer signatures.**
    `DefaultStateSignatureCollector#addSignature`
-   ([`DefaultStateSignatureCollector.java`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/DefaultStateSignatureCollector.java))
+   ([`DefaultStateSignatureCollector.java`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/signing/DefaultStateSignatureCollector.java))
    accumulates signatures from `StateSignatureTransaction` payloads sent
    by peers, adding them to the state's `SigSet` until the
    signing-weight threshold is reached. Collection is best-effort, not
@@ -125,12 +125,12 @@ A signed state passes through six phases.
    they are expected to lack quorum and are emitted immediately on
    arrival at the collector.
 4. **Decide to save.** `DefaultSavedStateController#shouldSaveToDisk`
-   ([`DefaultSavedStateController.java:111`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/components/DefaultSavedStateController.java))
+   ([`DefaultSavedStateController.java:109`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/DefaultSavedStateController.java))
    marks freeze states for saving unconditionally; for non-freeze rounds
    it tests whether the round's consensus timestamp crosses a
-   `stateConfig.saveStatePeriod` boundary (read at line 116; the period
-   crossing is computed at lines 133-134). When saving is selected, the
-   controller calls `signedState.markAsStateToSave(reason)` (line 92).
+   `stateConfig.saveStatePeriod` boundary (read at line 117; the period
+   crossing is computed at lines 134-135). When saving is selected, the
+   controller calls `signedState.markAsStateToSave(reason)` (line 93).
    The `reason` is one of `FREEZE_STATE`, `FIRST_ROUND_AFTER_GENESIS`,
    or `PERIODIC_SNAPSHOT`
    ([`StateToDiskReason.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java));
@@ -142,7 +142,7 @@ A signed state passes through six phases.
    `executeAndRename`. After the state files are written, it copies PCES
    files into the round directory by calling
    `pcesModule.copyPcesFilesRetryOnFailure`
-   ([`SignedStateFileWriter.java:303`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)).
+   ([`SignedStateFileWriter.java:310`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java)).
 6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
    ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
    destroys states whose reservation count has reached zero, off the hot
@@ -157,11 +157,11 @@ reproduced here.
 ## On-disk layout
 
 `SignedStateFileWriter.writeSignedStateToDisk`
-([`SignedStateFileWriter.java:362`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java))
+([`SignedStateFileWriter.java:420`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java))
 is the entry point used whenever a signed state is persisted — periodic
 snapshot, freeze state, or state dump. The writer computes the round
 directory via
-[`SignedStateFilePath`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFilePath.java):
+[`SignedStateFilePath`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/persistence/SignedStateFilePath.java):
 
 ```
 <savedStateDirectory>/<mainClassName>/<selfId>/<swirldName>/<round>/
@@ -169,7 +169,7 @@ directory via
 
 The whole round directory is built under a temporary path and moved into
 place via `executeAndRename`
-([`SignedStateFileWriter.java:386`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileWriter.java)),
+([`SignedStateFileWriter.java:444`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileWriter.java)),
 so readers never observe a half-built directory; on a mid-write crash the
 temporary tree is orphaned without affecting the live `saved/…/<round>/`
 hierarchy.
@@ -177,7 +177,7 @@ hierarchy.
 A complete round directory contains:
 
 - `stateMetadata.txt` — human-readable key/value file written by
-  [`SavedStateMetadata`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SavedStateMetadata.java).
+  [`SavedStateMetadata`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/saved/SavedStateMetadata.java).
 - `hashInfo.txt` — mnemonic of the state hash, diagnostic only.
 - `currentRoster.json` — the active `Roster` as PBJ JSON.
 - `consensusSnapshot.json` — the round's `ConsensusSnapshot` as PBJ JSON.
@@ -196,7 +196,7 @@ For the full schema, file-by-file format, and field-by-field detail, see
 
 ### Reading
 
-[`SignedStateFileReader.readState`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/SignedStateFileReader.java)
+[`SignedStateFileReader.readState`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/SignedStateFileReader.java)
 is the canonical reader for the on-disk format. In production it is
 reached through
 [`StartupStateUtils.loadStateFile`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/StartupStateUtils.java),
@@ -211,21 +211,22 @@ the next-newest candidate; otherwise the node fails to start.
 
 ## Latest-state exposure
 
-Two `SignedStateNexus`-derived holders sit on the boundary of this module
-and expose an in-memory `SignedState` to consumers outside it. Each holds
-the most recent state matching a different criterion:
+Two `SignedStateNexus`-derived holders — defined in `consensus-state`
+(`org.hiero.consensus.state.nexus`) — expose an in-memory `SignedState` to
+consumers across the boundary. Each holds the most recent state matching a
+different criterion:
 
 - **`LatestImmutableStateNexus`**
-  ([interface](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/SignedStateNexus.java),
+  ([interface](../../../../consensus-state/src/main/java/org/hiero/consensus/state/nexus/SignedStateNexus.java),
   implemented by
-  [`LockFreeStateNexus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/LockFreeStateNexus.java))
+  [`LockFreeStateNexus`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/nexus/LockFreeStateNexus.java))
   holds the latest immutable state produced by the transaction handler.
   Execution reads from it to prehandle incoming transactions against an
   up-to-date state without blocking the handle thread.
 - **`LatestCompleteStateNexus`**
-  ([interface](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/LatestCompleteStateNexus.java),
+  ([interface](../../../../consensus-state/src/main/java/org/hiero/consensus/state/nexus/LatestCompleteStateNexus.java),
   implemented by
-  [`DefaultLatestCompleteStateNexus`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/DefaultLatestCompleteStateNexus.java))
+  [`DefaultLatestCompleteStateNexus`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/nexus/DefaultLatestCompleteStateNexus.java))
   holds the latest signed state that has collected at least the
   signing-weight threshold of signatures. Reconnect teachers serve this
   state to learners. The holder is cleared in two cases:
@@ -269,15 +270,15 @@ the component framework it also crosses scheduler queues, and every
 fan-out from one wire to multiple listeners must mint one reservation
 per listener so that the fastest consumer cannot release the last
 reservation while a slower consumer is still waiting in queue. Three
-`AdvancedTransformation` implementations in
-`com.swirlds.platform.wiring` enforce this:
+`AdvancedTransformation` implementations enforce this — one in
+`consensus-state-management`, two in `consensus-transaction-handling`:
 
-- [`SignedStateReserver`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/SignedStateReserver.java)
+- [`SignedStateReserver`](../../../../consensus-state-management/src/main/java/org/hiero/consensus/state/management/utils/SignedStateReserver.java)
   — fans out a `ReservedSignedState`.
-- [`StateWithHashComplexityReserver`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/StateWithHashComplexityReserver.java)
+- [`StateWithHashComplexityReserver`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityReserver.java)
   — fans out a `StateWithHashComplexity` (used between
   `TransactionHandler` and `SavedStateController`).
-- [`StateWithHashComplexityToStateReserver`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/StateWithHashComplexityToStateReserver.java)
+- [`StateWithHashComplexityToStateReserver`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityToStateReserver.java)
   — unwraps a `StateWithHashComplexity` to a `ReservedSignedState`
   while fanning out (feeds `SignedStateNexus` and
   `StateGarbageCollector`).
@@ -357,14 +358,20 @@ behavior are covered in [iss-detection.md](iss-detection.md).
 
 The proposal at
 [`Consensus-Layer.md`](../../../proposals/consensus-layer/Consensus-Layer.md)
-places signed-state lifecycle entirely under Execution. Current code
-reflects a partial move: the runtime types (`SignedState`,
-`ReservedSignedState`, `SignedStateReference`, `StateToDiskReason`,
-`DefaultStateGarbageCollector`, `StateConfig`) live in the
-`consensus-state` module under the `org.hiero.consensus.state` package.
-File I/O and snapshot orchestration (`SignedStateFileWriter` /
-`SignedStateFileReader`, `SignedStateFilePath`, `SavedStateMetadata`,
-`StateDumpRequest`, `DefaultStateSignatureCollector`,
-`DefaultSavedStateController`) remain in `swirlds-platform-core` under
-`com.swirlds.platform.state.snapshot` and
-`com.swirlds.platform.components`.
+places signed-state lifecycle entirely under Execution. Current code reflects
+a partial move out of `swirlds-platform-core`, split across two modules:
+
+- `consensus-state` (`org.hiero.consensus.state`) holds the runtime types
+  (`SignedState`, `ReservedSignedState`, `SignedStateReference`,
+  `StateToDiskReason`, `DefaultStateGarbageCollector`, `StateConfig`), the
+  saved-state data types (`SavedStateMetadata`, `StateDumpRequest`) under
+  `org.hiero.consensus.state.saved`, and the latest-state nexus holders under
+  `org.hiero.consensus.state.nexus`.
+- `consensus-state-management` (`org.hiero.consensus.state.management`) holds
+  hashing, signing, and persistence (`SignedStateFileWriter` /
+  `SignedStateFileReader`, `SignedStateFilePath`,
+  `DefaultStateSignatureCollector`, `DefaultSavedStateController`,
+  `DefaultStateHasher`).
+
+Both modules sit on the consensus side of the boundary today and are expected
+to move to the execution layer as the proposal is realized.
