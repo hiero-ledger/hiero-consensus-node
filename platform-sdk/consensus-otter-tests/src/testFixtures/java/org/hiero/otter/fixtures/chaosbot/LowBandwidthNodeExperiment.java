@@ -87,6 +87,7 @@ public record LowBandwidthNodeExperiment(
     public List<Step> start(
             @NonNull final Network network, @NonNull final Instant now, @NonNull final Randotron randotron) {
         final List<Node> candidates = network.nodes().stream()
+                .filter(Node::isAlive)
                 .filter(node -> !affectedNodes.contains(node))
                 .toList();
         if (candidates.isEmpty()) {
