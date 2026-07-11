@@ -23,9 +23,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,6 +35,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
@@ -64,6 +62,7 @@ import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyncPoint;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
@@ -139,6 +138,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** JVM arguments to add when starting up the java process */
     private final List<String> jvmArgs;
 
+    /** The self-healing client subscribed to this node's event stream; created in {@link #doStart}. */
+    private EventStreamClient eventStreamClient;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -187,6 +189,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         nodeCommChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
+                .keepAliveTime(20, TimeUnit.SECONDS)
+                .keepAliveTimeout(10, TimeUnit.SECONDS)
+                .keepAliveWithoutCalls(true)
                 .usePlaintext()
                 .build();
 
@@ -241,43 +246,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         // Blocking stub for communicating with the consensus node
         nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
 
-        final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
-        stub.start(startRequest, new StreamObserver<>() {
-            @Override
-            public void onNext(final EventMessage value) {
-                receivedEvents.add(value);
-            }
-
-            @Override
-            public void onError(@NonNull final Throwable error) {
-                /*
-                 * After a call to killImmediately() the server forcibly closes the stream and the
-                 * client receives an INTERNAL error. This is expected and must *not* fail the test.
-                 * Only report unexpected errors that occur while the node is still running.
-                 */
-                if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
-                    final String message = String.format("gRPC error from node %s", selfId);
-                    fail(message, error);
-                }
-            }
-
-            private static boolean isExpectedError(final @NonNull Throwable error) {
-                if (error instanceof final StatusRuntimeException sre) {
-                    final Code code = sre.getStatus().getCode();
-                    return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
-                }
-                return false;
-            }
-
-            @Override
-            public void onCompleted() {
-                if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
-                    fail("Node " + selfId + " has closed the connection while running the test");
-                }
-            }
-        });
+        // Start the platform. This is a unary call and throws if the server returns an error.
+        //noinspection ResultOfMethodCallIgnored
+        nodeCommBlockingStub.start(startRequest);
 
         lifeCycle = RUNNING;
+
+        // Subscribe to the event stream on a self-healing client.
+        final NodeCommunicationServiceStub asyncStub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
+        eventStreamClient =
+                new EventStreamClient(selfId, asyncStub, receivedEvents, () -> lifeCycle == RUNNING, this::isAlive);
+        eventStreamClient.start();
     }
 
     /**
@@ -291,6 +270,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             // Mark the node as shutting down *before* sending the request to avoid race
             // conditions with the stream observer receiving an error.
             lifeCycle = SHUTDOWN;
+
+            // Stop the event stream client before killing the node so its re-subscribe loop treats the
+            // resulting stream end as expected rather than failing the test.
+            if (eventStreamClient != null) {
+                eventStreamClient.close();
+            }
 
             final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
                     .setTimeoutSeconds((int) timeout.getSeconds())
@@ -529,6 +514,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
 
         log.info("Destroying container of node {}...", selfId);
+        if (eventStreamClient != null) {
+            eventStreamClient.close();
+        }
         containerControlChannel.shutdownNow();
         nodeCommChannel.shutdownNow();
         if (container.isRunning()) {
@@ -668,6 +656,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUND ->
                     resultsCollector.addConsensusRound(ProtobufConverter.toPlatform(event.getConsensusRound()));
+                case SYNC_POINT -> handleSyncPoint(event);
                 default -> log.warn("Received unexpected event: {}", event);
             }
         }
@@ -683,6 +672,26 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             resultsCollector.addPlatformStatus(newStatus);
         } catch (final IllegalArgumentException e) {
             log.warn("Received unknown platform status: {}", statusName);
+        }
+    }
+
+    /**
+     * Applies the status snapshot carried by a sync point to the cached {@link #platformStatus}. A sync
+     * point is a snapshot delivered at the start of a (re-)subscription, not a transition, so it is
+     * deliberately <em>not</em> added to the results collector's status progression; doing so would
+     * inject a phantom transition on every reconnect.
+     */
+    private void handleSyncPoint(@NonNull final EventMessage value) {
+        final SyncPoint syncPoint = value.getSyncPoint();
+        final String statusName = syncPoint.getCurrentStatus();
+        if (statusName.isEmpty()) {
+            return;
+        }
+        log.info("Received sync point from node {} with current status: {}", selfId, statusName);
+        try {
+            platformStatus = PlatformStatus.valueOf(statusName);
+        } catch (final IllegalArgumentException e) {
+            log.warn("Received unknown platform status in sync point: {}", statusName);
         }
     }
 }
