@@ -91,6 +91,8 @@ public final class HashgraphInfo {
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
     private EventInfo[] candEventInfo; // for each node, the list of candidate events
     private long[] candStakeCollected; // the total stake of all votes collected, for each candidate event
+    private static RoundInfo latestRoundInfo; // the latest roundInfo passed to update() for any hashgraph instance
+    private static RoundInfoPrev latestRoundInfoPrev; // the latest roundInfoPrev passed to update()
 
     // define what each element in benchmarks[] currently means. Always at least 1. Elements 0/1 must never change
     private static final int BENCHMARK_UPDATE = 0; // time spent in update()
@@ -198,6 +200,10 @@ public final class HashgraphInfo {
     public int getCandCount() {
         return candCount;
     }
+
+    public static RoundInfo getLatestRoundInfo() {return latestRoundInfo;}
+
+    public static RoundInfoPrev getLatestRoundInfoPrev() {return latestRoundInfoPrev;}
 
     /**
      * the minimum birth round that counts as non-ancient, during the time when these two infos
@@ -625,6 +631,9 @@ public final class HashgraphInfo {
                 throw new IllegalArgumentException("roundInfo.pendingRound should be " + h.pendingRound + " or "
                         + (h.pendingRound + 1) + ", not " + roundInfo.pendingRound);
             }
+
+            HashgraphInfo.latestRoundInfo = roundInfo;
+            HashgraphInfo.latestRoundInfoPrev = roundInfoPrev;
 
             // if this is a new round (or the first called on this hashgraph), calculate the HashgraphInfo fields
             if (h.pendingRound != r.pendingRound) {

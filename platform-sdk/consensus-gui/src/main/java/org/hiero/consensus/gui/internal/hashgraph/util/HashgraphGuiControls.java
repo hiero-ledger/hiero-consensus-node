@@ -152,6 +152,17 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         return str;
     }
 
+    /** convert a long[] to a string */
+    private static String longsToString(long[] longs) {
+        String str = "[ ";
+        for (long n : longs) {
+            str += n + " ";
+        }
+        str += "]";
+        return str;
+    }
+
+    /** convert an EventInfo to a string that is its event ID, or "-" if null */
     private static String eventID(HashgraphInfo.EventInfo event) {
         return (event == null) ? "-" : ("" + event.getEventID());
     }
@@ -185,6 +196,14 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n       isConsensus  " + eventInfo.isConsensus();
                 str += "\n    consensusOrder  " + eventInfo.getConsensusOrder();
                 str += "\nconsensusTimestamp  " + eventInfo.getConsensusTimestamp();
+                str += "\n";
+                str += "\nLATEST ROUND INFO";
+                str += "\n       pendingRound " + HashgraphInfo.getLatestRoundInfo().pendingRound();
+                str += "\n              nodes " + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
+                str += "\n              stake " + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
+                str += "\n";
+                str += "\nLATEST ROUND INFO PREV";
+                str += "\npendingRound        " + HashgraphInfo.getLatestRoundInfoPrev().pendingRound();
             } catch (Exception e) {
                 str = "\n" + e.toString() + "\n" + e.getMessage();
             }
