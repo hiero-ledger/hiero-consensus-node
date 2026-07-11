@@ -16,6 +16,7 @@ import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.model.Triage;
 import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
+import org.hiero.consensus.kbfreshness.util.Markdown;
 import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
@@ -167,7 +168,7 @@ public final class ReportRenderer {
     private static String countList(final Map<? extends Enum<?>, Integer> counts) {
         final List<String> parts = new ArrayList<>();
         for (final Map.Entry<? extends Enum<?>, Integer> e : counts.entrySet()) {
-            parts.add(e.getKey().name().toLowerCase().replace('_', ' ') + " " + e.getValue());
+            parts.add(Markdown.humanize(e.getKey()) + " " + e.getValue());
         }
         return parts.isEmpty() ? "none" : String.join(", ", parts);
     }
@@ -336,7 +337,7 @@ public final class ReportRenderer {
             sb.append("- **")
                     .append(label(f))
                     .append("** (")
-                    .append(f.kind().name().toLowerCase().replace('_', ' '))
+                    .append(Markdown.humanize(f.kind()))
                     .append(") `")
                     .append(f.target())
                     .append("` — id `")

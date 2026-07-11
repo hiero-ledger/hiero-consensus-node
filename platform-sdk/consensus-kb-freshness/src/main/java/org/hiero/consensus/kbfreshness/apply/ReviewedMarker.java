@@ -7,9 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
+import org.hiero.consensus.kbfreshness.util.Patterns;
 
 /**
  * Applies {@code --mark-reviewed}: mechanically bumps a topic's {@code last_reviewed:} frontmatter
@@ -19,9 +19,6 @@ import org.hiero.consensus.kbfreshness.extract.KbDocument;
  * invented), the entry key must resolve unambiguously, and the date must be ISO {@code yyyy-MM-dd}.
  */
 public final class ReviewedMarker {
-
-    /** Matches an ISO {@code yyyy-MM-dd} date. */
-    private static final Pattern ISO_DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 
     /** The frontmatter key this applier rewrites. */
     private static final String KEY = "last_reviewed";
@@ -60,7 +57,7 @@ public final class ReviewedMarker {
             final int eq = spec.indexOf('=');
             final String key = (eq >= 0 ? spec.substring(0, eq) : spec).strip();
             final String date = (eq >= 0 ? spec.substring(eq + 1) : defaultDate).strip();
-            if (!ISO_DATE.matcher(date).matches()) {
+            if (!Patterns.ISO_DATE.matcher(date).matches()) {
                 problems.add("`" + spec + "`: no ISO yyyy-MM-dd date (append `=<date>` or pass --date)");
                 continue;
             }

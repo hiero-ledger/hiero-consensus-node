@@ -22,6 +22,9 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
+import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
+import org.hiero.consensus.kbfreshness.util.Markdown;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Renders non-asserting "did you mean" hints for gone targets: a cited doc, source path, bare source
@@ -94,7 +97,7 @@ public final class SuggestionsRenderer {
             final Map<String, Set<String>> tokensByPath = new HashMap<>();
             final Map<String, Integer> tokenFreq = new HashMap<>();
             for (final String p : paths) {
-                final Set<String> tokens = new TreeSet<>(sigTokens(stem(baseName(p))));
+                final Set<String> tokens = new TreeSet<>(sigTokens(RepoPaths.stripExtension(RepoPaths.lastSegment(p))));
                 final String title = titleByPath.get(p);
                 if (title != null) {
                     tokens.addAll(sigTokens(title));
@@ -244,8 +247,8 @@ public final class SuggestionsRenderer {
             }
             final String oldPkg = f.kind() == AnchorKind.CLASS
                     ? f.target().substring(0, f.target().indexOf("." + f.citedScope()))
-                    : dottedPackageOf(f.target());
-            final String newPkg = dottedPackageOf(f.resolvedPath());
+                    : SourceIndex.dottedPackageOf(f.target());
+            final String newPkg = SourceIndex.dottedPackageOf(f.resolvedPath());
             if (oldPkg == null || oldPkg.equals(newPkg)) {
                 continue;
             }
@@ -304,8 +307,7 @@ public final class SuggestionsRenderer {
         boolean inFence = false;
         for (int i = 0; i < doc.lines().size(); i++) {
             final String line = doc.lines().get(i);
-            final String stripped = line.strip();
-            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
+            if (Markdown.isFenceDelimiter(line)) {
                 inFence = !inFence;
                 continue;
             }
@@ -314,23 +316,6 @@ public final class SuggestionsRenderer {
             }
         }
         return lines;
-    }
-
-    /**
-     * The dotted package of a repo-relative source path: the directories between {@code src/main/java/}
-     * and the file name.
-     *
-     * @param repoRelPath the repo-relative source path.
-     * @return the dotted package, or {@code null} when the path has no main-source tree.
-     */
-    private static String dottedPackageOf(final String repoRelPath) {
-        final int tree = repoRelPath.indexOf("/src/main/java/");
-        final int lastSlash = repoRelPath.lastIndexOf('/');
-        final int pkgStart = tree + "/src/main/java/".length();
-        if (tree < 0 || lastSlash <= pkgStart) {
-            return null;
-        }
-        return repoRelPath.substring(pkgStart, lastSlash).replace('/', '.');
     }
 
     /**
@@ -462,10 +447,10 @@ public final class SuggestionsRenderer {
      * @return the unique same-basename doc path, or {@code null}.
      */
     private static String uniqueBasenameDoc(final String gone, final String self, final List<String> docPaths) {
-        final String basename = baseName(gone);
+        final String basename = RepoPaths.lastSegment(gone);
         String match = null;
         for (final String p : docPaths) {
-            if (!p.equals(gone) && !p.equals(self) && baseName(p).equals(basename)) {
+            if (!p.equals(gone) && !p.equals(self) && RepoPaths.lastSegment(p).equals(basename)) {
                 if (match != null) {
                     return null;
                 }
@@ -531,21 +516,21 @@ public final class SuggestionsRenderer {
             if (rename == null) {
                 // No rename recorded — a deletion commit explains where the target went (or that it is
                 // simply gone). Bare and abbreviated citations are traced by basename pathspec.
-                final String pathspec = hasPath && !gone.contains("/.../") ? gone : "*/" + baseName(gone);
+                final String pathspec = hasPath && !gone.contains("/.../") ? gone : "*/" + RepoPaths.lastSegment(gone);
                 deletion = git.findDeletion(pathspec);
             }
         }
 
         final List<Scored> scored = new ArrayList<>();
         if (rename == null) {
-            final String goneStem = stem(baseName(gone));
+            final String goneStem = RepoPaths.stripExtension(RepoPaths.lastSegment(gone));
             final Set<String> goneTokens = sigTokens(goneStem);
             final Set<String> seen = new HashSet<>();
             for (final String cand : candidates.paths()) {
                 if (cand.equals(gone) || cand.equals(self)) {
                     continue;
                 }
-                double score = similarity(goneStem, stem(baseName(cand)));
+                double score = similarity(goneStem, RepoPaths.stripExtension(RepoPaths.lastSegment(cand)));
                 final Set<String> candTokens = candidates.tokensByPath().get(cand);
                 score = Math.max(score, tokenSignals(goneTokens, candTokens, candidates.tokenFreq()));
                 if (score >= THRESHOLD && seen.add(cand)) {
@@ -596,7 +581,7 @@ public final class SuggestionsRenderer {
      * @return the slug used in a frontmatter {@code topics:} list.
      */
     private static String slug(final String docPath) {
-        return stem(baseName(docPath));
+        return RepoPaths.stripExtension(RepoPaths.lastSegment(docPath));
     }
 
     /**
@@ -671,28 +656,6 @@ public final class SuggestionsRenderer {
             }
         }
         return tokens;
-    }
-
-    /**
-     * The last {@code /}-separated segment of a path (or the whole string if it has no slash).
-     *
-     * @param path the path.
-     * @return the final segment.
-     */
-    private static String baseName(final String path) {
-        final int slash = path.lastIndexOf('/');
-        return slash >= 0 ? path.substring(slash + 1) : path;
-    }
-
-    /**
-     * A filename with its first-dot extension removed.
-     *
-     * @param name the filename.
-     * @return the name up to the first dot, or the whole name if it has none.
-     */
-    private static String stem(final String name) {
-        final int dot = name.indexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
     }
 
     /**

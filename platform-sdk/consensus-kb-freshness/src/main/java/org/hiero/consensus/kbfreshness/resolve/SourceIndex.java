@@ -78,7 +78,7 @@ public final class SourceIndex {
                             final String rel = root.relativize(p).toString().replace('\\', '/');
                             map.computeIfAbsent(basename, k -> new ArrayList<>())
                                     .add(rel);
-                            final String pkg = packageOfIndexedPath(rel);
+                            final String pkg = dottedPackageOf(rel);
                             if (pkg != null) {
                                 packages.add(pkg);
                             }
@@ -98,14 +98,15 @@ public final class SourceIndex {
     }
 
     /**
-     * The dotted package of an indexed source path: the directories between {@code src/main/java/} and
-     * the file name.
+     * The dotted package of a repo-relative source path: the directories between {@code src/main/java/}
+     * and the file name. Shared with the renderers so a moved citation's old and new packages are
+     * derived the same way the index derives them.
      *
      * @param repoRelPath the repo-relative, forward-slashed source path.
      * @return the dotted package, or {@code null} when the path has no main-source tree or the file
      *     sits in the default package.
      */
-    private static String packageOfIndexedPath(final String repoRelPath) {
+    public static String dottedPackageOf(final String repoRelPath) {
         final int tree = repoRelPath.indexOf(MAIN_SOURCE_TREE);
         final int lastSlash = repoRelPath.lastIndexOf('/');
         final int pkgStart = tree + MAIN_SOURCE_TREE.length();

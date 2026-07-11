@@ -21,6 +21,8 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ParsedFile;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
+import org.hiero.consensus.kbfreshness.util.Markdown;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Resolves an {@link Anchor} to a three-valued {@link Resolution}. Precision is the mandate: an
@@ -166,7 +168,7 @@ public final class AnchorResolver {
         if (!candidates.isEmpty()) {
             final Set<String> modules = new TreeSet<>();
             for (final String p : candidates) {
-                final String m = moduleOfPath(p);
+                final String m = RepoPaths.moduleOf(p);
                 modules.add(m == null ? p : m);
             }
             final String resolvedPath = candidates.size() == 1 ? candidates.get(0) : null;
@@ -338,8 +340,8 @@ public final class AnchorResolver {
      */
     private Resolution resolveSourcePath(final Anchor a) {
         final String target = a.target();
-        final String basename = lastSegment(target);
-        final String simpleName = stripExt(basename);
+        final String basename = RepoPaths.lastSegment(target);
+        final String simpleName = RepoPaths.stripExtension(basename);
         final String q = "source exists: " + target;
 
         if (a.historical()) {
@@ -363,7 +365,7 @@ public final class AnchorResolver {
         }
 
         if (!abbreviated && index.fileExists(target)) {
-            final String actualModule = moduleOfPath(target);
+            final String actualModule = RepoPaths.moduleOf(target);
             if (a.statedModule() != null
                     && actualModule != null
                     && !a.statedModule().equals(actualModule)) {
@@ -392,7 +394,7 @@ public final class AnchorResolver {
         final List<String> paths = index.pathsForBasename(basename);
         final List<String> inCitedModule = new ArrayList<>();
         for (final String p : paths) {
-            if (a.citedModule() != null && a.citedModule().equals(moduleOfPath(p))) {
+            if (a.citedModule() != null && a.citedModule().equals(RepoPaths.moduleOf(p))) {
                 inCitedModule.add(p);
             }
         }
@@ -404,7 +406,7 @@ public final class AnchorResolver {
             // With exactly one candidate, the resolved path also drives a path-rewrite auto-fix proposal.
             final Set<String> modules = new TreeSet<>();
             for (final String p : paths) {
-                final String m = moduleOfPath(p);
+                final String m = RepoPaths.moduleOf(p);
                 modules.add(m == null ? p : m);
             }
             final String resolvedPath = paths.size() == 1 ? paths.get(0) : null;
@@ -445,7 +447,7 @@ public final class AnchorResolver {
      */
     private Resolution resolveSourceBasename(final Anchor a) {
         final String basename = a.target();
-        final String simpleName = stripExt(basename);
+        final String simpleName = RepoPaths.stripExtension(basename);
         final String q = "source exists: " + basename;
 
         if (a.historical()) {
@@ -513,7 +515,7 @@ public final class AnchorResolver {
         final String classFile = className + ".java";
         String resolvedPath = null;
         for (final String p : index.pathsForBasename(classFile)) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
+            if (a.citedModule() == null || a.citedModule().equals(RepoPaths.moduleOf(p))) {
                 resolvedPath = p;
                 break;
             }
@@ -557,7 +559,7 @@ public final class AnchorResolver {
         final String q = "method `" + className + "#" + method + "` resolves at cited line";
         String resolvedPath = null;
         for (final String p : index.pathsForBasename(className + ".java")) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
+            if (a.citedModule() == null || a.citedModule().equals(RepoPaths.moduleOf(p))) {
                 resolvedPath = p;
                 break;
             }
@@ -622,7 +624,7 @@ public final class AnchorResolver {
 
         String resolvedPath = null;
         for (final String p : index.pathsForBasename(className + ".java")) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
+            if (a.citedModule() == null || a.citedModule().equals(RepoPaths.moduleOf(p))) {
                 resolvedPath = p;
                 break;
             }
@@ -810,7 +812,7 @@ public final class AnchorResolver {
             try {
                 boolean inFence = false;
                 for (final String line : Files.readAllLines(repoRoot.resolve(path))) {
-                    if (line.strip().startsWith("```") || line.strip().startsWith("~~~")) {
+                    if (Markdown.isFenceDelimiter(line)) {
                         inFence = !inFence;
                         continue;
                     }
@@ -849,43 +851,5 @@ public final class AnchorResolver {
             // other punctuation dropped
         }
         return sb.toString();
-    }
-
-    /**
-     * The module directory of a repo-relative path (the segment preceding {@code src}).
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the module directory name, or {@code null} if the path has no {@code src} segment.
-     */
-    static String moduleOfPath(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 1; i < parts.length; i++) {
-            if (parts[i].equals("src")) {
-                return parts[i - 1];
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The last {@code /}-separated segment of a path.
-     *
-     * @param path the path.
-     * @return the final segment, or the whole path if it contains no slash.
-     */
-    private static String lastSegment(final String path) {
-        final int slash = path.lastIndexOf('/');
-        return slash >= 0 ? path.substring(slash + 1) : path;
-    }
-
-    /**
-     * A filename with its first extension (and anything after) removed.
-     *
-     * @param name the filename.
-     * @return the name up to the first dot, or the whole name if it has no leading-dot extension.
-     */
-    private static String stripExt(final String name) {
-        final int dot = name.indexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
     }
 }

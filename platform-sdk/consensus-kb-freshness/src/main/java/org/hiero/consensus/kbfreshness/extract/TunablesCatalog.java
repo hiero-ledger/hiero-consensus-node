@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.consensus.kbfreshness.util.Markdown;
+import org.hiero.consensus.kbfreshness.util.Patterns;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Parses the structure of the tunables catalog ({@code tunables.md}): one section per config record —
@@ -16,8 +19,8 @@ import java.util.regex.Pattern;
 public final class TunablesCatalog {
 
     /** Matches a prefixed section heading, capturing the config prefix and the record class name. */
-    private static final Pattern PREFIXED_HEADING =
-            Pattern.compile("^##\\s+`([A-Za-z0-9_.]+)\\.\\*`\\s*(?:\\u2014|--)\\s*([A-Za-z_$][A-Za-z0-9_$]*)\\s*$");
+    private static final Pattern PREFIXED_HEADING = Pattern.compile(
+            "^##\\s+`([A-Za-z0-9_.]+)\\.\\*`\\s*" + Patterns.DASH_SEP + "\\s*([A-Za-z_$][A-Za-z0-9_$]*)\\s*$");
 
     /** Matches a no-prefix section heading, capturing the record class name. */
     private static final Pattern BARE_HEADING =
@@ -25,9 +28,6 @@ public final class TunablesCatalog {
 
     /** Matches any other level-2 heading (ends the current section without starting one). */
     private static final Pattern OTHER_HEADING = Pattern.compile("^##\\s+.*$");
-
-    /** Matches the section's prose {@code Module: `name`} label, capturing the module name. */
-    private static final Pattern MODULE_LABEL = Pattern.compile("Module:\\s*`([A-Za-z0-9._-]+)`");
 
     /** Matches the section's {@code Source: [text](url)} link, capturing the URL. */
     private static final Pattern SOURCE_LINK = Pattern.compile("Source:\\s*\\[[^\\]]*\\]\\(([^)\\s]+)\\)");
@@ -77,7 +77,7 @@ public final class TunablesCatalog {
      */
     public static List<Section> parse(final KbDocument doc) {
         final List<Section> sections = new ArrayList<>();
-        final String docDir = parentDir(doc.entry().relativePath());
+        final String docDir = RepoPaths.parentDir(doc.entry().relativePath());
         String prefix = null;
         String className = null;
         int headingLine = 0;
@@ -92,8 +92,7 @@ public final class TunablesCatalog {
         for (int i = 0; i < lines.size(); i++) {
             final String line = lines.get(i);
             final int fileLine = i + 1;
-            final String stripped = line.strip();
-            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
+            if (Markdown.isFenceDelimiter(line)) {
                 inFence = !inFence;
                 continue;
             }
@@ -133,9 +132,9 @@ public final class TunablesCatalog {
             if (sourcePath == null) {
                 final Matcher src = SOURCE_LINK.matcher(line);
                 if (src.find()) {
-                    sourcePath = AnchorExtractor.resolveRelative(docDir, src.group(1));
+                    sourcePath = RepoPaths.resolveRelative(docDir, src.group(1));
                     sourceLine = fileLine;
-                    final Matcher mod = MODULE_LABEL.matcher(line);
+                    final Matcher mod = Patterns.MODULE_LABEL.matcher(line);
                     if (mod.find()) {
                         moduleLabel = mod.group(1);
                     }
@@ -166,16 +165,5 @@ public final class TunablesCatalog {
             t = t.substring(1, t.length() - 1);
         }
         return t.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
-    }
-
-    /**
-     * Returns the parent directory portion of a repo-relative path.
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the parent directory, or an empty string if the path has no directory component.
-     */
-    private static String parentDir(final String repoRelPath) {
-        final int slash = repoRelPath.replace('\\', '/').lastIndexOf('/');
-        return slash >= 0 ? repoRelPath.substring(0, slash) : "";
     }
 }

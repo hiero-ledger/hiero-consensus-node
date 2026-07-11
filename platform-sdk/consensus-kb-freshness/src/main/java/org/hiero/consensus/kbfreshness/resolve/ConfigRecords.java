@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * A deterministic scan of every indexed {@code @ConfigData} record. The scan covers indexed
@@ -30,7 +31,7 @@ public final class ConfigRecords {
          * @return the module name, or {@code null} if the path has no {@code src} segment.
          */
         public String module() {
-            return AnchorResolver.moduleOfPath(path);
+            return RepoPaths.moduleOf(path);
         }
     }
 
@@ -76,7 +77,7 @@ public final class ConfigRecords {
      * @return {@code true} when the module's own source set is {@code src/main/java}.
      */
     private static boolean isMainSource(final String repoRelPath) {
-        final String module = AnchorResolver.moduleOfPath(repoRelPath);
+        final String module = RepoPaths.moduleOf(repoRelPath);
         return module != null && repoRelPath.contains("/" + module + "/src/main/java/");
     }
 }

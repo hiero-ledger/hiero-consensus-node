@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.extract.AnchorExtractor;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.git.Git;
@@ -15,6 +14,8 @@ import org.hiero.consensus.kbfreshness.model.Anchor;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
+import org.hiero.consensus.kbfreshness.util.Patterns;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Builds the semantic worklist: for each architecture topic/interface, whether any anchored source
@@ -22,9 +23,6 @@ import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
  * history. The result scopes the Tier-3 semantic pass so it re-reads only topics whose code moved.
  */
 public final class WorklistBuilder {
-
-    /** Matches an ISO {@code yyyy-MM-dd} date used as a {@code last_reviewed} marker. */
-    private static final Pattern ISO_DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 
     /** The absolute, normalized repository root. */
     private final Path repoRoot;
@@ -91,7 +89,8 @@ public final class WorklistBuilder {
 
         final List<String> sourcePaths = anchoredSourcePaths(doc);
         final int anchorCount = sourcePaths.size();
-        if (lastReviewed == null || !ISO_DATE.matcher(lastReviewed.strip()).matches()) {
+        if (lastReviewed == null
+                || !Patterns.ISO_DATE.matcher(lastReviewed.strip()).matches()) {
             // No usable freshness marker — always route to review.
             return new WorklistEntry(
                     key, path, lastReviewed, WorklistEntry.Status.REVIEW, null, List.of(), anchorCount);
@@ -211,7 +210,7 @@ public final class WorklistBuilder {
         }
         final List<String> resolved = new ArrayList<>();
         for (final String p : index.pathsForBasename(basename)) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOf(p))) {
+            if (a.citedModule() == null || a.citedModule().equals(RepoPaths.moduleOf(p))) {
                 resolved.add(p);
             }
         }
@@ -229,21 +228,5 @@ public final class WorklistBuilder {
     private List<String> uniqueMove(final String basename) {
         final List<String> candidates = index.pathsForBasename(basename);
         return candidates.size() == 1 ? List.of(candidates.get(0)) : List.of();
-    }
-
-    /**
-     * The module directory of a repo-relative path (the segment preceding {@code src}).
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the module name, or {@code null} if the path has no {@code src} segment.
-     */
-    private static String moduleOf(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 1; i < parts.length; i++) {
-            if (parts[i].equals("src")) {
-                return parts[i - 1];
-            }
-        }
-        return null;
     }
 }

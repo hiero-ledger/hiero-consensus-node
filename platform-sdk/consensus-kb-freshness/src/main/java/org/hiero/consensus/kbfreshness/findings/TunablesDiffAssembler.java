@@ -25,6 +25,7 @@ import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.Hashing;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Tier-1/2 tunables-catalog checks. The catalog's own column conventions make each row mechanically
@@ -235,7 +236,7 @@ public final class TunablesDiffAssembler {
                         doc.entry().type(),
                         AnchorKind.CONFIG_KEY,
                         fqKey,
-                        moduleOf(owner.path()),
+                        RepoPaths.moduleOf(owner.path()),
                         owner.className(),
                         Outcome.PRESENT,
                         Lane.COVERAGE_GAP,
@@ -523,7 +524,7 @@ public final class TunablesDiffAssembler {
                 doc.entry().type(),
                 AnchorKind.CONFIG_PREFIX,
                 target,
-                moduleOf(target),
+                RepoPaths.moduleOf(target),
                 s.className(),
                 outcome,
                 lane,
@@ -562,7 +563,7 @@ public final class TunablesDiffAssembler {
                 doc.entry().type(),
                 AnchorKind.CONFIG_KEY,
                 row.key(),
-                moduleOf(owner.path()),
+                RepoPaths.moduleOf(owner.path()),
                 owner.className(),
                 outcome,
                 lane,
@@ -603,7 +604,7 @@ public final class TunablesDiffAssembler {
                 doc.entry().type(),
                 AnchorKind.CONFIG_DEFAULT,
                 row.key(),
-                moduleOf(owner.path()),
+                RepoPaths.moduleOf(owner.path()),
                 owner.className(),
                 outcome,
                 lane,
@@ -669,21 +670,5 @@ public final class TunablesDiffAssembler {
     private static String normalizeDefault(final String s) {
         final String t = s.strip().replaceAll("\\s+", " ");
         return t.equals("\"\"") || t.equals("(empty)") || t.equals("[]") ? "" : t;
-    }
-
-    /**
-     * The module directory of a repo-relative path (the segment preceding {@code src}).
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the module name, or {@code null} if the path has no {@code src} segment.
-     */
-    private static String moduleOf(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 1; i < parts.length; i++) {
-            if (parts[i].equals("src")) {
-                return parts[i - 1];
-            }
-        }
-        return null;
     }
 }

@@ -12,6 +12,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.model.Anchor;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
+import org.hiero.consensus.kbfreshness.util.Markdown;
+import org.hiero.consensus.kbfreshness.util.Patterns;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Extracts code citations ("anchors") from a {@link KbDocument}. Precision-first: only citations that
@@ -27,31 +30,38 @@ public final class AnchorExtractor {
     /** Matches a markdown link {@code [text](url)}, capturing the link text and the URL. */
     private static final Pattern MD_LINK = Pattern.compile("\\[([^\\]]*)\\]\\(([^)\\s]+)\\)");
 
-    /** Matches a bare catalog ID ({@code ADR}/{@code INV}/{@code RUL}/{@code SCN}/{@code HEU}/{@code SYM}/{@code TUN} plus three digits) on word boundaries. */
-    private static final Pattern CATALOG_ID = Pattern.compile("\\b(ADR|INV|RUL|SCN|HEU|SYM|TUN)-(\\d{3})\\b");
+    /** Matches a bare catalog ID (an inline-citable prefix plus three digits) on word boundaries. */
+    private static final Pattern CATALOG_ID = Pattern.compile("\\b(" + Patterns.ALL_CATALOG_PREFIXES + ")-(\\d{3})\\b");
 
-    /** Matches an abbreviated {@code module/.../File.java} (or {@code .proto}) path, capturing the module and file name. */
+    /** The source-file extensions the checker recognizes as a code citation. */
+    private static final String SOURCE_EXT = "(?:java|proto|kt)";
+
+    /** An optional trailing {@code :NN}/{@code :NN-MM} line hint, which is never asserted on. */
+    private static final String LINE_SUFFIX = "(?::\\d+(?:-\\d+)?)?";
+
+    /** Matches an abbreviated {@code module/.../File.<ext>} path, capturing the module and file name. */
     private static final Pattern ABBREV_PATH = Pattern.compile(
-            "([A-Za-z0-9][A-Za-z0-9._-]*)/\\.\\.\\./(?:[A-Za-z0-9/._-]*/)?([A-Za-z0-9_$]+\\.(?:java|proto))");
+            "([A-Za-z0-9][A-Za-z0-9._-]*)/\\.\\.\\./(?:[A-Za-z0-9/._-]*/)?([A-Za-z0-9_$]+\\." + SOURCE_EXT + ")");
 
     /** Matches an inline code span, capturing its content (no embedded backtick or newline). */
     private static final Pattern CODE_SPAN = Pattern.compile("`([^`\\n]+)`");
 
     /** Matches a full repo-relative source path (optionally with a non-asserting {@code :NN}/{@code :NN-MM} suffix). */
     private static final Pattern FULL_SOURCE_PATH =
-            Pattern.compile("^(platform-sdk/[A-Za-z0-9/._$-]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+            Pattern.compile("^(platform-sdk/[A-Za-z0-9/._$-]+\\." + SOURCE_EXT + ")" + LINE_SUFFIX + "$");
 
     /**
      * Matches a module-relative source path ({@code <module>/src/<set>/…/File.java}, the same convention
      * frontmatter {@code components:} uses), optionally with a non-asserting {@code :NN}/{@code :NN-MM}
      * suffix. The extractor prefixes {@code platform-sdk/}, mirroring the frontmatter normalization.
      */
-    private static final Pattern MODULE_RELATIVE_SOURCE_PATH = Pattern.compile(
-            "^([A-Za-z0-9][A-Za-z0-9._-]*/src/(?:main|test|testFixtures)/[A-Za-z0-9/._$-]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+    private static final Pattern MODULE_RELATIVE_SOURCE_PATH =
+            Pattern.compile("^([A-Za-z0-9][A-Za-z0-9._-]*/src/(?:main|test|testFixtures)/[A-Za-z0-9/._$-]+\\."
+                    + SOURCE_EXT + ")" + LINE_SUFFIX + "$");
 
     /** Matches a bare source-file basename (optional leading {@code ...}/{@code .../} ellipsis, non-asserting line suffix). */
     private static final Pattern BARE_SOURCE_FILE =
-            Pattern.compile("^(?:\\.{2,3}/?)?([A-Za-z0-9_$]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+            Pattern.compile("^(?:\\.{2,3}/?)?([A-Za-z0-9_$]+\\." + SOURCE_EXT + ")" + LINE_SUFFIX + "$");
 
     /**
      * Matches a fully-qualified type cited in a code span: lowercase package segments, then an
@@ -70,15 +80,13 @@ public final class AnchorExtractor {
     private static final Pattern PACKAGE_REF =
             Pattern.compile("^(?:com|org|net|io|java|javax|jakarta)(?:\\.[a-z][a-z0-9_]*){2,}$");
 
-    /** Matches a prose {@code Module: `name`} label, capturing the stated module name. */
-    private static final Pattern MODULE_LABEL = Pattern.compile("Module:\\s*`([A-Za-z0-9._-]+)`");
-
     // "path — `method`" or "path -- `method`": em dash (U+2014) or double hyphen separator.
     /** Matches a {@code verification:} value {@code path — `method`}, capturing the path and the method name. */
-    private static final Pattern VERIFICATION = Pattern.compile("^(\\S+)\\s*(?:\\u2014|--)\\s*`([A-Za-z0-9_$]+)`");
+    private static final Pattern VERIFICATION =
+            Pattern.compile("^(\\S+)\\s*" + Patterns.DASH_SEP + "\\s*`([A-Za-z0-9_$]+)`");
 
-    /** Matches a {@code path:line} suffix on a source file ({@code .java}/{@code .proto}/{@code .kt}), capturing the path and line number. */
-    private static final Pattern SOURCE_FILE_LINE = Pattern.compile("^(.*\\.(?:java|proto|kt)):(\\d+)$");
+    /** Matches a {@code path:line} suffix on a source file, capturing the path and line number. */
+    private static final Pattern SOURCE_FILE_LINE = Pattern.compile("^(.*\\." + SOURCE_EXT + "):(\\d+)$");
 
     // Link text naming a method: `Class::method`, `Class.method`, optionally with `()`.
     /** Matches link text naming a method ({@code Class::method}, {@code Class.method}, optionally with {@code ()}), capturing the class and method names. */
@@ -147,7 +155,8 @@ public final class AnchorExtractor {
             final boolean isSource = a.kind() == AnchorKind.SOURCE_PATH || a.kind() == AnchorKind.SOURCE_BASENAME;
             final boolean fqnOfListed = a.kind() == AnchorKind.CLASS
                     && (names.contains(a.target()) || names.contains(a.citedScope() + ".java"));
-            if ((isSource && (names.contains(a.target()) || names.contains(lastSegment(a.target())))) || fqnOfListed) {
+            if ((isSource && (names.contains(a.target()) || names.contains(RepoPaths.lastSegment(a.target()))))
+                    || fqnOfListed) {
                 marked.add(a.asHistorical());
             } else {
                 marked.add(a);
@@ -175,7 +184,7 @@ public final class AnchorExtractor {
             for (final String c : components) {
                 final String repoRel = "platform-sdk/" + normalizeSlashes(c);
                 out.add(new Anchor(
-                        AnchorKind.SOURCE_PATH, repoRel, moduleOfPath(repoRel), null, base, Anchor.NO_LINE, c));
+                        AnchorKind.SOURCE_PATH, repoRel, RepoPaths.moduleOf(repoRel), null, base, Anchor.NO_LINE, c));
             }
         }
 
@@ -187,8 +196,8 @@ public final class AnchorExtractor {
             if (m.find()) {
                 final String path = "platform-sdk/" + normalizeSlashes(m.group(1));
                 final String method = m.group(2);
-                final String module = moduleOfPath(path);
-                final String className = classNameOfPath(path);
+                final String module = RepoPaths.moduleOf(path);
+                final String className = RepoPaths.classNameOfPath(path);
                 out.add(new Anchor(AnchorKind.SOURCE_PATH, path, module, null, line, Anchor.NO_LINE, m.group(1)));
                 out.add(new Anchor(
                         AnchorKind.METHOD_ON_CLASS,
@@ -237,7 +246,7 @@ public final class AnchorExtractor {
         final List<String> lines = doc.lines();
         final String ownKey = doc.entry().key();
         final int bodyStart = doc.frontmatter().bodyLine();
-        final String docDir = parentDir(doc.entry().relativePath());
+        final String docDir = RepoPaths.parentDir(doc.entry().relativePath());
 
         // A fence-and-comment-blanked copy of the body (one entry per file line, line count preserved)
         // drives the whole-body markdown-link and code-span passes; lineStart maps a match offset back to
@@ -254,13 +263,12 @@ public final class AnchorExtractor {
             lineStart[idx] = body.length();
             final String rawLine = lines.get(idx);
             final int fileLine = idx + 1;
-            final String stripped = rawLine.strip();
 
             if (idx < bodyStart - 1) {
                 body.append('\n'); // frontmatter: keep line offsets but nothing to match.
                 continue;
             }
-            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
+            if (Markdown.isFenceDelimiter(rawLine)) {
                 inFence = !inFence;
                 body.append('\n');
                 continue;
@@ -297,7 +305,7 @@ public final class AnchorExtractor {
             }
 
             // Prose "Module: `x`" label for the adjacent source link on this same line.
-            final Matcher mod = MODULE_LABEL.matcher(line);
+            final Matcher mod = Patterns.MODULE_LABEL.matcher(line);
             if (mod.find()) {
                 statedModuleByLine.put(fileLine, mod.group(1));
             }
@@ -344,13 +352,15 @@ public final class AnchorExtractor {
         final Matcher full = FULL_SOURCE_PATH.matcher(span);
         if (full.matches()) {
             final String path = full.group(1);
-            out.add(new Anchor(AnchorKind.SOURCE_PATH, path, moduleOfPath(path), null, fileLine, Anchor.NO_LINE, span));
+            out.add(new Anchor(
+                    AnchorKind.SOURCE_PATH, path, RepoPaths.moduleOf(path), null, fileLine, Anchor.NO_LINE, span));
             return;
         }
         final Matcher moduleRel = MODULE_RELATIVE_SOURCE_PATH.matcher(span);
         if (moduleRel.matches()) {
             final String path = "platform-sdk/" + moduleRel.group(1);
-            out.add(new Anchor(AnchorKind.SOURCE_PATH, path, moduleOfPath(path), null, fileLine, Anchor.NO_LINE, span));
+            out.add(new Anchor(
+                    AnchorKind.SOURCE_PATH, path, RepoPaths.moduleOf(path), null, fileLine, Anchor.NO_LINE, span));
             return;
         }
         final Matcher bare = BARE_SOURCE_FILE.matcher(span);
@@ -469,7 +479,7 @@ public final class AnchorExtractor {
 
         final String lower = pathPart.toLowerCase();
         if (lower.endsWith(".md")) {
-            final String repoRel = resolveRelative(docDir, pathPart);
+            final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
             out.add(new Anchor(AnchorKind.CROSS_DOC_LINK, repoRel, null, null, fileLine, Anchor.NO_LINE, url));
             if (fragment != null && !fragment.isEmpty()) {
                 out.add(new Anchor(
@@ -482,8 +492,8 @@ public final class AnchorExtractor {
                         url));
             }
         } else if (lower.endsWith(".java") || lower.endsWith(".proto") || lower.endsWith(".kt")) {
-            final String repoRel = resolveRelative(docDir, pathPart);
-            final String module = moduleOfPath(repoRel);
+            final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
+            final String module = RepoPaths.moduleOf(repoRel);
             // File-existence check carries no line: a bare `File.java:NN` link is ambiguous (the KB
             // uses it for members too), so line-move detection is done only for named-method links.
             out.add(new Anchor(
@@ -495,7 +505,7 @@ public final class AnchorExtractor {
                             AnchorKind.METHOD_REF,
                             method,
                             module,
-                            classNameOfPath(pathPart),
+                            RepoPaths.classNameOfPath(pathPart),
                             fileLine,
                             citedLine,
                             url));
@@ -506,16 +516,22 @@ public final class AnchorExtractor {
                             AnchorKind.METHOD_SIGNATURE,
                             signature,
                             module,
-                            classNameOfPath(pathPart),
+                            RepoPaths.classNameOfPath(pathPart),
                             fileLine,
                             Anchor.NO_LINE,
                             url));
                 }
             }
         } else if (isDirectoryLink(pathPart)) {
-            final String repoRel = resolveRelative(docDir, pathPart);
+            final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
             out.add(new Anchor(
-                    AnchorKind.MODULE_DIR, repoRel, lastSegment(repoRel), null, fileLine, Anchor.NO_LINE, url));
+                    AnchorKind.MODULE_DIR,
+                    repoRel,
+                    RepoPaths.lastSegment(repoRel),
+                    null,
+                    fileLine,
+                    Anchor.NO_LINE,
+                    url));
         }
     }
 
@@ -556,36 +572,6 @@ public final class AnchorExtractor {
     }
 
     /**
-     * Derives the module name from a repo-relative path: the segment immediately preceding the first
-     * {@code src} segment.
-     *
-     * @param repoRelPath the repo-relative, forward-slashed path.
-     * @return the module name, or {@code null} if the path has no {@code src} segment (or {@code src}
-     *     is the first segment).
-     */
-    static String moduleOfPath(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 0; i < parts.length - 1; i++) {
-            if (parts[i].equals("src")) {
-                return i > 0 ? parts[i - 1] : null;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Derives the class name from a path: the file name's last segment up to its first dot.
-     *
-     * @param path the path (repo-relative or otherwise).
-     * @return the class name (extension stripped).
-     */
-    static String classNameOfPath(final String path) {
-        final String name = lastSegment(path);
-        final int dot = name.indexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
-    }
-
-    /**
      * Heuristically decides whether a link target names a directory: it contains a slash and its last
      * segment is non-empty and extension-less.
      *
@@ -593,44 +579,8 @@ public final class AnchorExtractor {
      * @return {@code true} if the target looks like a directory link.
      */
     private static boolean isDirectoryLink(final String pathPart) {
-        final String last = lastSegment(pathPart);
+        final String last = RepoPaths.lastSegment(pathPart);
         return pathPart.contains("/") && !last.isEmpty() && !last.contains(".");
-    }
-
-    /**
-     * Returns the last path segment, ignoring a single trailing slash.
-     *
-     * @param path the path.
-     * @return the final segment, or the whole (de-slashed) path if it has no slash.
-     */
-    private static String lastSegment(final String path) {
-        final String p = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
-        final int slash = p.lastIndexOf('/');
-        return slash >= 0 ? p.substring(slash + 1) : p;
-    }
-
-    /**
-     * Returns the parent directory portion of a repo-relative path.
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the parent directory, or an empty string if the path has no directory component.
-     */
-    private static String parentDir(final String repoRelPath) {
-        final int slash = repoRelPath.replace('\\', '/').lastIndexOf('/');
-        return slash >= 0 ? repoRelPath.substring(0, slash) : "";
-    }
-
-    /**
-     * Resolves {@code rel} against {@code baseDir} (both repo-relative), normalizing {@code ..}.
-     *
-     * @param baseDir the repo-relative base directory.
-     * @param rel     the path to resolve against the base.
-     * @return the normalized, forward-slashed repo-relative path.
-     */
-    static String resolveRelative(final String baseDir, final String rel) {
-        final Path base = baseDir.isEmpty() ? Path.of("") : Path.of(baseDir);
-        final String normalized = base.resolve(rel).normalize().toString().replace('\\', '/');
-        return normalized;
     }
 
     /**

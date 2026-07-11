@@ -16,6 +16,8 @@ import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
+import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * The single source of truth for deterministic auto-fix edits: a citation that still resolves but is
@@ -169,7 +171,7 @@ public final class AutoFix {
                             : rewriteModuleLabel(
                                     rewritePath(before, f.target(), f.resolvedPath()),
                                     f.statedModule(),
-                                    moduleOf(f.resolvedPath()));
+                                    RepoPaths.moduleOf(f.resolvedPath()));
                     if (!after.equals(before)) {
                         edit = new Edit(f.entryPath(), diffLine, before, after);
                     }
@@ -234,31 +236,14 @@ public final class AutoFix {
      * @return the new FQN, or {@code null} when the resolved path carries no main-source package.
      */
     private static String fqnOfMove(final Finding f) {
-        final String pkg = dottedPackageOf(f.resolvedPath());
+        final String pkg = SourceIndex.dottedPackageOf(f.resolvedPath());
         if (pkg == null) {
             return null;
         }
         final String primary = f.citedScope();
         final int primaryAt = f.target().indexOf("." + primary);
         final String nestedSuffix = f.target().substring(primaryAt + 1 + primary.length());
-        return pkg + "." + stripExt(lastSegment(f.resolvedPath())) + nestedSuffix;
-    }
-
-    /**
-     * The dotted package of a repo-relative source path: the directories between {@code src/main/java/}
-     * and the file name.
-     *
-     * @param repoRelPath the repo-relative source path.
-     * @return the dotted package, or {@code null} when the path has no main-source tree.
-     */
-    private static String dottedPackageOf(final String repoRelPath) {
-        final int tree = repoRelPath.indexOf("/src/main/java/");
-        final int lastSlash = repoRelPath.lastIndexOf('/');
-        final int pkgStart = tree + "/src/main/java/".length();
-        if (tree < 0 || lastSlash <= pkgStart) {
-            return null;
-        }
-        return repoRelPath.substring(pkgStart, lastSlash).replace('/', '.');
+        return pkg + "." + RepoPaths.stripExtension(RepoPaths.lastSegment(f.resolvedPath())) + nestedSuffix;
     }
 
     /**
@@ -339,17 +324,17 @@ public final class AutoFix {
      */
     private static String rewritePathStyles(final String line, final String oldPath, final String newPath) {
         if (oldPath.contains("/.../")) {
-            final String newModule = moduleOf(newPath);
+            final String newModule = RepoPaths.moduleOf(newPath);
             if (newModule != null && line.contains(oldPath)) {
-                return line.replace(oldPath, newModule + "/.../" + lastSegment(newPath));
+                return line.replace(oldPath, newModule + "/.../" + RepoPaths.lastSegment(newPath));
             }
             return line;
         }
         if (line.contains(oldPath)) {
             return line.replace(oldPath, newPath);
         }
-        final String oldRel = withoutFirstSegment(oldPath);
-        final String newRel = withoutFirstSegment(newPath);
+        final String oldRel = RepoPaths.withoutFirstSegment(oldPath);
+        final String newRel = RepoPaths.withoutFirstSegment(newPath);
         if (oldRel != null && newRel != null && line.contains(oldRel)) {
             return line.replace(oldRel, newRel);
         }
@@ -367,14 +352,14 @@ public final class AutoFix {
      * @return the line with renamed-class mentions updated.
      */
     private static String rewriteRename(final String line, final String oldPath, final String newPath) {
-        final String oldBase = lastSegment(oldPath);
-        final String newBase = lastSegment(newPath);
+        final String oldBase = RepoPaths.lastSegment(oldPath);
+        final String newBase = RepoPaths.lastSegment(newPath);
         if (oldBase.equals(newBase)) {
             return line;
         }
         String out = line.replace(oldBase, newBase);
-        final String oldStem = stripExt(oldBase);
-        final String newStem = stripExt(newBase);
+        final String oldStem = RepoPaths.stripExtension(oldBase);
+        final String newStem = RepoPaths.stripExtension(newBase);
         if (!oldStem.equals(newStem)) {
             out = out.replaceAll("\\b" + Pattern.quote(oldStem) + "\\b", Matcher.quoteReplacement(newStem));
         }
@@ -413,55 +398,5 @@ public final class AutoFix {
         }
         final List<String> lines = doc.lines();
         return (line >= 1 && line <= lines.size()) ? lines.get(line - 1) : null;
-    }
-
-    /**
-     * The module directory of a repo-relative path (the segment preceding {@code src}).
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the module directory name, or {@code null} if the path has no {@code src} segment.
-     */
-    private static String moduleOf(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 1; i < parts.length; i++) {
-            if (parts[i].equals("src")) {
-                return parts[i - 1];
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The last {@code /}-separated segment of a path.
-     *
-     * @param path the path.
-     * @return the final segment, or the whole path if it contains no slash.
-     */
-    private static String lastSegment(final String path) {
-        final int slash = path.lastIndexOf('/');
-        return slash >= 0 ? path.substring(slash + 1) : path;
-    }
-
-    /**
-     * The path with its first {@code /}-separated segment removed (e.g. {@code platform-sdk/m/F.java}
-     * to {@code m/F.java}), or {@code null} when the path has no slash.
-     *
-     * @param path the path.
-     * @return the path without its first segment, or {@code null}.
-     */
-    private static String withoutFirstSegment(final String path) {
-        final int slash = path.indexOf('/');
-        return slash >= 0 ? path.substring(slash + 1) : null;
-    }
-
-    /**
-     * A filename with its first extension (and anything after) removed.
-     *
-     * @param name the filename.
-     * @return the name up to the first dot, or the whole name if it has no leading-dot extension.
-     */
-    private static String stripExt(final String name) {
-        final int dot = name.indexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
     }
 }

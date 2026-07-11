@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.consensus.kbfreshness.model.Entry;
 import org.hiero.consensus.kbfreshness.model.EntryType;
+import org.hiero.consensus.kbfreshness.util.Patterns;
 
 /**
  * Walks the consensus-layer KB directory and produces one {@link KbDocument} per drift-checkable
@@ -23,8 +24,8 @@ import org.hiero.consensus.kbfreshness.model.EntryType;
  */
 public final class KbScanner {
 
-    /** Matches a catalog ID prefix ({@code ADR}/{@code INV}/{@code RUL}/{@code SCN}/{@code HEU} plus three digits) at the start of a file name. */
-    private static final Pattern CATALOG_ID = Pattern.compile("^(ADR|INV|RUL|SCN|HEU)-(\\d{3})");
+    /** Matches a per-file catalog ID prefix (one that gets its own markdown file) at the start of a file name. */
+    private static final Pattern CATALOG_ID = Pattern.compile("^(" + Patterns.FILE_CATALOG_PREFIXES + ")-(\\d{3})");
 
     /** Repository root (absolute, normalized), used to compute display paths. */
     private final Path repoRoot;
