@@ -19,7 +19,7 @@ open module org.hiero.consensus.gossip.impl.test.fixtures {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions.test.fixtures;
     requires org.hiero.consensus.model.test.fixtures;
-    requires com.github.spotbugs.annotations;
     requires java.desktop;
     requires org.junit.jupiter.api;
+    requires static transitive com.github.spotbugs.annotations;
 }

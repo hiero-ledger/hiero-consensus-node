@@ -3,8 +3,6 @@ package com.swirlds.platform.builder.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.LOG4J_FILE_NAME;
-import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
-import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.startup.Log4jSetup;
@@ -12,9 +10,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.NodeStartPayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CryptoMetrics;
-import com.swirlds.platform.util.BootstrapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
@@ -73,30 +69,6 @@ public final class StaticPlatformBuilder {
             globalMetrics = metricsProvider.createGlobalMetrics();
             CryptoMetrics.registerMetrics(globalMetrics);
         }
-    }
-
-    /**
-     * Setup static utilities. If running multiple platforms in the same JVM and this method is called more than once
-     * then this method becomes a no-op.
-     *
-     * @param configuration the configuration for this node
-     * @return true if this is the first time this method has been called, false otherwise
-     */
-    public static boolean doStaticSetup(@NonNull final Configuration configuration, @NonNull final Path settingsPath) {
-
-        if (staticSetupCompleted) {
-            // Only setup static utilities once
-            return false;
-        }
-        staticSetupCompleted = true;
-
-        BootstrapUtils.performHealthChecks(settingsPath, configuration);
-        writeSettingsUsed(configuration);
-
-        // Initialize JVMPauseDetectorThread, if enabled via settings
-        startJVMPauseDetectorThread(configuration);
-
-        return true;
     }
 
     /**
