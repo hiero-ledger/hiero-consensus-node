@@ -9,8 +9,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
+import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.EntryType;
@@ -28,7 +31,8 @@ import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
  * unambiguous it is made actionable — a topics-slug rename with a single strong match, a doc link whose
  * basename resolves at exactly one other KB doc (a ready link rewrite), a gone config key declared
  * same-named by another record (a key migration), or (for a source an ADR cites as removed) a nudge to
- * mark it {@code historical:}. Deterministic for a given checkout.
+ * mark it {@code historical:}. A closing section lists prose lines still naming the old package of a
+ * moved citation — text the ready rewrites cannot touch. Deterministic for a given checkout.
  */
 public final class SuggestionsRenderer {
 
@@ -154,6 +158,15 @@ public final class SuggestionsRenderer {
         sb.append("_The cited target no longer exists. Each hint is a git rename or a near-name match — a "
                 + "suggestion, not a fact. Verify before applying._\n\n");
 
+        // Records the coverage lane says have no tunables section — a key-migration hint pointing at one
+        // means the row move needs a new section first.
+        final Set<String> sectionlessRecordPaths = new HashSet<>();
+        for (final Finding f : result.findings()) {
+            if (f.kind() == AnchorKind.CONFIG_PREFIX && f.lane() == Lane.COVERAGE_GAP) {
+                sectionlessRecordPaths.add(f.target());
+            }
+        }
+
         List<ConfigRecords.Owner> configOwners = null;
         boolean any = false;
         for (final Finding f : result.findings()) {
@@ -165,7 +178,7 @@ public final class SuggestionsRenderer {
                 if (configOwners == null) {
                     configOwners = ConfigRecords.scan(result.sourceIndex());
                 }
-                bullets = configKeyBullets(f, configOwners);
+                bullets = configKeyBullets(f, configOwners, sectionlessRecordPaths);
             } else {
                 final boolean topicTag =
                         f.kind() == AnchorKind.CROSS_DOC_LINK && f.target().contains("/architecture/topics/");
@@ -203,7 +216,121 @@ public final class SuggestionsRenderer {
         if (!any) {
             sb.append("_None._\n");
         }
+        strandedProse(sb, result);
         return sb.toString();
+    }
+
+    /**
+     * Appends the stranded-prose hints: docs where a citation's package/path move has a ready rewrite,
+     * but a nearby prose line still names the <em>old package</em> — text no rewrite touches, which
+     * would contradict the corrected citations the moment {@code --fix} runs. Only exact package
+     * mentions are flagged (not FQNs continuing into a type, which are checked as their own anchors),
+     * grouped per document and package. Rendered only when at least one hint exists.
+     *
+     * @param sb     the buffer to append to.
+     * @param result the run result.
+     */
+    private static void strandedProse(final StringBuilder sb, final RunResult result) {
+        final Map<String, KbDocument> docsByKey = new HashMap<>();
+        for (final KbDocument d : result.documents()) {
+            docsByKey.put(d.entry().key(), d);
+        }
+        // (entry key | old package) → the new packages its movers went to; TreeMap for stable order.
+        final Map<String, Set<String>> movedTo = new TreeMap<>();
+        final Map<String, Finding> representative = new HashMap<>();
+        for (final Finding f : result.findings()) {
+            if (f.lane() != Lane.ASSERT || f.resolvedPath() == null) {
+                continue;
+            }
+            final String oldPkg = f.kind() == AnchorKind.CLASS
+                    ? f.target().substring(0, f.target().indexOf("." + f.citedScope()))
+                    : dottedPackageOf(f.target());
+            final String newPkg = dottedPackageOf(f.resolvedPath());
+            if (oldPkg == null || oldPkg.equals(newPkg)) {
+                continue;
+            }
+            final String key = f.entryKey() + "|" + oldPkg;
+            movedTo.computeIfAbsent(key, k -> new TreeSet<>()).add(newPkg == null ? f.resolvedPath() : newPkg);
+            representative.putIfAbsent(key, f);
+        }
+        boolean headerWritten = false;
+        for (final Map.Entry<String, Set<String>> e : movedTo.entrySet()) {
+            final Finding f = representative.get(e.getKey());
+            final String oldPkg = e.getKey().substring(e.getKey().indexOf('|') + 1);
+            final List<Integer> lines = packageMentionLines(docsByKey.get(f.entryKey()), oldPkg);
+            if (lines.isEmpty()) {
+                continue;
+            }
+            if (!headerWritten) {
+                headerWritten = true;
+                sb.append("\n## Prose naming moved packages\n\n");
+                sb.append("_Citations of these packages have ready rewrites (see `auto-fix.md`), but prose on the "
+                        + "listed lines still names the old package — no mechanical rewrite touches it, so reword "
+                        + "it by hand (or via the semantic pass)._\n\n");
+            }
+            sb.append("### `")
+                    .append(f.entryKey())
+                    .append("` — `")
+                    .append(oldPkg)
+                    .append("`\n");
+            sb.append("`").append(f.entryPath()).append("`\n\n");
+            final List<String> lineRefs = new ArrayList<>();
+            for (final Integer line : lines) {
+                lineRefs.add("line " + line);
+            }
+            sb.append("- still named on ")
+                    .append(String.join(", ", lineRefs))
+                    .append("; its cited classes moved to: `")
+                    .append(String.join("`, `", e.getValue()))
+                    .append("`\n\n");
+        }
+    }
+
+    /**
+     * The 1-based non-fenced lines of a document mentioning a package exactly — the package name not
+     * followed by a dot or word character, so an FQN continuing into a type (checked as its own anchor)
+     * or a deeper subpackage never counts.
+     *
+     * @param doc    the citing document, possibly {@code null}.
+     * @param pkg    the dotted package to look for.
+     * @return the matching lines, in order (possibly empty).
+     */
+    private static List<Integer> packageMentionLines(final KbDocument doc, final String pkg) {
+        final List<Integer> lines = new ArrayList<>();
+        if (doc == null) {
+            return lines;
+        }
+        final Pattern mention = Pattern.compile(Pattern.quote(pkg) + "(?![.\\w])");
+        boolean inFence = false;
+        for (int i = 0; i < doc.lines().size(); i++) {
+            final String line = doc.lines().get(i);
+            final String stripped = line.strip();
+            if (stripped.startsWith("```") || stripped.startsWith("~~~")) {
+                inFence = !inFence;
+                continue;
+            }
+            if (!inFence && mention.matcher(line).find()) {
+                lines.add(i + 1);
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * The dotted package of a repo-relative source path: the directories between {@code src/main/java/}
+     * and the file name.
+     *
+     * @param repoRelPath the repo-relative source path.
+     * @return the dotted package, or {@code null} when the path has no main-source tree.
+     */
+    private static String dottedPackageOf(final String repoRelPath) {
+        final int tree = repoRelPath.indexOf("/src/main/java/");
+        final int lastSlash = repoRelPath.lastIndexOf('/');
+        final int pkgStart = tree + "/src/main/java/".length();
+        if (tree < 0 || lastSlash <= pkgStart) {
+            return null;
+        }
+        return repoRelPath.substring(pkgStart, lastSlash).replace('/', '.');
     }
 
     /**
@@ -268,13 +395,17 @@ public final class SuggestionsRenderer {
      * component with the same name (a key migration — strong, actionable) or a similar one (a possible
      * rename). Matched purely against declared record components; a hint, never a fact. The similarity
      * bar is {@link #PROMOTE_SIMILARITY}, not the looser near-name {@link #THRESHOLD} — config keys are
-     * short, so weak token overlap (e.g. a shared {@code Detector}) identifies nothing.
+     * short, so weak token overlap (e.g. a shared {@code Detector}) identifies nothing. A migration hint
+     * whose target record the coverage lane lists as sectionless says so — moving the row needs a new
+     * catalog section, not just a key rewrite.
      *
-     * @param f      the gone config-key finding; its target is the fully-qualified documented key.
-     * @param owners every indexed config record.
+     * @param f                      the gone config-key finding; its target is the fully-qualified documented key.
+     * @param owners                 every indexed config record.
+     * @param sectionlessRecordPaths repo-relative paths of records the tunables catalog has no section for.
      * @return the bullet lines, exact matches first (possibly empty).
      */
-    private static List<String> configKeyBullets(final Finding f, final List<ConfigRecords.Owner> owners) {
+    private static List<String> configKeyBullets(
+            final Finding f, final List<ConfigRecords.Owner> owners, final Set<String> sectionlessRecordPaths) {
         final String goneProp = lastDotSegment(f.target());
         record KeyMatch(double score, ConfigRecords.Owner owner, String keyName) {}
         final List<KeyMatch> matches = new ArrayList<>();
@@ -304,9 +435,14 @@ public final class SuggestionsRenderer {
                     ? m.keyName()
                     : m.owner().type().configPrefix() + "." + m.keyName();
             if (m.score() == 1.0) {
+                final String sectionless =
+                        sectionlessRecordPaths.contains(m.owner().path())
+                                ? " — this record has no tunables section yet (see `coverage.md`); moving the row needs a"
+                                        + " new section"
+                                : "";
                 bullets.add("key `" + goneProp + "` is now declared by `"
                         + m.owner().className() + "` — full key `" + fqKey + "` (`"
-                        + m.owner().path() + "`)");
+                        + m.owner().path() + "`)" + sectionless);
             } else {
                 bullets.add("similar key: `" + fqKey + "` in `" + m.owner().className() + "` (`"
                         + m.owner().path() + "`)");

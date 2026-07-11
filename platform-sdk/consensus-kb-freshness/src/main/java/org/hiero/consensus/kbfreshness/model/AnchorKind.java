@@ -24,9 +24,20 @@ public enum AnchorKind {
     DOC_HEADING(0),
     /** A catalog-ID reference (INV/TUN/ADR/SYM/RUL/SCN/HEU-NNN). */
     CATALOG_ID(0),
+    /**
+     * A Java package cited in prose (e.g. {@code `com.swirlds.platform.wiring`}). Checked for existence
+     * against the indexed package directories (a parent of an indexed package counts as existing);
+     * asserted gone only when the package's namespace is itself indexed — an external namespace is
+     * unverifiable, never asserted.
+     */
+    PACKAGE_REF(0),
 
     // ---- Tier 1: symbol existence ----
-    /** A class/type cited with an owning module or path. */
+    /**
+     * A type cited fully-qualified in prose (e.g. {@code `com.x.monitor.HealthMonitor`}) or with an
+     * owning module or path. Resolved by package + simple name against the source index; a type found
+     * in a different package is reported as a <em>move</em>, not as gone.
+     */
     CLASS(1),
     /** A method named on a resolvable class (e.g. {@code verification:} "Class — method"). */
     METHOD_ON_CLASS(1),

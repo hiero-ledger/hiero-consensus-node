@@ -267,12 +267,12 @@ class EngineFixtureTest {
 
     @Test
     void reportSummaryCountsWhatIsFixableWithFix() {
-        // Path moves: MovedClass cited by RUL-001 and topic:moved-anchored, plus the renamed config
-        // class (CONFIG_PREFIX). Moved line references: foo, run.
+        // Path moves: MovedClass cited by RUL-001 and topic:moved-anchored, the renamed config class
+        // (CONFIG_PREFIX), the FQN citation of MovedClass, and RelocatedClass. Moved lines: foo, run.
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("| Auto-fix — moved lines | 2 |");
-        assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 3 |");
-        assertThat(report).contains("| Fixable now with `--fix` | 5 |");
+        assertThat(report).contains("| Auto-fix — path moves (assert + ready rewrite) | 5 |");
+        assertThat(report).contains("| Fixable now with `--fix` | 7 |");
     }
 
     @Test
@@ -539,6 +539,112 @@ class EngineFixtureTest {
     void reportSummaryShowsPendingSemanticWorklist() {
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("| Semantic worklist pending (run by the skill, not this engine) | ");
+    }
+
+    @Test
+    void fqnCitationOfPresentTypeIsClean() {
+        assertThat(byKind(AnchorKind.CLASS, t -> t.equals("com.x.PresentClass")))
+                .isEmpty();
+    }
+
+    @Test
+    void fqnCitationOfMovedTypeIsPackageMoveWithFqnRewrite() {
+        final Finding f = require(AnchorKind.CLASS, t -> t.equals("com.x.MovedClass"));
+        assertThat(f.outcome()).isEqualTo(Outcome.PRESENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+        assertThat(f.resolvedPath()).isEqualTo("platform-sdk/module-b/src/main/java/com/y/MovedClass.java");
+        final String autoFix = AutoFixRenderer.render(result);
+        assertThat(autoFix).contains("update type reference to `com.y.MovedClass`");
+        assertThat(autoFix).contains("cooperates with `com.y.MovedClass`");
+    }
+
+    @Test
+    void fqnCitationOfGoneTypeInIndexedNamespaceAsserts() {
+        final Finding f = require(AnchorKind.CLASS, t -> t.equals("com.x.NoSuchClass"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+    }
+
+    @Test
+    void fqnCitationOutsideIndexedNamespacesIsQuietNotAssert() {
+        final Finding f = require(AnchorKind.CLASS, t -> t.equals("io.grpc.StreamObserver"));
+        assertThat(f.outcome()).isEqualTo(Outcome.UNVERIFIABLE);
+        assertThat(f.lane()).isEqualTo(Lane.QUIET_LOG);
+    }
+
+    @Test
+    void packageCitationOfExistingPackageIsClean() {
+        assertThat(byKind(AnchorKind.PACKAGE_REF, t -> t.equals("com.x.sub"))).isEmpty();
+    }
+
+    @Test
+    void packageCitationOfGonePackageInIndexedNamespaceAsserts() {
+        final Finding f = require(AnchorKind.PACKAGE_REF, t -> t.equals("com.x.gonepkg"));
+        assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
+        assertThat(f.lane()).isEqualTo(Lane.ASSERT);
+    }
+
+    @Test
+    void packageCitationOutsideIndexedNamespacesIsQuietNotAssert() {
+        final Finding f = require(AnchorKind.PACKAGE_REF, t -> t.equals("org.apache.logging"));
+        assertThat(f.outcome()).isEqualTo(Outcome.UNVERIFIABLE);
+        assertThat(f.lane()).isEqualTo(Lane.QUIET_LOG);
+    }
+
+    @Test
+    void fqnAnchorsCountAsAnchoredSourcesForTheWorklist() {
+        final WorklistEntry e = result.worklist().stream()
+                .filter(x -> x.entryPath().endsWith("fqn-anchored.md"))
+                .findFirst()
+                .orElseThrow();
+        // PresentClass in its cited package plus MovedClass tracked at its unique new location.
+        assertThat(e.anchoredSourceCount()).isEqualTo(2);
+        assertThat(e.note()).isNotEqualTo("no anchored sources");
+    }
+
+    @Test
+    void strandedProseNamingAMovedPackageGetsAHint() {
+        // stranded-prose.md's RelocatedClass citation rewrites com.x → com.z, but the prose line still
+        // names `com.x`; the FQN citations in fqn-anchored.md continue into a type and must not count.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("## Prose naming moved packages");
+        assertThat(md).contains("### `topic:stranded-prose` — `com.x`");
+        assertThat(md).contains("still named on line 9");
+        assertThat(md).contains("moved to: `com.z`");
+        assertThat(md).doesNotContain("### `topic:fqn-anchored` — `com.x`");
+    }
+
+    @Test
+    void impossibleLineHintOnAPathRewriteGetsAReVerifyNote() {
+        // stranded-prose.md cites RelocatedClass.java:99; the moved file has 5 lines, so the ready
+        // rewrite carries a note (the hint is navigation only — never asserted, never silently kept).
+        final String autoFix = AutoFixRenderer.render(result);
+        assertThat(autoFix).contains("the cited `:99` hint exceeds the moved file's 5 line(s)");
+        // The rewrite itself still applies.
+        assertThat(autoFix).contains("(../../../../module-b/src/main/java/com/z/RelocatedClass.java:99)");
+    }
+
+    @Test
+    void goneKeyWithUniqueSameNamedOwnerRollsUpAsAKeyMigration() {
+        final String report = ReportRenderer.render(result, "");
+        assertThat(report).contains("### Config-key migrations");
+        assertThat(report).contains("`fix.a.goneKey` → `fix.c.goneKey`");
+        assertThat(report).contains("keys now declared by `MigratedConfig`");
+    }
+
+    @Test
+    void keyMigrationHintNamesTheMissingTunablesSection() {
+        // MigratedConfig has no catalog section (see the coverage test), so the migration hint says the
+        // row move needs a new section — the cross-link between suggestions and coverage.
+        final String md = SuggestionsRenderer.render(result, new Git(repo));
+        assertThat(md).contains("this record has no tunables section yet (see `coverage.md`)");
+    }
+
+    @Test
+    void scanCoverageDefinesTheDistinctCheckCountingRule() {
+        final String report = ReportRenderer.render(result, "");
+        assertThat(report).contains("Distinct anchor checks (one per entry × target × check kind):");
+        assertThat(report).contains("A target cited by N entries counts as N checks");
     }
 
     // ---- helpers ----

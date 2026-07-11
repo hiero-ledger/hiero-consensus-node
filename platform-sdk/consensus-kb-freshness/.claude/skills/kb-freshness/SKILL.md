@@ -48,6 +48,14 @@ Do not re-derive or second-guess the deterministic findings; present them as-is.
 Read `worklist.json`. Process **only** entries whose `status` is `review` or `unknown` (their
 anchored source changed since `last_reviewed`, or freshness is unknown). Skip `fresh` entries.
 
+**Fan out for large worklists.** When more than ~4 topics need processing, or a single topic lists
+many changed sources (say, 10+), spawn one subagent per topic instead of reading everything in one
+context: each subagent reads only its topic doc and that topic's changed sources, judges the claims
+by the rules below, and returns its `contradicted`-with-citation items (file + symbol/line per
+claim). Merge the returns into one Advisory section, applying the same only-cited-contradictions
+bar to what comes back — a subagent's uncited judgment is dropped exactly like your own. Small
+worklists are faster inline; do not fan out for one or two topics.
+
 For each `review` entry:
 
 1. Read the topic doc at `entryPath`.
@@ -102,7 +110,12 @@ Close with a short, concrete action list derived from this run (skip lines that 
 3. **Close coverage gaps**: mention `coverage.md` items worth acting on (unanchored topics, interface
    docs not opted into Tier-2, undocumented config keys, config records with no tunables section,
    topic slugs with no document).
-4. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
+4. **Close the review loop**: for each worklisted topic whose semantic pass found every claim
+   `supported` (or whose contradictions have since been fixed), suggest bumping its `last_reviewed`
+   date — mechanically, via `--mark-reviewed <entry-key>[=<yyyy-MM-dd>]` (repeatable; a spec without
+   a date uses `--date`). Without the bump, every future run re-worklists the same topics. Never
+   suggest bumping a topic that still has an unresolved contradiction.
+5. **Adopt the baseline**: after fixes are applied and re-checked, suggest `--write-baseline` (or
    copying `baseline.proposed.tsv`) and triaging the rows.
 
 Do **not** perform any of these yourself unless the user asks.

@@ -89,6 +89,38 @@ class AnchorExtractorTest {
     }
 
     @Test
+    void fqnCodeSpanBecomesClassAnchorWithPrimaryTypeScope() {
+        final List<Anchor> anchors =
+                extract(List.of("Detection lives in `com.swirlds.component.framework.monitor.HealthMonitor`."));
+        final Anchor a = require(anchors, AnchorKind.CLASS, t -> t.endsWith("HealthMonitor"));
+        assertThat(a.target()).isEqualTo("com.swirlds.component.framework.monitor.HealthMonitor");
+        assertThat(a.citedScope()).isEqualTo("HealthMonitor");
+    }
+
+    @Test
+    void nestedTypeFqnCodeSpanScopesToTheFileDefiningType() {
+        final List<Anchor> anchors = extract(List.of("See `com.x.Outer.Inner` for the state machine."));
+        final Anchor a = require(anchors, AnchorKind.CLASS, t -> t.equals("com.x.Outer.Inner"));
+        assertThat(a.citedScope()).isEqualTo("Outer");
+    }
+
+    @Test
+    void reverseDomainPackageCodeSpanBecomesPackageRefAnchor() {
+        final List<Anchor> anchors = extract(List.of("Everything in `org.hiero.consensus.state.nexus` holds this."));
+        require(anchors, AnchorKind.PACKAGE_REF, t -> t.equals("org.hiero.consensus.state.nexus"));
+    }
+
+    @Test
+    void dottedNamesThatAreNotPackagesAreNotExtracted() {
+        // A config prefix, a two-segment name, and a method call must never be read as a package or FQN.
+        final List<Anchor> anchors =
+                extract(List.of("The prefix `state.management.wiring` and the pair `com.x` interact via "
+                        + "`HealthMonitor.checkSystemHealth(Instant)`."));
+        assertThat(byKind(anchors, AnchorKind.PACKAGE_REF, t -> true)).isEmpty();
+        assertThat(byKind(anchors, AnchorKind.CLASS, t -> true)).isEmpty();
+    }
+
+    @Test
     void codeSpanInsideFencedBlockIsIgnored() {
         final List<Anchor> anchors =
                 extract(List.of("```", "`platform-sdk/consensus-model/src/main/java/org/hiero/Fenced.java`", "```"));

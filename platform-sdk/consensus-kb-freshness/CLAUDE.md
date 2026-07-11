@@ -21,11 +21,15 @@ with `java -jar`.
 - `extract/` — KB scanner + minimal-YAML frontmatter parser + anchor extractor + `TunablesCatalog`
   (parses tunables.md sections/rows for the config-record checks). Catalog `README.md` files are
   scanned as `INDEX` entries (their rows carry a sync obligation); `FORMAT`/`LAYOUT`/`CLAUDE` are
-  skipped (placeholder examples by design). Fenced code blocks and HTML comments are blanked before
-  anchor extraction — commented-out text is not a claim.
+  skipped (placeholder examples by design). Backtick code spans also yield fully-qualified type
+  anchors (`CLASS`, primary type in `citedScope`) and package anchors (`PACKAGE_REF` — reverse-domain
+  root plus ≥ 3 segments, so a config prefix like `state.management.wiring` can never read as a
+  package claim). Fenced code blocks and HTML comments are blanked before anchor extraction —
+  commented-out text is not a claim.
 - `resolve/` — parse-only source index (`JavaParsing` via the JDK Compiler Tree API; also reads
   `@ConfigData` prefixes and `@ConfigProperty` record components, plus the as-written expression of a
-  non-literal `defaultValue`), the generated/external `Allowlist`, `AnchorResolver` (Tier 0/1/2
+  non-literal `defaultValue`; the index additionally records every `src/main/java` package for the
+  prose package/FQN checks), the generated/external `Allowlist`, `AnchorResolver` (Tier 0/1/2
   per-anchor checks), and `ConfigRecords` (the shared scan of every indexed `@ConfigData` record —
   `src/main/java` trees only, so a test-resource fixture copy never masquerades as a real record).
 - `findings/` — collapse to stable-id findings, `InterfaceDiffAssembler` (Tier 2 method-set diff),
@@ -35,30 +39,40 @@ with `java -jar`.
   finding already asserts the same citation as a class move (one root cause, one finding).
 - `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`). Anchored-source
   resolution mirrors the resolver: abbreviated `module/.../File.java` citations are resolved through the
-  `SourceIndex` (by basename within the cited module), so an abbreviated-only topic is tracked rather
-  than reported as having no anchored sources — and a *moved* anchor (stale location, basename resolving
-  at exactly one other indexed path) is tracked at its new location, so the topics whose code moved
-  wholesale keep feeding the freshness signal instead of silently dropping out. Each entry carries
-  `anchoredSourceCount`; a zero count (topic anchors nothing) is surfaced in the coverage lane, not the
-  drift report.
+  `SourceIndex` (by basename within the cited module), fully-qualified type citations by package +
+  simple name, so an abbreviated-only or FQN-only topic is tracked rather than reported as having no
+  anchored sources — and a *moved* anchor (stale location, basename resolving at exactly one other
+  indexed path) is tracked at its new location, so the topics whose code moved wholesale keep feeding
+  the freshness signal instead of silently dropping out. Each entry carries `anchoredSourceCount`; a
+  zero count (topic anchors nothing) is surfaced in the coverage lane, not the drift report.
 - `engine/` also carries `ScanStats` — what the run scanned and checked (entries, anchors, check
   groups, findings by lane, Tier-2 surfaces), rendered as the report's "Scan coverage" section so
   silence is auditable as checked-and-clean rather than never-scanned.
 - `render/` — report / quiet-log / auto-fix / suggestions / coverage / findings.json / worklist renderers.
-  The report also renders a "Root causes (rollup)" section grouping moves by (old path → new path) and
-  gone targets cited by multiple entries — one code move often explains dozens of findings.
-  `AutoFix` is the shared planner (structured `Edit`s) that both `AutoFixRenderer` (Markdown) and
-  `apply/AutoFixApplier` (writes) consume, so the proposal a curator reads is exactly the edit `--fix`
-  would apply. (`suggestions.md` = non-asserting "did you mean" hints for GONE targets: git rename first,
+  The report also renders a "Root causes (rollup)" section grouping moves by (old path → new path),
+  gone targets cited by multiple entries, and gone config keys by the single record now declaring a
+  same-named key (hint-grade direction, flagged as such in the section) — one code move often explains
+  dozens of findings. `AutoFix` is the shared planner (structured `Edit`s) that both `AutoFixRenderer`
+  (Markdown) and `apply/AutoFixApplier` (writes) consume, so the proposal a curator reads is exactly
+  the edit `--fix` would apply; it also rewrites a moved FQN citation to its new FQN, and annotates a
+  path rewrite whose `:NN` hint exceeds the moved file's length with a re-verify note (header only —
+  the edit still applies, and lines are still never asserted on). (`suggestions.md` = non-asserting
+  "did you mean" hints for GONE targets: git rename first,
   else the deleting commit, plus guarded fuzzy basename matches — a unique strong topics-slug match is
   promoted to an actionable `rename topics: slug X → Y`, a body doc link whose basename resolves at
   exactly one other KB doc gets the ready relative-link rewrite, a gone config key declared same-named by
   another indexed record is reported as a key migration (similar names, held to the promotion bar, as
-  possible renames), and an ADR-cited gone source gets a `historical:` nudge. Frontmatter-title tokens
+  possible renames; a migration target the coverage lane lists as sectionless is flagged so), and an
+  ADR-cited gone source gets a `historical:` nudge. Frontmatter-title tokens
   and pool-unique distinctive tokens also score, capped below promotion strength — they may offer, never
-  promote. Deliberately excluded from `findings.json` to keep it reproducible.)
+  promote. A closing "Prose naming moved packages" section lists non-fenced doc lines still naming the
+  old package of a moved citation — exact package mentions only, an FQN continuing into a type never
+  counts. Deliberately excluded from `findings.json` to keep it reproducible.)
 - `apply/` — `AutoFixApplier` (`--fix`): writes the certain auto-fix `Edit`s to the KB in place, guarded
-  by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames.
+  by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames. `ReviewedMarker`
+  (`--mark-reviewed <key>[=<date>]`): bumps an entry's *existing* `last_reviewed:` frontmatter line —
+  the workflow closure after a semantic pass; it never invents the line, requires an unambiguous key
+  and an ISO date, and is idempotent.
 - `engine/` + `cli/` — orchestration and the picocli entry point.
 - `.claude/skills/kb-freshness/` — the skill that runs the engine and performs the semantic pass.
 - `baseline/kb-freshness-baseline.tsv` — the committed, human-owned baseline.
@@ -70,7 +84,14 @@ with `java -jar`.
   A package/path move that resolves at exactly one new location still asserts, but also carries
   `resolvedPath` (in `findings.json`) and a ready path-rewrite diff in `auto-fix.md`.
 - **Never assert on line numbers.** A moved line for a *named* symbol → an `auto-fix` proposal, never
-  an assert. Bare `File.java:NN` links carry no line (the KB uses them for members too).
+  an assert. Bare `File.java:NN` links carry no line (the KB uses them for members too). A stale-hint
+  note on a path rewrite is header text only — never a finding, never a blocked edit.
+- **Package/FQN absence asserts only inside indexed namespaces.** A prose package or fully-qualified
+  type whose two-segment namespace (`com.swirlds`, `org.hiero`, …) contains no indexed package is
+  external — quiet log, never an assert. Package existence is prefix-based (a parent of an indexed
+  package exists); package extraction requires a reverse-domain root and ≥ 3 segments so dotted
+  non-packages (config prefixes, JPMS-ish values with other roots) are never extracted. Do not weaken
+  these guards.
 - **`--fix` applies only the certain fixes** (moved lines, unique path moves, on-line `Module:` label,
   and — for a config record located by its `@ConfigData` prefix — the renamed class in headings/link
   text) — the exact `auto-fix.md` diffs, guarded by a full-line before-match so it is idempotent. It

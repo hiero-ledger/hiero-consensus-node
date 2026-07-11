@@ -144,7 +144,8 @@ public final class WorklistBuilder {
      * Distinct concrete repo-relative source files anchored by the topic. Full-path citations are used
      * as-is when they exist; abbreviated {@code module/.../File.java} citations — the KB's mandated inline
      * style — are resolved through the source index so freshness is measured against the same files the
-     * resolver sees, not silently dropped.
+     * resolver sees, not silently dropped. Fully-qualified type citations count too: a topic that
+     * anchors its claims by FQN alone is tracked, not reported as having no anchored sources.
      *
      * @param doc the KB document whose anchors are scanned.
      * @return the sorted, distinct anchored source paths.
@@ -154,9 +155,34 @@ public final class WorklistBuilder {
         for (final Anchor a : extractor.extract(doc)) {
             if (a.kind() == AnchorKind.SOURCE_PATH) {
                 paths.addAll(resolveAnchoredSources(a));
+            } else if (a.kind() == AnchorKind.CLASS) {
+                paths.addAll(resolveFqnSources(a));
             }
         }
         return new ArrayList<>(paths);
+    }
+
+    /**
+     * Resolves one {@link AnchorKind#CLASS} (fully-qualified type) anchor to the concrete source files
+     * it names, mirroring the resolver: the indexed files of the type's basename whose path ends in the
+     * cited package, or — when the cited package is stale — the unique indexed path of the basename (a
+     * package move keeps feeding the freshness signal, exactly like a moved path citation).
+     *
+     * @param a a fully-qualified type anchor; its cited scope is the primary type name.
+     * @return the concrete repo-relative source paths the anchor names (possibly empty).
+     */
+    private List<String> resolveFqnSources(final Anchor a) {
+        final String basename = a.citedScope() + ".java";
+        final String pkgPath = a.target()
+                .substring(0, a.target().indexOf("." + a.citedScope()))
+                .replace('.', '/');
+        final List<String> resolved = new ArrayList<>();
+        for (final String p : index.pathsForBasename(basename)) {
+            if (p.endsWith("/" + pkgPath + "/" + basename)) {
+                resolved.add(p);
+            }
+        }
+        return resolved.isEmpty() ? uniqueMove(basename) : resolved;
     }
 
     /**

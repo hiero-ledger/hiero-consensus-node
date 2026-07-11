@@ -14,6 +14,8 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.model.Triage;
+import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
+import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
@@ -86,7 +88,7 @@ public final class ReportRenderer {
                 .append(" unknown |\n\n");
 
         scanCoverage(sb, result);
-        rollup(sb, asserts);
+        rollup(sb, asserts, result);
 
         section(sb, "New drift", newDrift, "New assertions since the baseline — the primary signal.");
         section(sb, "Carried drift", carried, "Previously-seen assertions still present.");
@@ -137,13 +139,14 @@ public final class ReportRenderer {
                         && f.kind() != AnchorKind.CONFIG_PREFIX
                         && f.kind() != AnchorKind.CONFIG_DEFAULT)
                 .count();
-        sb.append("- Distinct anchor checks: ")
+        sb.append("- Distinct anchor checks (one per entry × target × check kind): ")
                 .append(s.checkGroups())
                 .append(" — ")
                 .append(anchorFindings)
                 .append(" produced a finding, ")
                 .append(s.checkGroups() - anchorFindings)
-                .append(" resolved clean\n");
+                .append(" resolved clean. A target cited by N entries counts as N checks; the Tier-2 "
+                        + "catalog/interface diff checks are separate and appear only in the lane counts below.\n");
         sb.append("- Findings by lane: ").append(countList(s.findingsByLane())).append('\n');
         sb.append("- Tier-2 diff surfaces: ")
                 .append(s.interfaceDocsOptedIn())
@@ -171,13 +174,17 @@ public final class ReportRenderer {
 
     /**
      * Appends the root-cause rollup: path moves grouped by their old-to-new rewrite (one underlying code
-     * move often stales many citations), and gone targets cited by more than one entry. Rendered only
-     * when at least one group exists, so the section never appears as empty noise.
+     * move often stales many citations), gone targets cited by more than one entry, and gone config keys
+     * grouped by the record that now declares a same-named key (a key-extraction refactor reads as one
+     * cause, not N key findings). Rendered only when at least one group exists, so the section never
+     * appears as empty noise.
      *
      * @param sb      the buffer to append to.
      * @param asserts the non-dismissed assert-lane findings (new and carried).
+     * @param result  the run result, for the config-record scan behind the key-migration grouping.
      */
-    private static void rollup(final StringBuilder sb, final List<BaselineJoin.Joined> asserts) {
+    private static void rollup(
+            final StringBuilder sb, final List<BaselineJoin.Joined> asserts, final RunResult result) {
         final Map<String, List<Finding>> moves = new TreeMap<>();
         final Map<String, List<Finding>> gone = new TreeMap<>();
         for (final BaselineJoin.Joined j : asserts) {
@@ -190,7 +197,8 @@ public final class ReportRenderer {
             }
         }
         gone.values().removeIf(fs -> fs.size() < 2);
-        if (moves.isEmpty() && gone.isEmpty()) {
+        final Map<String, List<String>> migrations = keyMigrations(asserts, result);
+        if (moves.isEmpty() && gone.isEmpty() && migrations.isEmpty()) {
             return;
         }
         sb.append("## Root causes (rollup)\n\n");
@@ -225,6 +233,70 @@ public final class ReportRenderer {
             }
             sb.append('\n');
         }
+        if (!migrations.isEmpty()) {
+            sb.append("### Config-key migrations\n\n");
+            sb.append("_Gone keys a single other record declares same-named — directional hints (see "
+                    + "`suggestions.md`), not asserted facts._\n\n");
+            for (final Map.Entry<String, List<String>> e : migrations.entrySet()) {
+                sb.append("- keys now declared by ")
+                        .append(e.getKey())
+                        .append(": ")
+                        .append(String.join(", ", e.getValue()))
+                        .append('\n');
+            }
+            sb.append('\n');
+        }
+    }
+
+    /**
+     * Groups the gone config-key assertions by the record that now declares a component of the same
+     * name, when exactly one indexed record does — the same exact-match rule behind the key-migration
+     * hints in {@code suggestions.md}. Keys with no or several same-named owners are left out; they are
+     * not a groupable cause.
+     *
+     * @param asserts the non-dismissed assert-lane findings.
+     * @param result  the run result, for the config-record scan.
+     * @return {@code className (path)} of the migration target to its {@code `old` → `new`} key
+     *     rewrites, in stable order.
+     */
+    private static Map<String, List<String>> keyMigrations(
+            final List<BaselineJoin.Joined> asserts, final RunResult result) {
+        List<ConfigRecords.Owner> owners = null;
+        final Map<String, List<String>> migrations = new TreeMap<>();
+        for (final BaselineJoin.Joined j : asserts) {
+            final Finding f = j.finding();
+            if (f.kind() != AnchorKind.CONFIG_KEY || f.outcome() != Outcome.ABSENT) {
+                continue;
+            }
+            if (owners == null) {
+                owners = ConfigRecords.scan(result.sourceIndex());
+            }
+            final int lastDot = f.target().lastIndexOf('.');
+            final String goneProp = lastDot >= 0 ? f.target().substring(lastDot + 1) : f.target();
+            ConfigRecords.Owner match = null;
+            boolean ambiguous = false;
+            for (final ConfigRecords.Owner owner : owners) {
+                for (final ConfigComponent c : owner.type().configComponents()) {
+                    final String fqKey = owner.type().configPrefix().isEmpty()
+                            ? c.keyName()
+                            : owner.type().configPrefix() + "." + c.keyName();
+                    if (c.keyName().equals(goneProp) && !fqKey.equals(f.target())) {
+                        ambiguous = match != null;
+                        match = owner;
+                    }
+                }
+            }
+            if (match == null || ambiguous) {
+                continue;
+            }
+            final String newKey = match.type().configPrefix().isEmpty()
+                    ? goneProp
+                    : match.type().configPrefix() + "." + goneProp;
+            migrations
+                    .computeIfAbsent("`" + match.className() + "` (`" + match.path() + "`)", k -> new ArrayList<>())
+                    .add("`" + f.target() + "` → `" + newKey + "`");
+        }
+        return migrations;
     }
 
     /**

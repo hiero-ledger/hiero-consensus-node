@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Callable;
 import org.hiero.consensus.kbfreshness.apply.AutoFixApplier;
+import org.hiero.consensus.kbfreshness.apply.ReviewedMarker;
 import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
@@ -105,6 +106,17 @@ public final class Main implements Callable<Integer> {
     private boolean fix;
 
     /**
+     * Entries to mark as reviewed: each spec is {@code <key>[=<yyyy-MM-dd>]}; a spec without a date uses
+     * {@code --date}. Rewrites only an existing {@code last_reviewed:} frontmatter line.
+     */
+    @Option(
+            names = "--mark-reviewed",
+            paramLabel = "<key[=date]>",
+            description = "Bump an entry's existing last_reviewed: frontmatter date (repeatable); "
+                    + "a spec without =<date> uses --date.")
+    private List<String> markReviewed = List.of();
+
+    /**
      * Process entry point: parses arguments with picocli and exits with the command's return code.
      *
      * @param args the raw command-line arguments.
@@ -148,6 +160,19 @@ public final class Main implements Callable<Integer> {
                     applied.applied(),
                     applied.filesChanged().size(),
                     applied.skipped() > 0 ? " (" + applied.skipped() + " skipped: line diverged)" : "");
+        }
+
+        if (!markReviewed.isEmpty()) {
+            final ReviewedMarker.Result marked = ReviewedMarker.apply(result, repoRoot, markReviewed, date);
+            System.out.printf(
+                    "kb-freshness --mark-reviewed: updated %d doc(s). Re-run to refresh the worklist.%n",
+                    marked.updated());
+            for (final String problem : marked.problems()) {
+                System.err.println("error: --mark-reviewed " + problem);
+            }
+            if (!marked.problems().isEmpty()) {
+                return 1;
+            }
         }
 
         final long newDrift = countNewDrift(result);

@@ -84,18 +84,126 @@ public final class AnchorResolver {
             case CROSS_DOC_LINK -> resolveCrossDoc(a);
             case DOC_HEADING -> resolveHeading(a);
             case CATALOG_ID -> resolveCatalogId(a);
+            case PACKAGE_REF -> resolvePackageRef(a);
             case SOURCE_PATH -> resolveSourcePath(a);
             case SOURCE_BASENAME -> resolveSourceBasename(a);
+            case CLASS -> resolveClassFqn(a);
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
             case METHOD_SIGNATURE -> resolveMethodSignature(a);
             // Kinds resolved outside the per-anchor pipeline (INTERFACE_METHOD, CONFIG_KEY,
             // CONFIG_PREFIX, CONFIG_DEFAULT — the Tier-2 diff assemblers) or not extracted in this
             // version resolve as unverifiable if reached here.
-            case CLASS, ENUM_CONSTANT, CONFIG_KEY, CONFIG_PREFIX, CONFIG_DEFAULT, INTERFACE_METHOD ->
+            case ENUM_CONSTANT, CONFIG_KEY, CONFIG_PREFIX, CONFIG_DEFAULT, INTERFACE_METHOD ->
                 Resolution.finding(
                         Outcome.UNVERIFIABLE, Lane.QUIET_LOG, "symbol check", "not implemented in this version");
         };
+    }
+
+    /**
+     * Resolves a prose package reference by checking the indexed package tree. Present when an indexed
+     * source lives in the package or a subpackage of it. Asserted gone only when the package's own
+     * namespace (its first two segments) is indexed — a package outside every indexed namespace is
+     * external (e.g. a library package) and stays quiet rather than guessed at.
+     *
+     * @param a the anchor to resolve; its target is the dotted package name.
+     * @return present when the package tree exists, an absent assertion when it is certainly gone,
+     *     otherwise unverifiable.
+     */
+    private Resolution resolvePackageRef(final Anchor a) {
+        final String pkg = a.target();
+        final String q = "package exists: " + pkg;
+        if (index.packageExists(pkg)) {
+            return Resolution.ok(Outcome.PRESENT, q);
+        }
+        if (!namespaceIndexed(pkg)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Package `" + pkg + "` is outside every indexed namespace (external); unverifiable.");
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "No indexed source lives in package `" + pkg + "` (or any subpackage); the cited package is gone.");
+    }
+
+    /**
+     * Resolves a fully-qualified type citation by package + simple name against the source index. The
+     * primary (file-defining) type is the first uppercase segment; deeper nested-type segments are not
+     * resolved (parse-only nesting is not checked — precision over coverage). A type found only in a
+     * different package is a package move (present, but reported; a unique candidate drives a ready
+     * FQN rewrite); a basename found nowhere asserts gone only when the cited namespace is indexed.
+     *
+     * @param a the anchor to resolve; its target is the FQN and its cited scope the primary type name.
+     * @return the resolution reflecting the type's existence and location.
+     */
+    private Resolution resolveClassFqn(final Anchor a) {
+        final String fqn = a.target();
+        final String simpleName = a.citedScope();
+        final String basename = simpleName + ".java";
+        final String q = "type exists in cited package: " + fqn;
+
+        if (a.historical()) {
+            return resolveHistoricalSource(a, q, basename);
+        }
+        if (allowlist.isExternalName(simpleName)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "`" + simpleName + "` is an allowlisted external/generated type.");
+        }
+        final String pkgPath = fqn.substring(0, fqn.indexOf("." + simpleName)).replace('.', '/');
+        final List<String> candidates = index.pathsForBasename(basename);
+        for (final String p : candidates) {
+            if (p.endsWith("/" + pkgPath + "/" + basename)) {
+                return Resolution.ok(Outcome.PRESENT, q);
+            }
+        }
+        if (!candidates.isEmpty()) {
+            final Set<String> modules = new TreeSet<>();
+            for (final String p : candidates) {
+                final String m = moduleOfPath(p);
+                modules.add(m == null ? p : m);
+            }
+            final String resolvedPath = candidates.size() == 1 ? candidates.get(0) : null;
+            final String evidence = "`" + simpleName + "` is not in the cited package"
+                    + (resolvedPath != null
+                            ? "; it now resolves at `" + resolvedPath + "` (package move)."
+                            : "; it now resolves in: " + String.join(", ", modules) + " (package move).");
+            return resolvedPath != null
+                    ? Resolution.moved(q, evidence, resolvedPath)
+                    : Resolution.finding(Outcome.PRESENT, Lane.ASSERT, q, evidence);
+        }
+        if (!namespaceIndexed(fqn)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Type `" + fqn + "` is outside every indexed namespace (external); unverifiable.");
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "No file `" + basename + "` under any indexed module; cited type `" + fqn + "` is gone.");
+    }
+
+    /**
+     * Whether a dotted name's namespace — its first two segments — contains any indexed package. This is
+     * the guard that keeps package/FQN absence assertions inside the repo's own namespaces: a citation of
+     * an external library can never assert.
+     *
+     * @param dotted the dotted package or FQN.
+     * @return {@code true} when an indexed package lives under the name's two-segment namespace.
+     */
+    private boolean namespaceIndexed(final String dotted) {
+        final String[] parts = dotted.split("\\.");
+        final String namespace = parts.length >= 2 ? parts[0] + "." + parts[1] : dotted;
+        return index.packageExists(namespace);
     }
 
     /**

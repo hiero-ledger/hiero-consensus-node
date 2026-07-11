@@ -18,8 +18,9 @@ import org.hiero.consensus.kbfreshness.model.AnchorKind;
  * carry enough context to be verified as a fact are emitted. Frontmatter yields {@code components:}
  * source paths, {@code verification:} method-on-class, and {@code related:}/{@code topics:} references;
  * the body yields markdown links (doc/source/module), abbreviated {@code module/.../File.java} paths,
- * and bare catalog IDs. Fenced code blocks and HTML comments are skipped — commented-out text is not a
- * claim. Bare prose symbol names are intentionally not asserted on in this version.
+ * backtick-quoted fully-qualified types and reverse-domain packages, and bare catalog IDs. Fenced code
+ * blocks and HTML comments are skipped — commented-out text is not a claim. Bare prose symbol names
+ * (an unqualified class name outside a file citation) are intentionally not asserted on.
  */
 public final class AnchorExtractor {
 
@@ -51,6 +52,23 @@ public final class AnchorExtractor {
     /** Matches a bare source-file basename (optional leading {@code ...}/{@code .../} ellipsis, non-asserting line suffix). */
     private static final Pattern BARE_SOURCE_FILE =
             Pattern.compile("^(?:\\.{2,3}/?)?([A-Za-z0-9_$]+\\.(?:java|proto|kt))(?::\\d+(?:-\\d+)?)?$");
+
+    /**
+     * Matches a fully-qualified type cited in a code span: lowercase package segments, then an
+     * uppercase-initial type name (optionally followed by nested-type segments). The whole span must
+     * match — a method call or a path never does.
+     */
+    private static final Pattern FQN_TYPE =
+            Pattern.compile("^((?:[a-z][a-z0-9_]*\\.)+)([A-Z][A-Za-z0-9_$]*)((?:\\.[A-Z][A-Za-z0-9_$]*)*)$");
+
+    /**
+     * Matches a Java package cited in a code span: at least three all-lowercase dotted segments whose
+     * first segment is a conventional reverse-domain root. The root requirement keeps non-package
+     * dotted names — config prefixes like {@code state.management.wiring}, table values, log levels —
+     * from ever being read as a package claim.
+     */
+    private static final Pattern PACKAGE_REF =
+            Pattern.compile("^(?:com|org|net|io|java|javax|jakarta)(?:\\.[a-z][a-z0-9_]*){2,}$");
 
     /** Matches a prose {@code Module: `name`} label, capturing the stated module name. */
     private static final Pattern MODULE_LABEL = Pattern.compile("Module:\\s*`([A-Za-z0-9._-]+)`");
@@ -108,7 +126,8 @@ public final class AnchorExtractor {
     /**
      * Marks source anchors named by the document's {@code historical:} frontmatter list (basenames or
      * paths of deliberately deleted code cited as history) as expected-gone. A listed basename matches
-     * every source anchor citing that file; a listed path matches its exact target.
+     * every source anchor citing that file — including a fully-qualified type citation of the deleted
+     * class; a listed path matches its exact target.
      *
      * @param fm      the document's frontmatter.
      * @param anchors the extracted anchors.
@@ -126,7 +145,9 @@ public final class AnchorExtractor {
         final List<Anchor> marked = new ArrayList<>(anchors.size());
         for (final Anchor a : anchors) {
             final boolean isSource = a.kind() == AnchorKind.SOURCE_PATH || a.kind() == AnchorKind.SOURCE_BASENAME;
-            if (isSource && (names.contains(a.target()) || names.contains(lastSegment(a.target())))) {
+            final boolean fqnOfListed = a.kind() == AnchorKind.CLASS
+                    && (names.contains(a.target()) || names.contains(a.citedScope() + ".java"));
+            if ((isSource && (names.contains(a.target()) || names.contains(lastSegment(a.target())))) || fqnOfListed) {
                 marked.add(a.asHistorical());
             } else {
                 marked.add(a);
@@ -309,8 +330,10 @@ public final class AnchorExtractor {
     /**
      * Emits a source anchor for an inline code-span citation: a full {@code platform-sdk/…} path becomes a
      * {@link AnchorKind#SOURCE_PATH} (existence + move check), a bare {@code File.java} basename becomes a
-     * {@link AnchorKind#SOURCE_BASENAME} (existence only). Any {@code :NN}/{@code :NN-MM} suffix is dropped —
-     * line numbers are never asserted on. Non-source spans are ignored.
+     * {@link AnchorKind#SOURCE_BASENAME} (existence only), a fully-qualified type becomes a
+     * {@link AnchorKind#CLASS} (package + name existence, with move detection), and a reverse-domain
+     * package becomes a {@link AnchorKind#PACKAGE_REF} (package-tree existence). Any {@code :NN}/{@code
+     * :NN-MM} suffix is dropped — line numbers are never asserted on. Non-source spans are ignored.
      *
      * @param content  the code-span content (without surrounding backticks).
      * @param fileLine the 1-based line of the span in the document.
@@ -333,6 +356,16 @@ public final class AnchorExtractor {
         final Matcher bare = BARE_SOURCE_FILE.matcher(span);
         if (bare.matches()) {
             out.add(new Anchor(AnchorKind.SOURCE_BASENAME, bare.group(1), null, null, fileLine, Anchor.NO_LINE, span));
+            return;
+        }
+        final Matcher fqn = FQN_TYPE.matcher(span);
+        if (fqn.matches()) {
+            // citedScope carries the primary (file-defining) type name for resolution.
+            out.add(new Anchor(AnchorKind.CLASS, span, null, fqn.group(2), fileLine, Anchor.NO_LINE, span));
+            return;
+        }
+        if (PACKAGE_REF.matcher(span).matches()) {
+            out.add(new Anchor(AnchorKind.PACKAGE_REF, span, null, null, fileLine, Anchor.NO_LINE, span));
         }
     }
 

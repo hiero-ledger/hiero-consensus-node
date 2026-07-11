@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.kbfreshness.render;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -9,19 +12,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
+import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
 
 /**
  * The single source of truth for deterministic auto-fix edits: a citation that still resolves but is
- * cited wrongly (a moved line reference, or a package/path move with exactly one new location) yields a
- * precise before/after edit for one KB line. {@link AutoFixRenderer} turns these into Markdown proposals
+ * cited wrongly (a moved line reference, a package/path move with exactly one new location, or a
+ * fully-qualified type whose package moved) yields a precise before/after edit for one KB line.
+ * {@link AutoFixRenderer} turns these into Markdown proposals
  * and {@code AutoFixApplier} writes them to disk under {@code --fix}; both consume this plan so the
  * proposal a curator reads is exactly the edit the tool would apply. Only certain fixes are produced —
  * fuzzy renames (did-you-mean) are never auto-fixes.
  */
 public final class AutoFix {
+
+    /** Matches a trailing {@code :NN}/{@code :NN-MM} line hint on a citation's raw text. */
+    private static final Pattern TRAILING_LINE_HINT = Pattern.compile(":(\\d+)(?:-(\\d+))?$");
 
     /** Prevents instantiation of this static-only planner. */
     private AutoFix() {}
@@ -66,12 +74,14 @@ public final class AutoFix {
         for (final KbDocument d : result.documents()) {
             byKey.put(d.entry().key(), d);
         }
+        final Path repoRoot = result.sourceIndex().repoRoot();
+        final Map<String, Integer> lineCounts = new HashMap<>();
         final List<Proposal> proposals = new ArrayList<>();
         for (final Finding f : result.findings()) {
             if (f.lane() == Lane.AUTO_FIX && f.autoFixLine() != null) {
                 proposals.add(new Proposal(f, lineChanges(f, byKey.get(f.entryKey()))));
             } else if (f.resolvedPath() != null) {
-                proposals.add(new Proposal(f, pathChanges(f, byKey.get(f.entryKey()))));
+                proposals.add(new Proposal(f, pathChanges(f, byKey.get(f.entryKey()), repoRoot, lineCounts)));
             }
         }
         return proposals;
@@ -121,32 +131,158 @@ public final class AutoFix {
     }
 
     /**
-     * The changes for a package/path-move finding: the cited path rewritten to the single location the file
-     * resolves at, plus a stale on-line {@code Module: `X`} label rewritten to the new module.
+     * The changes for a package/path-move finding: the cited path (or, for a fully-qualified type
+     * citation, the FQN) rewritten to the single location the file resolves at, plus a stale on-line
+     * {@code Module: `X`} label rewritten to the new module. A citation whose line hint cannot exist in
+     * the moved file (the {@code :NN} exceeds its length) gets a re-verify note on the proposal — the
+     * hint is navigation only and is never asserted on, but an impossible one should not survive a
+     * rewrite silently.
      *
-     * @param f   the finding carrying the resolved path.
-     * @param doc the citing document, or {@code null} when unavailable.
+     * @param f          the finding carrying the resolved path.
+     * @param doc        the citing document, or {@code null} when unavailable.
+     * @param repoRoot   the repository root, for measuring the moved file.
+     * @param lineCounts per-plan cache of a repo-relative path to its line count.
      * @return the per-occurrence changes.
      */
-    private static List<Change> pathChanges(final Finding f, final KbDocument doc) {
+    private static List<Change> pathChanges(
+            final Finding f, final KbDocument doc, final Path repoRoot, final Map<String, Integer> lineCounts) {
+        final boolean fqnCitation = f.kind() == AnchorKind.CLASS;
+        final String replacement = fqnCitation ? fqnOfMove(f) : f.resolvedPath();
         final List<Change> changes = new ArrayList<>();
         for (final Occurrence o : f.occurrences()) {
-            final String header = "KB line " + o.docLine() + ": update path to `" + f.resolvedPath() + "`";
-            final int diffLine = rewritableLine(doc, o.docLine(), f.target(), f.resolvedPath());
+            String header = "KB line " + o.docLine() + ": update " + (fqnCitation ? "type reference" : "path") + " to `"
+                    + replacement + "`";
+            final int staleHint = staleLineHint(o, f.resolvedPath(), repoRoot, lineCounts);
+            if (staleHint > 0) {
+                header += " — note: the cited `:" + hintText(o) + "` hint exceeds the moved file's " + staleHint
+                        + " line(s); re-verify it after applying";
+            }
             Edit edit = null;
-            if (diffLine > 0) {
-                final String before = docLine(doc, diffLine);
-                final String after = rewriteModuleLabel(
-                        rewritePath(before, f.target(), f.resolvedPath()),
-                        f.statedModule(),
-                        moduleOf(f.resolvedPath()));
-                if (!after.equals(before)) {
-                    edit = new Edit(f.entryPath(), diffLine, before, after);
+            if (replacement != null) {
+                final int diffLine = fqnCitation
+                        ? plainRewriteLine(doc, o.docLine(), f.target(), replacement)
+                        : rewritableLine(doc, o.docLine(), f.target(), f.resolvedPath());
+                if (diffLine > 0) {
+                    final String before = docLine(doc, diffLine);
+                    final String after = fqnCitation
+                            ? before.replace(f.target(), replacement)
+                            : rewriteModuleLabel(
+                                    rewritePath(before, f.target(), f.resolvedPath()),
+                                    f.statedModule(),
+                                    moduleOf(f.resolvedPath()));
+                    if (!after.equals(before)) {
+                        edit = new Edit(f.entryPath(), diffLine, before, after);
+                    }
                 }
             }
             changes.add(new Change(header, edit));
         }
         return changes;
+    }
+
+    /**
+     * The moved file's line count when an occurrence carries a line hint that cannot exist in it, else
+     * {@code 0}. Reads the file once per plan; an unreadable file yields no note.
+     *
+     * @param o            the occurrence whose raw text may end in {@code :NN}/{@code :NN-MM}.
+     * @param resolvedPath the repo-relative path the citation moves to.
+     * @param repoRoot     the repository root.
+     * @param lineCounts   per-plan cache of a repo-relative path to its line count.
+     * @return the moved file's line count when the hint exceeds it, otherwise {@code 0}.
+     */
+    private static int staleLineHint(
+            final Occurrence o, final String resolvedPath, final Path repoRoot, final Map<String, Integer> lineCounts) {
+        final String hint = hintText(o);
+        if (hint == null) {
+            return 0;
+        }
+        int max = 0;
+        for (final String part : hint.split("-")) {
+            max = Math.max(max, Integer.parseInt(part));
+        }
+        final int count = lineCounts.computeIfAbsent(resolvedPath, p -> {
+            try {
+                return Files.readAllLines(repoRoot.resolve(p)).size();
+            } catch (final IOException | RuntimeException e) {
+                return -1;
+            }
+        });
+        return count >= 0 && max > count ? count : 0;
+    }
+
+    /**
+     * The {@code NN} or {@code NN-MM} line hint at the end of an occurrence's raw citation text, or
+     * {@code null} when it carries none.
+     *
+     * @param o the occurrence.
+     * @return the hint digits (without the leading colon), or {@code null}.
+     */
+    private static String hintText(final Occurrence o) {
+        if (o.rawText() == null) {
+            return null;
+        }
+        final Matcher m = TRAILING_LINE_HINT.matcher(o.rawText());
+        return m.find() ? o.rawText().substring(m.start() + 1) : null;
+    }
+
+    /**
+     * The rewritten fully-qualified name for a moved type citation: the moved file's package plus its
+     * type name, keeping any nested-type segments the citation carried beyond the file-defining type.
+     *
+     * @param f the {@link AnchorKind#CLASS} finding; its target is the cited FQN and its cited scope the
+     *          file-defining type name.
+     * @return the new FQN, or {@code null} when the resolved path carries no main-source package.
+     */
+    private static String fqnOfMove(final Finding f) {
+        final String pkg = dottedPackageOf(f.resolvedPath());
+        if (pkg == null) {
+            return null;
+        }
+        final String primary = f.citedScope();
+        final int primaryAt = f.target().indexOf("." + primary);
+        final String nestedSuffix = f.target().substring(primaryAt + 1 + primary.length());
+        return pkg + "." + stripExt(lastSegment(f.resolvedPath())) + nestedSuffix;
+    }
+
+    /**
+     * The dotted package of a repo-relative source path: the directories between {@code src/main/java/}
+     * and the file name.
+     *
+     * @param repoRelPath the repo-relative source path.
+     * @return the dotted package, or {@code null} when the path has no main-source tree.
+     */
+    private static String dottedPackageOf(final String repoRelPath) {
+        final int tree = repoRelPath.indexOf("/src/main/java/");
+        final int lastSlash = repoRelPath.lastIndexOf('/');
+        final int pkgStart = tree + "/src/main/java/".length();
+        if (tree < 0 || lastSlash <= pkgStart) {
+            return null;
+        }
+        return repoRelPath.substring(pkgStart, lastSlash).replace('/', '.');
+    }
+
+    /**
+     * Finds the KB line at or after {@code docLine} containing the given text verbatim — the plain
+     * counterpart of {@link #rewritableLine} for citations (FQNs) that have exactly one written form.
+     *
+     * @param doc     the citing document, possibly {@code null}.
+     * @param docLine the occurrence's 1-based line hint.
+     * @param text    the citation text to locate.
+     * @param replacement the replacement text (a line already carrying it needs no edit).
+     * @return the 1-based line to diff, or {@code 0} when no line contains the text.
+     */
+    private static int plainRewriteLine(
+            final KbDocument doc, final int docLine, final String text, final String replacement) {
+        if (doc == null || text.equals(replacement)) {
+            return 0;
+        }
+        for (int line = docLine; line <= doc.lines().size(); line++) {
+            final String lineText = docLine(doc, line);
+            if (lineText != null && lineText.contains(text)) {
+                return line;
+            }
+        }
+        return 0;
     }
 
     /**
