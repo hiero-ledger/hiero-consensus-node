@@ -142,7 +142,7 @@ public final class Git {
         try {
             final Process process = new ProcessBuilder(command)
                     .directory(repoRoot.toFile())
-                    .redirectErrorStream(false)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
             final String output;
             try (BufferedReader reader =
