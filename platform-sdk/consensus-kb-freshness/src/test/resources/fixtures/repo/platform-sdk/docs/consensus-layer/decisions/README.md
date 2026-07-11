@@ -1,10 +1,10 @@
 # Decisions — Index
 
-|                   ID                    |      Title       |  Status  |
-|-----------------------------------------|------------------|----------|
-| [ADR-001](ADR-001-fixture.md)           | Fixture decision | Accepted |
-| [ADR-002](ADR-002-fixture.md)           | Fixture decision | Accepted |
-| [ADR-009](ADR-009-gone.md)              | Rotted index row | Accepted |
+|              ID               |      Title       |  Status  |
+|-------------------------------|------------------|----------|
+| [ADR-001](ADR-001-fixture.md) | Fixture decision | Accepted |
+| [ADR-002](ADR-002-fixture.md) | Fixture decision | Accepted |
+| [ADR-009](ADR-009-gone.md)    | Rotted index row | Accepted |
 
 <!--
 Row convention, one line per entry, kept in ADR-NNN order:
