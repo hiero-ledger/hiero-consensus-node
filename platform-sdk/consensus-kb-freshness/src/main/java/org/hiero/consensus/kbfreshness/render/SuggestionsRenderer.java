@@ -144,6 +144,22 @@ public final class SuggestionsRenderer {
     }
 
     /**
+     * The grouping key of the stranded-prose scan: a citing entry paired with one old package its cited
+     * classes moved out of. Ordered by entry key then package so the rendered sections are stable.
+     *
+     * @param entryKey the citing entry's key.
+     * @param oldPkg   the old dotted package still named in prose.
+     */
+    private record ProseKey(String entryKey, String oldPkg) implements Comparable<ProseKey> {
+
+        @Override
+        public int compareTo(final ProseKey o) {
+            final int byEntry = entryKey.compareTo(o.entryKey);
+            return byEntry != 0 ? byEntry : oldPkg.compareTo(o.oldPkg);
+        }
+    }
+
+    /**
      * Appends the stranded-prose hints: docs where a citation's package/path move has a ready rewrite,
      * but a nearby prose line still names the <em>old package</em> — text no rewrite touches, which
      * would contradict the corrected citations the moment {@code --fix} runs. Only exact package
@@ -158,9 +174,9 @@ public final class SuggestionsRenderer {
         for (final KbDocument d : result.documents()) {
             docsByKey.put(d.entry().key(), d);
         }
-        // (entry key | old package) → the new packages its movers went to; TreeMap for stable order.
-        final Map<String, Set<String>> movedTo = new TreeMap<>();
-        final Map<String, Finding> representative = new HashMap<>();
+        // (entry key, old package) → the new packages its movers went to; TreeMap for stable order.
+        final Map<ProseKey, Set<String>> movedTo = new TreeMap<>();
+        final Map<ProseKey, Finding> representative = new HashMap<>();
         for (final Finding f : result.findings()) {
             if (f.lane() != Lane.ASSERT || f.resolvedPath() == null) {
                 continue;
@@ -172,14 +188,14 @@ public final class SuggestionsRenderer {
             if (oldPkg == null || oldPkg.equals(newPkg)) {
                 continue;
             }
-            final String key = f.entryKey() + "|" + oldPkg;
+            final ProseKey key = new ProseKey(f.entryKey(), oldPkg);
             movedTo.computeIfAbsent(key, k -> new TreeSet<>()).add(newPkg == null ? f.resolvedPath() : newPkg);
             representative.putIfAbsent(key, f);
         }
         boolean headerWritten = false;
-        for (final Map.Entry<String, Set<String>> e : movedTo.entrySet()) {
+        for (final Map.Entry<ProseKey, Set<String>> e : movedTo.entrySet()) {
             final Finding f = representative.get(e.getKey());
-            final String oldPkg = e.getKey().substring(e.getKey().indexOf('|') + 1);
+            final String oldPkg = e.getKey().oldPkg();
             final List<Integer> lines = NearNameMatcher.packageMentionLines(docsByKey.get(f.entryKey()), oldPkg);
             if (lines.isEmpty()) {
                 continue;

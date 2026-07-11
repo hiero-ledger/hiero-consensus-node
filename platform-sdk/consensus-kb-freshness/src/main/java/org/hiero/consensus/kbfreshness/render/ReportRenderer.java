@@ -173,6 +173,22 @@ public final class ReportRenderer {
     }
 
     /**
+     * The grouping key of a path-move rollup row: the old cited path and the single new path it resolves
+     * to. Ordered by old path then new path so the rendered rows are stable.
+     *
+     * @param from the old cited path.
+     * @param to   the resolved new path.
+     */
+    private record MoveKey(String from, String to) implements Comparable<MoveKey> {
+
+        @Override
+        public int compareTo(final MoveKey o) {
+            final int byFrom = from.compareTo(o.from);
+            return byFrom != 0 ? byFrom : to.compareTo(o.to);
+        }
+    }
+
+    /**
      * Appends the root-cause rollup: path moves grouped by their old-to-new rewrite (one underlying code
      * move often stales many citations), gone targets cited by more than one entry, and gone config keys
      * grouped by the record that now declares a same-named key (a key-extraction refactor reads as one
@@ -185,12 +201,12 @@ public final class ReportRenderer {
      */
     private static void rollup(
             final StringBuilder sb, final List<BaselineJoin.Joined> asserts, final RunResult result) {
-        final Map<String, List<Finding>> moves = new TreeMap<>();
+        final Map<MoveKey, List<Finding>> moves = new TreeMap<>();
         final Map<String, List<Finding>> gone = new TreeMap<>();
         for (final BaselineJoin.Joined j : asserts) {
             final Finding f = j.finding();
             if (f.resolvedPath() != null) {
-                moves.computeIfAbsent(f.target() + "` → `" + f.resolvedPath(), k -> new ArrayList<>())
+                moves.computeIfAbsent(new MoveKey(f.target(), f.resolvedPath()), k -> new ArrayList<>())
                         .add(f);
             } else if (f.outcome() == Outcome.ABSENT) {
                 gone.computeIfAbsent(f.target(), k -> new ArrayList<>()).add(f);
@@ -206,9 +222,11 @@ public final class ReportRenderer {
                 + "findings below._\n\n");
         if (!moves.isEmpty()) {
             sb.append("### Path moves\n\n");
-            for (final Map.Entry<String, List<Finding>> e : moves.entrySet()) {
+            for (final Map.Entry<MoveKey, List<Finding>> e : moves.entrySet()) {
                 sb.append("- `")
-                        .append(e.getKey())
+                        .append(e.getKey().from())
+                        .append("` → `")
+                        .append(e.getKey().to())
                         .append("` — ")
                         .append(distinctEntries(e.getValue()).size())
                         .append(" doc(s), ")
