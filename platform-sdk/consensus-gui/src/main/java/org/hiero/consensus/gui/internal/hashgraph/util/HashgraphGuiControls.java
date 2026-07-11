@@ -172,38 +172,54 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         if (eventInfo == null) {
             eventInfoText.setText(ABOUT_TEXT);}
         else {
-                String str = "SELECTED EVENT:                                               ";
+                String str = "";
             try {
-                str += "\n                ID  " + eventInfo.getEventID();
-                str += "\n       timeCreated  " + eventInfo.getTimeCreated();
-                str += "\n           creator  " + eventInfo.getCreator();
-                str += "\n        birthRound  " + eventInfo.getBirthRound();
-                str += "\n              coin  " + eventInfo.getCoin();
-                str += "\n     parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());
-                str += "\n";
-                str += "\n        selfParent  " + eventID(eventInfo.getSelfParent());
-                str += "\n     ancestorJudge  " + booleanssToString(eventInfo.getAncestorJudge());
-                str += "\n         prevJudge  " + eventInfo.isPrevJudge(); //need prevJudgeDesc
-                str += "\n               gen  " + eventInfo.getGen();
-                str += "\n           lastSee  " + eventInfosToString(eventInfo.getLastSee());
-                str += "\n      stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
-                str += "\n firstSelfWitnessS  " + eventID(eventInfo.getFirstSelfWitnessS());
-                str += "\n       votingRound  " + eventInfo.getVotingRound();
-                str += "\n     firstWitnessS  " + eventID(eventInfo.getFirstWitnessS());
-                str += "\n     stronglySeeS1  " + eventInfosToString(eventInfo.getStronglySeeS1());
-                str += "\n             voteE  " + eventInfosToString(eventInfo.getVoteE());
-                str += "\n             voteB  " + booleanssToString(eventInfo.getVoteB());
-                str += "\n       isConsensus  " + eventInfo.isConsensus();
-                str += "\n    consensusOrder  " + eventInfo.getConsensusOrder();
-                str += "\nconsensusTimestamp  " + eventInfo.getConsensusTimestamp();
-                str += "\n";
-                str += "\nLATEST ROUND INFO";
-                str += "\n       pendingRound " + HashgraphInfo.getLatestRoundInfo().pendingRound();
-                str += "\n              nodes " + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
-                str += "\n              stake " + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
-                str += "\n";
-                str += "\nLATEST ROUND INFO PREV";
-                str += "\npendingRound        " + HashgraphInfo.getLatestRoundInfoPrev().pendingRound();
+                str += "\nSELECTED EVENT ===============================================";
+                str += "\n                            ID  " + eventInfo.getEventID();
+                str += "\n                   timeCreated  " + eventInfo.getTimeCreated();
+                str += "\n                       creator  " + eventInfo.getCreator();
+                str += "\n                    birthRound  " + eventInfo.getBirthRound();
+                str += "\n                          coin  " + eventInfo.getCoin();
+                str += "\n                 parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());
+                str += "\n                    selfParent  " + eventID(eventInfo.getSelfParent());
+                str += "\n                 ancestorJudge  " + booleanssToString(eventInfo.getAncestorJudge());
+                str += "\n                     prevJudge  " + eventInfo.isPrevJudge(); //need prevJudgeDesc
+                str += "\n                           gen  " + eventInfo.getGen();
+                str += "\n                       lastSee  " + eventInfosToString(eventInfo.getLastSee());
+                str += "\n                  stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
+                str += "\n             firstSelfWitnessS  " + eventID(eventInfo.getFirstSelfWitnessS());
+                str += "\n                   votingRound  " + eventInfo.getVotingRound();
+                str += "\n                 firstWitnessS  " + eventID(eventInfo.getFirstWitnessS());
+                str += "\n                 stronglySeeS1  " + eventInfosToString(eventInfo.getStronglySeeS1());
+                str += "\n                         voteE  " + eventInfosToString(eventInfo.getVoteE());
+                str += "\n                         voteB  " + booleanssToString(eventInfo.getVoteB());
+                str += "\n                   isConsensus  " + eventInfo.isConsensus();
+                str += "\n                consensusOrder  " + eventInfo.getConsensusOrder();
+                str += "\n            consensusTimestamp  " + eventInfo.getConsensusTimestamp();
+                str += "\nLATEST ROUND INFO ("
+                        + HashgraphInfo.getLatestRoundInfo().pendingRound()
+                        + ") ====================================";
+                str += "\n                         nodes  " + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
+                str += "\n                         stake  " + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
+                str += "\n               seeNum / seeDen  " + HashgraphInfo.getLatestRoundInfo().firstVotingRoundSee();
+                str += " / " + HashgraphInfo.getLatestRoundInfo().firstVotingRoundSee();
+                str += "\n                     judgeCon1  " + HashgraphInfo.getLatestRoundInfo().judgeCon1();
+                str += "\n                  coinInterval  " + HashgraphInfo.getLatestRoundInfo().coinInterval();
+                str += "\n     targetNumRoundsNonAncient  " + HashgraphInfo.getLatestRoundInfo().targetNumRoundsNonAncient();
+                str += "\n          numRoundsAddressBook  " + HashgraphInfo.getLatestRoundInfo().numRoundsAddressBook();
+                str += "\nLATEST ROUND INFO PREV ("
+                        + HashgraphInfo.getLatestRoundInfoPrev().pendingRound()
+                        + ") ===============================";
+                str += "\n                 prevJudgeCon1  " + HashgraphInfo.getLatestRoundInfoPrev().prevJudgeCon1();
+                str += "\n                    prevJudges  "
+                        + eventInfosToString(HashgraphInfo.getLatestRoundInfoPrev().prevJudges());
+                str += "\n              prevJudgesCopied  " + HashgraphInfo.getLatestRoundInfoPrev().prevJudgesCopied();
+                str += "\n        prevMinNonAncientRound  "
+                        + HashgraphInfo.getLatestRoundInfoPrev().prevMinNonAncientRound();
+                str += "\n                   prevNumCons  "
+                        + HashgraphInfo.getLatestRoundInfoPrev().prevNumCons();
+                str += "\n        prevMinJudgeBirthRound  "
+                        + HashgraphInfo.getLatestRoundInfoPrev().prevMinJudgeBirthRound();
             } catch (Exception e) {
                 str = "\n" + e.toString() + "\n" + e.getMessage();
             }
