@@ -54,12 +54,7 @@ public final class AutoFixRenderer {
      * @param f  the finding to describe.
      */
     private static void appendHeader(final StringBuilder sb, final Finding f) {
-        sb.append("### `")
-                .append(f.entryKey())
-                .append("` — `")
-                .append(f.target())
-                .append("`\n");
-        sb.append("`").append(f.entryPath()).append("` — ").append(f.evidence()).append("\n\n");
+        Md.findingHeader(sb, f.entryKey(), f.target(), f.entryPath(), f.evidence());
     }
 
     /**

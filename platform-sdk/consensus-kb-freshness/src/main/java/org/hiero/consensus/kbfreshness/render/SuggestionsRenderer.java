@@ -125,12 +125,7 @@ public final class SuggestionsRenderer {
                 continue;
             }
             any = true;
-            sb.append("### `")
-                    .append(f.entryKey())
-                    .append("` — `")
-                    .append(f.target())
-                    .append("`\n");
-            sb.append("`").append(f.entryPath()).append("`\n\n");
+            Md.findingHeader(sb, f.entryKey(), f.target(), f.entryPath(), null);
             for (final String bullet : bullets) {
                 sb.append("- ").append(bullet).append('\n');
             }
@@ -207,12 +202,7 @@ public final class SuggestionsRenderer {
                         + "listed lines still names the old package — no mechanical rewrite touches it, so reword "
                         + "it by hand (or via the semantic pass)._\n\n");
             }
-            sb.append("### `")
-                    .append(f.entryKey())
-                    .append("` — `")
-                    .append(oldPkg)
-                    .append("`\n");
-            sb.append("`").append(f.entryPath()).append("`\n\n");
+            Md.findingHeader(sb, f.entryKey(), oldPkg, f.entryPath(), null);
             final List<String> lineRefs = new ArrayList<>();
             for (final Integer line : lines) {
                 lineRefs.add("line " + line);

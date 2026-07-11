@@ -58,22 +58,19 @@ public final class CoverageRenderer {
      * @param result the run result.
      */
     private static void renderUndocumentedCode(final StringBuilder sb, final RunResult result) {
-        sb.append("## Undocumented code\n\n");
-        sb.append("_Code that exists but the KB does not document (e.g. an interface method not listed in "
-                + "its entry)._\n\n");
-        boolean any = false;
+        final List<String> items = new ArrayList<>();
         for (final Finding f : result.findings()) {
             if (f.lane() != Lane.COVERAGE_GAP || f.kind() == AnchorKind.CONFIG_PREFIX) {
                 continue;
             }
-            any = true;
-            sb.append("- `")
-                    .append(f.entryKey())
-                    .append("` — ")
-                    .append(f.evidence())
-                    .append('\n');
+            items.add("`" + f.entryKey() + "` — " + f.evidence());
         }
-        sb.append(any ? "\n" : "_None._\n\n");
+        Md.bulletedSection(
+                sb,
+                "Undocumented code",
+                "Code that exists but the KB does not document (e.g. an interface method not listed in "
+                        + "its entry).",
+                items);
     }
 
     /**
@@ -85,18 +82,19 @@ public final class CoverageRenderer {
      * @param result the run result.
      */
     private static void renderUndocumentedRecords(final StringBuilder sb, final RunResult result) {
-        sb.append("## Config records with no tunables section\n\n");
-        sb.append("_`@ConfigData` records in consensus-layer (or already-documented) modules that the "
-                + "tunables catalog has no section for — candidate sections to write._\n\n");
-        boolean any = false;
+        final List<String> items = new ArrayList<>();
         for (final Finding f : result.findings()) {
             if (f.lane() != Lane.COVERAGE_GAP || f.kind() != AnchorKind.CONFIG_PREFIX) {
                 continue;
             }
-            any = true;
-            sb.append("- ").append(f.evidence()).append('\n');
+            items.add(f.evidence());
         }
-        sb.append(any ? "\n" : "_None._\n\n");
+        Md.bulletedSection(
+                sb,
+                "Config records with no tunables section",
+                "`@ConfigData` records in consensus-layer (or already-documented) modules that the "
+                        + "tunables catalog has no section for — candidate sections to write.",
+                items);
     }
 
     /**
@@ -109,21 +107,18 @@ public final class CoverageRenderer {
      * @param result the run result.
      */
     private static void renderUnanchoredTopics(final StringBuilder sb, final RunResult result) {
-        sb.append("## Architecture topics anchoring no source\n\n");
-        sb.append("_Topic docs that cite no resolvable source file, so no claim can be checked against code. "
-                + "Consider anchoring them._\n\n");
-        boolean any = false;
+        final List<String> items = new ArrayList<>();
         for (final WorklistEntry e : result.worklist()) {
             if (e.entryPath().contains("/architecture/topics/") && e.anchoredSourceCount() == 0) {
-                any = true;
-                sb.append("- `")
-                        .append(e.entryKey())
-                        .append("` — `")
-                        .append(e.entryPath())
-                        .append("`\n");
+                items.add("`" + e.entryKey() + "` — `" + e.entryPath() + "`");
             }
         }
-        sb.append(any ? "\n" : "_None._\n\n");
+        Md.bulletedSection(
+                sb,
+                "Architecture topics anchoring no source",
+                "Topic docs that cite no resolvable source file, so no claim can be checked against code. "
+                        + "Consider anchoring them.",
+                items);
     }
 
     /**
@@ -135,9 +130,6 @@ public final class CoverageRenderer {
      * @param result the run result.
      */
     private static void renderMissingTopicDocs(final StringBuilder sb, final RunResult result) {
-        sb.append("## Cited topic slugs with no document\n\n");
-        sb.append("_Frontmatter `topics:` tags (and topic links) whose target document does not exist — "
-                + "candidate topics to write, or slugs to retarget (see `suggestions.md`)._\n\n");
         final Map<String, List<String>> citersBySlug = new TreeMap<>();
         for (final Finding f : result.findings()) {
             if (f.kind() == AnchorKind.CROSS_DOC_LINK
@@ -152,20 +144,17 @@ public final class CoverageRenderer {
                 }
             }
         }
-        if (citersBySlug.isEmpty()) {
-            sb.append("_None._\n\n");
-            return;
-        }
+        final List<String> items = new ArrayList<>();
         for (final Map.Entry<String, List<String>> e : citersBySlug.entrySet()) {
-            sb.append("- `")
-                    .append(e.getKey())
-                    .append("` — cited by ")
-                    .append(e.getValue().size())
-                    .append(": ")
-                    .append(String.join(", ", e.getValue().stream().sorted().toList()))
-                    .append('\n');
+            items.add("`" + e.getKey() + "` — cited by " + e.getValue().size() + ": "
+                    + String.join(", ", e.getValue().stream().sorted().toList()));
         }
-        sb.append('\n');
+        Md.bulletedSection(
+                sb,
+                "Cited topic slugs with no document",
+                "Frontmatter `topics:` tags (and topic links) whose target document does not exist — "
+                        + "candidate topics to write, or slugs to retarget (see `suggestions.md`).",
+                items);
     }
 
     /**
@@ -177,20 +166,17 @@ public final class CoverageRenderer {
      * @param result the run result.
      */
     private static void renderUncheckedInterfaces(final StringBuilder sb, final RunResult result) {
-        sb.append("## Interface docs not checked at Tier-2\n\n");
-        sb.append("_`architecture/interfaces/*` docs without `interface:`/`methods:` frontmatter: their "
-                + "method set is never mechanically diffed (left entirely to the semantic pass)._\n\n");
-        boolean any = false;
+        final List<String> items = new ArrayList<>();
         for (final KbDocument doc : result.documents()) {
             if (doc.entry().type() == EntryType.ARCHITECTURE_INTERFACE && !InterfaceDiffAssembler.optsIntoTier2(doc)) {
-                any = true;
-                sb.append("- `")
-                        .append(doc.entry().key())
-                        .append("` — `")
-                        .append(doc.entry().relativePath())
-                        .append("`\n");
+                items.add("`" + doc.entry().key() + "` — `" + doc.entry().relativePath() + "`");
             }
         }
-        sb.append(any ? "\n" : "_None._\n\n");
+        Md.bulletedSection(
+                sb,
+                "Interface docs not checked at Tier-2",
+                "`architecture/interfaces/*` docs without `interface:`/`methods:` frontmatter: their "
+                        + "method set is never mechanically diffed (left entirely to the semantic pass).",
+                items);
     }
 }
