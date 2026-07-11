@@ -65,30 +65,37 @@ public final class JavaParsing {
     public record MethodSig(String name, List<String> paramTypes, String returnType, int line) {}
 
     /**
+     * The {@code @ConfigProperty(defaultValue = …)} of a record component, modeled by how it can be
+     * compared: a plain string {@link Literal} (a compile-time fact), a non-literal {@link Expr} constant
+     * reference (compared only when whitelisted by the caller), or {@link None} when no {@code defaultValue}
+     * attribute is written. Making the three states mutually exclusive by construction replaces the former
+     * {@code (defaultValue, defaultIsLiteral, defaultExpr)} triple whose {@code defaultIsLiteral} was
+     * derivable and whose two value fields could never both be set.
+     */
+    public sealed interface Default {
+
+        /** A plain string-literal default, comparable as a fact. */
+        record Literal(String value) implements Default {}
+
+        /** A non-literal default written as a constant reference (e.g. {@code Configuration.EMPTY_LIST}). */
+        record Expr(String expression) implements Default {}
+
+        /** No {@code defaultValue} attribute was written. */
+        record None() implements Default {}
+    }
+
+    /**
      * One record component read as a config property, for {@code @ConfigData} record checks.
      *
-     * @param keyName           the property name the config system binds — the {@code @ConfigProperty}
-     *                          {@code value} attribute when written, else the component name.
-     * @param componentName     the record component's declared name.
-     * @param type              the component's type exactly as written.
-     * @param defaultValue      the {@code @ConfigProperty(defaultValue = "…")} string literal, or
-     *                          {@code null} when absent or not a plain literal.
-     * @param defaultIsLiteral  whether a {@code defaultValue} attribute was written as a plain string
-     *                          literal (only then can it be compared as a fact).
-     * @param defaultExpr       for a non-literal {@code defaultValue} (a constant reference), its
-     *                          expression exactly as written (e.g. {@code Configuration.EMPTY_LIST});
-     *                          {@code null} when the attribute is absent or a plain literal. Recorded
-     *                          as a fact only — interpreting it is the caller's decision.
-     * @param line              the 1-based line of the component declaration.
+     * @param keyName       the property name the config system binds — the {@code @ConfigProperty}
+     *                      {@code value} attribute when written, else the component name.
+     * @param componentName the record component's declared name.
+     * @param type          the component's type exactly as written.
+     * @param defaultSpec   the {@code @ConfigProperty} {@code defaultValue}, modeled as a literal, a
+     *                      constant-reference expression, or none.
+     * @param line          the 1-based line of the component declaration.
      */
-    public record ConfigComponent(
-            String keyName,
-            String componentName,
-            String type,
-            String defaultValue,
-            boolean defaultIsLiteral,
-            String defaultExpr,
-            int line) {}
+    public record ConfigComponent(String keyName, String componentName, String type, Default defaultSpec, int line) {}
 
     /**
      * A declared type: its kind, declaration line, methods (overloads preserved), and — for
@@ -280,9 +287,7 @@ public final class JavaParsing {
     private static ConfigComponent configComponentOf(final ParseContext ctx, final VariableTree vt) {
         final String componentName = vt.getName().toString();
         String keyName = componentName;
-        String defaultValue = null;
-        boolean defaultIsLiteral = false;
-        String defaultExpr = null;
+        Default defaultSpec = new Default.None();
         for (final AnnotationTree at : vt.getModifiers().getAnnotations()) {
             if (!simpleAnnotationName(at).equals("ConfigProperty")) {
                 continue;
@@ -291,17 +296,19 @@ public final class JavaParsing {
             if (named != null) {
                 keyName = named;
             }
-            defaultValue = attributeLiteral(at, "defaultValue");
-            defaultIsLiteral = defaultValue != null;
-            defaultExpr = defaultIsLiteral ? null : attributeExpression(at, "defaultValue");
+            final String literal = attributeLiteral(at, "defaultValue");
+            if (literal != null) {
+                defaultSpec = new Default.Literal(literal);
+            } else {
+                final String expr = attributeExpression(at, "defaultValue");
+                defaultSpec = expr != null ? new Default.Expr(expr) : new Default.None();
+            }
         }
         return new ConfigComponent(
                 keyName,
                 componentName,
                 vt.getType() == null ? "" : vt.getType().toString().replaceAll("\\s+", ""),
-                defaultValue,
-                defaultIsLiteral,
-                defaultExpr,
+                defaultSpec,
                 declLine(ctx, vt, vt.getModifiers()));
     }
 

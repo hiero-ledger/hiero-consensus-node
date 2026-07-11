@@ -22,6 +22,7 @@ import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
+import org.hiero.consensus.kbfreshness.resolve.JavaParsing.Default;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
@@ -311,39 +312,58 @@ public final class TunablesDiffAssembler {
             return List.of();
         }
         final String question = "default of `" + row.key() + "` matches `@ConfigProperty(defaultValue = …)`";
-        // Reduce both a plain literal and a whitelisted config-API constant (a compile-time fact) to a
-        // single effective literal, then compare once. A non-literal, non-whitelisted default is unverifiable.
-        final String effective;
-        final String mismatchEvidence;
-        if (c.defaultIsLiteral()) {
-            effective = c.defaultValue();
-            mismatchEvidence = "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
-                    + "`@ConfigProperty(defaultValue = \"" + c.defaultValue() + "\")` in `" + owner.className()
-                    + "` (`" + owner.path() + "`).";
-        } else {
-            final String known = c.defaultExpr() == null ? null : WELL_KNOWN_DEFAULTS.get(c.defaultExpr());
-            if (known == null) {
-                return List.of(defaultFinding(
-                        doc,
-                        owner,
-                        row,
-                        Outcome.UNVERIFIABLE,
-                        Lane.QUIET_LOG,
-                        question,
-                        "`defaultValue` of `" + row.key() + "` in `" + owner.className()
-                                + "` is not a plain string literal; documented default `" + documented
-                                + "` is unverifiable."));
-            }
-            effective = known;
-            mismatchEvidence = "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
-                    + "`@ConfigProperty(defaultValue = " + c.defaultExpr() + ")` (= `" + known + "`) in `"
-                    + owner.className() + "` (`" + owner.path() + "`).";
+        // Reduce a plain literal or a whitelisted config-API constant (a compile-time fact) to one
+        // effective literal with its mismatch wording; a non-literal, non-whitelisted, or absent default
+        // yields null (unverifiable).
+        final EffectiveDefault effective =
+                switch (c.defaultSpec()) {
+                    case Default.Literal(String value) ->
+                        new EffectiveDefault(
+                                value,
+                                "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
+                                        + "`@ConfigProperty(defaultValue = \"" + value + "\")` in `" + owner.className()
+                                        + "` (`" + owner.path() + "`).");
+                    case Default.Expr(String expression) -> {
+                        final String known = WELL_KNOWN_DEFAULTS.get(expression);
+                        yield known == null
+                                ? null
+                                : new EffectiveDefault(
+                                        known,
+                                        "Documented default `" + documented + "` of `" + row.key()
+                                                + "` no longer matches `@ConfigProperty(defaultValue = " + expression
+                                                + ")` (= `" + known + "`) in `" + owner.className() + "` (`"
+                                                + owner.path() + "`).");
+                    }
+                    case Default.None() -> null;
+                };
+        if (effective == null) {
+            return List.of(defaultFinding(
+                    doc,
+                    owner,
+                    row,
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    question,
+                    "`defaultValue` of `" + row.key() + "` in `" + owner.className()
+                            + "` is not a plain string literal; documented default `" + documented
+                            + "` is unverifiable."));
         }
-        if (!normalizeDefault(documented).equals(normalizeDefault(effective))) {
-            return List.of(defaultFinding(doc, owner, row, Outcome.ABSENT, Lane.ASSERT, question, mismatchEvidence));
+        if (!normalizeDefault(documented).equals(normalizeDefault(effective.value()))) {
+            return List.of(defaultFinding(
+                    doc, owner, row, Outcome.ABSENT, Lane.ASSERT, question, effective.mismatchEvidence()));
         }
         return List.of();
     }
+
+    /**
+     * A component's {@code defaultValue} reduced to a single comparable literal (a plain literal, or a
+     * whitelisted constant's compile-time value) together with the evidence to render when the documented
+     * default no longer matches it.
+     *
+     * @param value            the effective literal to compare the documented default against.
+     * @param mismatchEvidence the one-look evidence for a mismatch assertion.
+     */
+    private record EffectiveDefault(String value, String mismatchEvidence) {}
 
     /**
      * The outcome of resolving a section's config record: the resolved {@code owner} (or {@code null} when
