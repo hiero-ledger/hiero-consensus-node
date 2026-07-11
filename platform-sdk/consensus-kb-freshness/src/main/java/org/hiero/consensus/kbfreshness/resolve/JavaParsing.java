@@ -175,6 +175,19 @@ public final class JavaParsing {
     /** Declared types of a parsed file, keyed by simple type name (nested types included). */
     public record ParsedFile(Map<String, TypeInfo> types) {}
 
+    /**
+     * The per-compilation-unit parse state threaded through the collectors: the unit, its source-position
+     * lookup, its line-number map, and its source text. Bundled so a single value passes through
+     * {@link #collectType}, {@link #configComponentOf}, {@link #signatureOf}, and {@link #declLine}
+     * instead of the same four arguments.
+     *
+     * @param cu        the compilation unit being read.
+     * @param positions source-position lookup for the unit.
+     * @param lineMap   line-number lookup for the unit.
+     * @param src       the unit's source text, for signature-line resolution.
+     */
+    private record ParseContext(CompilationUnitTree cu, SourcePositions positions, LineMap lineMap, CharSequence src) {}
+
     /** The system Java compiler, or {@code null} when running on a JRE without one. */
     private static final JavaCompiler COMPILER = ToolProvider.getSystemJavaCompiler();
 
@@ -201,10 +214,10 @@ public final class JavaParsing {
             final SourcePositions positions = trees.getSourcePositions();
             final Map<String, TypeInfo> types = new LinkedHashMap<>();
             for (final CompilationUnitTree cu : task.parse()) {
-                final LineMap lineMap = cu.getLineMap();
-                final CharSequence src = cu.getSourceFile().getCharContent(true);
+                final ParseContext ctx = new ParseContext(
+                        cu, positions, cu.getLineMap(), cu.getSourceFile().getCharContent(true));
                 for (final Tree decl : cu.getTypeDecls()) {
-                    collectType(cu, decl, positions, lineMap, src, types);
+                    collectType(ctx, decl, types);
                 }
             }
             return new ParsedFile(types);
@@ -217,20 +230,11 @@ public final class JavaParsing {
      * Collects a type declaration (and its nested types) into the output map, recording each type's
      * kind, declaration line, and method signatures. Non-type declarations are ignored.
      *
-     * @param cu        the enclosing compilation unit.
-     * @param decl      the declaration to inspect.
-     * @param positions source-position lookup for the unit.
-     * @param lineMap   line-number lookup for the unit.
-     * @param src       the compilation unit's source text, for signature-line resolution.
-     * @param out       the map to populate, keyed by simple type name.
+     * @param ctx  the enclosing compilation unit's parse state.
+     * @param decl the declaration to inspect.
+     * @param out  the map to populate, keyed by simple type name.
      */
-    private static void collectType(
-            final CompilationUnitTree cu,
-            final Tree decl,
-            final SourcePositions positions,
-            final LineMap lineMap,
-            final CharSequence src,
-            final Map<String, TypeInfo> out) {
+    private static void collectType(final ParseContext ctx, final Tree decl, final Map<String, TypeInfo> out) {
         // ClassTree covers class, interface, enum, record, and annotation declarations.
         if (!(decl instanceof ClassTree ct)) {
             return;
@@ -241,22 +245,22 @@ public final class JavaParsing {
         final boolean isRecord = kindOf(ct) == Kind.RECORD;
         for (final Tree member : ct.getMembers()) {
             if (member instanceof MethodTree mt) {
-                methods.add(signatureOf(cu, mt, positions, lineMap, src));
+                methods.add(signatureOf(ctx, mt));
             } else if (member instanceof ClassTree nested) {
-                collectType(cu, nested, positions, lineMap, src, out);
+                collectType(ctx, nested, out);
             } else if (isRecord
                     && member instanceof VariableTree vt
                     && !vt.getModifiers().getFlags().contains(Modifier.STATIC)) {
                 // A record's non-static variable members are exactly its components (the parser lowers
                 // the record header into member declarations; instance fields are illegal in records).
-                components.add(configComponentOf(cu, vt, positions, lineMap, src));
+                components.add(configComponentOf(ctx, vt));
             }
         }
         if (!name.isEmpty()) {
             out.putIfAbsent(
                     name,
                     new TypeInfo(
-                            declLine(cu, ct, ct.getModifiers(), positions, lineMap, src),
+                            declLine(ctx, ct, ct.getModifiers()),
                             kindOf(ct),
                             methods,
                             annotationValue(ct.getModifiers(), "ConfigData"),
@@ -269,19 +273,11 @@ public final class JavaParsing {
      * {@code value} attribute or the component name), as-written type, and — when written as a plain
      * string literal — its {@code defaultValue}.
      *
-     * @param cu        the enclosing compilation unit.
-     * @param vt        the component declaration.
-     * @param positions source-position lookup for the unit.
-     * @param lineMap   line-number lookup for the unit.
-     * @param src       the compilation unit's source text.
+     * @param ctx the enclosing compilation unit's parse state.
+     * @param vt  the component declaration.
      * @return the component's config-property view.
      */
-    private static ConfigComponent configComponentOf(
-            final CompilationUnitTree cu,
-            final VariableTree vt,
-            final SourcePositions positions,
-            final LineMap lineMap,
-            final CharSequence src) {
+    private static ConfigComponent configComponentOf(final ParseContext ctx, final VariableTree vt) {
         final String componentName = vt.getName().toString();
         String keyName = componentName;
         String defaultValue = null;
@@ -306,7 +302,7 @@ public final class JavaParsing {
                 defaultValue,
                 defaultIsLiteral,
                 defaultExpr,
-                declLine(cu, vt, vt.getModifiers(), positions, lineMap, src));
+                declLine(ctx, vt, vt.getModifiers()));
     }
 
     /**
@@ -391,19 +387,11 @@ public final class JavaParsing {
     /**
      * Builds the as-written signature of a method declaration.
      *
-     * @param cu        the enclosing compilation unit.
-     * @param mt        the method declaration.
-     * @param positions source-position lookup for the unit.
-     * @param lineMap   line-number lookup for the unit.
-     * @param src       the compilation unit's source text, for signature-line resolution.
+     * @param ctx the enclosing compilation unit's parse state.
+     * @param mt  the method declaration.
      * @return the method's signature.
      */
-    private static MethodSig signatureOf(
-            final CompilationUnitTree cu,
-            final MethodTree mt,
-            final SourcePositions positions,
-            final LineMap lineMap,
-            final CharSequence src) {
+    private static MethodSig signatureOf(final ParseContext ctx, final MethodTree mt) {
         final List<String> params = new ArrayList<>();
         for (final VariableTree p : mt.getParameters()) {
             params.add(canonicalType(p.getType().toString()));
@@ -411,11 +399,7 @@ public final class JavaParsing {
         final String returnType = mt.getReturnType() == null
                 ? null
                 : canonicalType(mt.getReturnType().toString());
-        return new MethodSig(
-                mt.getName().toString(),
-                params,
-                returnType,
-                declLine(cu, mt, mt.getModifiers(), positions, lineMap, src));
+        return new MethodSig(mt.getName().toString(), params, returnType, declLine(ctx, mt, mt.getModifiers()));
     }
 
     /**
@@ -442,38 +426,31 @@ public final class JavaParsing {
      * result. Leading Javadoc never counts: it precedes the tree's start position. When the node has no
      * annotations, this is just the node's start line.
      *
-     * @param cu        the enclosing compilation unit.
-     * @param node      the type or method declaration.
-     * @param mods      the declaration's modifiers (its annotations).
-     * @param positions source-position lookup for the unit.
-     * @param lineMap   line-number lookup for the unit.
-     * @param src       the compilation unit's source text.
+     * @param ctx  the enclosing compilation unit's parse state.
+     * @param node the type or method declaration.
+     * @param mods the declaration's modifiers (its annotations).
      * @return the 1-based signature line, or {@code -1} if the position is unknown.
      */
-    private static int declLine(
-            final CompilationUnitTree cu,
-            final Tree node,
-            final ModifiersTree mods,
-            final SourcePositions positions,
-            final LineMap lineMap,
-            final CharSequence src) {
-        final long start = positions.getStartPosition(cu, node);
+    private static int declLine(final ParseContext ctx, final Tree node, final ModifiersTree mods) {
+        final long start = ctx.positions().getStartPosition(ctx.cu(), node);
         if (start < 0) {
             return -1;
         }
         long from = start;
         final List<? extends AnnotationTree> annotations = mods.getAnnotations();
         if (!annotations.isEmpty()) {
-            final long lastAnnotationEnd = positions.getEndPosition(cu, annotations.get(annotations.size() - 1));
+            final long lastAnnotationEnd =
+                    ctx.positions().getEndPosition(ctx.cu(), annotations.get(annotations.size() - 1));
             if (lastAnnotationEnd > from) {
                 from = lastAnnotationEnd;
             }
         }
         int pos = (int) from;
+        final CharSequence src = ctx.src();
         while (pos < src.length() && Character.isWhitespace(src.charAt(pos))) {
             pos++;
         }
-        return (int) lineMap.getLineNumber(pos >= src.length() ? start : pos);
+        return (int) ctx.lineMap().getLineNumber(pos >= src.length() ? start : pos);
     }
 
     /**
