@@ -13,11 +13,9 @@ import org.hiero.consensus.kbfreshness.render.AutoFix;
 import org.hiero.consensus.kbfreshness.render.AutoFix.Edit;
 
 /**
- * Applies the deterministic auto-fix edits ({@link AutoFix#edits}) to the KB files on disk. Only the
- * certain fixes are written — moved line references and unique package/path moves, exactly the diffs a
- * curator sees in {@code auto-fix.md}. Each edit is guarded by an exact match of the line's current text,
- * so applying is idempotent (a re-run finds the citation already correct and proposes nothing) and never
- * clobbers a line that has since diverged. Fuzzy did-you-mean renames are deliberately out of scope.
+ * Applies the deterministic {@link AutoFix#edits} to the KB files on disk under {@code --fix} — exactly
+ * the diffs {@code auto-fix.md} shows. Each edit is guarded by an exact match of the line's current text,
+ * so applying is idempotent and never clobbers a line that has since diverged.
  */
 public final class AutoFixApplier {
 
@@ -53,8 +51,6 @@ public final class AutoFixApplier {
         for (final Map.Entry<String, List<Edit>> fileEdits : new TreeMap<>(byFile).entrySet()) {
             final GuardedLineEditor editor = GuardedLineEditor.open(repoRoot.resolve(fileEdits.getKey()));
             for (final Edit e : fileEdits.getValue()) {
-                // Guarded by an exact before-match on the cited line, so applying is idempotent and never
-                // clobbers a line that has since diverged.
                 if (editor.hasLine(e.line()) && editor.bareLine(e.line()).equals(e.before())) {
                     editor.rewriteLine(e.line(), e.after());
                     applied++;

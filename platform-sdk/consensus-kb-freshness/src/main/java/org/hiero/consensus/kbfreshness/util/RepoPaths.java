@@ -4,10 +4,9 @@ package org.hiero.consensus.kbfreshness.util;
 import java.nio.file.Path;
 
 /**
- * Stateless helpers for the repo-relative, forward-slashed paths the checker works in: deriving a
- * module directory, a file's last segment, its class name, its parent directory, dropping the first
- * segment, and resolving one relative path against another. Shared across extraction, resolution, and
- * rendering so the same path conventions are applied everywhere.
+ * Stateless helpers for the repo-relative, forward-slashed paths the checker works in (module directory,
+ * last segment, class name, parent, first-segment strip, relative resolution). Shared across extraction,
+ * resolution, and rendering so the same path conventions apply everywhere.
  */
 public final class RepoPaths {
 

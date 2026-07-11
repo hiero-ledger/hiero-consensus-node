@@ -7,11 +7,8 @@ import org.hiero.consensus.kbfreshness.render.AutoFix.Change;
 import org.hiero.consensus.kbfreshness.render.AutoFix.Proposal;
 
 /**
- * Renders deterministic auto-fix proposals for citations that still resolve but are cited wrongly: a
- * moved line reference (the symbol resolves at another line) or a package/path move with exactly one new
- * location (the file resolves at another path). The corrected citation is shown as a before/after edit;
- * the same edits are what {@code AutoFixApplier} writes under {@code --fix}. Fuzzy renames are never here
- * — those are non-asserting did-you-mean hints in {@code suggestions.md}.
+ * Renders the {@link AutoFix} proposals as Markdown: each corrected citation shown as a before/after
+ * edit — the same edits {@code AutoFixApplier} writes under {@code --fix}.
  */
 public final class AutoFixRenderer {
 

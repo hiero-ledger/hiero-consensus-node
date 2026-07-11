@@ -237,24 +237,15 @@ are shown for hand-editing.
 
 **`suggestions.md` — non-asserting "did you mean" hints.** For each **GONE** target (a missing
 cross-doc link, source path, bare source basename, or config key) the tool offers replacement
-candidates — a definite git rename when history has one, else the commit that deleted the target when
-git recorded one, plus the closest near-name matches against the KB docs or the source index (for a
-gone architecture-topic target, only other topic/interface docs are considered). Beyond name
-similarity, two weaker signals are scored, both capped so they can only ever *offer*, never promote:
-a doc whose frontmatter **title** covers the gone name's tokens, and a candidate sharing a
-**distinctive token** carried by exactly one candidate in the pool (so `backpressure` finds
-`flow-control.md` through its title even when edit distance sees nothing). Where a hint is unambiguous
-it is made **actionable**: a topics-slug tag with a single strong match becomes a
-`rename topics: slug X → Y`, a body doc link whose basename resolves at exactly one other KB doc gets
-the ready relative-link rewrite, a gone config key declared same-named by another indexed
-`@ConfigData` record is reported as a **key migration** (with the full new key; similar-named
-components are offered as possible renames), and a source an ADR cites as removed gets a nudge to
-mark it `historical:` rather than repoint it. A key-migration hint whose target record has no
-tunables section yet says so (the row move needs a new section — see `coverage.md`). A closing
-**Prose naming moved packages** section lists doc lines that still name the *old package* of a moved
-citation — text the ready rewrites cannot touch, which would contradict the corrected citations the
-moment `--fix` runs. **Hints, not facts** (it never asserts, and `--fix`
-never applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
+candidates — a definite git rename when history has one, else the commit that deleted the target,
+plus the closest near-name matches against the KB docs or the source index. Where a hint is
+unambiguous it is made **actionable**: a topics-slug tag with a single strong match becomes a
+`rename topics: slug X → Y`, a body doc link resolving at exactly one other KB doc gets a ready
+relative-link rewrite, a gone config key another `@ConfigData` record now declares is reported as a
+**key migration**, and a source an ADR cites as removed gets a nudge to mark it `historical:`. A
+closing **Prose naming moved packages** section lists doc lines still naming the *old package* of a
+moved citation — text the ready rewrites cannot touch. **Hints, not facts** (it never asserts, and
+`--fix` never applies them), and kept out of `findings.json` so the machine artifact stays reproducible.
 
 **`coverage.md` — the `coverage-gap` lane.** Documentation gaps — the inverse of drift — in five
 sections: (1) code the docs don't mention (a method present on a documented interface but absent
@@ -331,16 +322,13 @@ To adopt the current findings wholesale as the baseline, run with `--write-basel
   section's `@ConfigData` record).
 - **Tier 2** — method-signature equality (`Class.method(params)` citations), interface method-set
   diffs (opt-in via `interface:`/`methods:` frontmatter; undocumented methods → coverage lane), and
-  tunables-catalog default equality (documented default vs the `defaultValue` string literal;
-  non-literal defaults → quiet log — except the closed whitelist of well-known config-API constants
-  (`Configuration.EMPTY_LIST` = `[]`), whose values are compile-time facts and compare as literals —
-  type differences → quiet log since the catalog may document a semantic type, undocumented keys →
-  coverage lane, whole undocumented config records → coverage lane). A section whose cited config
-  class is gone is additionally resolved by its `@ConfigData` **prefix**: exactly one indexed record
-  declaring the prefix *and* every documented key is a certain rename/move — asserted, with the
-  heading, `Source:` link, and `Module:` label rewrite ready for `--fix`, and the Tier-0 source-path
-  GONE finding for the same citation subsumed rather than double-reported. (The prefix scan covers
-  indexed `*Config.java` files under `src/main/java` — the repo's config-record naming convention.)
+  tunables-catalog default equality (documented default vs the `defaultValue` string literal).
+  Non-literal defaults and type differences → quiet log (except the closed well-known-constant
+  whitelist, e.g. `Configuration.EMPTY_LIST` = `[]`); undocumented keys and whole undocumented config
+  records → coverage lane. A section whose cited config class is gone is additionally resolved by its
+  `@ConfigData` **prefix**: exactly one indexed record declaring the prefix *and* every documented key
+  is a certain rename/move — asserted, with the heading/`Source:`/`Module:` rewrite ready for `--fix`,
+  and the Tier-0 GONE finding for the same citation subsumed rather than double-reported.
 - **Tier 3 (semantic)** — prose-vs-behavior, performed by the skill against current source; advisory
   only, `contradicted`-with-citation only.
 

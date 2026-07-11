@@ -23,16 +23,11 @@ import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
- * Renders non-asserting "did you mean" hints for gone targets: a cited doc, source path, bare source
- * file, or config key no longer resolves. Each hint is either a definite git rename or a near-name match
- * (scored by {@link NearNameMatcher}) against the KB docs / source index / indexed config records — a
- * suggestion, never a fact, so it respects the "never assert" invariant and is kept out of the machine
- * artifact. Where a hint is unambiguous it is made actionable — a topics-slug rename with a single strong
- * match, a doc link whose basename resolves at exactly one other KB doc (a ready link rewrite), a gone
- * config key declared same-named by another record (a key migration), or (for a source an ADR cites as
- * removed) a nudge to mark it {@code historical:}. A closing section lists prose lines still naming the
- * old package of a moved citation — text the ready rewrites cannot touch. This renderer is formatting-only;
- * all scoring lives in {@link NearNameMatcher}. Deterministic for a given checkout.
+ * Renders non-asserting "did you mean" hints for gone targets (a cited doc, source path, bare basename,
+ * or config key that no longer resolves): a definite git rename or a near-name match scored by
+ * {@link NearNameMatcher}, made actionable where unambiguous. A suggestion, never a fact — it respects
+ * the "never assert" invariant and is kept out of the machine artifact. Formatting-only; all scoring
+ * lives in {@link NearNameMatcher}. Deterministic for a given checkout.
  */
 public final class SuggestionsRenderer {
 
@@ -216,11 +211,10 @@ public final class SuggestionsRenderer {
     }
 
     /**
-     * Composes the rendered bullet lines for one gone finding from its raw hints. A definite git rename is
-     * conclusive and stands alone; otherwise the deleting commit, an actionable topics-slug rename (when a
-     * single strong match exists), an actionable link rewrite (when the linked doc's basename resolves at
-     * exactly one other KB doc), the near-name matches, and — for a source an ADR cites — a nudge to mark
-     * it {@code historical:} are offered in that order.
+     * Composes the rendered bullet lines for one gone finding from its raw hints, most useful first: a
+     * definite git rename stands alone; otherwise the deleting commit, an actionable slug rename or link
+     * rewrite where unambiguous, the near-name matches, and an {@code historical:} nudge for ADR-cited
+     * sources.
      *
      * @param f              the gone finding.
      * @param hints          the raw hints for its target.

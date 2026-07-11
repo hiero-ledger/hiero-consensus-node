@@ -156,7 +156,8 @@ public final class SourceIndex {
     }
 
     /**
-     * Every indexed file basename, in sorted order. Used to propose near-name matches for a gone source.
+     * Every indexed file basename, in sorted order. Drives near-name matching for gone sources and the
+     * config-record scan.
      *
      * @return the sorted set of indexed basenames.
      */

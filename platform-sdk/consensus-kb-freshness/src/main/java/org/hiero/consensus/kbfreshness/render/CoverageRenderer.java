@@ -17,12 +17,13 @@ import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
  * Renders the coverage lane: documentation gaps that are the inverse of drift and so are kept out of the
- * drift report by design. Three kinds are surfaced, each tracked separately for a curator closing gaps:
+ * drift report by design. Five kinds are surfaced, each tracked separately for a curator closing gaps:
  * <ul>
  *   <li>code that exists but the KB does not document (e.g. an interface method absent from its entry);</li>
  *   <li>in-scope config records the tunables catalog has no section for at all;</li>
  *   <li>architecture topics that anchor no source — no mechanically-checkable claim;</li>
- *   <li>interface docs that do not opt into the Tier-2 method-set diff, so it never runs for them.</li>
+ *   <li>interface docs that do not opt into the Tier-2 method-set diff, so it never runs for them;</li>
+ *   <li>cited topic slugs whose document does not exist — the topic may be worth writing.</li>
  * </ul>
  * None of these is drift; none is ever asserted.
  */

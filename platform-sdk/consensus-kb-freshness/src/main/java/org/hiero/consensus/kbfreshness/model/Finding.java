@@ -99,12 +99,7 @@ public record Finding(
                 null);
     }
 
-    /**
-     * Returns a copy of this finding with the corrected auto-fix line set.
-     *
-     * @param newAutoFixLine the corrected code line, or {@code null}.
-     * @return the updated finding.
-     */
+    /** Returns a copy of this finding with the corrected auto-fix line set. */
     public Finding withAutoFixLine(final Integer newAutoFixLine) {
         return new Finding(
                 id,
@@ -125,12 +120,7 @@ public record Finding(
                 statedModule);
     }
 
-    /**
-     * Returns a copy of this finding with the resolved package/path-move location set.
-     *
-     * @param newResolvedPath the repo-relative path the cited source now resolves at, or {@code null}.
-     * @return the updated finding.
-     */
+    /** Returns a copy of this finding with the resolved package/path-move location set. */
     public Finding withResolvedPath(final String newResolvedPath) {
         return new Finding(
                 id,
@@ -151,12 +141,7 @@ public record Finding(
                 statedModule);
     }
 
-    /**
-     * Returns a copy of this finding with the prose-stated module label set.
-     *
-     * @param newStatedModule the module asserted in prose next to the citation, or {@code null}.
-     * @return the updated finding.
-     */
+    /** Returns a copy of this finding with the prose-stated module label set. */
     public Finding withStatedModule(final String newStatedModule) {
         return new Finding(
                 id,

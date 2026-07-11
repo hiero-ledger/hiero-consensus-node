@@ -29,8 +29,8 @@ import picocli.CommandLine.Option;
 /**
  * Command-line entry point for the deterministic KB freshness checker. Scans the curated
  * consensus-layer KB, resolves its code anchors against the current checkout, and writes a report,
- * quiet log, auto-fix proposals, a machine artifact, a semantic worklist, and a proposed baseline.
- * No model, no network.
+ * quiet log, auto-fix proposals, suggestions, a coverage lane, a machine artifact, a semantic
+ * worklist, and a proposed baseline. No model, no network.
  */
 @Command(
         name = "kb-freshness",
@@ -186,8 +186,9 @@ public final class Main implements Callable<Integer> {
     }
 
     /**
-     * Writes every run artifact (findings JSON, report, quiet log, auto-fix proposals, worklist, and
-     * proposed baseline) into {@code outDir}, optionally overwriting the baseline file in place.
+     * Writes every run artifact (findings JSON, report, quiet log, auto-fix proposals, suggestions,
+     * coverage, worklist, and proposed baseline) into {@code outDir}, optionally overwriting the
+     * baseline file in place.
      *
      * @param outDir       the directory to write artifacts into (created if absent).
      * @param result       the run result to render.

@@ -14,9 +14,8 @@ import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 /**
  * The full deterministic output of a run: the scanned documents, the collapsed findings, the baseline
  * join, the semantic worklist, the source index, the scan-coverage stats, and the git wrapper the run
- * probed. Renderers turn this into the report, quiet log, auto-fix proposals, machine artifact, worklist,
- * and did-you-mean suggestions. The git wrapper is carried so a caller reuses the single probe and its
- * per-run caches (rename/deletion lookups) rather than building a second one.
+ * probed (carried so a caller reuses the single probe rather than building a second one). Renderers turn
+ * this into the report, quiet log, auto-fix proposals, machine artifact, worklist, and suggestions.
  *
  * @param documents   the scanned KB documents.
  * @param findings    the collapsed findings.

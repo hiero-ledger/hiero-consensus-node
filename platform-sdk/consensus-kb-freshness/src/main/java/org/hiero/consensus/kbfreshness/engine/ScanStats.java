@@ -7,10 +7,9 @@ import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.model.Lane;
 
 /**
- * What one run actually scanned and checked — the audit trail that makes silence meaningful. Without
- * it, "no findings for a document" is indistinguishable from "the document was never scanned"; with
- * it, a curator can see the scan surface (entries, anchors, checks) at a glance. All counts are pure
- * functions of the checkout, so the stats are as deterministic as the findings.
+ * What one run scanned and checked — the audit trail that makes silence meaningful: "no findings" reads
+ * as checked-and-clean, not never-scanned. All counts are pure functions of the checkout, so the stats
+ * are as deterministic as the findings.
  *
  * @param entriesByType        scanned KB entries per document type.
  * @param anchorsByKind        extracted anchors per kind (every citation seen, checked or clean).
@@ -31,29 +30,17 @@ public record ScanStats(
         int tunableSections,
         int tunableRows) {
 
-    /**
-     * The total number of scanned entries.
-     *
-     * @return the sum over all entry types.
-     */
+    /** The total number of scanned entries (sum over all entry types). */
     public int totalEntries() {
         return entriesByType.values().stream().mapToInt(Integer::intValue).sum();
     }
 
-    /**
-     * The total number of extracted anchors.
-     *
-     * @return the sum over all anchor kinds.
-     */
+    /** The total number of extracted anchors (sum over all anchor kinds). */
     public int totalAnchors() {
         return anchorsByKind.values().stream().mapToInt(Integer::intValue).sum();
     }
 
-    /**
-     * The total number of emitted findings.
-     *
-     * @return the sum over all lanes.
-     */
+    /** The total number of emitted findings (sum over all lanes). */
     public int totalFindings() {
         return findingsByLane.values().stream().mapToInt(Integer::intValue).sum();
     }

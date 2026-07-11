@@ -31,28 +31,19 @@ public final class NearNameMatcher {
     /** Minimum similarity for a near-name match to be offered. */
     private static final double THRESHOLD = 0.5;
     /**
-     * Score assigned to weaker-but-identifying signals: a candidate whose frontmatter title covers the
-     * gone name's tokens, or one sharing a token that occurs in exactly one candidate. Above
-     * {@link #THRESHOLD} (offered) but below {@link #PROMOTE_SIMILARITY} — such a hint is never promoted
-     * to an actionable rename on its own.
+     * Score for a weaker-but-identifying signal (title-token coverage or a pool-unique token): offered,
+     * never promoted.
      */
     private static final double WEAK_SIGNAL = 0.55;
     /** Cap for title-token coverage so a title match alone can never reach promotion strength. */
     private static final double TITLE_CAP = 0.65;
     /** Minimum length of a shared token for the unique-token signal (short tokens identify nothing). */
     private static final int UNIQUE_TOKEN_MIN_LENGTH = 4;
-    /**
-     * Minimum edit similarity for a match whose head tokens differ. Long identifiers accumulate
-     * incidental character overlap, so a plain edit-distance signal only counts on its own when it is
-     * near-certain (a typo), not merely above {@link #THRESHOLD}.
-     */
+    /** Minimum edit similarity for a head-token-differing match, high enough that only a near-certain typo counts. */
     private static final double HIGH_EDIT_SIM = 0.8;
     /**
-     * Minimum similarity for a match to be promoted to an actionable rename. Combined with a uniqueness
-     * check (exactly one candidate above {@link #THRESHOLD}), this keeps the promotion to cases like
-     * {@code pces → restart-and-pces} while leaving genuinely ambiguous slugs (two plausible topics) as
-     * plain near-name hints. Also the bar for a config-key near-name match — config keys are short, so a
-     * looser bar would let weak token overlap (e.g. a shared {@code Detector}) identify nothing.
+     * Minimum similarity (with a uniqueness check) to promote a match to an actionable rename; also the
+     * config-key match bar.
      */
     public static final double PROMOTE_SIMILARITY = 0.7;
 
@@ -124,11 +115,7 @@ public final class NearNameMatcher {
     /**
      * Computes the raw hints for a gone target: a definite git rename when available (which suppresses
      * near-name guessing), else the deleting commit when git recorded one, plus the near-name candidates
-     * above the similarity threshold. Beyond plain name similarity, two weaker-but-identifying signals
-     * are scored (both capped below promotion strength): a candidate whose tokens — including its
-     * frontmatter title's — cover the gone name's tokens, and a candidate sharing a token that occurs in
-     * exactly one candidate (a distinctive token like {@code execution} pinpoints its owner even when
-     * edit distance sees nothing).
+     * above {@link #THRESHOLD} (also scoring the title-token and pool-unique-token signals).
      *
      * @param gone       the gone target (a repo-relative path, or a bare basename).
      * @param self       the path of the entry that made the citation, excluded from candidates.

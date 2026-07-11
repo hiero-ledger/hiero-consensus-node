@@ -38,36 +38,20 @@ with `java -jar`.
   baseline TSV + join. The engine subsumes a Tier-0 source-path GONE finding when a `CONFIG_PREFIX`
   finding already asserts the same citation as a class move (one root cause, one finding).
 - `worklist/` + `git/` — the semantic worklist (git freshness vs `last_reviewed`). Anchored-source
-  resolution mirrors the resolver: abbreviated `module/.../File.java` citations are resolved through the
-  `SourceIndex` (by basename within the cited module), fully-qualified type citations by package +
-  simple name, so an abbreviated-only or FQN-only topic is tracked rather than reported as having no
-  anchored sources — and a *moved* anchor (stale location, basename resolving at exactly one other
-  indexed path) is tracked at its new location, so the topics whose code moved wholesale keep feeding
-  the freshness signal instead of silently dropping out. Each entry carries `anchoredSourceCount`; a
-  zero count (topic anchors nothing) is surfaced in the coverage lane, not the drift report.
+  resolution mirrors the resolver (abbreviated `module/.../File.java` and FQN citations both resolve
+  through the `SourceIndex`, and a moved anchor is tracked at its new location), so an abbreviated- or
+  FQN-only topic keeps feeding the freshness signal. Each entry carries `anchoredSourceCount`; a zero
+  count (topic anchors nothing) is surfaced in the coverage lane, not the drift report.
 - `engine/` also carries `ScanStats` — what the run scanned and checked (entries, anchors, check
   groups, findings by lane, Tier-2 surfaces), rendered as the report's "Scan coverage" section so
   silence is auditable as checked-and-clean rather than never-scanned.
-- `render/` — report / quiet-log / auto-fix / suggestions / coverage / findings.json / worklist renderers.
-  The report also renders a "Root causes (rollup)" section grouping moves by (old path → new path),
-  gone targets cited by multiple entries, and gone config keys by the single record now declaring a
-  same-named key (hint-grade direction, flagged as such in the section) — one code move often explains
-  dozens of findings. `AutoFix` is the shared planner (structured `Edit`s) that both `AutoFixRenderer`
-  (Markdown) and `apply/AutoFixApplier` (writes) consume, so the proposal a curator reads is exactly
-  the edit `--fix` would apply; it also rewrites a moved FQN citation to its new FQN, and annotates a
-  path rewrite whose `:NN` hint exceeds the moved file's length with a re-verify note (header only —
-  the edit still applies, and lines are still never asserted on). (`suggestions.md` = non-asserting
-  "did you mean" hints for GONE targets: git rename first,
-  else the deleting commit, plus guarded fuzzy basename matches — a unique strong topics-slug match is
-  promoted to an actionable `rename topics: slug X → Y`, a body doc link whose basename resolves at
-  exactly one other KB doc gets the ready relative-link rewrite, a gone config key declared same-named by
-  another indexed record is reported as a key migration (similar names, held to the promotion bar, as
-  possible renames; a migration target the coverage lane lists as sectionless is flagged so), and an
-  ADR-cited gone source gets a `historical:` nudge. Frontmatter-title tokens
-  and pool-unique distinctive tokens also score, capped below promotion strength — they may offer, never
-  promote. A closing "Prose naming moved packages" section lists non-fenced doc lines still naming the
-  old package of a moved citation — exact package mentions only, an FQN continuing into a type never
-  counts. Deliberately excluded from `findings.json` to keep it reproducible.)
+- `render/` — the per-lane renderers (report, quiet-log, auto-fix, suggestions, coverage, findings.json,
+  worklist) plus `Md` (shared section/header helpers). The report adds a "Root causes (rollup)" section
+  grouping findings that share one code move. `AutoFix` is the shared planner (structured `Edit`s) that
+  both `AutoFixRenderer` (Markdown) and `apply/AutoFixApplier` (writes) consume, so the proposal a curator
+  reads is exactly the edit `--fix` applies. `SuggestionsRenderer` emits the non-asserting "did you mean"
+  hints for GONE targets (scoring in `findings/NearNameMatcher`), kept out of `findings.json` so that
+  artifact stays reproducible. See `README.md` for the full suggestion and rollup semantics.
 - `apply/` — `AutoFixApplier` (`--fix`): writes the certain auto-fix `Edit`s to the KB in place, guarded
   by an exact line match (idempotent); never applies fuzzy `suggestions.md` renames. `ReviewedMarker`
   (`--mark-reviewed <key>[=<date>]`): bumps an entry's *existing* `last_reviewed:` frontmatter line —
@@ -143,3 +127,17 @@ with `java -jar`.
   history, e.g. in an ADR describing the removal): gone → quiet log; still existing → assert.
 - **The skill is module-local**: it lives in this module's `.claude/skills/` and is discovered only
   when Claude Code starts within `platform-sdk/consensus-kb-freshness/` (or a subdirectory).
+
+## Documentation proportionality (do not regress)
+
+Match documentation weight to a thing's importance, not to how recently it was added.
+
+- The base pipeline (extract → resolve → findings → render) and the core model types earn the
+  "explain the why + one-look evidence" register. Auxiliary and non-asserting lanes
+  (suggestions/near-name, cosmetic auto-fix, coverage, mark-reviewed) get a one- or two-sentence class
+  doc and **no** rationale essays on private constants or helpers.
+- Design rationale lives **once** — the invariants above and the `README.md` — and other docs point to
+  it rather than restating it. A new feature that repeats an existing rule in a third place is drift.
+- Omit `@param`/`@return` and inline comments that only restate the signature or the class doc
+  (Checkstyle allows missing tags; the `javadoc` task runs `Xdoclint:all,-missing`). Keep changelog
+  history in git, not in Javadoc.

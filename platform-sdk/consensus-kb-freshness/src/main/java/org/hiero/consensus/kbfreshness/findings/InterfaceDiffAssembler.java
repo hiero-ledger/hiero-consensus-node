@@ -60,8 +60,7 @@ public final class InterfaceDiffAssembler {
     /**
      * Whether an interface entry opts into the Tier-2 method-set diff by declaring both its subject source
      * ({@code interface:}) and the documented method names ({@code methods:}). Entries that do not opt in
-     * are never mechanically diffed — the coverage lane surfaces them so the dormancy is visible rather
-     * than reading as "all clear".
+     * are never mechanically diffed (they surface in the coverage lane instead).
      *
      * @param doc a KB document (expected to be an {@code architecture/interfaces/*} entry).
      * @return {@code true} when the entry declares both {@code interface:} and a non-empty {@code methods:}.

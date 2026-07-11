@@ -28,27 +28,15 @@ import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
- * Tier-1/2 tunables-catalog checks. The catalog's own column conventions make each row mechanically
- * checkable against the {@code @ConfigData} record it documents: the key must be a declared
- * {@code @ConfigProperty} (Tier 1), and the documented default is the {@code defaultValue} literal
- * verbatim (Tier 2). Per the precision mandate:
- * <ul>
- *   <li>a documented key the resolved record no longer declares → {@code assert};</li>
- *   <li>a documented default that no longer matches a plain-literal {@code defaultValue} → {@code assert};</li>
- *   <li>a documented type that differs from the declared component type → quiet log only (the catalog
- *       documents semantic types, e.g. {@code Path} for a {@code String}-typed key, so a mismatch is
- *       not certainly drift);</li>
- *   <li>a non-literal {@code defaultValue} (constant reference) → quiet log (never compared as fact),
- *       except the closed whitelist of well-known config-API constants ({@code Configuration.EMPTY_LIST}),
- *       whose values are compile-time facts and compare as literals;</li>
- *   <li>a declared property the section does not document → coverage lane, never the drift report;</li>
- *   <li>an in-scope config record with no catalog section at all → coverage lane (see
- *       {@link #undocumentedRecords}).</li>
- * </ul>
- * A section whose cited source is gone is additionally resolved <em>by config prefix</em>: when exactly
- * one indexed {@code *Config.java} record declares {@code @ConfigData} with the section's prefix and
- * declares every key the section documents, that is a certain class rename/move — asserted with the
- * resolved path so {@code --fix} can rewrite the heading, {@code Source:} link, and {@code Module:} label.
+ * Tier-1/2 tunables-catalog checks. The catalog's column conventions make each row mechanically checkable
+ * against the {@code @ConfigData} record it documents: a documented key must be a declared
+ * {@code @ConfigProperty} (Tier 1), and a documented plain-literal default must match the
+ * {@code defaultValue} literal (Tier 2). Per the precision mandate only those two literal mismatches
+ * assert; a type difference, a non-literal default, an undocumented property, and an undocumented record
+ * are routed to the quiet log or coverage lane (see the module {@code CLAUDE.md} for the full routing).
+ * A section whose cited source is gone is additionally resolved <em>by config prefix</em>: exactly one
+ * indexed record declaring the section's prefix and every documented key is a certain rename — asserted
+ * with the resolved path so {@code --fix} can rewrite the heading, {@code Source:} link, and label.
  */
 public final class TunablesDiffAssembler {
 
@@ -375,28 +363,22 @@ public final class TunablesDiffAssembler {
      */
     private record RecordResolution(ConfigRecords.Owner owner, Finding moveFinding) {
 
-        /**
-         * A resolution that found no certain record and emits no finding.
-         *
-         * @return the empty resolution.
-         */
+        /** A resolution that found no certain record and emits no finding. */
         private static RecordResolution unresolved() {
             return new RecordResolution(null, null);
         }
     }
 
     /**
-     * Resolves the config record a section documents: the cited {@code Source:} path when it exists and
-     * declares the class; else the unique indexed file of the same basename declaring the class with a
-     * config prefix; else — a certain rename — the unique {@code @ConfigData} owner of the section's
-     * prefix that declares every documented key, which additionally carries a MOVED finding with the
-     * resolved path for {@code --fix}.
+     * Resolves the config record a section documents: the cited {@code Source:} path when it declares the
+     * class; else the unique indexed basename declaring it; else — a certain rename — the unique
+     * {@code @ConfigData} owner of the section's prefix that declares every documented key (carrying a
+     * MOVED finding with the resolved path for {@code --fix}).
      *
      * @param doc the tunables catalog document.
      * @param s   the section to resolve.
-     * @return the resolution: the resolved record (or {@code null} when the section cannot be resolved with
-     *     certainty — the generic source-path anchor reports the gone citation) plus the prefix-move
-     *     finding when a rename was detected.
+     * @return the resolution: the resolved record (or {@code null} when none is certain) plus the
+     *     prefix-move finding when a rename was detected.
      */
     private RecordResolution resolveRecord(final KbDocument doc, final Section s) {
         if (s.sourcePath() != null && index.fileExists(s.sourcePath())) {

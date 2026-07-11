@@ -22,7 +22,7 @@ import org.hiero.consensus.kbfreshness.util.RepoPaths;
 /**
  * The single source of truth for deterministic auto-fix edits: a citation that still resolves but is
  * cited wrongly (a moved line reference, a package/path move with exactly one new location, or a
- * fully-qualified type whose package moved) yields a precise before/after edit for one KB line.
+ * fully-qualified type whose package moved) yields a precise before/after edit for each affected KB line.
  * {@link AutoFixRenderer} turns these into Markdown proposals
  * and {@code AutoFixApplier} writes them to disk under {@code --fix}; both consume this plan so the
  * proposal a curator reads is exactly the edit the tool would apply. Only certain fixes are produced —
@@ -133,12 +133,10 @@ public final class AutoFix {
     }
 
     /**
-     * The changes for a package/path-move finding: the cited path (or, for a fully-qualified type
-     * citation, the FQN) rewritten to the single location the file resolves at, plus a stale on-line
-     * {@code Module: `X`} label rewritten to the new module. A citation whose line hint cannot exist in
-     * the moved file (the {@code :NN} exceeds its length) gets a re-verify note on the proposal — the
-     * hint is navigation only and is never asserted on, but an impossible one should not survive a
-     * rewrite silently.
+     * The changes for a package/path-move finding: the cited path (or FQN) rewritten to the single
+     * location the file resolves at, plus a stale on-line {@code Module: `X`} label. A citation whose
+     * {@code :NN} line hint exceeds the moved file's length gets a re-verify note (the hint is navigation
+     * only and never asserted on).
      *
      * @param f          the finding carrying the resolved path.
      * @param doc        the citing document, or {@code null} when unavailable.
@@ -297,12 +295,9 @@ public final class AutoFix {
 
     /**
      * Rewrites the cited path within a KB line to the resolved path, trying the citation styles the KB
-     * uses: the abbreviated {@code module/.../File.java} form, the full repo-relative path (code spans),
-     * and the root-relative form without its first segment (frontmatter {@code components:} entries and
-     * relative markdown links, whose {@code ../} prefix is preserved by substring replacement). When the
-     * move is also a rename (the basenames differ — e.g. a config record renamed during a module merge),
-     * remaining mentions of the old file name and its bare class name on the line are rewritten too, so
-     * link text and section headings do not keep naming the old class next to the corrected path.
+     * uses (abbreviated {@code module/.../File.java}, full repo-relative, and root-relative without the
+     * first segment). When the move is also a rename (the basenames differ), remaining mentions of the old
+     * file name and its bare class name on the line are rewritten too.
      *
      * @param line    the KB line containing the citation.
      * @param oldPath the cited path (the finding's target).

@@ -6,13 +6,11 @@ import java.util.List;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
- * The shared anchor→indexed-path resolution rules used by both {@link AnchorResolver} (which reduces the
- * candidates to a single {@link Resolution}) and the semantic worklist (which dates every candidate). The
- * rules live here once so the two consumers cannot drift: an abbreviated {@code module/.../File.java}
- * citation resolves by basename within its cited module, a fully-qualified type citation resolves by
- * package plus simple name, and a stale citation whose basename resolves at exactly one other indexed path
- * is a unique package/path move. Callers apply their own reduction (existence check, move target, or the
- * full list) to whatever these return.
+ * The shared anchor→indexed-path resolution rules, used by both {@link AnchorResolver} and the semantic
+ * worklist so the two cannot drift: an abbreviated {@code module/.../File.java} citation resolves by
+ * basename within its cited module, a fully-qualified type citation by package plus simple name, and a
+ * stale citation whose basename resolves at exactly one other indexed path is a unique package/path move.
+ * Callers apply their own reduction to whatever these return.
  */
 public final class SourceCandidates {
 

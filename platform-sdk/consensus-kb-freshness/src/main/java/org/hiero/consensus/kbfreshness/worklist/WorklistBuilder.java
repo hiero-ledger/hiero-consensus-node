@@ -140,11 +140,9 @@ public final class WorklistBuilder {
     }
 
     /**
-     * Distinct concrete repo-relative source files anchored by the topic. Full-path citations are used
-     * as-is when they exist; abbreviated {@code module/.../File.java} citations — the KB's mandated inline
-     * style — are resolved through the source index so freshness is measured against the same files the
-     * resolver sees, not silently dropped. Fully-qualified type citations count too: a topic that
-     * anchors its claims by FQN alone is tracked, not reported as having no anchored sources.
+     * Distinct concrete repo-relative source files anchored by the topic: full-path citations as-is,
+     * abbreviated {@code module/.../File.java} citations resolved through the source index, and
+     * fully-qualified type citations resolved by package + simple name.
      *
      * @param doc the KB document whose anchors are scanned.
      * @return the sorted, distinct anchored source paths.
@@ -162,10 +160,8 @@ public final class WorklistBuilder {
     }
 
     /**
-     * Resolves one {@link AnchorKind#CLASS} (fully-qualified type) anchor to the concrete source files
-     * it names, mirroring the resolver: the indexed files of the type's basename whose path ends in the
-     * cited package, or — when the cited package is stale — the unique indexed path of the basename (a
-     * package move keeps feeding the freshness signal, exactly like a moved path citation).
+     * Resolves one {@link AnchorKind#CLASS} (fully-qualified type) anchor to the concrete source files it
+     * names: the indexed files matching the cited package, or the unique indexed path when the package moved.
      *
      * @param a a fully-qualified type anchor; its cited scope is the primary type name.
      * @return the concrete repo-relative source paths the anchor names (possibly empty).
@@ -176,16 +172,11 @@ public final class WorklistBuilder {
     }
 
     /**
-     * Resolves one {@link AnchorKind#SOURCE_PATH} anchor to the concrete repo-relative files it names. A
-     * full path resolves to itself when it exists on disk. An abbreviated {@code module/.../File.java}
-     * citation resolves through the source index by basename within the cited module (mirroring
-     * {@code AnchorResolver}); with no cited module, every indexed file of that basename is taken. A
-     * citation whose cited location is stale but whose basename resolves at exactly one other indexed
-     * path — the resolver's package/path-move signal — is tracked at that new location: the topics whose
-     * code moved wholesale are exactly the ones whose prose most needs the semantic pass, so a moved
-     * anchor must keep feeding the freshness comparison rather than silently dropping out. Only a
-     * citation that resolves nowhere (or ambiguously) contributes no source — a gone anchor is reported
-     * as drift elsewhere.
+     * Resolves one {@link AnchorKind#SOURCE_PATH} anchor to the concrete repo-relative files it names: a
+     * full path resolves to itself, an abbreviated {@code module/.../File.java} citation resolves through
+     * the source index by basename within the cited module (mirroring {@code AnchorResolver}), and a
+     * citation whose location moved is tracked at the unique new path. A citation that resolves nowhere or
+     * ambiguously contributes no source — a gone anchor is reported as drift elsewhere.
      *
      * @param a a source-path anchor.
      * @return the concrete repo-relative source paths the anchor names (possibly empty).

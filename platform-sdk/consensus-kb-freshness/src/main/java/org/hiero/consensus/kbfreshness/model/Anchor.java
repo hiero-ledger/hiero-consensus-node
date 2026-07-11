@@ -9,7 +9,7 @@ package org.hiero.consensus.kbfreshness.model;
  * @param kind        what kind of reference this is (also the check applied).
  * @param target      the normalized subject of the check — the exact question asked. For a class,
  *                    its simple (or qualified) name; for a path, the path; for a catalog ID, the ID.
- *                    Cited line numbers are never part of the target (invariant 3).
+ *                    Cited line numbers are never part of the target.
  * @param citedModule the module the citation scopes to, or {@code null} if none is cited. Used to
  *                    distinguish "gone" from "moved to another module".
  * @param citedScope  the enclosing scope for a member (e.g. the class owning a cited method), or
@@ -41,16 +41,8 @@ public record Anchor(
     public static final int NO_LINE = -1;
 
     /**
-     * Convenience constructor for anchors that carry no stated-module label (the common case) and are
-     * not marked historical.
-     *
-     * @param kind        what kind of reference this is (also the check applied).
-     * @param target      the normalized subject of the check.
-     * @param citedModule the module the citation scopes to, or {@code null}.
-     * @param citedScope  the enclosing scope for a member, or {@code null}.
-     * @param docLine     the 1-based line in the KB file where this citation appears.
-     * @param citedLine   the cited code line number, or {@link #NO_LINE} if none.
-     * @param rawText     the verbatim citation text.
+     * Convenience constructor for anchors that carry no stated-module label (the common case) and are not
+     * marked historical; see the canonical constructor for parameter semantics.
      */
     public Anchor(
             final AnchorKind kind,
@@ -64,16 +56,8 @@ public record Anchor(
     }
 
     /**
-     * Convenience constructor for anchors that carry a stated-module label but are not marked historical.
-     *
-     * @param kind        what kind of reference this is (also the check applied).
-     * @param target      the normalized subject of the check.
-     * @param citedModule the module the citation scopes to, or {@code null}.
-     * @param citedScope  the enclosing scope for a member, or {@code null}.
-     * @param docLine     the 1-based line in the KB file where this citation appears.
-     * @param citedLine   the cited code line number, or {@link #NO_LINE} if none.
-     * @param rawText     the verbatim citation text.
-     * @param statedModule the module asserted in prose next to the citation, or {@code null}.
+     * Convenience constructor for anchors that carry a stated-module label but are not marked historical;
+     * see the canonical constructor for parameter semantics.
      */
     public Anchor(
             final AnchorKind kind,

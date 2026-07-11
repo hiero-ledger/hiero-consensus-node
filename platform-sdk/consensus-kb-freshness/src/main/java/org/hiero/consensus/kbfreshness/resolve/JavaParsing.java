@@ -68,9 +68,7 @@ public final class JavaParsing {
      * The {@code @ConfigProperty(defaultValue = …)} of a record component, modeled by how it can be
      * compared: a plain string {@link Literal} (a compile-time fact), a non-literal {@link Expr} constant
      * reference (compared only when whitelisted by the caller), or {@link None} when no {@code defaultValue}
-     * attribute is written. Making the three states mutually exclusive by construction replaces the former
-     * {@code (defaultValue, defaultIsLiteral, defaultExpr)} triple whose {@code defaultIsLiteral} was
-     * derivable and whose two value fields could never both be set.
+     * attribute is written. The three states are mutually exclusive by construction.
      */
     public sealed interface Default {
 

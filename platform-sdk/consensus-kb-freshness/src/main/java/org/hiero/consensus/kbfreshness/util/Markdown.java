@@ -6,7 +6,7 @@ import java.util.Locale;
 /**
  * Stateless helpers for reading and rendering the markdown the checker parses: detecting a fenced
  * code-block delimiter (so example or commented-out code is never read as a claim) and humanizing an
- * enum constant for display. Shared so fence handling and label formatting stay consistent.
+ * enum constant for display.
  */
 public final class Markdown {
 

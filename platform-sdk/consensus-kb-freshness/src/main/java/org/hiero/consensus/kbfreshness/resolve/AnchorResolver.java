@@ -805,9 +805,8 @@ public final class AnchorResolver {
     }
 
     /**
-     * Whether a catalog table file contains a line mentioning the given ID as a whole token. The boundary
-     * check keeps a cited {@code TUN-1} from matching a {@code TUN-10} row: the ID must not be flanked by
-     * a letter or digit, so a longer ID never satisfies a shorter citation.
+     * Whether a catalog table file contains a line naming the given ID as a whole token (see
+     * {@link #idPresent}).
      *
      * @param file the knowledge-base-relative catalog file.
      * @param id   the catalog ID.

@@ -220,20 +220,12 @@ public final class TunablesCatalog {
             rows.add(row);
         }
 
-        /**
-         * Whether a section is currently being accumulated.
-         *
-         * @return {@code true} between a section heading and its terminating heading.
-         */
+        /** Whether a section is currently being accumulated. */
         boolean inSection() {
             return inSection;
         }
 
-        /**
-         * Whether the current section's {@code Source:} link has already been recorded.
-         *
-         * @return {@code true} once {@link #source} has run for the current section.
-         */
+        /** Whether the current section's {@code Source:} link has already been recorded. */
         boolean hasSource() {
             return sourcePath != null;
         }
@@ -246,11 +238,7 @@ public final class TunablesCatalog {
             }
         }
 
-        /**
-         * The completed sections.
-         *
-         * @return the sections in document order.
-         */
+        /** The completed sections, in document order. */
         List<Section> sections() {
             return sections;
         }
