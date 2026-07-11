@@ -157,6 +157,19 @@ public final class JavaParsing {
             }
             return names;
         }
+
+        /**
+         * The fully-qualified config key of a record component: the {@code @ConfigData} prefix joined to
+         * the component's bound key name, or the bare name when the record carries a prefixless
+         * {@code @ConfigData}. Callers must only use this on {@code @ConfigData} records (a non-config
+         * type has a {@code null} prefix).
+         *
+         * @param keyName the component's bound key name.
+         * @return the fully-qualified config key.
+         */
+        public String fullyQualifiedKey(final String keyName) {
+            return configPrefix.isEmpty() ? keyName : configPrefix + "." + keyName;
+        }
     }
 
     /** Declared types of a parsed file, keyed by simple type name (nested types included). */
@@ -393,11 +406,11 @@ public final class JavaParsing {
             final CharSequence src) {
         final List<String> params = new ArrayList<>();
         for (final VariableTree p : mt.getParameters()) {
-            params.add(p.getType().toString().replaceAll("\\s+", ""));
+            params.add(canonicalType(p.getType().toString()));
         }
         final String returnType = mt.getReturnType() == null
                 ? null
-                : mt.getReturnType().toString().replaceAll("\\s+", "");
+                : canonicalType(mt.getReturnType().toString());
         return new MethodSig(
                 mt.getName().toString(),
                 params,
@@ -461,5 +474,78 @@ public final class JavaParsing {
             pos++;
         }
         return (int) lineMap.getLineNumber(pos >= src.length() ? start : pos);
+    }
+
+    /**
+     * Normalizes a type to its canonical as-written form for comparison: removes all whitespace and
+     * strips package qualifiers from every identifier (e.g. {@code java.util.List<com.x.Foo>} to
+     * {@code List<Foo>}). The single canonical form is applied both when a {@link MethodSig} is built
+     * (so a stored parameter type is already canonical) and when a documented signature is compared, so
+     * a doc's simple names compare equal to source's possibly-qualified ones.
+     *
+     * @param type the type string.
+     * @return the canonical type.
+     */
+    public static String canonicalType(final String type) {
+        final String noSpace = type.replaceAll("\\s+", "");
+        return noSpace.replaceAll("(?:[A-Za-z_$][A-Za-z0-9_$]*\\.)+([A-Za-z_$][A-Za-z0-9_$]*)", "$1");
+    }
+
+    /**
+     * Splits a documented parameter list on top-level commas, ignoring commas nested in generics,
+     * arrays, or parentheses.
+     *
+     * @param paramStr the raw parameter list (without the surrounding parentheses).
+     * @return the trimmed parameter pieces, or an empty list when there are none.
+     */
+    public static List<String> splitParams(final String paramStr) {
+        final List<String> parts = new ArrayList<>();
+        if (paramStr.isBlank()) {
+            return parts;
+        }
+        int depth = 0;
+        final StringBuilder cur = new StringBuilder();
+        for (int i = 0; i < paramStr.length(); i++) {
+            final char c = paramStr.charAt(i);
+            if (c == '<' || c == '(' || c == '[') {
+                depth++;
+            } else if (c == '>' || c == ')' || c == ']') {
+                depth--;
+            }
+            if (c == ',' && depth == 0) {
+                parts.add(cur.toString().strip());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
+        }
+        if (!cur.isEmpty()) {
+            parts.add(cur.toString().strip());
+        }
+        return parts;
+    }
+
+    /**
+     * Drops a trailing parameter name from a documented parameter piece, keeping just the type. A piece
+     * with a top-level space (e.g. {@code List<Foo> bar}) is treated as {@code type name}; a piece
+     * without one (e.g. {@code byte[]}) is the type itself.
+     *
+     * @param piece one parameter piece.
+     * @return the parameter's type portion.
+     */
+    public static String dropParamName(final String piece) {
+        int depth = 0;
+        int lastSpace = -1;
+        for (int i = 0; i < piece.length(); i++) {
+            final char c = piece.charAt(i);
+            if (c == '<' || c == '(' || c == '[') {
+                depth++;
+            } else if (c == '>' || c == ')' || c == ']') {
+                depth--;
+            } else if (c == ' ' && depth == 0) {
+                lastSpace = i;
+            }
+        }
+        return (lastSpace >= 0 ? piece.substring(0, lastSpace) : piece).strip();
     }
 }

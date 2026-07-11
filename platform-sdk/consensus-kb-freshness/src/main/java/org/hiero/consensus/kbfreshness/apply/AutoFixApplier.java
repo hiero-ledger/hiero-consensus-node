@@ -2,8 +2,6 @@
 package org.hiero.consensus.kbfreshness.apply;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -53,31 +51,19 @@ public final class AutoFixApplier {
         int skipped = 0;
         final List<String> changed = new ArrayList<>();
         for (final Map.Entry<String, List<Edit>> fileEdits : new TreeMap<>(byFile).entrySet()) {
-            final Path file = repoRoot.resolve(fileEdits.getKey());
-            final String content = Files.readString(file, StandardCharsets.UTF_8);
-            // split with a trailing-empty limit so a final newline round-trips; each element keeps its own
-            // line terminator (a trailing \r on CRLF files), which the rewrite preserves.
-            final String[] lines = content.split("\n", -1);
-            boolean fileChanged = false;
+            final GuardedLineEditor editor = GuardedLineEditor.open(repoRoot.resolve(fileEdits.getKey()));
             for (final Edit e : fileEdits.getValue()) {
-                final int idx = e.line() - 1;
-                if (idx < 0 || idx >= lines.length) {
-                    skipped++;
-                    continue;
-                }
-                final String raw = lines[idx];
-                final String cr = raw.endsWith("\r") ? "\r" : "";
-                final String bare = raw.substring(0, raw.length() - cr.length());
-                if (bare.equals(e.before())) {
-                    lines[idx] = e.after() + cr;
+                // Guarded by an exact before-match on the cited line, so applying is idempotent and never
+                // clobbers a line that has since diverged.
+                if (editor.hasLine(e.line()) && editor.bareLine(e.line()).equals(e.before())) {
+                    editor.rewriteLine(e.line(), e.after());
                     applied++;
-                    fileChanged = true;
                 } else {
                     skipped++;
                 }
             }
-            if (fileChanged) {
-                Files.writeString(file, String.join("\n", lines), StandardCharsets.UTF_8);
+            if (editor.changed()) {
+                editor.flush();
                 changed.add(fileEdits.getKey());
             }
         }

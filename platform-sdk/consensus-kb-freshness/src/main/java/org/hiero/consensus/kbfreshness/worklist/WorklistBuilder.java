@@ -13,9 +13,9 @@ import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.Anchor;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
 import org.hiero.consensus.kbfreshness.model.EntryType;
+import org.hiero.consensus.kbfreshness.resolve.SourceCandidates;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
 import org.hiero.consensus.kbfreshness.util.Patterns;
-import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Builds the semantic worklist: for each architecture topic/interface, whether any anchored source
@@ -171,17 +171,8 @@ public final class WorklistBuilder {
      * @return the concrete repo-relative source paths the anchor names (possibly empty).
      */
     private List<String> resolveFqnSources(final Anchor a) {
-        final String basename = a.citedScope() + ".java";
-        final String pkgPath = a.target()
-                .substring(0, a.target().indexOf("." + a.citedScope()))
-                .replace('.', '/');
-        final List<String> resolved = new ArrayList<>();
-        for (final String p : index.pathsForBasename(basename)) {
-            if (p.endsWith("/" + pkgPath + "/" + basename)) {
-                resolved.add(p);
-            }
-        }
-        return resolved.isEmpty() ? uniqueMove(basename) : resolved;
+        final List<String> resolved = SourceCandidates.forFqn(index, a.target(), a.citedScope());
+        return resolved.isEmpty() ? SourceCandidates.uniqueMove(index, a.citedScope() + ".java") : resolved;
     }
 
     /**
@@ -206,27 +197,9 @@ public final class WorklistBuilder {
             if (Files.isRegularFile(repoRoot.resolve(target))) {
                 return List.of(target);
             }
-            return uniqueMove(basename);
+            return SourceCandidates.uniqueMove(index, basename);
         }
-        final List<String> resolved = new ArrayList<>();
-        for (final String p : index.pathsForBasename(basename)) {
-            if (a.citedModule() == null || a.citedModule().equals(RepoPaths.moduleOf(p))) {
-                resolved.add(p);
-            }
-        }
-        return resolved.isEmpty() ? uniqueMove(basename) : resolved;
-    }
-
-    /**
-     * The single indexed path of a basename whose cited location is stale, or nothing when the basename
-     * is gone or ambiguous (mirroring the resolver, which only reports a resolved path for a unique
-     * package/path move).
-     *
-     * @param basename the cited file basename.
-     * @return the unique moved-to path, or an empty list.
-     */
-    private List<String> uniqueMove(final String basename) {
-        final List<String> candidates = index.pathsForBasename(basename);
-        return candidates.size() == 1 ? List.of(candidates.get(0)) : List.of();
+        final List<String> resolved = SourceCandidates.inModule(index, basename, a.citedModule());
+        return resolved.isEmpty() ? SourceCandidates.uniqueMove(index, basename) : resolved;
     }
 }

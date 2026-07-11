@@ -4,6 +4,7 @@ package org.hiero.consensus.kbfreshness.resolve;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
@@ -65,6 +66,33 @@ public final class ConfigRecords {
             }
         }
         return owners;
+    }
+
+    /**
+     * The indexed config records that declare a component whose bound key name equals the gone key's bare
+     * property name, excluding the record that declares exactly the gone key itself. This is the shared
+     * "same-named key" scan behind both the report's key-migration rollup (which asserts a migration only
+     * when this returns exactly one record) and the suggestions' key-migration hints (which offer all of
+     * them, alongside its own similar-name matches). One entry is returned per matching component, so two
+     * records declaring the same-named key read as two — the ambiguity the report needs to see.
+     *
+     * @param owners  every indexed config record.
+     * @param goneKey the fully-qualified documented key that is gone.
+     * @return the records exact-declaring the same bare key name, one entry per matching component.
+     */
+    public static List<Owner> declaringRecordsOf(final List<Owner> owners, final String goneKey) {
+        final int dot = goneKey.lastIndexOf('.');
+        final String goneProp = dot >= 0 ? goneKey.substring(dot + 1) : goneKey;
+        final List<Owner> declaring = new ArrayList<>();
+        for (final Owner owner : owners) {
+            for (final ConfigComponent c : owner.type().configComponents()) {
+                if (c.keyName().equals(goneProp)
+                        && !owner.type().fullyQualifiedKey(c.keyName()).equals(goneKey)) {
+                    declaring.add(owner);
+                }
+            }
+        }
+        return declaring;
     }
 
     /**

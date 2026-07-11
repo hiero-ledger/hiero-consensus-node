@@ -394,15 +394,20 @@ public final class SuggestionsRenderer {
         final String goneProp = lastDotSegment(f.target());
         record KeyMatch(double score, ConfigRecords.Owner owner, String keyName) {}
         final List<KeyMatch> matches = new ArrayList<>();
+        // Exact same-named declarations (the shared migration scan) score 1.0; near-name matches — a
+        // suggestions-only feature — are scored separately against the remaining components.
+        for (final ConfigRecords.Owner owner : ConfigRecords.declaringRecordsOf(owners, f.target())) {
+            matches.add(new KeyMatch(1.0, owner, goneProp));
+        }
         for (final ConfigRecords.Owner owner : owners) {
             for (final ConfigComponent c : owner.type().configComponents()) {
-                final String fqKey = owner.type().configPrefix().isEmpty()
-                        ? c.keyName()
-                        : owner.type().configPrefix() + "." + c.keyName();
-                if (fqKey.equals(f.target())) {
+                if (c.keyName().equals(goneProp)) {
+                    continue; // exact matches are handled above.
+                }
+                if (owner.type().fullyQualifiedKey(c.keyName()).equals(f.target())) {
                     continue; // the documented key itself — it would not be gone.
                 }
-                final double score = c.keyName().equals(goneProp) ? 1.0 : similarity(goneProp, c.keyName());
+                final double score = similarity(goneProp, c.keyName());
                 if (score >= PROMOTE_SIMILARITY) {
                     matches.add(new KeyMatch(score, owner, c.keyName()));
                 }
@@ -416,9 +421,7 @@ public final class SuggestionsRenderer {
             if (bullets.size() >= MAX_SUGGESTIONS) {
                 break;
             }
-            final String fqKey = m.owner().type().configPrefix().isEmpty()
-                    ? m.keyName()
-                    : m.owner().type().configPrefix() + "." + m.keyName();
+            final String fqKey = m.owner().type().fullyQualifiedKey(m.keyName());
             if (m.score() == 1.0) {
                 final String sectionless =
                         sectionlessRecordPaths.contains(m.owner().path())

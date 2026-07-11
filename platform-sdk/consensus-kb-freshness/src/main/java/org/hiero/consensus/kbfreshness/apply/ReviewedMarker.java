@@ -2,8 +2,6 @@
 package org.hiero.consensus.kbfreshness.apply;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -131,18 +129,14 @@ public final class ReviewedMarker {
             return false;
         }
         final int line = doc.frontmatter().lineOf(KEY);
-        final Path file = repoRoot.resolve(doc.entry().relativePath());
-        final String content = Files.readString(file, StandardCharsets.UTF_8);
-        final String[] lines = content.split("\n", -1);
-        final int idx = line - 1;
-        if (idx < 0 || idx >= lines.length) {
+        final GuardedLineEditor editor =
+                GuardedLineEditor.open(repoRoot.resolve(doc.entry().relativePath()));
+        if (!editor.hasLine(line)) {
             problems.add("`" + spec + "`: `" + KEY + ":` line " + line + " is out of range in `"
                     + doc.entry().relativePath() + "`");
             return false;
         }
-        final String raw = lines[idx];
-        final String cr = raw.endsWith("\r") ? "\r" : "";
-        final String bare = raw.substring(0, raw.length() - cr.length());
+        final String bare = editor.bareLine(line);
         if (!bare.strip().startsWith(KEY + ":")) {
             problems.add("`" + spec + "`: line " + line + " of `" + doc.entry().relativePath()
                     + "` no longer starts with `" + KEY + ":` — not rewritten");
@@ -152,8 +146,8 @@ public final class ReviewedMarker {
         if (bare.equals(replacement)) {
             return false; // already current — success, nothing to write.
         }
-        lines[idx] = replacement + cr;
-        Files.writeString(file, String.join("\n", lines), StandardCharsets.UTF_8);
+        editor.rewriteLine(line, replacement);
+        editor.flush();
         return true;
     }
 }

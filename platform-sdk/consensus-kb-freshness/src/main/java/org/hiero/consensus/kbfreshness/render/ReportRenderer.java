@@ -15,7 +15,6 @@ import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.model.Triage;
 import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
-import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 import org.hiero.consensus.kbfreshness.util.Markdown;
 import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
@@ -272,27 +271,15 @@ public final class ReportRenderer {
             if (owners == null) {
                 owners = ConfigRecords.scan(result.sourceIndex());
             }
-            final int lastDot = f.target().lastIndexOf('.');
-            final String goneProp = lastDot >= 0 ? f.target().substring(lastDot + 1) : f.target();
-            ConfigRecords.Owner match = null;
-            boolean ambiguous = false;
-            for (final ConfigRecords.Owner owner : owners) {
-                for (final ConfigComponent c : owner.type().configComponents()) {
-                    final String fqKey = owner.type().configPrefix().isEmpty()
-                            ? c.keyName()
-                            : owner.type().configPrefix() + "." + c.keyName();
-                    if (c.keyName().equals(goneProp) && !fqKey.equals(f.target())) {
-                        ambiguous = match != null;
-                        match = owner;
-                    }
-                }
-            }
-            if (match == null || ambiguous) {
+            // A groupable cause only when exactly one record now declares the same-named key.
+            final List<ConfigRecords.Owner> declaring = ConfigRecords.declaringRecordsOf(owners, f.target());
+            if (declaring.size() != 1) {
                 continue;
             }
-            final String newKey = match.type().configPrefix().isEmpty()
-                    ? goneProp
-                    : match.type().configPrefix() + "." + goneProp;
+            final ConfigRecords.Owner match = declaring.get(0);
+            final int lastDot = f.target().lastIndexOf('.');
+            final String goneProp = lastDot >= 0 ? f.target().substring(lastDot + 1) : f.target();
+            final String newKey = match.type().fullyQualifiedKey(goneProp);
             migrations
                     .computeIfAbsent("`" + match.className() + "` (`" + match.path() + "`)", k -> new ArrayList<>())
                     .add("`" + f.target() + "` → `" + newKey + "`");

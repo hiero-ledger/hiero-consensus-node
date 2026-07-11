@@ -75,10 +75,11 @@ public final class FindingAssembler {
         final Entry entry = doc.entry();
         final List<Anchor> anchors = extractor.extract(doc);
 
-        // Group by (target, kind) within the entry, preserving first-seen order.
+        // Group by (kind, target) within the entry, preserving first-seen order. The space delimiter keeps
+        // the composite key unambiguous: no anchor-kind name contains a space or is a prefix of another.
         final Map<String, List<Anchor>> groups = new LinkedHashMap<>();
         for (final Anchor a : anchors) {
-            groups.computeIfAbsent(a.kind().name() + "" + a.target(), k -> new ArrayList<>())
+            groups.computeIfAbsent(a.kind().name() + " " + a.target(), k -> new ArrayList<>())
                     .add(a);
         }
 
