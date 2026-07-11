@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiFunction;
@@ -342,69 +343,18 @@ public final class AnchorResolver {
             return resolveHistoricalSource(a, q, basename);
         }
         final boolean abbreviated = target.contains("/.../");
-        if (allowlist.isExternalPath(target)) {
-            // Existence is still a filesystem fact even for a source the engine cannot parse: a cited
-            // external file that is present resolves cleanly (Tier 0). A missing one stays unverifiable —
-            // it may be generated at build time — but the quiet-log evidence flags the absence so a
-            // curator skimming the log sees it.
-            if (!abbreviated && index.fileExists(target)) {
-                return Resolution.ok(Outcome.PRESENT, q);
-            }
-            final String note = abbreviated ? "" : " Not found on disk either (may be generated at build time).";
-            return Resolution.finding(
-                    Outcome.UNVERIFIABLE,
-                    Lane.QUIET_LOG,
-                    q,
-                    "External/generated source (not indexed): `" + target + "`." + note);
-        }
 
-        if (!abbreviated && index.fileExists(target)) {
-            final String actualModule = RepoPaths.moduleOf(target);
-            if (a.statedModule() != null
-                    && actualModule != null
-                    && !a.statedModule().equals(actualModule)) {
-                return Resolution.finding(
-                        Outcome.PRESENT,
-                        Lane.ASSERT,
-                        q,
-                        "`" + basename + "` resolves in module `" + actualModule
-                                + "`, but the stated label is `Module: " + a.statedModule() + "`; update the label to `"
-                                + actualModule + "`.");
-            }
-            if (a.citedLine() != Anchor.NO_LINE) {
-                final int declLine = primaryTypeDeclLine(target, simpleName);
-                if (declLine > 0 && declLine != a.citedLine()) {
-                    return Resolution.autoFix(
-                            q,
-                            "Type `" + simpleName + "` is declared at line " + declLine + " but is cited at line "
-                                    + a.citedLine() + ".",
-                            declLine);
-                }
-            }
-            return Resolution.ok(Outcome.PRESENT, q);
+        final Optional<Resolution> external = externalSource(a, abbreviated, q);
+        if (external.isPresent()) {
+            return external.get();
         }
-
-        // File not at the cited path (or abbreviated): look the basename up across indexed sources.
-        final List<String> paths = index.pathsForBasename(basename);
-        if (abbreviated
-                && !SourceCandidates.inModule(index, basename, a.citedModule()).isEmpty()) {
-            return Resolution.ok(Outcome.PRESENT, q);
+        final Optional<Resolution> atCitedPath = sourceAtCitedPath(a, basename, simpleName, abbreviated, q);
+        if (atCitedPath.isPresent()) {
+            return atCitedPath.get();
         }
-        if (!paths.isEmpty()) {
-            // Exists, but not where cited — a package/path move, not "gone". Present, but reported.
-            // With exactly one candidate, the resolved path also drives a path-rewrite auto-fix proposal.
-            return resolveElsewhere(q, paths, (resolvedPath, modules) -> {
-                String evidence = "`" + basename + "` is not at the cited location"
-                        + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
-                        + (resolvedPath != null
-                                ? "; it now resolves at `" + resolvedPath + "` (package/path move)."
-                                : "; it now resolves in: " + String.join(", ", modules) + " (package/path move).");
-                if (a.statedModule() != null && !modules.contains(a.statedModule())) {
-                    evidence += " Also update the stated `Module: " + a.statedModule() + "` label to "
-                            + String.join(", ", modules) + ".";
-                }
-                return evidence;
-            });
+        final Optional<Resolution> moved = movedSource(a, basename, abbreviated, q);
+        if (moved.isPresent()) {
+            return moved.get();
         }
         if (allowlist.isExternalName(simpleName)) {
             return Resolution.finding(
@@ -418,6 +368,117 @@ public final class AnchorResolver {
                 Lane.ASSERT,
                 q,
                 "No file `" + basename + "` under any indexed module; cited source `" + target + "` is gone.");
+    }
+
+    /**
+     * Resolves an allowlisted external/generated source target: present when it exists on disk, otherwise
+     * unverifiable (it may be generated at build time). Empty when the target is not allowlisted.
+     *
+     * @param a           the anchor to resolve.
+     * @param abbreviated whether the cited path uses the {@code /.../} ellipsis (no on-disk lookup).
+     * @param q           the resolver question.
+     * @return the external-source resolution, or empty when the target is not external.
+     */
+    private Optional<Resolution> externalSource(final Anchor a, final boolean abbreviated, final String q) {
+        final String target = a.target();
+        if (!allowlist.isExternalPath(target)) {
+            return Optional.empty();
+        }
+        // Existence is still a filesystem fact even for a source the engine cannot parse: a cited
+        // external file that is present resolves cleanly (Tier 0). A missing one stays unverifiable —
+        // it may be generated at build time — but the quiet-log evidence flags the absence so a
+        // curator skimming the log sees it.
+        if (!abbreviated && index.fileExists(target)) {
+            return Optional.of(Resolution.ok(Outcome.PRESENT, q));
+        }
+        final String note = abbreviated ? "" : " Not found on disk either (may be generated at build time).";
+        return Optional.of(Resolution.finding(
+                Outcome.UNVERIFIABLE,
+                Lane.QUIET_LOG,
+                q,
+                "External/generated source (not indexed): `" + target + "`." + note));
+    }
+
+    /**
+     * Resolves a source present at exactly the cited (non-abbreviated) path: a stale {@code Module:} label
+     * asserts, a moved declaration line for the named type emits a line auto-fix, otherwise it resolves
+     * cleanly. Empty when the cited path is abbreviated or the file is not there.
+     *
+     * @param a           the anchor to resolve.
+     * @param basename    the cited file basename.
+     * @param simpleName  the cited file basename without its extension (the primary type name).
+     * @param abbreviated whether the cited path uses the {@code /.../} ellipsis.
+     * @param q           the resolver question.
+     * @return the at-cited-path resolution, or empty when the file is not at the cited path.
+     */
+    private Optional<Resolution> sourceAtCitedPath(
+            final Anchor a, final String basename, final String simpleName, final boolean abbreviated, final String q) {
+        final String target = a.target();
+        if (abbreviated || !index.fileExists(target)) {
+            return Optional.empty();
+        }
+        final String actualModule = RepoPaths.moduleOf(target);
+        if (a.statedModule() != null
+                && actualModule != null
+                && !a.statedModule().equals(actualModule)) {
+            return Optional.of(Resolution.finding(
+                    Outcome.PRESENT,
+                    Lane.ASSERT,
+                    q,
+                    "`" + basename + "` resolves in module `" + actualModule
+                            + "`, but the stated label is `Module: " + a.statedModule() + "`; update the label to `"
+                            + actualModule + "`."));
+        }
+        if (a.citedLine() != Anchor.NO_LINE) {
+            final int declLine = primaryTypeDeclLine(target, simpleName);
+            if (declLine > 0 && declLine != a.citedLine()) {
+                return Optional.of(Resolution.autoFix(
+                        q,
+                        "Type `" + simpleName + "` is declared at line " + declLine + " but is cited at line "
+                                + a.citedLine() + ".",
+                        declLine));
+            }
+        }
+        return Optional.of(Resolution.ok(Outcome.PRESENT, q));
+    }
+
+    /**
+     * Resolves a source not at the cited path by looking the basename up across the index: an abbreviated
+     * citation whose basename exists in the cited module is present; a basename found elsewhere is a
+     * package/path move (present, but reported, with a rewrite when the target is unique). Empty when the
+     * basename is not indexed anywhere.
+     *
+     * @param a           the anchor to resolve.
+     * @param basename    the cited file basename.
+     * @param abbreviated whether the cited path uses the {@code /.../} ellipsis.
+     * @param q           the resolver question.
+     * @return the moved-source resolution, or empty when the basename is not indexed.
+     */
+    private Optional<Resolution> movedSource(
+            final Anchor a, final String basename, final boolean abbreviated, final String q) {
+        // File not at the cited path (or abbreviated): look the basename up across indexed sources.
+        final List<String> paths = index.pathsForBasename(basename);
+        if (abbreviated
+                && !SourceCandidates.inModule(index, basename, a.citedModule()).isEmpty()) {
+            return Optional.of(Resolution.ok(Outcome.PRESENT, q));
+        }
+        if (paths.isEmpty()) {
+            return Optional.empty();
+        }
+        // Exists, but not where cited — a package/path move, not "gone". Present, but reported.
+        // With exactly one candidate, the resolved path also drives a path-rewrite auto-fix proposal.
+        return Optional.of(resolveElsewhere(q, paths, (resolvedPath, modules) -> {
+            String evidence = "`" + basename + "` is not at the cited location"
+                    + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
+                    + (resolvedPath != null
+                            ? "; it now resolves at `" + resolvedPath + "` (package/path move)."
+                            : "; it now resolves in: " + String.join(", ", modules) + " (package/path move).");
+            if (a.statedModule() != null && !modules.contains(a.statedModule())) {
+                evidence += " Also update the stated `Module: " + a.statedModule() + "` label to "
+                        + String.join(", ", modules) + ".";
+            }
+            return evidence;
+        }));
     }
 
     /**

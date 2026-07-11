@@ -24,7 +24,6 @@ import org.hiero.consensus.kbfreshness.resolve.ConfigRecords;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ConfigComponent;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
-import org.hiero.consensus.kbfreshness.util.Hashing;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
@@ -130,7 +129,11 @@ public final class TunablesDiffAssembler {
         if (s.moduleLabel() != null) {
             documentedModules.add(s.moduleLabel());
         }
-        final ConfigRecords.Owner owner = resolveRecord(doc, s, findings);
+        final RecordResolution resolved = resolveRecord(doc, s);
+        if (resolved.moveFinding() != null) {
+            findings.add(resolved.moveFinding());
+        }
+        final ConfigRecords.Owner owner = resolved.owner();
         if (owner == null) {
             return findings;
         }
@@ -161,7 +164,7 @@ public final class TunablesDiffAssembler {
                     null));
             return findings;
         }
-        checkRows(doc, s, owner, findings);
+        findings.addAll(checkRows(doc, s, owner));
         return findings;
     }
 
@@ -170,70 +173,111 @@ public final class TunablesDiffAssembler {
      * default mismatches assert (literal vs literal only), type differences and non-literal defaults go
      * to the quiet log, and undocumented properties land in the coverage lane.
      *
-     * @param doc      the tunables catalog document.
-     * @param s        the section being checked.
-     * @param owner    the resolved config record.
-     * @param findings the list to append findings to.
+     * @param doc   the tunables catalog document.
+     * @param s     the section being checked.
+     * @param owner the resolved config record.
+     * @return the section's row-level findings, in report order.
      */
-    private static void checkRows(
-            final KbDocument doc, final Section s, final ConfigRecords.Owner owner, final List<Finding> findings) {
+    private static List<Finding> checkRows(final KbDocument doc, final Section s, final ConfigRecords.Owner owner) {
         final String fqPrefix = s.prefix().isEmpty() ? "" : s.prefix() + ".";
         final Map<String, ConfigComponent> byKeyName = new LinkedHashMap<>();
         for (final ConfigComponent c : owner.type().configComponents()) {
             byKeyName.putIfAbsent(c.keyName(), c);
         }
+        final List<Finding> findings = new ArrayList<>();
         final List<String> documentedNames = new ArrayList<>();
         for (final Row row : s.rows()) {
-            if (!fqPrefix.isEmpty() && !row.key().startsWith(fqPrefix)) {
-                findings.add(keyFinding(
-                        doc,
-                        s,
-                        owner,
-                        row,
-                        Outcome.UNVERIFIABLE,
-                        Lane.QUIET_LOG,
-                        "Row key `" + row.key() + "` does not start with the section prefix `" + fqPrefix
-                                + "`; not checked."));
-                continue;
-            }
-            final String propName = fqPrefix.isEmpty() ? row.key() : row.key().substring(fqPrefix.length());
-            documentedNames.add(propName);
-            final ConfigComponent c = byKeyName.get(propName);
-            if (c == null) {
-                findings.add(keyFinding(
-                        doc,
-                        s,
-                        owner,
-                        row,
-                        Outcome.ABSENT,
-                        Lane.ASSERT,
-                        "Config record `" + owner.className() + "` (`@ConfigData(\"" + s.prefix() + "\")`) in `"
-                                + owner.path() + "` declares no property `" + propName + "`; declared: "
-                                + String.join(", ", byKeyName.keySet()) + "."));
-                continue;
-            }
-            if (!row.type().isBlank() && !typeMatches(row.type(), c.type())) {
-                findings.add(keyFinding(
-                        doc,
-                        s,
-                        owner,
-                        row,
-                        Outcome.PRESENT,
-                        Lane.QUIET_LOG,
-                        "Documented type `" + row.type() + "` of `" + row.key() + "` differs from the declared `"
-                                + c.type() + "` in `" + owner.className()
-                                + "` — possibly a semantic type (not asserted)."));
-            }
-            checkDefault(doc, s, owner, row, c, findings);
+            findings.addAll(checkRow(doc, s, owner, row, fqPrefix, byKeyName, documentedNames));
         }
+        findings.addAll(undocumentedProperties(doc, s, owner, fqPrefix, documentedNames));
+        return findings;
+    }
+
+    /**
+     * Checks one documented row against the resolved record, recording the property name it documents in
+     * {@code documentedNames} (so {@link #undocumentedProperties} can find the gaps): an off-prefix key is
+     * unverifiable, a gone key asserts, a differing type is quiet-logged, and the default is diffed.
+     *
+     * @param doc             the tunables catalog document.
+     * @param s               the section being checked.
+     * @param owner           the resolved config record.
+     * @param row             the documented row.
+     * @param fqPrefix        the section's fully-qualified key prefix ({@code ""} for a no-prefix section).
+     * @param byKeyName       the record's declared components by property name.
+     * @param documentedNames collects the property name this row documents (mutated).
+     * @return the row's findings, in report order.
+     */
+    private static List<Finding> checkRow(
+            final KbDocument doc,
+            final Section s,
+            final ConfigRecords.Owner owner,
+            final Row row,
+            final String fqPrefix,
+            final Map<String, ConfigComponent> byKeyName,
+            final List<String> documentedNames) {
+        if (!fqPrefix.isEmpty() && !row.key().startsWith(fqPrefix)) {
+            return List.of(keyFinding(
+                    doc,
+                    owner,
+                    row,
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    "Row key `" + row.key() + "` does not start with the section prefix `" + fqPrefix
+                            + "`; not checked."));
+        }
+        final String propName = fqPrefix.isEmpty() ? row.key() : row.key().substring(fqPrefix.length());
+        documentedNames.add(propName);
+        final ConfigComponent c = byKeyName.get(propName);
+        if (c == null) {
+            return List.of(keyFinding(
+                    doc,
+                    owner,
+                    row,
+                    Outcome.ABSENT,
+                    Lane.ASSERT,
+                    "Config record `" + owner.className() + "` (`@ConfigData(\"" + s.prefix() + "\")`) in `"
+                            + owner.path() + "` declares no property `" + propName + "`; declared: "
+                            + String.join(", ", byKeyName.keySet()) + "."));
+        }
+        final List<Finding> findings = new ArrayList<>();
+        if (!row.type().isBlank() && !typeMatches(row.type(), c.type())) {
+            findings.add(keyFinding(
+                    doc,
+                    owner,
+                    row,
+                    Outcome.PRESENT,
+                    Lane.QUIET_LOG,
+                    "Documented type `" + row.type() + "` of `" + row.key() + "` differs from the declared `"
+                            + c.type() + "` in `" + owner.className()
+                            + "` — possibly a semantic type (not asserted)."));
+        }
+        findings.addAll(checkDefault(doc, owner, row, c));
+        return findings;
+    }
+
+    /**
+     * The inverse of the per-row diff: declared properties the section documents no row for, surfaced in
+     * the coverage lane (never asserted).
+     *
+     * @param doc             the tunables catalog document.
+     * @param s               the section being checked.
+     * @param owner           the resolved config record.
+     * @param fqPrefix        the section's fully-qualified key prefix.
+     * @param documentedNames the property names the section's rows documented.
+     * @return one coverage finding per undocumented declared property.
+     */
+    private static List<Finding> undocumentedProperties(
+            final KbDocument doc,
+            final Section s,
+            final ConfigRecords.Owner owner,
+            final String fqPrefix,
+            final List<String> documentedNames) {
+        final List<Finding> findings = new ArrayList<>();
         for (final ConfigComponent c : owner.type().configComponents()) {
             if (!documentedNames.contains(c.keyName())) {
                 final String fqKey = fqPrefix + c.keyName();
-                findings.add(new Finding(
-                        Hashing.id(doc.entry().key(), fqKey, AnchorKind.CONFIG_KEY.name()),
-                        doc.entry().key(),
-                        doc.entry().relativePath(),
-                        doc.entry().type(),
+                findings.add(Finding.of(
+                        doc.entry(),
                         AnchorKind.CONFIG_KEY,
                         fqKey,
                         RepoPaths.moduleOf(owner.path()),
@@ -243,44 +287,44 @@ public final class TunablesDiffAssembler {
                         "config record `" + owner.className() + "` property `" + c.keyName() + "` is documented",
                         "Config record `" + owner.className() + "` declares property `" + c.keyName() + "` (key `"
                                 + fqKey + "`) not documented in this section.",
-                        List.of(new Occurrence(s.headingLine(), Anchor.NO_LINE, fqKey)),
-                        null,
-                        null,
-                        null));
+                        List.of(new Occurrence(s.headingLine(), Anchor.NO_LINE, fqKey))));
             }
         }
+        return findings;
     }
 
     /**
-     * Compares a row's documented default against the component's {@code defaultValue}: equal literals
-     * are clean, differing literals assert, and a non-literal source value is unverifiable. A blank
-     * documented default is skipped — nothing is claimed.
+     * Compares a row's documented default against the component's effective literal {@code defaultValue}:
+     * equal literals are clean, differing literals assert, and a non-literal source value is unverifiable.
+     * A blank documented default is skipped — nothing is claimed.
      *
-     * @param doc      the tunables catalog document.
-     * @param s        the section being checked.
-     * @param owner    the resolved config record.
-     * @param row      the documented row.
-     * @param c        the declared component the row documents.
-     * @param findings the list to append findings to.
+     * @param doc   the tunables catalog document.
+     * @param owner the resolved config record.
+     * @param row   the documented row.
+     * @param c     the declared component the row documents.
+     * @return the mismatch finding (assert or quiet-log), or an empty list when the default is clean or blank.
      */
-    private static void checkDefault(
-            final KbDocument doc,
-            final Section s,
-            final ConfigRecords.Owner owner,
-            final Row row,
-            final ConfigComponent c,
-            final List<Finding> findings) {
+    private static List<Finding> checkDefault(
+            final KbDocument doc, final ConfigRecords.Owner owner, final Row row, final ConfigComponent c) {
         final String documented = row.defaultValue();
         if (documented.isBlank() || documented.equals("—")) {
-            return;
+            return List.of();
         }
         final String question = "default of `" + row.key() + "` matches `@ConfigProperty(defaultValue = …)`";
-        if (!c.defaultIsLiteral()) {
+        // Reduce both a plain literal and a whitelisted config-API constant (a compile-time fact) to a
+        // single effective literal, then compare once. A non-literal, non-whitelisted default is unverifiable.
+        final String effective;
+        final String mismatchEvidence;
+        if (c.defaultIsLiteral()) {
+            effective = c.defaultValue();
+            mismatchEvidence = "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
+                    + "`@ConfigProperty(defaultValue = \"" + c.defaultValue() + "\")` in `" + owner.className()
+                    + "` (`" + owner.path() + "`).";
+        } else {
             final String known = c.defaultExpr() == null ? null : WELL_KNOWN_DEFAULTS.get(c.defaultExpr());
             if (known == null) {
-                findings.add(defaultFinding(
+                return List.of(defaultFinding(
                         doc,
-                        s,
                         owner,
                         row,
                         Outcome.UNVERIFIABLE,
@@ -289,36 +333,35 @@ public final class TunablesDiffAssembler {
                         "`defaultValue` of `" + row.key() + "` in `" + owner.className()
                                 + "` is not a plain string literal; documented default `" + documented
                                 + "` is unverifiable."));
-                return;
             }
-            // A whitelisted config-API constant is a compile-time fact; compare it like a literal.
-            if (!normalizeDefault(documented).equals(normalizeDefault(known))) {
-                findings.add(defaultFinding(
-                        doc,
-                        s,
-                        owner,
-                        row,
-                        Outcome.ABSENT,
-                        Lane.ASSERT,
-                        question,
-                        "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
-                                + "`@ConfigProperty(defaultValue = " + c.defaultExpr() + ")` (= `" + known
-                                + "`) in `" + owner.className() + "` (`" + owner.path() + "`)."));
-            }
-            return;
+            effective = known;
+            mismatchEvidence = "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
+                    + "`@ConfigProperty(defaultValue = " + c.defaultExpr() + ")` (= `" + known + "`) in `"
+                    + owner.className() + "` (`" + owner.path() + "`).";
         }
-        if (!normalizeDefault(documented).equals(normalizeDefault(c.defaultValue()))) {
-            findings.add(defaultFinding(
-                    doc,
-                    s,
-                    owner,
-                    row,
-                    Outcome.ABSENT,
-                    Lane.ASSERT,
-                    question,
-                    "Documented default `" + documented + "` of `" + row.key() + "` no longer matches "
-                            + "`@ConfigProperty(defaultValue = \"" + c.defaultValue() + "\")` in `" + owner.className()
-                            + "` (`" + owner.path() + "`)."));
+        if (!normalizeDefault(documented).equals(normalizeDefault(effective))) {
+            return List.of(defaultFinding(doc, owner, row, Outcome.ABSENT, Lane.ASSERT, question, mismatchEvidence));
+        }
+        return List.of();
+    }
+
+    /**
+     * The outcome of resolving a section's config record: the resolved {@code owner} (or {@code null} when
+     * the section cannot be resolved with certainty) plus the prefix-move assert {@code moveFinding} when a
+     * config-class rename was detected (otherwise {@code null}).
+     *
+     * @param owner       the resolved config record, or {@code null}.
+     * @param moveFinding the prefix-move finding to emit, or {@code null}.
+     */
+    private record RecordResolution(ConfigRecords.Owner owner, Finding moveFinding) {
+
+        /**
+         * A resolution that found no certain record and emits no finding.
+         *
+         * @return the empty resolution.
+         */
+        private static RecordResolution unresolved() {
+            return new RecordResolution(null, null);
         }
     }
 
@@ -326,19 +369,20 @@ public final class TunablesDiffAssembler {
      * Resolves the config record a section documents: the cited {@code Source:} path when it exists and
      * declares the class; else the unique indexed file of the same basename declaring the class with a
      * config prefix; else — a certain rename — the unique {@code @ConfigData} owner of the section's
-     * prefix that declares every documented key, which additionally asserts a MOVED finding carrying the
+     * prefix that declares every documented key, which additionally carries a MOVED finding with the
      * resolved path for {@code --fix}.
      *
-     * @param doc      the tunables catalog document.
-     * @param s        the section to resolve.
-     * @param findings the list to append the prefix-move finding to, when one is emitted.
-     * @return the resolved record, or {@code null} when the section cannot be resolved with certainty
-     *     (the generic source-path anchor reports the gone citation).
+     * @param doc the tunables catalog document.
+     * @param s   the section to resolve.
+     * @return the resolution: the resolved record (or {@code null} when the section cannot be resolved with
+     *     certainty — the generic source-path anchor reports the gone citation) plus the prefix-move
+     *     finding when a rename was detected.
      */
-    private ConfigRecords.Owner resolveRecord(final KbDocument doc, final Section s, final List<Finding> findings) {
+    private RecordResolution resolveRecord(final KbDocument doc, final Section s) {
         if (s.sourcePath() != null && index.fileExists(s.sourcePath())) {
             final TypeInfo type = index.parse(s.sourcePath()).types().get(s.className());
-            return type == null ? null : new ConfigRecords.Owner(s.sourcePath(), s.className(), type);
+            return new RecordResolution(
+                    type == null ? null : new ConfigRecords.Owner(s.sourcePath(), s.className(), type), null);
         }
         final List<ConfigRecords.Owner> byBasename = new ArrayList<>();
         for (final String p : index.pathsForBasename(s.className() + ".java")) {
@@ -350,15 +394,15 @@ public final class TunablesDiffAssembler {
         if (byBasename.size() == 1) {
             // The generic source-path anchor already reports this as a package/path move with a ready
             // rewrite; here it only needs to back the per-key checks.
-            return byBasename.get(0);
+            return new RecordResolution(byBasename.get(0), null);
         }
         if (!byBasename.isEmpty()) {
-            return null;
+            return RecordResolution.unresolved();
         }
         final List<ConfigRecords.Owner> owners = ownersOf(s.prefix());
         if (owners.size() == 1 && declaresAllDocumentedKeys(owners.get(0), s)) {
             final ConfigRecords.Owner owner = owners.get(0);
-            findings.add(prefixFinding(
+            final Finding move = prefixFinding(
                     doc,
                     s,
                     Outcome.PRESENT,
@@ -367,10 +411,10 @@ public final class TunablesDiffAssembler {
                             + "\")` is declared by exactly one indexed record — `" + owner.className() + "` at `"
                             + owner.path() + "` — which declares every key this section documents "
                             + "(a config class rename/move). Update the heading, `Source:` link, and `Module:` label.",
-                    owner.path()));
-            return owner;
+                    owner.path());
+            return new RecordResolution(owner, move);
         }
-        return null;
+        return RecordResolution.unresolved();
     }
 
     /**
@@ -466,11 +510,8 @@ public final class TunablesDiffAssembler {
                 continue;
             }
             final String prefix = owner.type().configPrefix();
-            findings.add(new Finding(
-                    Hashing.id(doc.entry().key(), owner.path(), AnchorKind.CONFIG_PREFIX.name()),
-                    doc.entry().key(),
-                    doc.entry().relativePath(),
-                    doc.entry().type(),
+            findings.add(Finding.of(
+                    doc.entry(),
                     AnchorKind.CONFIG_PREFIX,
                     owner.path(),
                     module,
@@ -482,10 +523,7 @@ public final class TunablesDiffAssembler {
                             + prefix + "\")`, "
                             + owner.type().configComponents().size() + " key(s)) at `"
                             + owner.path() + "` has no section in this catalog.",
-                    List.of(new Occurrence(1, Anchor.NO_LINE, owner.className())),
-                    null,
-                    null,
-                    null));
+                    List.of(new Occurrence(1, Anchor.NO_LINE, owner.className()))));
         }
         return findings;
     }
@@ -517,30 +555,25 @@ public final class TunablesDiffAssembler {
         if (s.sourceLine() > 0) {
             occurrences.add(new Occurrence(s.sourceLine(), Anchor.NO_LINE, target));
         }
-        return new Finding(
-                Hashing.id(doc.entry().key(), target, AnchorKind.CONFIG_PREFIX.name()),
-                doc.entry().key(),
-                doc.entry().relativePath(),
-                doc.entry().type(),
-                AnchorKind.CONFIG_PREFIX,
-                target,
-                RepoPaths.moduleOf(target),
-                s.className(),
-                outcome,
-                lane,
-                "config prefix `" + headingPrefix(s) + "` is declared by cited class `" + s.className() + "`",
-                evidence,
-                occurrences,
-                null,
-                resolvedPath,
-                s.moduleLabel());
+        return Finding.of(
+                        doc.entry(),
+                        AnchorKind.CONFIG_PREFIX,
+                        target,
+                        RepoPaths.moduleOf(target),
+                        s.className(),
+                        outcome,
+                        lane,
+                        "config prefix `" + headingPrefix(s) + "` is declared by cited class `" + s.className() + "`",
+                        evidence,
+                        occurrences)
+                .withResolvedPath(resolvedPath)
+                .withStatedModule(s.moduleLabel());
     }
 
     /**
      * Builds a per-row {@link AnchorKind#CONFIG_KEY} finding.
      *
      * @param doc      the tunables catalog document.
-     * @param s        the section.
      * @param owner    the resolved config record.
      * @param row      the documented row.
      * @param outcome  the outcome.
@@ -550,17 +583,13 @@ public final class TunablesDiffAssembler {
      */
     private static Finding keyFinding(
             final KbDocument doc,
-            final Section s,
             final ConfigRecords.Owner owner,
             final Row row,
             final Outcome outcome,
             final Lane lane,
             final String evidence) {
-        return new Finding(
-                Hashing.id(doc.entry().key(), row.key(), AnchorKind.CONFIG_KEY.name()),
-                doc.entry().key(),
-                doc.entry().relativePath(),
-                doc.entry().type(),
+        return Finding.of(
+                doc.entry(),
                 AnchorKind.CONFIG_KEY,
                 row.key(),
                 RepoPaths.moduleOf(owner.path()),
@@ -569,17 +598,13 @@ public final class TunablesDiffAssembler {
                 lane,
                 "config record `" + owner.className() + "` declares property `" + row.key() + "`",
                 evidence,
-                List.of(new Occurrence(row.line(), Anchor.NO_LINE, row.key())),
-                null,
-                null,
-                null);
+                List.of(new Occurrence(row.line(), Anchor.NO_LINE, row.key())));
     }
 
     /**
      * Builds a per-row {@link AnchorKind#CONFIG_DEFAULT} finding.
      *
      * @param doc      the tunables catalog document.
-     * @param s        the section.
      * @param owner    the resolved config record.
      * @param row      the documented row.
      * @param outcome  the outcome.
@@ -590,18 +615,14 @@ public final class TunablesDiffAssembler {
      */
     private static Finding defaultFinding(
             final KbDocument doc,
-            final Section s,
             final ConfigRecords.Owner owner,
             final Row row,
             final Outcome outcome,
             final Lane lane,
             final String question,
             final String evidence) {
-        return new Finding(
-                Hashing.id(doc.entry().key(), row.key(), AnchorKind.CONFIG_DEFAULT.name()),
-                doc.entry().key(),
-                doc.entry().relativePath(),
-                doc.entry().type(),
+        return Finding.of(
+                doc.entry(),
                 AnchorKind.CONFIG_DEFAULT,
                 row.key(),
                 RepoPaths.moduleOf(owner.path()),
@@ -610,10 +631,7 @@ public final class TunablesDiffAssembler {
                 lane,
                 question,
                 evidence,
-                List.of(new Occurrence(row.line(), Anchor.NO_LINE, row.key())),
-                null,
-                null,
-                null);
+                List.of(new Occurrence(row.line(), Anchor.NO_LINE, row.key())));
     }
 
     // ---- Helpers ----

@@ -76,16 +76,8 @@ public final class TunablesCatalog {
      * @return the sections in document order (possibly empty).
      */
     public static List<Section> parse(final KbDocument doc) {
-        final List<Section> sections = new ArrayList<>();
         final String docDir = RepoPaths.parentDir(doc.entry().relativePath());
-        String prefix = null;
-        String className = null;
-        int headingLine = 0;
-        String moduleLabel = null;
-        String sourcePath = null;
-        int sourceLine = 0;
-        List<Row> rows = new ArrayList<>();
-        boolean inSection = false;
+        final SectionBuilder builder = new SectionBuilder();
         boolean inFence = false;
 
         final List<String> lines = doc.lines();
@@ -103,52 +95,37 @@ public final class TunablesCatalog {
             final Matcher prefixed = PREFIXED_HEADING.matcher(line);
             final Matcher bare = BARE_HEADING.matcher(line);
             if (prefixed.matches() || bare.matches()) {
-                if (inSection) {
-                    sections.add(
-                            new Section(prefix, className, headingLine, moduleLabel, sourcePath, sourceLine, rows));
-                }
-                inSection = true;
-                prefix = prefixed.matches() ? prefixed.group(1) : "";
-                className = prefixed.matches() ? prefixed.group(2) : bare.group(1);
-                headingLine = fileLine;
-                moduleLabel = null;
-                sourcePath = null;
-                sourceLine = 0;
-                rows = new ArrayList<>();
+                final boolean isPrefixed = prefixed.matches();
+                builder.start(
+                        isPrefixed ? prefixed.group(1) : "", isPrefixed ? prefixed.group(2) : bare.group(1), fileLine);
                 continue;
             }
             if (OTHER_HEADING.matcher(line).matches()) {
-                if (inSection) {
-                    sections.add(
-                            new Section(prefix, className, headingLine, moduleLabel, sourcePath, sourceLine, rows));
-                    inSection = false;
-                }
+                builder.flush();
                 continue;
             }
-            if (!inSection) {
+            if (!builder.inSection()) {
                 continue;
             }
 
-            if (sourcePath == null) {
+            if (!builder.hasSource()) {
                 final Matcher src = SOURCE_LINK.matcher(line);
                 if (src.find()) {
-                    sourcePath = RepoPaths.resolveRelative(docDir, src.group(1));
-                    sourceLine = fileLine;
                     final Matcher mod = Patterns.MODULE_LABEL.matcher(line);
-                    if (mod.find()) {
-                        moduleLabel = mod.group(1);
-                    }
+                    builder.source(
+                            RepoPaths.resolveRelative(docDir, src.group(1)),
+                            fileLine,
+                            mod.find() ? mod.group(1) : null);
                 }
             }
             final Matcher row = ROW.matcher(line);
             if (row.find()) {
-                rows.add(new Row(row.group(1), cell(row.group(2)), cell(row.group(3)), cell(row.group(4)), fileLine));
+                builder.addRow(
+                        new Row(row.group(1), cell(row.group(2)), cell(row.group(3)), cell(row.group(4)), fileLine));
             }
         }
-        if (inSection) {
-            sections.add(new Section(prefix, className, headingLine, moduleLabel, sourcePath, sourceLine, rows));
-        }
-        return sections;
+        builder.flush();
+        return builder.sections();
     }
 
     /**
@@ -165,5 +142,117 @@ public final class TunablesCatalog {
             t = t.substring(1, t.length() - 1);
         }
         return t.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
+    }
+
+    /**
+     * Accumulates the fields of the section currently being parsed and {@link #flush() flushes} them into a
+     * {@link Section}. Centralizing the {@code new Section(...)} construction in one place keeps the
+     * heading, next-heading, and end-of-document flush paths from diverging.
+     */
+    private static final class SectionBuilder {
+
+        /** The sections completed so far, in document order. */
+        private final List<Section> sections = new ArrayList<>();
+
+        /** Whether a section heading has been seen with no terminating heading yet. */
+        private boolean inSection;
+
+        /** The current section's config prefix ({@code ""} for a no-prefix section). */
+        private String prefix;
+
+        /** The current section's record class name from the heading. */
+        private String className;
+
+        /** The 1-based line of the current section's heading. */
+        private int headingLine;
+
+        /** The current section's {@code Module:} label, or {@code null}. */
+        private String moduleLabel;
+
+        /** The current section's resolved {@code Source:} path, or {@code null} until seen. */
+        private String sourcePath;
+
+        /** The 1-based line of the current section's {@code Source:} link, or {@code 0}. */
+        private int sourceLine;
+
+        /** The current section's {@code TUN-NNN} rows, in document order. */
+        private List<Row> rows;
+
+        /**
+         * Flushes any in-progress section into the accumulated list, then begins a new one.
+         *
+         * @param prefix      the config prefix ({@code ""} for a no-prefix section).
+         * @param className   the record class name from the heading.
+         * @param headingLine the 1-based line of the heading.
+         */
+        void start(final String prefix, final String className, final int headingLine) {
+            flush();
+            inSection = true;
+            this.prefix = prefix;
+            this.className = className;
+            this.headingLine = headingLine;
+            moduleLabel = null;
+            sourcePath = null;
+            sourceLine = 0;
+            rows = new ArrayList<>();
+        }
+
+        /**
+         * Records the current section's {@code Source:} link and the module label on its line. Only the
+         * first {@code Source:} line counts — guard the call with {@link #hasSource()}.
+         *
+         * @param sourcePath  the repo-relative path the {@code Source:} link resolves to.
+         * @param sourceLine  the 1-based line of the {@code Source:} link.
+         * @param moduleLabel the {@code Module:} label on the same line, or {@code null} when absent.
+         */
+        void source(final String sourcePath, final int sourceLine, final String moduleLabel) {
+            this.sourcePath = sourcePath;
+            this.sourceLine = sourceLine;
+            this.moduleLabel = moduleLabel;
+        }
+
+        /**
+         * Appends a documented row to the current section.
+         *
+         * @param row the row to add.
+         */
+        void addRow(final Row row) {
+            rows.add(row);
+        }
+
+        /**
+         * Whether a section is currently being accumulated.
+         *
+         * @return {@code true} between a section heading and its terminating heading.
+         */
+        boolean inSection() {
+            return inSection;
+        }
+
+        /**
+         * Whether the current section's {@code Source:} link has already been recorded.
+         *
+         * @return {@code true} once {@link #source} has run for the current section.
+         */
+        boolean hasSource() {
+            return sourcePath != null;
+        }
+
+        /** Flushes the in-progress section (if any) into the accumulated list. */
+        void flush() {
+            if (inSection) {
+                sections.add(new Section(prefix, className, headingLine, moduleLabel, sourcePath, sourceLine, rows));
+                inSection = false;
+            }
+        }
+
+        /**
+         * The completed sections.
+         *
+         * @return the sections in document order.
+         */
+        List<Section> sections() {
+            return sections;
+        }
     }
 }

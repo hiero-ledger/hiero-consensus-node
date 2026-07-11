@@ -13,7 +13,6 @@ import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
-import org.hiero.consensus.kbfreshness.util.Hashing;
 import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
@@ -157,12 +156,8 @@ public final class InterfaceDiffAssembler {
             final Lane lane,
             final String evidence,
             final int docLine) {
-        final String id = Hashing.id(doc.entry().key(), method, AnchorKind.INTERFACE_METHOD.name());
-        return new Finding(
-                id,
-                doc.entry().key(),
-                doc.entry().relativePath(),
-                doc.entry().type(),
+        return Finding.of(
+                doc.entry(),
                 AnchorKind.INTERFACE_METHOD,
                 method,
                 null,
@@ -171,9 +166,6 @@ public final class InterfaceDiffAssembler {
                 lane,
                 "interface `" + className + "` declares method `" + method + "`",
                 evidence,
-                List.of(new Occurrence(docLine, Anchor.NO_LINE, method)),
-                null,
-                null,
-                null);
+                List.of(new Occurrence(docLine, Anchor.NO_LINE, method)));
     }
 }

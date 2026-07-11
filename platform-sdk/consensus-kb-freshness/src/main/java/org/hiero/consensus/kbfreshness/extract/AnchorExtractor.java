@@ -243,15 +243,38 @@ public final class AnchorExtractor {
      * @param out the list to append discovered anchors to.
      */
     private void extractBody(final KbDocument doc, final List<Anchor> out) {
+        final String docDir = RepoPaths.parentDir(doc.entry().relativePath());
+        final BlankedBody blanked = buildBlankedBody(doc, out);
+        final String masked = extractMarkdownLinks(blanked, docDir, out);
+        extractCodeSpans(masked, blanked.lineStart(), out);
+    }
+
+    /**
+     * A fence-and-comment-blanked copy of the document body (one entry per file line, line count
+     * preserved) with the per-line offset table and the stated {@code Module:} labels, driving the
+     * whole-body markdown-link and code-span passes.
+     *
+     * @param text               the blanked body text; a match offset maps back to a line via {@code lineStart}.
+     * @param lineStart          the body offset at which each file line begins.
+     * @param statedModuleByLine the stated {@code Module: `x`} label keyed by the file line it sits on.
+     */
+    private record BlankedBody(String text, long[] lineStart, Map<Integer, String> statedModuleByLine) {}
+
+    /**
+     * Builds the fence-and-comment-blanked body and, in the same pass, emits the per-line anchors that do
+     * not need the whole-body view: abbreviated {@code module/.../File.java} paths and bare catalog IDs.
+     * HTML comments are blanked because commented-out text is not a claim — an index README's
+     * row-convention template would otherwise assert.
+     *
+     * @param doc the scanned KB document.
+     * @param out the list to append the per-line anchors to.
+     * @return the blanked body, its per-line offsets, and the stated module labels.
+     */
+    private BlankedBody buildBlankedBody(final KbDocument doc, final List<Anchor> out) {
         final List<String> lines = doc.lines();
         final String ownKey = doc.entry().key();
         final int bodyStart = doc.frontmatter().bodyLine();
-        final String docDir = RepoPaths.parentDir(doc.entry().relativePath());
 
-        // A fence-and-comment-blanked copy of the body (one entry per file line, line count preserved)
-        // drives the whole-body markdown-link and code-span passes; lineStart maps a match offset back to
-        // a line. HTML comments are blanked because commented-out text is not a claim — an index README's
-        // row-convention template would otherwise assert.
         final StringBuilder body = new StringBuilder();
         final long[] lineStart = new long[lines.size()];
         // Stated "Module: `x`" label keyed by the file line it sits on, for the adjacent source link.
@@ -310,26 +333,54 @@ public final class AnchorExtractor {
                 statedModuleByLine.put(fileLine, mod.group(1));
             }
         }
+        return new BlankedBody(body.toString(), lineStart, statedModuleByLine);
+    }
 
-        // Markdown links, matched over the whole body so link text may wrap across lines. Mask each link
-        // region (preserving offsets) so the code-span pass never re-reads a file citation used as link text.
-        final char[] masked = body.toString().toCharArray();
-        final Matcher link = MD_LINK.matcher(body);
+    /**
+     * The markdown-link pass over the whole blanked body (so link text may wrap across lines): dispatches
+     * each link to {@link #extractLink} and returns the body with every link region masked to spaces
+     * (offsets preserved), so the code-span pass never re-reads a file citation used as link text.
+     *
+     * @param blanked the blanked body.
+     * @param docDir  the repo-relative directory of the containing document, for resolving relatives.
+     * @param out     the list to append discovered anchors to.
+     * @return the link-masked body text.
+     */
+    private String extractMarkdownLinks(final BlankedBody blanked, final String docDir, final List<Anchor> out) {
+        final long[] lineStart = blanked.lineStart();
+        final char[] masked = blanked.text().toCharArray();
+        final Matcher link = MD_LINK.matcher(blanked.text());
         while (link.find()) {
             if (link.group(1).contains("\n\n")) {
                 continue; // A CommonMark link text cannot span a blank line — not a real link.
             }
             final int urlLine = lineAt(lineStart, link.start(2));
-            extractLink(link.group(1), link.group(2), docDir, urlLine, statedModuleByLine.get(urlLine), out);
+            extractLink(
+                    link.group(1),
+                    link.group(2),
+                    docDir,
+                    urlLine,
+                    blanked.statedModuleByLine().get(urlLine),
+                    out);
             for (int i = link.start(); i < link.end(); i++) {
                 if (masked[i] != '\n') {
                     masked[i] = ' ';
                 }
             }
         }
+        return new String(masked);
+    }
 
-        // Inline code-span source citations (bare-path prose), over the link-masked body.
-        final Matcher span = CODE_SPAN.matcher(new String(masked));
+    /**
+     * The inline code-span pass over the link-masked body: each backtick span is dispatched to
+     * {@link #extractCodeSpan} to yield bare-path prose source citations.
+     *
+     * @param maskedBody the link-masked body text.
+     * @param lineStart  the body offset at which each file line begins.
+     * @param out        the list to append discovered anchors to.
+     */
+    private void extractCodeSpans(final String maskedBody, final long[] lineStart, final List<Anchor> out) {
+        final Matcher span = CODE_SPAN.matcher(maskedBody);
         while (span.find()) {
             extractCodeSpan(span.group(1), lineAt(lineStart, span.start(1)), out);
         }
@@ -477,62 +528,103 @@ public final class AnchorExtractor {
             return;
         }
 
+        final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
         final String lower = pathPart.toLowerCase();
         if (lower.endsWith(".md")) {
-            final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
-            out.add(new Anchor(AnchorKind.CROSS_DOC_LINK, repoRel, null, null, fileLine, Anchor.NO_LINE, url));
-            if (fragment != null && !fragment.isEmpty()) {
-                out.add(new Anchor(
-                        AnchorKind.DOC_HEADING,
-                        repoRel + "#" + fragment,
-                        null,
-                        fragment,
-                        fileLine,
-                        Anchor.NO_LINE,
-                        url));
-            }
+            extractDocLink(repoRel, fragment, url, fileLine, out);
         } else if (lower.endsWith(".java") || lower.endsWith(".proto") || lower.endsWith(".kt")) {
-            final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
-            final String module = RepoPaths.moduleOf(repoRel);
-            // File-existence check carries no line: a bare `File.java:NN` link is ambiguous (the KB
-            // uses it for members too), so line-move detection is done only for named-method links.
-            out.add(new Anchor(
-                    AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, url, statedModule));
-            if (lower.endsWith(".java")) {
-                final String method = methodFromLinkText(linkText);
-                if (method != null && citedLine != Anchor.NO_LINE) {
-                    out.add(new Anchor(
-                            AnchorKind.METHOD_REF,
-                            method,
-                            module,
-                            RepoPaths.classNameOfPath(pathPart),
-                            fileLine,
-                            citedLine,
-                            url));
-                }
-                final String signature = signatureFromLinkText(linkText);
-                if (signature != null) {
-                    out.add(new Anchor(
-                            AnchorKind.METHOD_SIGNATURE,
-                            signature,
-                            module,
-                            RepoPaths.classNameOfPath(pathPart),
-                            fileLine,
-                            Anchor.NO_LINE,
-                            url));
-                }
-            }
+            extractSourceLink(linkText, pathPart, repoRel, lower, url, fileLine, citedLine, statedModule, out);
         } else if (isDirectoryLink(pathPart)) {
-            final String repoRel = RepoPaths.resolveRelative(docDir, pathPart);
+            extractDirLink(repoRel, url, fileLine, out);
+        }
+    }
+
+    /**
+     * Emits a cross-doc link anchor for a {@code .md} target, plus a heading anchor when the link carries
+     * a {@code #fragment}.
+     *
+     * @param repoRel  the repo-relative path the link resolves to.
+     * @param fragment the link's heading fragment, or {@code null}.
+     * @param url      the raw link URL (kept as the anchor's raw text).
+     * @param fileLine the 1-based line of the link's URL in the document.
+     * @param out      the list to append discovered anchors to.
+     */
+    private void extractDocLink(
+            final String repoRel, final String fragment, final String url, final int fileLine, final List<Anchor> out) {
+        out.add(new Anchor(AnchorKind.CROSS_DOC_LINK, repoRel, null, null, fileLine, Anchor.NO_LINE, url));
+        if (fragment != null && !fragment.isEmpty()) {
             out.add(new Anchor(
-                    AnchorKind.MODULE_DIR,
-                    repoRel,
-                    RepoPaths.lastSegment(repoRel),
-                    null,
+                    AnchorKind.DOC_HEADING, repoRel + "#" + fragment, null, fragment, fileLine, Anchor.NO_LINE, url));
+        }
+    }
+
+    /**
+     * Emits a source-file existence anchor for a {@code .java}/{@code .proto}/{@code .kt} target, plus —
+     * for a {@code .java} link whose text names a method — a method-ref anchor (with the cited line, when
+     * present) and a signature anchor.
+     *
+     * @param linkText     the link's display text (may name a method).
+     * @param pathPart     the link's path portion (without the {@code :NN} suffix).
+     * @param repoRel      the repo-relative path the link resolves to.
+     * @param lower        the lower-cased path portion (for the {@code .java} sub-check).
+     * @param url          the raw link URL (kept as the anchor's raw text).
+     * @param fileLine     the 1-based line of the link's URL in the document.
+     * @param citedLine    the {@code :NN} line hint, or {@link Anchor#NO_LINE}.
+     * @param statedModule the prose {@code Module:} label on the link's line, or {@code null}.
+     * @param out          the list to append discovered anchors to.
+     */
+    private void extractSourceLink(
+            final String linkText,
+            final String pathPart,
+            final String repoRel,
+            final String lower,
+            final String url,
+            final int fileLine,
+            final int citedLine,
+            final String statedModule,
+            final List<Anchor> out) {
+        final String module = RepoPaths.moduleOf(repoRel);
+        // File-existence check carries no line: a bare `File.java:NN` link is ambiguous (the KB
+        // uses it for members too), so line-move detection is done only for named-method links.
+        out.add(new Anchor(AnchorKind.SOURCE_PATH, repoRel, module, null, fileLine, Anchor.NO_LINE, url, statedModule));
+        if (!lower.endsWith(".java")) {
+            return;
+        }
+        final String method = methodFromLinkText(linkText);
+        if (method != null && citedLine != Anchor.NO_LINE) {
+            out.add(new Anchor(
+                    AnchorKind.METHOD_REF,
+                    method,
+                    module,
+                    RepoPaths.classNameOfPath(pathPart),
+                    fileLine,
+                    citedLine,
+                    url));
+        }
+        final String signature = signatureFromLinkText(linkText);
+        if (signature != null) {
+            out.add(new Anchor(
+                    AnchorKind.METHOD_SIGNATURE,
+                    signature,
+                    module,
+                    RepoPaths.classNameOfPath(pathPart),
                     fileLine,
                     Anchor.NO_LINE,
                     url));
         }
+    }
+
+    /**
+     * Emits a module-directory anchor for a directory link.
+     *
+     * @param repoRel  the repo-relative directory the link resolves to.
+     * @param url      the raw link URL (kept as the anchor's raw text).
+     * @param fileLine the 1-based line of the link's URL in the document.
+     * @param out      the list to append discovered anchors to.
+     */
+    private void extractDirLink(final String repoRel, final String url, final int fileLine, final List<Anchor> out) {
+        out.add(new Anchor(
+                AnchorKind.MODULE_DIR, repoRel, RepoPaths.lastSegment(repoRel), null, fileLine, Anchor.NO_LINE, url));
     }
 
     // ---- Path helpers ----

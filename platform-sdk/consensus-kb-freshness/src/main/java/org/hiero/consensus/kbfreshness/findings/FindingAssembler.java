@@ -16,7 +16,6 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.resolve.AnchorResolver;
 import org.hiero.consensus.kbfreshness.resolve.Resolution;
-import org.hiero.consensus.kbfreshness.util.Hashing;
 
 /**
  * Turns extracted anchors into collapsed findings. Anchors sharing {@code (entry, target, kind)}
@@ -144,24 +143,20 @@ public final class FindingAssembler {
      */
     private Finding build(
             final Entry entry, final Anchor rep, final Resolution res, final List<Occurrence> occurrences) {
-        final String id = Hashing.id(entry.key(), rep.target(), rep.kind().name());
-        return new Finding(
-                id,
-                entry.key(),
-                entry.relativePath(),
-                entry.type(),
-                rep.kind(),
-                rep.target(),
-                rep.citedModule(),
-                rep.citedScope(),
-                res.outcome(),
-                res.lane(),
-                res.question(),
-                res.evidence(),
-                occurrences,
-                res.autoFixLine(),
-                res.resolvedPath(),
-                rep.statedModule());
+        return Finding.of(
+                        entry,
+                        rep.kind(),
+                        rep.target(),
+                        rep.citedModule(),
+                        rep.citedScope(),
+                        res.outcome(),
+                        res.lane(),
+                        res.question(),
+                        res.evidence(),
+                        occurrences)
+                .withAutoFixLine(res.autoFixLine())
+                .withResolvedPath(res.resolvedPath())
+                .withStatedModule(rep.statedModule());
     }
 
     /**
