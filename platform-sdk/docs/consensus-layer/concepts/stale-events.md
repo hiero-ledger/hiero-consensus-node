@@ -112,4 +112,5 @@ is tracked in
   [`../architecture/topics/event-intake.md`](../architecture/topics/event-intake.md),
   [`../architecture/topics/gossip.md`](../architecture/topics/gossip.md).
 - Sibling concept: [`event-lifecycle.md`](event-lifecycle.md).
+- Invariants: INV-004 (a stale event is never ordered on any node — the network-wide *fate*, not the local stale-report stream this concept calls non-deterministic), INV-005 (every honest event eventually reaches consensus or becomes stale).
 - Glossary entry: [`../glossary.md`](../glossary.md).

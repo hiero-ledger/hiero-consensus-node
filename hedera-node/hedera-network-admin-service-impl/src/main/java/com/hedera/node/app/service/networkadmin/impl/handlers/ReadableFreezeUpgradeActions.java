@@ -2,36 +2,24 @@
 package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
-import static org.hiero.base.utility.CommonUtils.nameToAlias;
 
 import com.hedera.hapi.node.base.FileID;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
-import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.commons.io.FileUtils;
@@ -45,16 +33,10 @@ import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 public class ReadableFreezeUpgradeActions {
     private static final Logger log = LogManager.getLogger(ReadableFreezeUpgradeActions.class);
 
-    private final NodesConfig nodesConfig;
     private final NetworkAdminConfig networkAdminConfig;
     private final ReadableFreezeStore freezeStore;
     private final ReadableUpgradeFileStore upgradeFileStore;
     private final FileID upgradeFileId;
-    private final EntityIdFactory entityIdFactory;
-
-    private final ReadableNodeStore nodeStore;
-
-    private final ReadableStakingInfoStore stakingInfoStore;
 
     private final Executor executor;
 
@@ -77,24 +59,16 @@ public class ReadableFreezeUpgradeActions {
             @NonNull final ReadableFreezeStore freezeStore,
             @NonNull final Executor executor,
             @NonNull final ReadableUpgradeFileStore upgradeFileStore,
-            @NonNull final ReadableNodeStore nodeStore,
-            @NonNull final ReadableStakingInfoStore stakingInfoStore,
             @NonNull final EntityIdFactory entityIdFactory) {
         requireNonNull(configuration, "configuration is required for freeze upgrade actions");
         requireNonNull(freezeStore, "Freeze store is required for freeze upgrade actions");
         requireNonNull(executor, "Executor is required for freeze upgrade actions");
         requireNonNull(upgradeFileStore, "Upgrade file store is required for freeze upgrade actions");
-        requireNonNull(nodeStore, "Node store is required for freeze upgrade actions");
-        requireNonNull(stakingInfoStore, "Staking info store is required for freeze upgrade actions");
 
         this.networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
-        this.nodesConfig = configuration.getConfigData(NodesConfig.class);
         this.freezeStore = freezeStore;
         this.executor = executor;
         this.upgradeFileStore = upgradeFileStore;
-        this.nodeStore = nodeStore;
-        this.stakingInfoStore = stakingInfoStore;
-        this.entityIdFactory = entityIdFactory;
         this.upgradeFileId = entityIdFactory.newFileId(UPGRADE_FILE_ID);
     }
 
@@ -217,58 +191,29 @@ public class ReadableFreezeUpgradeActions {
         requireNonNull(marker);
 
         final Path artifactsLoc = getAbsolutePath(networkAdminConfig.upgradeArtifactsPath());
-        final Path keysLoc = getAbsolutePath(networkAdminConfig.keysPath());
         requireNonNull(artifactsLoc);
-        requireNonNull(keysLoc);
         final long size = archiveData.length();
         log.info("About to unzip {} bytes for {} update into {}", size, desc, artifactsLoc);
         // we spin off a separate thread to avoid blocking handleTransaction
         // if we block handle, there could be a dramatic spike in E2E latency at the time of PREPARE_UPGRADE
-        final var activeNodes = desc.equals(PREPARE_UPGRADE_DESC) ? allActiveNodes() : null;
-        return runAsync(
-                () -> extractAndReplaceArtifacts(
-                        artifactsLoc, keysLoc, archiveData, size, desc, marker, now, activeNodes),
-                executor);
-    }
-
-    private record ActiveNode(@NonNull Node node, @Nullable StakingNodeInfo stakingInfo) {}
-
-    private List<ActiveNode> allActiveNodes() {
-        return nodeStore.keys().stream()
-                .mapToLong(EntityNumber::number)
-                .sorted()
-                .mapToObj(nodeStore::get)
-                .filter(node -> node != null && !node.deleted())
-                .map(node -> new ActiveNode(node, stakingInfoStore.get(node.nodeId())))
-                .toList();
+        return runAsync(() -> extractAndReplaceArtifacts(artifactsLoc, archiveData, size, desc, marker, now), executor);
     }
 
     private void extractAndReplaceArtifacts(
             @NonNull final Path artifactsLoc,
-            @NonNull final Path keysLoc,
             @NonNull final Bytes archiveData,
             final long size,
             @NonNull final String desc,
             @NonNull final String marker,
-            @Nullable final Timestamp now,
-            @Nullable final List<ActiveNode> nodes) {
+            @Nullable final Timestamp now) {
         try {
             final var artifactsDir = artifactsLoc.toFile();
-            final var keysDir = keysLoc.toFile();
             if (!FileUtils.isDirectory(artifactsDir)) {
                 FileUtils.forceMkdir(artifactsDir);
             }
             FileUtils.cleanDirectory(artifactsDir);
-            if (!FileUtils.isDirectory(keysDir)) {
-                FileUtils.forceMkdir(keysDir);
-            }
-            FileUtils.cleanDirectory(keysDir);
             UnzipUtility.unzip(archiveData.toByteArray(), artifactsLoc);
             log.info("Finished unzipping {} bytes for {} update into {}", size, desc, artifactsLoc);
-            if (nodes != null && nodesConfig.enableDAB() && networkAdminConfig.exportCandidateRoster()) {
-                generateConfigPem(artifactsLoc, keysLoc, nodes);
-                log.info("Finished generating config.txt and pem files into {}", artifactsLoc);
-            }
             writeSecondMarker(marker, now);
         } catch (final Exception t) {
             // catch and log instead of throwing because upgrade process looks at the presence or absence
@@ -277,101 +222,6 @@ public class ReadableFreezeUpgradeActions {
             log.error("Failed to unzip archive for NMT consumption", t);
             log.error(MANUAL_REMEDIATION_ALERT);
         }
-    }
-
-    private void generateConfigPem(
-            @NonNull final Path artifactsLoc,
-            @NonNull final Path keysLoc,
-            @NonNull final List<ActiveNode> activeNodes) {
-        requireNonNull(artifactsLoc, "Cannot generate config.txt without a valid artifacts location");
-        requireNonNull(keysLoc, "Cannot generate pem files without a valid keys location");
-        requireNonNull(activeNodes, "Cannot generate config.txt without a valid list of active nodes");
-        final var configTxt = artifactsLoc.resolve("config.txt");
-
-        if (activeNodes.isEmpty()) {
-            log.error("Node state is empty, which should be impossible");
-            return;
-        }
-
-        try (final var fw = new FileWriter(configTxt.toFile());
-                final var bw = new BufferedWriter(fw)) {
-            activeNodes.forEach(node -> writeConfigLineAndPem(node, bw, keysLoc));
-            bw.flush();
-        } catch (final IOException e) {
-            log.error("Failed to generate {} with exception : {}", configTxt, e);
-        }
-    }
-
-    private void writeConfigLineAndPem(
-            @NonNull final ActiveNode activeNode, @NonNull final BufferedWriter bw, @NonNull final Path keysLoc) {
-        requireNonNull(activeNode);
-        requireNonNull(bw);
-        requireNonNull(keysLoc);
-
-        var line = new StringBuilder();
-        long weight = 0;
-        final var node = activeNode.node();
-        final var name = "node" + (node.nodeId() + 1);
-        final var alias = nameToAlias(name);
-        final var pemFile = keysLoc.resolve("s-public-" + alias + ".pem");
-        final int INT = 0;
-        final int EXT = 1;
-
-        final var stakingNodeInfo = activeNode.stakingInfo();
-        if (stakingNodeInfo != null) {
-            weight = stakingNodeInfo.stake();
-        }
-
-        final var gossipEndpoints = node.gossipEndpoint();
-        if (gossipEndpoints.size() > 1) {
-            line.append("address, ")
-                    .append(node.nodeId())
-                    .append(", ")
-                    .append(node.nodeId())
-                    .append(", ")
-                    .append(name)
-                    .append(", ")
-                    .append(weight)
-                    .append(", ")
-                    .append(hostNameFor(gossipEndpoints.get(INT)))
-                    .append(", ")
-                    .append(gossipEndpoints.get(INT).port())
-                    .append(", ")
-                    .append(hostNameFor(gossipEndpoints.get(EXT)))
-                    .append(", ")
-                    .append(gossipEndpoints.get(EXT).port())
-                    .append(", ")
-                    .append(node.accountId().shardNum() + "." + node.accountId().realmNum() + "."
-                            + node.accountId().accountNum())
-                    .append("\n");
-            try {
-                bw.write(line.toString());
-            } catch (IOException e) {
-                log.error("Failed to write line {} with exception : {}", line, e);
-            }
-            try {
-                writeCertificatePemFile(pemFile, node.gossipCaCertificate().toByteArray());
-            } catch (IOException e) {
-                log.error("Failed to write to {} with exception : {}", pemFile, e);
-            }
-        } else {
-            log.error("Node has {} gossip endpoints, expected greater than 1", gossipEndpoints.size());
-        }
-    }
-
-    private String hostNameFor(@NonNull final ServiceEndpoint endpoint) {
-        return endpoint.ipAddressV4().length() == 4
-                ? ipV4AddressFromOctets(endpoint.ipAddressV4())
-                : endpoint.domainName();
-    }
-
-    private String ipV4AddressFromOctets(@NonNull final Bytes encoded) {
-        return (encoded.getByte(0) & 0xFF) + "."
-                + (encoded.getByte(1) & 0xFF)
-                + "."
-                + (encoded.getByte(2) & 0xFF)
-                + "."
-                + (encoded.getByte(3) & 0xFF);
     }
 
     private void catchUpOnMissedFreezeScheduling(@NonNull final ReadablePlatformStateStore platformState) {

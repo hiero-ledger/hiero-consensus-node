@@ -90,7 +90,8 @@ public class ContractDeleteHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         final var op = context.body().contractDeleteInstanceOrThrow();
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-        final var toBeDeleted = requireNonNull(accountStore.getContractById(op.contractIDOrThrow()));
+        final var toBeDeleted = accountStore.getContractById(op.contractIDOrThrow());
+        validateTrue(toBeDeleted != null, INVALID_CONTRACT_ID);
         validateFalse(toBeDeleted.deleted(), CONTRACT_DELETED);
         final var obtainer = getObtainer(accountStore, op);
         validateTrue(obtainer != null, OBTAINER_DOES_NOT_EXIST);

@@ -49,13 +49,13 @@ class SetUnlimitedAutoAssociationsCallTest extends CallTestBase {
 
         subject = new SetUnlimitedAutoAssociationsCall(attempt, transactionBody);
         final var result = subject.execute(frame).fullResult().result();
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(SetUnlimitedAutoAssociationsTranslator.SET_UNLIMITED_AUTO_ASSOC
                         .getOutputs()
                         .encode(Tuple.singleton((long) SUCCESS.getNumber()))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -67,12 +67,12 @@ class SetUnlimitedAutoAssociationsCallTest extends CallTestBase {
 
         subject = new SetUnlimitedAutoAssociationsCall(attempt, transactionBody);
         final var result = subject.execute(frame).fullResult().result();
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(SetUnlimitedAutoAssociationsTranslator.SET_UNLIMITED_AUTO_ASSOC
                         .getOutputs()
                         .encode(Tuple.singleton((long) REVERTED_SUCCESS.getNumber()))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

@@ -64,7 +64,7 @@ import org.mockito.Mockito;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DataFileCollectionTest {
 
-    private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+    private static final MerkleDbConfig MERKLE_DB_CONFIG = DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     /** Temporary directory provided by JUnit */
     @TempDir

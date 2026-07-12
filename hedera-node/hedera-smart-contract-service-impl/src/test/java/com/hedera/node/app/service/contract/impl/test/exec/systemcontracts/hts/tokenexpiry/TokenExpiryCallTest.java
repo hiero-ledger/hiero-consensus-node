@@ -28,13 +28,13 @@ class TokenExpiryCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenExpiryTranslator.TOKEN_EXPIRY
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.protoOrdinal(), Tuple.of(100L, headlongAddressOf(SENDER_ID), 200L)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -43,14 +43,14 @@ class TokenExpiryCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenExpiryTranslator.TOKEN_EXPIRY
                         .getOutputs()
                         .encode(Tuple.of(
                                 INVALID_TOKEN_ID.protoOrdinal(), Tuple.of(0L, headlongAddressOf(ZERO_ACCOUNT_ID), 0L)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -59,7 +59,7 @@ class TokenExpiryCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

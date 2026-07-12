@@ -39,11 +39,34 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.citr-solo-version }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
   run-merge-queue-performance-test:
     name: MQ Performance Test
     needs:
       - extract-jdk-version
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/830-call-merge-queue-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
@@ -107,26 +130,15 @@ jobs:
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
         with:
-          egress-policy: audit
-
-      - name: Checkout Templates
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          sparse-checkout: |
-            .github/workflows/templates
-          sparse-checkout-cone-mode: false
-
-      - name: Install gomplate
-        run: |
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
-            -o /tmp/gomplate
-          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
-            -o /tmp/gomplate_checksums.txt
-          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
-          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-sparse: ".github/workflows/templates"
+          checkout-sparse-cone-mode: false
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
 
       - name: Build Slack Payload Message
         id: payload

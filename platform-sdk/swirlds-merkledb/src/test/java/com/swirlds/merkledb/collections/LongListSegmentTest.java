@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -10,7 +10,7 @@ import org.junit.jupiter.params.provider.Arguments;
 class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
 
     @Override
-    protected LongListSegment createLongList(long capacity, Configuration config) {
+    protected LongListSegment createLongList(long capacity, MerkleDbConfig config) {
         return new LongListSegment(capacity, config);
     }
 

@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Assertions;
 public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo> {
 
     public static final String BAD_ALIAS = "Bad Alias!";
+    public static final String WRONG_DELEGATION_ADDRESS = "Wrong delegation address!";
 
     boolean hasTokenAssociationExpectations = false;
 
@@ -216,6 +217,12 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
                     (allowedPercentDiff / 100.0) * expectedTinyBarsToSubtract,
                     errorMsgIfOutsideTolerance);
         });
+        return this;
+    }
+
+    public AccountInfoAsserts delegationAddress(ByteString delegationAddress) {
+        registerProvider((spec, o) ->
+                assertEquals(delegationAddress, ((AccountInfo) o).getDelegationAddress(), WRONG_DELEGATION_ADDRESS));
         return this;
     }
 

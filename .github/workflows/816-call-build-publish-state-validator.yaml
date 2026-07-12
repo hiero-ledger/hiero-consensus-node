@@ -68,18 +68,16 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
-        with:
-          gradle-home-cache-cleanup: true
 
       - name: Build State Validator Uber shadowJar
         run: |
-          ./gradlew --no-daemon --stacktrace :hedera-state-validator:shadowJar
+          ./gradlew --stacktrace :hedera-state-validator:shadowJar
 
       - name: Determine version and artifact
         id: version-and-artifact
         run: |
           set -euo pipefail
-          FULL_VER=$(./gradlew --no-daemon :hedera-state-validator:properties | grep '^version:' | cut -d ' ' -f2)
+          FULL_VER=$(./gradlew showVersion -q)
           # Remove -SNAPSHOT suffix if present
           VER_WITHOUT_SNAPSHOT=${FULL_VER%-SNAPSHOT}
           # Extract major.minor (first two segments)

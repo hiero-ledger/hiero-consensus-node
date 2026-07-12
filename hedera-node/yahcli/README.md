@@ -405,7 +405,7 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 # Preparing an NMT software upgrade
 
 To prepare for an automatic software upgrade, there must exist a system file in the range `0.0.150-159`
-(by default, `0.0.150`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/swirlds/swirlds-docker/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
+(by default, `0.0.150`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/hashgraph/node-management-tools/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
 SHA-384 hash of this ZIP must be given so the nodes can validate the integrity of the upgrade file before
 staging its artifacts for NMT to use. This looks like,
 
@@ -420,7 +420,7 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 # Launching an NMT telemetry upgrade
 
 To perform an automatic telemetry upgrade, there must exist a system file in the range `0.0.150-159`
-(by default, `0.0.159`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/swirlds/swirlds-docker/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
+(by default, `0.0.159`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/hashgraph/node-management-tools/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
 SHA-384 hash of this ZIP must be known so the nodes can validate the integrity of the upgrade file before
 staging its artifacts for NMT to use.  This looks like,
 
