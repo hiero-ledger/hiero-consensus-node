@@ -11,12 +11,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenKey.METADATA_KEY;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -26,16 +24,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -43,8 +36,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -52,11 +43,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
-import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -397,9 +386,10 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         // Since we de-duplicate all the keys in the PreHandleContext,
         // we can safely add one key multiple times for the transaction to keep the logic simple.
 
-        // metadata can be updated with either admin key or metadata key
+        // metadata can be updated with either admin key or metadata key. An empty key list (the
+        // HIP-540 removal sentinel) means the metadata key is disabled, so fall back to the admin key.
         if (op.hasMetadata()) {
-            if (token.hasMetadataKey()) {
+            if (!isEmpty(token.metadataKey())) {
                 requireAdminOrRole(context, token, METADATA_KEY);
             } else {
                 requireAdmin(context, token);
@@ -486,9 +476,12 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             @Nullable final Key replacementKey)
             throws PreCheckException {
         final var maybeRoleKey = roleKey.getFromToken(token);
+        // An empty key list (the HIP-540 removal sentinel) is treated as "no key": a removed role key
+        // cannot be updated, and an empty admin key cannot authorize the update.
+        final var hasAdminKey = !isEmpty(token.adminKey());
         // Prioritize TOKEN_IS_IMMUTABLE for completely immutable tokens
-        mustExist(maybeRoleKey, token.hasAdminKey() ? roleKey.tokenHasNoKeyStatus() : TOKEN_IS_IMMUTABLE);
-        if (token.hasAdminKey()) {
+        validateTruePreCheck(!isEmpty(maybeRoleKey), hasAdminKey ? roleKey.tokenHasNoKeyStatus() : TOKEN_IS_IMMUTABLE);
+        if (hasAdminKey) {
             context.requireKey(oneOf(
                     replacementKey == null ? maybeRoleKey : allOf(maybeRoleKey, replacementKey),
                     token.adminKeyOrThrow()));
@@ -509,7 +502,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
      */
     private void requireAdmin(@NonNull final PreHandleContext context, @NonNull final Token originalToken)
             throws PreCheckException {
-        validateTruePreCheck(originalToken.hasAdminKey(), TOKEN_IS_IMMUTABLE);
+        // An empty key list (the HIP-540 removal sentinel) means the token is effectively immutable.
+        validateTruePreCheck(!isEmpty(originalToken.adminKey()), TOKEN_IS_IMMUTABLE);
         context.requireKey(originalToken.adminKeyOrThrow());
     }
 
@@ -592,69 +586,11 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         tokenRelStore.put(newRelCopy.build());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var op = body.tokenUpdateOrThrow();
-        final var readableStore = feeContext.readableStore(ReadableTokenStore.class);
-        final var token = readableStore.get(op.tokenOrThrow());
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, token));
-    }
-
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {
         return isHapiCall || !isZeroAccount(op.treasuryOrElse(AccountID.DEFAULT));
     }
 
     private boolean isZeroAccount(@NonNull final AccountID accountID) {
         return accountID.equals(ZERO_ACCOUNT_ID);
-    }
-
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj svo, final Token token) {
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        if (token != null) {
-            final var estimate = TokenUpdateUsage.newEstimate(
-                            txn, txnEstimateFactory.get(sigUsage, txn, ESTIMATOR_UTILS))
-                    .givenCurrentAdminKey(
-                            token.hasAdminKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.adminKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentFreezeKey(
-                            token.hasFreezeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.freezeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentWipeKey(
-                            token.hasWipeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.wipeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentSupplyKey(
-                            token.hasSupplyKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.supplyKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentKycKey(
-                            token.hasKycKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.kycKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentPauseKey(
-                            token.hasPauseKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.pauseKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentName(token.name())
-                    .givenCurrentMemo(token.memo())
-                    .givenCurrentSymbol(token.symbol())
-                    .givenCurrentExpiry(token.expirationSecond());
-            if (token.hasAutoRenewAccountId()) {
-                estimate.givenCurrentlyUsingAutoRenewAccount();
-            }
-            return estimate.get();
-        } else {
-            return CONSTANT_FEE_DATA;
-        }
     }
 }

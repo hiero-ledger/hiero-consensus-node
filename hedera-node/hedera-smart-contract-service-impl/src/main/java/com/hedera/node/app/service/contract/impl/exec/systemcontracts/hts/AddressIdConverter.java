@@ -29,7 +29,7 @@ public interface AddressIdConverter {
      * @return the {@link AccountID} that should be used in the synthetic transaction
      */
     default AccountID convertSender(@NonNull org.hyperledger.besu.datatypes.Address address) {
-        return convert(asHeadlongAddress(address.toArrayUnsafe()));
+        return convert(asHeadlongAddress(address.getBytes().toArrayUnsafe()));
     }
 
     /**

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -30,13 +30,13 @@ import org.junit.jupiter.params.provider.Arguments;
 
 class VirtualHasherTestBase extends VirtualTestBase {
 
-    protected static final int CHUNK_HEIGHT = VIRTUAL_MAP_CONFIG.hashChunkHeight();
+    protected static final int CHUNK_HEIGHT = 6;
 
     protected VirtualHasher defaultHasher;
 
     @BeforeEach
     void setup() {
-        defaultHasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
+        defaultHasher = new VirtualHasher(DEFAULT_VIRTUAL_MAP_CONFIG);
     }
 
     @AfterEach

@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 
 /**
  * Implements the major lifecycle events for the state. Normally, the implementation of this interface should be
@@ -19,7 +20,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * meant to be created once at the start of the application and then used for the lifetime of the application.
  *
  */
-public interface ConsensusStateEventHandler {
+public interface ConsensusStateEventHandler extends TransactionCallbacks {
     /**
      * Called when an event is added to the hashgraph used to compute consensus ordering
      * for this node.

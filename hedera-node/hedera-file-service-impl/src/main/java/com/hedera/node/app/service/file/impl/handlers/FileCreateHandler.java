@@ -14,7 +14,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.records.CreateFileStreamBuilder;
@@ -36,17 +35,12 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class FileCreateHandler implements TransactionHandler {
-    private final FileOpsUsage fileOpsUsage;
 
     /**
-     * Constructs a {@link FileCreateHandler} with the given {@link FileOpsUsage}.
-     *
-     * @param fileOpsUsage the file operation usage calculator
+     * Constructs a {@link FileCreateHandler}.
      */
     @Inject
-    public FileCreateHandler(final FileOpsUsage fileOpsUsage) {
-        this.fileOpsUsage = fileOpsUsage;
-    }
+    public FileCreateHandler() {}
 
     /**
      * Performs checks independent of state or context.

@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -29,7 +28,6 @@ import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenCancelAirdropHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -265,17 +263,6 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         when(handleContext.body()).thenReturn(transactionBody);
 
         assertThrows(HandleException.class, () -> subject.handle(handleContext));
-    }
-
-    @Test
-    void calculateFeesThrowsWhenCancelDisabled() {
-        var testConfig = HederaTestConfigBuilder.create()
-                .withValue("tokens.airdrops.cancel.enabled", false)
-                .getOrCreateConfig();
-        var feeContext = mock(FeeContext.class);
-        when(feeContext.configuration()).thenReturn(testConfig);
-
-        assertThrows(HandleException.class, () -> subject.calculateFees(feeContext));
     }
 
     private void mockHandleContext() {

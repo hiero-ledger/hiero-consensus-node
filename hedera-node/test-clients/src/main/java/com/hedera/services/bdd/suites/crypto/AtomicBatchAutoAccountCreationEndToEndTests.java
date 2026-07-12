@@ -22,9 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -75,7 +73,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(ATOMIC_BATCH)
 class AtomicBatchAutoAccountCreationEndToEndTests {
 
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_AUTO_ACCOUNT = "ftForAutoAccount";
     private static final String NFT_FOR_AUTO_ACCOUNT = "nftForAutoAccount";
     private static final String DUMMY_NFT = "dummyNft";
@@ -191,17 +188,11 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                            if ("true".equals(flag)) {
-                                return validateChargedUsdWithinWithTxnSize(
-                                        "batchTxn",
-                                        txnSize -> expectedAtomicBatchFullFeeUsd(
-                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                        0.001);
-                            } else {
-                                return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                            }
-                        });
+                        final var batchTxnFeeCheck = validateChargedUsdWithinWithTxnSize(
+                                "batchTxn",
+                                txnSize -> expectedAtomicBatchFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
 
                         // validate the public key accounts creation and transfers
                         final var infoCheckED2559First = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -396,17 +387,11 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                            if ("true".equals(flag)) {
-                                return validateChargedUsdWithinWithTxnSize(
-                                        "batchTxn",
-                                        txnSize -> expectedAtomicBatchFullFeeUsd(
-                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                        0.001);
-                            } else {
-                                return validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
-                            }
-                        });
+                        final var batchTxnFeeCheck = validateChargedUsdWithinWithTxnSize(
+                                "batchTxn",
+                                txnSize -> expectedAtomicBatchFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
 
                         // validate the hollow accounts creation and transfers
                         final var infoCheckEVMFirst = getAliasedAccountInfo(evmAliasFirst.get())

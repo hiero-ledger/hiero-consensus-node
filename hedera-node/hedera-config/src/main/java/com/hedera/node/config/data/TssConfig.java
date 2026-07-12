@@ -73,7 +73,7 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean wrapsProvingKeyDownloadEnabled,
 
-        @ConfigProperty(defaultValue = "data/keys/wraps") @NodeProperty
+        @ConfigProperty(defaultValue = "data/keys/wraps.tar.gz") @NodeProperty
         String wrapsProvingKeyPath,
 
         @ConfigProperty(

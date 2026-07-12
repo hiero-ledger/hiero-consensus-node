@@ -11,12 +11,12 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.event.stream.test.fixtures.EventStreamTestUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
@@ -101,6 +101,6 @@ class ConsensusEventStreamTest {
      * @return a random CesEvent
      */
     private static CesEvent createRandomEvent() {
-        return RecoveryTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
+        return EventStreamTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
     }
 }

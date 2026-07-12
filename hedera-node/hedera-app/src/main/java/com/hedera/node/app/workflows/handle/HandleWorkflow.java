@@ -76,6 +76,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.tss.TssHandoffCoordinator;
 import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -1107,26 +1108,44 @@ public class HandleWorkflow {
                     final boolean isWrapsGenesis =
                             tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
                     if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
-                        historyStore.handoff(
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                rosterStore.getCandidateRoster(),
-                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash()));
-                        // Make sure we include the latest chain-of-trust proof in following block proofs
-                        historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                        // Finishing WRAPS genesis has no actual implications for hinTS
-                        if (!isWrapsGenesis) {
-                            // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
+                        final var activeRoster = requireNonNull(rosterStore.getActiveRoster());
+                        final var candidateRoster = rosterStore.getCandidateRoster();
+                        final var candidateRosterHash =
+                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash());
+                        if (!isWrapsGenesis && TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
                             final var stack = requireNonNull(inFlightDispatch).stack();
                             final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
                             final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                            hintsService.handoff(
+                            TssHandoffCoordinator.tryForcedJointHandoff(
+                                    historyStore,
                                     hintsStore,
-                                    requireNonNull(rosterStore.getActiveRoster()),
-                                    requireNonNull(rosterStore.getCandidateRoster()),
-                                    requireNonNull(rosterStore.getCandidateRosterHash()),
-                                    tssConfig.forceHandoffs());
+                                    historyService,
+                                    hintsService,
+                                    activeRoster,
+                                    requireNonNull(candidateRoster),
+                                    requireNonNull(candidateRosterHash),
+                                    tssConfig);
+                        } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
+                            // Make sure we include the latest chain-of-trust proof in following block proofs
+                            historyService.setLatestHistoryProof(construction.targetProofOrThrow());
+                            // Finishing WRAPS genesis has no actual implications for hinTS
+                            if (!isWrapsGenesis) {
+                                // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
+                                final var stack =
+                                        requireNonNull(inFlightDispatch).stack();
+                                final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
+                                final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
+                                final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
+                                final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+                                hintsService.handoff(
+                                        hintsStore,
+                                        activeRoster,
+                                        requireNonNull(rosterStore.getCandidateRoster()),
+                                        requireNonNull(rosterStore.getCandidateRosterHash()),
+                                        tssConfig.forceHandoffs());
+                            }
                         }
                     }
                 });

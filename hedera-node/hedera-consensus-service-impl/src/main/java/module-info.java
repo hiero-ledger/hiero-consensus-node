@@ -21,7 +21,6 @@ module com.hedera.node.app.service.consensus.impl {
     requires com.hedera.node.config;
     requires com.swirlds.config.api;
     requires com.google.common;
-    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
     provides com.hedera.node.app.service.consensus.ConsensusService with

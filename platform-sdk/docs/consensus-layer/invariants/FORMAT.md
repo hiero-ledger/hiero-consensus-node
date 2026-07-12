@@ -2,7 +2,7 @@
 
 Specification for `invariants/INV-NNN-short-slug.md` entries. This file
 defines the structure only; allowed values for the `topics` field are the
-eleven topic slugs under `architecture/topics/`. The test for whether
+topic slugs under `architecture/topics/`. The test for whether
 something is an invariant rather than a rule is defined in `README.md` —
 apply it before filing here.
 
