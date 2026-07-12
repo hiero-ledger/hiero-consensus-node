@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.signed;
+package org.hiero.consensus.state.sentinel;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
