@@ -23,7 +23,7 @@ val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.34.0"
 val blockNodeProtobufSources = "0.36.0"
-val testContainers = "2.0.3"
+val testContainers = "2.0.5"
 val tuweni = "2.7.2"
 val webcompare = "2.1.8"
 
