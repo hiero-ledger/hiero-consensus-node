@@ -19,12 +19,12 @@ module com.hedera.node.app.hapi.fees {
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.hapi;
     requires transitive com.google.common;
-    requires transitive com.google.protobuf;
     requires transitive dagger;
     requires transitive static java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
     requires com.hedera.pbj.runtime;
     requires com.fasterxml.jackson.databind;
+    requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

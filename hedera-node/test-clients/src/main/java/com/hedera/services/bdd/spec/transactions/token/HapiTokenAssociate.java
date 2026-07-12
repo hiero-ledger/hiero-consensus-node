@@ -1,21 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.token;
 
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
-import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hedera.node.app.hapi.fees.usage.token.TokenAssociateUsage;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
-import com.hedera.services.bdd.spec.queries.contract.HapiGetContractInfo;
-import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -24,7 +14,6 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenAssociateTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,71 +63,9 @@ public class HapiTokenAssociate extends HapiTxnOp<HapiTokenAssociate> {
         return this;
     }
 
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        try {
-            final long expiry = lookupExpiry(spec);
-            FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
-                var estimate = TokenAssociateUsage.newEstimate(
-                                _txn, new TxnUsageEstimator(suFrom(svo), _txn, ESTIMATOR_UTILS))
-                        .givenCurrentExpiry(expiry);
-                return estimate.get();
-            };
-            return spec.fees()
-                    .forActivityBasedOp(HederaFunctionality.TokenAssociateToAccount, metricsCalc, txn, numPayerKeys);
-        } catch (Throwable ignore) {
-            return DEFAULT_FEE;
-        }
-    }
-
     public HapiTokenAssociate hasCostAnswerPrecheckFrom(ResponseCodeEnum... prechecks) {
         permissibleCostAnswerPrechecks = Optional.of(prechecks);
         return self();
-    }
-
-    private long lookupExpiry(HapiSpec spec) throws Throwable {
-        if (!spec.registry().hasContractId(account)) {
-            HapiGetAccountInfo subOp;
-            if (permissibleCostAnswerPrechecks.isPresent()) {
-                subOp = getAccountInfo(account)
-                        .hasCostAnswerPrecheckFrom(permissibleCostAnswerPrechecks.get())
-                        .noLogging();
-            } else {
-                subOp = getAccountInfo(account).noLogging();
-            }
-            Optional<Throwable> error = subOp.execFor(spec);
-            if (error.isPresent()) {
-                if (!loggingOff) {
-                    String message = String.format(
-                            "Unable to look up current info for %s",
-                            HapiPropertySource.asAccountString(spec.registry().getAccountID(account)));
-                    log.warn(message, error.get());
-                }
-                throw error.get();
-            }
-            return subOp.getResponse()
-                    .getCryptoGetInfo()
-                    .getAccountInfo()
-                    .getExpirationTime()
-                    .getSeconds();
-        } else {
-            HapiGetContractInfo subOp = getContractInfo(account).noLogging();
-            Optional<Throwable> error = subOp.execFor(spec);
-            if (error.isPresent()) {
-                if (!loggingOff) {
-                    String message = String.format(
-                            "Unable to look up current info for %s",
-                            HapiPropertySource.asContractString(spec.registry().getContractId(account)));
-                    log.warn(message, error.get());
-                }
-                throw error.get();
-            }
-            return subOp.getResponse()
-                    .getContractGetInfo()
-                    .getContractInfo()
-                    .getExpirationTime()
-                    .getSeconds();
-        }
     }
 
     @Override

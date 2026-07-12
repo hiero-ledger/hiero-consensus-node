@@ -21,6 +21,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
@@ -47,6 +48,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
@@ -273,6 +275,49 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(TOKEN_IS_IMMUTABLE));
+    }
+
+    @Test
+    void failsIfTokenHasEmptyKeyListAdminKey() {
+        // An empty key list admin key (the HIP-540 removal sentinel) means the token is effectively
+        // immutable; an admin-gated update must fail rather than require no signature.
+        final var copyToken = writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .adminKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
+        writableTokenStore.put(copyToken);
+        given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        txn = new TokenUpdateBuilder().build();
+        given(preHandleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_IS_IMMUTABLE));
+    }
+
+    @Test
+    void failsToUpdateRoleKeyWhenExistingRoleKeyIsEmptyKeyList() {
+        // A token with a valid admin key but a wipe key set to the empty-KeyList sentinel: the wipe key
+        // is "removed"/disabled, so updating it must be rejected with TOKEN_HAS_NO_WIPE_KEY rather than
+        // routed through an unsatisfiable 1/2 threshold whose signature requirement is silently dropped.
+        final var copyToken = writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .wipeKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
+        writableTokenStore.put(copyToken);
+        given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        txn = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(payerId).build())
+                .tokenUpdate(TokenUpdateTransactionBody.newBuilder()
+                        .token(fungibleTokenId)
+                        .wipeKey(B_COMPLEX_KEY)
+                        .build())
+                .build();
+        given(preHandleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_HAS_NO_WIPE_KEY));
     }
 
     @Test

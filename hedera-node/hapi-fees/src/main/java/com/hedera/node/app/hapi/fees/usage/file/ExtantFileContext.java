@@ -2,7 +2,7 @@
 package com.hedera.node.app.hapi.fees.usage.file;
 
 import static com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage.asKey;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 
 import com.hederahashgraph.api.proto.java.KeyList;
 import java.nio.charset.StandardCharsets;

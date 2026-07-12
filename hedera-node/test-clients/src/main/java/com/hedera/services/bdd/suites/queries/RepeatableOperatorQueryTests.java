@@ -26,8 +26,8 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -70,8 +70,8 @@ public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
                         // the grpc client performs the query to different ports
                         getAccountInfo(NODE_OPERATOR).payingWith(PAYER),
                         handleAnyRepeatableQueryPayment(),
-                        withOpContext((spec, log) -> {
-                            final var queryCost = spec.simpleFeesEnabled() ? QUERY_COST_SIMPLE_FEES : QUERY_COST;
+                        doingContextual(spec -> {
+                            final var queryCost = QUERY_COST_SIMPLE_FEES;
                             allRunFor(
                                     spec,
                                     // assert payer is charged

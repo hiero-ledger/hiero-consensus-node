@@ -10,6 +10,7 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -107,7 +108,12 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
 
         // Eagerly create a genesis state so getMutableState() is always valid after construction.
         // If the node is restarting from a snapshot, loadSnapshot() will replace this genesis state.
-        final VirtualMapStateImpl genesisState = new VirtualMapStateImpl(configuration, fileSystemManager, metrics);
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        final String defaultMerkleDbFodlerName = merkleDbConfig.defaultDbFolderName();
+        final MerkleDbDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                defaultMerkleDbFodlerName, configuration, fileSystemManager, merkleDbConfig.initialCapacity());
+        final VirtualMap genesisVirtualMap = new VirtualMap(dsBuilder, configuration);
+        final VirtualMapState genesisState = new VirtualMapStateImpl(genesisVirtualMap, metrics);
         genesisState.getRoot().reserve();
         stateRef.set(genesisState);
     }
@@ -250,14 +256,15 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
     @Override
     public Hash loadSnapshot(@NonNull final Path targetPath) throws IOException {
         log.info(STARTUP.getMarker(), "Loading snapshot from disk {}", targetPath);
-        final VirtualMap virtualMap = VirtualMap.loadFromDirectory(
-                targetPath, configuration, () -> new MerkleDbDataSourceBuilder(configuration, fileSystemManager));
+        // MerkleDb capacity will be loaded from the snapshot, so can be set to 0 here
+        final VirtualMap snapshotVirtualMap = VirtualMap.loadFromDirectory(
+                targetPath, configuration, () -> new MerkleDbDataSourceBuilder(configuration, fileSystemManager, 0));
 
         // Capture the hash of the original immutable snapshot before releasing it
-        final Hash originalHash = virtualMap.getHash();
+        final Hash originalHash = snapshotVirtualMap.getHash();
 
-        final VirtualMap mutableCopy = virtualMap.copy();
-        virtualMap.release();
+        final VirtualMap mutableCopy = snapshotVirtualMap.copy();
+        snapshotVirtualMap.release();
 
         // VirtualMapStateImpl constructor calls registerMetrics internally
         final VirtualMapStateImpl loadedState = new VirtualMapStateImpl(mutableCopy, metrics);

@@ -1,26 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.token;
 
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
-
 import com.google.common.base.MoreObjects;
-import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoTransferMeta;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NftID;
 import com.hederahashgraph.api.proto.java.TokenReference;
 import com.hederahashgraph.api.proto.java.TokenRejectTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -89,16 +79,6 @@ public class HapiTokenReject extends HapiTxnOp<HapiTokenReject> {
     }
 
     @Override
-    protected long feeFor(final HapiSpec spec, final Transaction transaction, final int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.TokenReject,
-                        (txn, svo) -> usageEstimate(txn, svo, spec.fees().tokenTransferUsageMultiplier()),
-                        transaction,
-                        numPayerKeys);
-    }
-
-    @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
         final List<TokenReference> tokenReferences = referencesSources.stream()
                 .map(refSource -> refSource.apply(spec))
@@ -109,39 +89,5 @@ public class HapiTokenReject extends HapiTxnOp<HapiTokenReject> {
             opBuilder.setOwner(TxnUtils.asId(account, spec));
         }
         return b -> b.setTokenReject(opBuilder);
-    }
-
-    private static FeeData usageEstimate(
-            @NonNull final TransactionBody txn, @NonNull final SigValueObj svo, final int multiplier) {
-        final var op = txn.getTokenReject();
-
-        // We only have direct token transfers to the treasury being sent when using the TokenReject operation.
-        // Since there are 0 hBar transfers we pass 0 for the numExplicitTransfers in the BaseTransactionMeta.
-        final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final var xferUsageMeta = getCryptoTransferMeta(multiplier, op);
-
-        final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
-
-        final var feeData = AdapterUtils.feeDataFrom(accumulator);
-        return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
-    }
-
-    @NonNull
-    private static CryptoTransferMeta getCryptoTransferMeta(
-            final int multiplier, @NonNull final TokenRejectTransactionBody op) {
-        final int numTokensInvolved = op.getRejectionsCount();
-        int numTokenRejections = 0;
-        int numNftRejections = 0;
-        for (final var tokenRejection : op.getRejectionsList()) {
-            if (tokenRejection.hasFungibleToken()) {
-                // Each fungible token rejection involves 2 AccountAmount transfers
-                // We add 2 in order to match CryptoTransfer's bpt & rbs fee calculation
-                numTokenRejections += 2;
-            } else {
-                numNftRejections++;
-            }
-        }
-        return new CryptoTransferMeta(multiplier, numTokensInvolved, numTokenRejections, numNftRejections);
     }
 }

@@ -3,8 +3,8 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.base.crypto.config.CryptoConfigurationExtension;
 
 module org.hiero.base.crypto {
-    exports org.hiero.base.crypto;
     exports org.hiero.base.crypto.config;
+    exports org.hiero.base.crypto;
 
     /* Targeted exports */
     exports org.hiero.base.crypto.engine to
@@ -34,6 +34,7 @@ module org.hiero.base.crypto {
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires static transitive com.github.spotbugs.annotations;
 
+    // spotless:off
     provides ConfigurationExtension with
             CryptoConfigurationExtension;
 }

@@ -35,10 +35,7 @@ import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.contracts.HookUtils;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
@@ -53,7 +50,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -73,7 +69,6 @@ import org.apache.logging.log4j.Logger;
 public class ScheduleCreateHandler extends AbstractScheduleHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(ScheduleCreateHandler.class);
 
-    private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
     private final EntityIdFactory idFactory;
     private final InstantSource instantSource;
     private final ScheduleThrottle.Factory throttleFactory;
@@ -284,25 +279,6 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var usageSnapshots = scheduleStore.usageSnapshotsForScheduled(then);
         return Optional.of(
                 upToDateThrottle(then, capacityFraction.asApproxCapacitySplit(), usageSnapshots, scheduleStore));
-    }
-
-    private @NonNull FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            @NonNull final SigValueObj svo,
-            final boolean longTermEnabled,
-            final long scheduledTxExpiryTimeSecs) {
-        final var op = txn.getScheduleCreate();
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        final long lifetimeSecs;
-        if (op.hasExpirationTime() && longTermEnabled) {
-            lifetimeSecs = Math.max(
-                    0L,
-                    op.getExpirationTime().getSeconds()
-                            - txn.getTransactionID().getTransactionValidStart().getSeconds());
-        } else {
-            lifetimeSecs = scheduledTxExpiryTimeSecs;
-        }
-        return scheduleOpsUsage.scheduleCreateUsage(txn, sigUsage, lifetimeSecs);
     }
 
     private @Nullable Schedule maybeDuplicate(@NonNull final Schedule schedule, @Nullable final Schedule duplicate) {

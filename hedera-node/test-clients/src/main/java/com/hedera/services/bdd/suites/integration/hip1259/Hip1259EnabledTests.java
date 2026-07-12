@@ -40,6 +40,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithoutBackgroundTrafficFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
@@ -50,7 +51,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_TOTAL_FEE;
 import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.feeDistributionValidator;
@@ -215,9 +215,7 @@ public class Hip1259EnabledTests {
                 }),
                 validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
-
-                // Validate fee across both legacy and simple-fee modes.
-                validateFees("feeTxn", 0.053, CRYPTO_CREATE_TOTAL_FEE),
+                validateChargedUsdWithin("feeTxn", CRYPTO_CREATE_TOTAL_FEE, 0.1),
 
                 /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
                 waitUntilStartOfNextStakingPeriod(1),

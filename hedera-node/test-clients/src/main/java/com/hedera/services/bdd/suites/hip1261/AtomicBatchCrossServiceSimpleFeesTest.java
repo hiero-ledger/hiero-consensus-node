@@ -109,9 +109,7 @@ public class AtomicBatchCrossServiceSimpleFeesTest {
     private static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("Atomic Batch Cross Service Simple Fees Tests")

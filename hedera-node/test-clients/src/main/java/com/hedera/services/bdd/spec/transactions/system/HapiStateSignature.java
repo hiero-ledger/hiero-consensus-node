@@ -39,9 +39,4 @@ public class HapiStateSignature extends HapiTxnOp<HapiStateSignature> {
                 .build());
         return b -> {};
     }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return 0;
-    }
 }

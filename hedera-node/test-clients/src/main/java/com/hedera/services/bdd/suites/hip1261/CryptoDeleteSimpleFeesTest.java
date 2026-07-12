@@ -79,9 +79,7 @@ public class CryptoDeleteSimpleFeesTest {
     private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("CryptoDelete Simple Fees Positive Test Cases")
