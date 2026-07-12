@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.defaultkycstatus;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
@@ -45,7 +46,8 @@ public class DefaultKycStatusCall extends AbstractNonRevertibleTokenViewCall {
     @Override
     protected @NonNull PricedResult resultOfViewingToken(@Nullable final Token token) {
         requireNonNull(token);
-        final boolean kycStatus = !token.hasKycKey() || token.accountsKycGrantedByDefault();
+        // An empty key list (the HIP-540 removal sentinel) disables KYC, so it counts as "no KYC key".
+        final boolean kycStatus = isEmpty(token.kycKey()) || token.accountsKycGrantedByDefault();
         return gasOnly(fullResultsFor(SUCCESS, gasCalculator.viewGasRequirement(), kycStatus), SUCCESS, true);
     }
 

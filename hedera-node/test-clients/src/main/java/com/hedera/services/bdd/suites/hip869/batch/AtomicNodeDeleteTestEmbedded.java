@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -104,7 +103,7 @@ class AtomicNodeDeleteTestEmbedded {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("failedDeletion").logged(),
                 // The fee is charged here because the payer is not privileged
-                safeValidateInnerTxnChargedUsd("failedDeletion", "atomic", 0.001, 1.0, NODE_DELETE_BASE_FEE_USD, 1.0),
+                validateInnerTxnChargedUsd("failedDeletion", "atomic", NODE_DELETE_BASE_FEE_USD, 1.0),
 
                 // Submit with several signatures and the price should increase
                 atomicBatch(nodeDelete("node100")
@@ -117,11 +116,9 @@ class AtomicNodeDeleteTestEmbedded {
                         .via("atomic")
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                safeValidateInnerTxnChargedUsd(
+                validateInnerTxnChargedUsd(
                         "multipleSigsDeletion",
                         "atomic",
-                        0.0011276316,
-                        1.0,
                         NODE_DELETE_BASE_FEE_USD + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER,
                         1.0),
                 atomicBatch(nodeDelete("node100").via("deleteNode").batchKey(BATCH_OPERATOR))

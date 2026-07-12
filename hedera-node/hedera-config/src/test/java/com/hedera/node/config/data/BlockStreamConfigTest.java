@@ -51,6 +51,7 @@ class BlockStreamConfigTest {
                 1024,
                 256,
                 false,
-                streamWrappedRecordBlocks);
+                streamWrappedRecordBlocks,
+                false);
     }
 }

@@ -13,7 +13,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -76,6 +75,15 @@ public interface EvmFrameState {
      * @return an optional {@link ExceptionalHaltReason} with the reason lazy creation could not be done
      */
     Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull Address address);
+
+    /**
+     * @param address the address of the account to try to create
+     * @param ecdsaPublicKey the key to set for the created account.
+     * @param delegationAddress the address to set as the delegation address for the created account.
+     * @return an optional {@link ExceptionalHaltReason} with the reason creation could not be done
+     */
+    Optional<ExceptionalHaltReason> tryCreateAccountWithKeyAndCodeDelegation(
+            @NonNull Address address, @NonNull byte[] ecdsaPublicKey, @NonNull Address delegationAddress);
 
     /**
      * Returns whether the account with the given address is a "hollow account"; that is, an account
@@ -141,7 +149,7 @@ public interface EvmFrameState {
     AbstractMutableEvmAccount getMutableAccount(Address address);
 
     /**
-     * Returns the storage value for the contract with the given contract id and key.
+     * Returns the storage value for the account with the given contract id and key.
      *
      * @param contractID the contract id
      * @param key the key
@@ -151,7 +159,7 @@ public interface EvmFrameState {
     UInt256 getStorageValue(ContractID contractID, @NonNull UInt256 key);
 
     /**
-     * Sets the storage value for the contract with the given contract id and key.
+     * Sets the storage value for the account with the given contract id and key.
      * @param contractID the contract id
      * @param key the key
      * @param value the value to set
@@ -159,7 +167,7 @@ public interface EvmFrameState {
     void setStorageValue(ContractID contractID, @NonNull UInt256 key, @NonNull UInt256 value);
 
     /**
-     * Returns the original storage value for the contract with the given contract id and key.
+     * Returns the original storage value for the account with the given contract id and key.
      *
      * @param contractID the contract id
      * @param key the key
@@ -178,7 +186,8 @@ public interface EvmFrameState {
     Bytes getCode(ContractID contractID);
 
     /**
-     * Sets the code for the contract with the given contract id. Only used during contract creation.
+     * Sets the code for the contract with the given contract id.
+     * Used during contract creation and when setting EIP-7702 delegation.
      *
      * @param contractID the contract id
      * @param code the new code
@@ -186,74 +195,11 @@ public interface EvmFrameState {
     void setCode(ContractID contractID, @NonNull Bytes code);
 
     /**
-     * Returns the redirect bytecode for the token with the given address, which must be a long-zero address.
-     *
-     * <p>Since a {@link TokenEvmAccount} never needs its Hedera entity number, we may as well use
-     * the long-zero address there, and here.
-     *
-     * @param address the token long-zero address
-     * @return the redirect code for the token
-     */
-    @NonNull
-    Bytes getTokenRedirectCode(@NonNull Address address);
-
-    /**
      * @param contractID the contract to extract its code hash
      * @return the code hash of the contract
      */
     @NonNull
-    Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
-
-    /**
-     * Returns the hash of the redirect bytecode for the token with the given address, which must be a
-     * long-zero address.
-     *
-     * <p>Since a {@link TokenEvmAccount} never needs its Hedera entity number, we may as well use
-     * the long-zero address there, and here.
-     *
-     * @param address the token long-zero address
-     * @return the redirect code for the token
-     */
-    @NonNull
-    Hash getTokenRedirectCodeHash(@NonNull Address address);
-
-    /**
-     * Returns the redirect bytecode for the account with the given address.  This should only be called for regular accounts
-     * that are not contracts.
-     *
-     * @param address the account address
-     * @return the redirect code for the account
-     */
-    @NonNull
-    Bytes getAccountRedirectCode(@Nullable Address address);
-
-    /**
-     * Returns the hash of the redirect bytecode for the account with the given address.
-     *
-     * @param address the account address
-     * @return the redirect code for the account
-     */
-    @NonNull
-    Hash getAccountRedirectCodeHash(@Nullable Address address);
-
-    /**
-     * Returns the redirect bytecode for the schedule with the given address.  This should only be called for schedule
-     * transaction entities
-     *
-     * @param address the schedule address
-     * @return the redirect code for the schedule
-     */
-    @NonNull
-    Bytes getScheduleRedirectCode(@Nullable Address address);
-
-    /**
-     * Returns the hash of the redirect bytecode for the schedule with the given address.
-     *
-     * @param address the schedule address
-     * @return the redirect code for the schedule
-     */
-    @NonNull
-    Hash getScheduleRedirectCodeHash(@Nullable Address address);
+    Hash getCodeHash(ContractID contractID);
 
     /**
      * Returns the native account with the given account id.

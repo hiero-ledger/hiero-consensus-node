@@ -46,24 +46,30 @@ jobs:
           node-version: "20"
 
       - name: Print Input Parameters
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          ALPHA_RELEASE: ${{ inputs.alpha-release }}
+          DRY_RUN_ENABLED: ${{ inputs.dry-run-enabled }}
         run: |
           echo "Input Parameters:"
-          echo "  Build Number: ${{ inputs.build_number }}"
-          echo "  Alpha Release: ${{ inputs.alpha-release }}"
-          echo "  Dry Run Enabled: ${{ inputs.dry-run-enabled }}"
+          echo "  Build Number: ${BUILD_NUMBER}"
+          echo "  Alpha Release: ${ALPHA_RELEASE}"
+          echo "  Dry Run Enabled: ${DRY_RUN_ENABLED}"
 
       - name: Build Input Validation
         id: validate
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
-          echo "The input is ${{ inputs.build_number }}"
-          if ! [[ "${{ inputs.build_number }}" =~ ^[0-9]+$ ]]; then
+          echo "The input is ${BUILD_NUMBER}"
+          if ! [[ "${BUILD_NUMBER}" =~ ^[0-9]+$ ]]; then
             echo "Input is not a valid integer"
             exit 1
           fi
-          echo "Input is a valid integer: $(( ${{ inputs.build_number }} ))"
+          echo "Input is a valid integer: $(( BUILD_NUMBER ))"
 
           # 5-digit padding
-          padded_number="$(printf "%05d" "${{ inputs.build_number }}")"
+          padded_number="$(printf "%05d" "${BUILD_NUMBER}")"
           echo "Padded number is: ${padded_number}"
 
           # Add "build-" prefix to the padded number
@@ -145,6 +151,7 @@ jobs:
       - name: Calculate and Create Release Branch
         env:
           ALPHA_FLAG: ${{ inputs.alpha-release }}
+          DRY_RUN_ENABLED: ${{ inputs.dry-run-enabled }}
         run: |
           # Get current version information
           current_version="$(git-semver latest)"
@@ -184,7 +191,7 @@ jobs:
             echo "Alpha release detected. Skipping release branch creation."
           fi
 
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+          if [[ "${DRY_RUN_ENABLED}" == "true" ]]; then
             CREATE_RELEASE_BRANCH=false
             echo "Dry run enabled. Skipping release branch creation."
           fi
@@ -203,9 +210,11 @@ jobs:
           fi
 
       - name: Apply Tag with Calculated Next Version
+        env:
+          DRY_RUN_ENABLED: ${{ inputs.dry-run-enabled }}
         run: |
           echo "Applying computed version tag"
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+          if [[ "${DRY_RUN_ENABLED}" == "true" ]]; then
             echo "Dry run enabled, not applying tag ${{ steps.next-release.outputs.version }}"
           else
             git tag --sign --annotate "${{ steps.next-release.outputs.version }}" --message "${{ steps.next-release.outputs.version }}"
@@ -249,12 +258,14 @@ jobs:
 
       - name: Delete the Temporary Semantic Release Branch
         if: always()
+        env:
+          DRY_RUN_ENABLED: ${{ inputs.dry-run-enabled }}
         run: |
           echo "Deleting the temporary semantic release branch"
           git branch -d "${{ steps.branch.outputs.name }}"
           echo "Deleted Temporary Branch from Local Runner" >> ${GITHUB_STEP_SUMMARY}
 
-          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+          if [[ "${DRY_RUN_ENABLED}" == "true" ]]; then
             echo "No remote branches to delete"
           else
             echo "Deleting remote branch now:"
@@ -264,13 +275,15 @@ jobs:
 
       - name: Print Output Parameters for Create Github Release Job
         if: ${{ inputs.alpha-release != true && github.event.repository.private == false }}
+        env:
+          DRY_RUN_ENABLED: ${{ inputs.dry-run-enabled }}
         run: |
           echo "Output Parameters for Create GitHub Release Job:"
           echo "  Ref: ${{ steps.next-release.outputs.version }}"
           echo "  Release Version: ${{ steps.next-release.outputs.version }}"
           echo "  Create Release Notes: true"
           echo "  Create Release: true"
-          echo "  Dry Run: ${{ inputs.dry-run-enabled }}"
+          echo "  Dry Run: ${DRY_RUN_ENABLED}"
 
   create-github-release:
     name: Create GitHub Release

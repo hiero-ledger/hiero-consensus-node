@@ -204,7 +204,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
         with:
           checkout: "true"
           checkout-ref: "${{ needs.check-branch.outputs.branch-name }}"
@@ -214,18 +214,7 @@ jobs:
           java-distribution: "temurin"
           java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
           setup-gradle: "true"
-
-      - name: Install Semantic Version Tools
-        run: |
-          echo "::group::Download SemVer Binary"
-          sudo curl -L -o /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
-          echo "::endgroup::"
-          echo "::group::Change SemVer Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/semver
-          echo "::endgroup::"
-          echo "::group::Show SemVer Binary Version Info"
-          semver --version
-          echo "::endgroup::"
+          setup-semver: "true"
 
       - name: Import GPG key for commit signoff
         id: gpg_import

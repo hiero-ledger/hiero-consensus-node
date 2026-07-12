@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
@@ -36,7 +35,6 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -54,14 +52,13 @@ public class ConsensusServiceSimpleFeesSuite {
         private static final String PAYER = "payer";
         private static final String ADMIN = "admin";
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare create topic")
         final Stream<DynamicTest> createTopicPlainComparison() {
             // Signatures: payer only; Keys: none.
             final var sigs = 1L;
             final var keys = 0L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
                             .blankMemo()
@@ -75,18 +72,16 @@ public class ConsensusServiceSimpleFeesSuite {
                                 KEYS, keys,
                                 PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare create topic with admin key")
         final Stream<DynamicTest> createTopicWithAdminComparison() {
             // Signatures: payer + admin key; Keys: 1 admin key
             final var sigs = 2L;
             final var keys = 1L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     newKeyNamed(ADMIN),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
@@ -104,18 +99,16 @@ public class ConsensusServiceSimpleFeesSuite {
                         allRunFor(
                                 spec,
                                 validateChargedSimpleFees("Simple Fees", "create-topic-admin-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare create topic with payer as admin key")
         final Stream<DynamicTest> createTopicWithPayerAdminComparison() {
             // Signatures: payer only (admin key is payer); Keys: 1 admin key.
             final var sigs = 1L;
             final var keys = 1L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     newKeyNamed(ADMIN),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
@@ -133,18 +126,16 @@ public class ConsensusServiceSimpleFeesSuite {
                         allRunFor(
                                 spec,
                                 validateChargedSimpleFees("Simple Fees", "create-topic-admin-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare create topic with custom fee")
         final Stream<DynamicTest> createTopicCustomFeeComparison() {
             // Signatures: payer only; Keys: none.
             final var sigs = 1L;
             final var keys = 0L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate("collector"),
                     createTopic("testTopic")
@@ -160,18 +151,16 @@ public class ConsensusServiceSimpleFeesSuite {
                                 KEYS, keys,
                                 PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare update topic with admin key")
         final Stream<DynamicTest> updateTopicComparisonWithPayerAdmin() {
             // Signatures: payer only; Keys: none (no key change).
             final var sigs = 1L;
             final var keys = 0L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
                             .blankMemo()
@@ -187,11 +176,10 @@ public class ConsensusServiceSimpleFeesSuite {
                                 KEYS, keys,
                                 PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "update-topic-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare update topic with admin key")
         final Stream<DynamicTest> updateTopicComparisonWithAdmin() {
             final String ADMIN = "admin";
@@ -199,7 +187,6 @@ public class ConsensusServiceSimpleFeesSuite {
             final var sigs = 2L;
             final var keys = 1L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     newKeyNamed(ADMIN),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
@@ -220,8 +207,7 @@ public class ConsensusServiceSimpleFeesSuite {
                                 KEYS, keys,
                                 PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "update-topic-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
 
         @HapiTest
@@ -235,13 +221,12 @@ public class ConsensusServiceSimpleFeesSuite {
                     validateChargedUsdForQueries("getInfo", EXPECTED_CRYPTO_TRANSFER_FEE, 1));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @HapiTest
         @DisplayName("compare delete topic with admin key")
         final Stream<DynamicTest> deleteTopicPlainComparison() {
             // Signatures: payer only; Keys: none.
             final var sigs = 1L;
             return hapiTest(
-                    overriding("fees.simpleFeesEnabled", "true"),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     createTopic("testTopic")
                             .blankMemo()
@@ -259,8 +244,7 @@ public class ConsensusServiceSimpleFeesSuite {
                         final var expectedFee = expectedTopicDeleteFullFeeUsd(
                                 Map.of(SIGNATURES, sigs, PROCESSING_BYTES, (long) signedTxnSize));
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "delete-topic-txn", expectedFee, 1));
-                    }),
-                    overriding("fees.simpleFeesEnabled", "false"));
+                    }));
         }
     }
 

@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.utils.FileServiceUtils;
@@ -28,15 +27,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class FileSystemUndeleteHandler implements TransactionHandler {
-    private final FileFeeBuilder usageEstimator;
-
-    /**
-     * Constructs a {@link FileSystemUndeleteHandler} with the given {@link FileFeeBuilder}.
-     * @param usageEstimator the file fee builder to be used for fee calculation
-     */
     @Inject
-    public FileSystemUndeleteHandler(final FileFeeBuilder usageEstimator) {
-        this.usageEstimator = usageEstimator;
+    public FileSystemUndeleteHandler() {
+        // Dagger2
     }
 
     /**

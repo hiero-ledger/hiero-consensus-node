@@ -34,6 +34,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockItemsStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.OneOf;
@@ -117,6 +118,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockNodeStats.HighLatencyResult latencyResult;
     private BlockNodeClientFactory clientFactory;
     private AtomicInteger globalActiveStreamingConnectionCount;
+    private BlockStreamingObs streamingObs;
 
     private ExecutorService realExecutor;
 
@@ -135,6 +137,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         requestCall = mock(GrpcCall.class);
         pipelineExecutor = mock(ExecutorService.class);
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
+        streamingObs = mock(BlockStreamingObs.class);
 
         // Set up default behavior for pipelineExecutor using a real executor
         // This ensures proper Future semantics while still being fast for tests
@@ -180,7 +183,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 pipelineExecutor,
                 null,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
@@ -240,7 +244,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 pipelineExecutor,
                 100L,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         // Verify the streamingBlockNumber was set
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -601,12 +606,22 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_blockNodeBehind_blockExists() {
         activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        // We are ahead of the block node, streaming a block beyond the one it last verified (10).
+        streamingBlockNumber.set(15L);
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
         when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))
                 .thenReturn(false);
+        when(stats.addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
+                .thenReturn(false);
 
         connection.onNext(response);
+
+        // Recovery path: the block node is behind but block N+1 is buffered, so the CN repositions
+        // its stream to N+1 (10 + 1) and stays ACTIVE.
+        assertThat(streamingBlockNumber).hasValue(11L);
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
@@ -1594,7 +1609,12 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
+        // Block N+1 (11) is missing but not below the earliest available block (10), so this is an
+        // internal inconsistency: the CN sends EndStream.ERROR and closes with INTERNAL_ERROR.
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(requestCall).completeRequests();
     }
 
     // Tests BehindPublisher code with Long.MAX_VALUE edge case (should restart at block 0)

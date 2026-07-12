@@ -28,7 +28,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerTxnFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -221,10 +220,9 @@ class AtomicNodeCreateTestEmbedded {
                 // Validate that the failed transaction charges the correct fees.
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        validateInnerTxnFees(
+                        validateInnerTxnChargedUsd(
                                 "nodeCreationFailed",
                                 "atomic",
-                                0.001,
                                 NODE_CREATE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, log, "nodeCreationFailed"),
                                 3))),
                 atomicBatch(nodeCreate("ntb", nodeAccount)
@@ -256,10 +254,9 @@ class AtomicNodeCreateTestEmbedded {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        validateInnerTxnFees(
+                        validateInnerTxnChargedUsd(
                                 "multipleSigsCreation",
                                 "atomic",
-                                0.0011276316,
                                 NODE_CREATE_BASE_FEE_USD
                                         + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER
                                         + expectedFeeFromBytesFor(spec, log, "multipleSigsCreation"),

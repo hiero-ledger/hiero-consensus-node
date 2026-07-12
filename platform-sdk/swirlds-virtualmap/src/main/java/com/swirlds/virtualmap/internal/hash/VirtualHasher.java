@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
@@ -26,8 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.StackTrace;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
@@ -37,6 +38,7 @@ import org.hiero.base.crypto.Hash;
  *
  * <p>There should be one {@link VirtualHasher} shared across all copies of a {@link VirtualMap}
  * "family".
+ * This class is stateful ands save same state when {@link #hash(int, LongFunction, Iterator, long, long, VirtualHashListener)} is called.
  */
 public final class VirtualHasher {
 
@@ -76,22 +78,16 @@ public final class VirtualHasher {
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
-    private final VirtualMapConfig virtualMapConfig;
-
     /**
      * @param virtualMapConfig platform configuration for VirtualMap
      */
     public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
-        this.virtualMapConfig = virtualMapConfig;
-        hashingPool = new ForkJoinPool(
-                virtualMapConfig.getNumHashThreads(),
-                ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-                (t, e) -> logger.error(
-                        EXCEPTION.getMarker(),
-                        "Virtual hasher thread terminated with exception: {}",
-                        StackTrace.getStackTrace(e)),
-                true);
+        hashingPool = ExecutorFactory.create(
+                        "VirtualHasher",
+                        (_, e) -> logger.error(
+                                EXCEPTION.getMarker(), "Virtual hasher thread terminated with exception", e))
+                .createForkJoinPool(virtualMapConfig.getNumHashThreads());
     }
 
     /**
@@ -406,6 +402,22 @@ public final class VirtualHasher {
     }
 
     /**
+     * Executes {@link #hash(int, LongFunction, Iterator, long, long, VirtualHashListener)} asynchronously.
+     */
+    public CompletableFuture<Hash> hashAsync(
+            final int hashChunkHeight,
+            final @NonNull LongFunction<VirtualHashChunk> hashChunkPreloader,
+            final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final @Nullable VirtualHashListener listener) {
+        return CompletableFuture.supplyAsync(
+                () -> hash(
+                        hashChunkHeight, hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, listener),
+                hashingPool);
+    }
+
+    /**
      * Hash the given dirty leaves and the minimal subset of the tree necessary to produce a
      * single root hash. The root hash is returned.
      *
@@ -442,7 +454,6 @@ public final class VirtualHasher {
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
-        requireNonNull(virtualMapConfig);
 
         this.defaultChunkHeight = hashChunkHeight;
 
