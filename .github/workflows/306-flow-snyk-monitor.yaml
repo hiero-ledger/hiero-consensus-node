@@ -45,9 +45,9 @@ jobs:
         run: ./gradlew assemble
 
       - name: Setup Snyk
+        uses: step-security/snyk-actions/setup@3ccbd440152e3235d4b9d631c16badbc85807eca # v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: npm install -g snyk
 
       - name: Disable Gradle Isolated Projects
         run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
