@@ -16,7 +16,7 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -34,7 +34,7 @@ public class IsAuthorizedCall extends AbstractCall {
     private final byte[] message;
     private final byte[] signatureBlob;
 
-    private final CustomGasCalculator customGasCalculator;
+    private final HederaGasCalculatorImpl hederaGasCalculatorImpl;
 
     private final SignatureVerifier signatureVerifier;
 
@@ -43,12 +43,12 @@ public class IsAuthorizedCall extends AbstractCall {
             final Address address,
             @NonNull final byte[] message,
             @NonNull final byte[] signatureBlob,
-            @NonNull final CustomGasCalculator gasCalculator) {
+            @NonNull final HederaGasCalculatorImpl gasCalculator) {
         super(attempt.systemContractGasCalculator(), attempt.enhancement(), true);
         this.address = requireNonNull(address, "address");
         this.message = requireNonNull(message, "message");
         this.signatureBlob = requireNonNull(signatureBlob, "signatureBlob");
-        customGasCalculator = requireNonNull(gasCalculator, "gasCalculator");
+        hederaGasCalculatorImpl = requireNonNull(gasCalculator, "gasCalculator");
         signatureVerifier = requireNonNull(attempt.signatureVerifier());
     }
 
@@ -76,8 +76,9 @@ public class IsAuthorizedCall extends AbstractCall {
         sigMap = stripRecoveryIdFromEcdsaSignatures(sigMap);
 
         final var keyCounts = signatureVerifier.countSimpleKeys(key);
-        final long gasRequirement = keyCounts.numEcdsaKeys() * customGasCalculator.getEcrecPrecompiledContractGasCost()
-                + keyCounts.numEddsaKeys() * customGasCalculator.getEdSignatureVerificationSystemContractGasCost();
+        final long gasRequirement = keyCounts.numEcdsaKeys()
+                        * hederaGasCalculatorImpl.getEcrecPrecompiledContractGasCost()
+                + keyCounts.numEddsaKeys() * hederaGasCalculatorImpl.getEdSignatureVerificationSystemContractGasCost();
 
         final var authorized = verifyMessage(
                 key, wrap(message), MessageType.RAW, sigMap, ky -> SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
