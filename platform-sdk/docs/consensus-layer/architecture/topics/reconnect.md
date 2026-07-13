@@ -262,6 +262,7 @@ for how reconnect crosses the Consensus / Execution boundary.
 - [`signed-state-management.md`](signed-state-management.md)
 - [`restart-and-pces.md`](restart-and-pces.md)
 - [`event-intake.md`](event-intake.md)
+- [`platform-status.md`](platform-status.md)
 
 **Interfaces**
 
