@@ -461,6 +461,11 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
               "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            # Staged-build layout: shows exactly which jars solo left in data/apps + data/lib,
+            # to diagnose local-build staging failures (e.g. NoClassDefFoundError at startup).
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "ls -la /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib" \
+              > "${OUT_DIR}/${pod}-staged-build-listing.txt" 2>&1
           done
 
           # Mirror-node logs (importer above all) — needed to trace BN-fed ingestion gaps

@@ -79,9 +79,6 @@ Environment:
   UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
                             release image (no --local-build-path), so the 0.76 step exercises the
                             tag's own default config. (default: v0.76.0-rc.1)
-  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step.
-                            Must be >= the 0.76 release the network is on, or Solo rejects it as a
-                            downgrade. (default: UPGRADE_076_VERSION, i.e. v0.76.0-rc.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
   SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
@@ -187,10 +184,6 @@ INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
 UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
 UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
-# The 0.77 upgrade uses the local build, but its --upgrade-version label must be >= the network's
-# current version (now ${UPGRADE_076_VERSION} after the 0.76 step) or Solo rejects it as a downgrade.
-# Default to the 0.76 tag so it tracks automatically if UPGRADE_076_VERSION is bumped.
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-${UPGRADE_076_VERSION}}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -2112,18 +2105,35 @@ report_wraps_download_times() {
 run_077_upgrade() {
   # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10; the
   # 0.77 properties keep the same download URL so any restarted pod re-fetches from it.
+
+  # Clear the previous build's jars on every node before staging the local build: solo's
+  # --local-build-path staging has a history of leaving baseline jars alongside the local
+  # ones (see the solo >= 0.73 note in 825-call-migration-testing.yaml), and a mixed
+  # data/apps + data/lib only turns fatal at the 0.77 restart. The nodes are still running
+  # here, but their JVMs keep the already-loaded jars open until solo stops them during the
+  # upgrade, so deleting the on-disk copies is safe.
+  local node pod
+  local nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  echo "Clearing previous build jars (data/apps, data/lib) on all consensus nodes before local-build staging"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "rm -f '${HAPI_PATH}/data/apps'/*.jar '${HAPI_PATH}/data/lib'/*.jar" \
+      || echo "WARN: could not clear previous jars on ${pod}; continuing" >&2
+  done
+
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_077_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_077_FILE}"
     --quiet-mode
     --force
   )
 
-  run_step "Upgrading consensus network to ${UPGRADE_077_VERSION} (local build, 0.77 BLOCKS-only cutover)" \
+  run_step "Upgrading consensus network to the local build (0.77 BLOCKS-only cutover)" \
     run_command_with_timeout "${SOLO_077_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
   echo "--- Step 11 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
@@ -4386,7 +4396,7 @@ if should_run_step 10; then
 fi
 
 if should_run_step 11; then
-  print_banner "Step 11/13: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
+  print_banner "Step 11/13: Upgrade local build with 0.77 properties (BLOCKS-only cutover, real TSS signatures)"
   sleep 5
   run_077_upgrade
   print_step_complete "Step 11/13"
