@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -32,7 +33,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Validates construction of genesis and incremental WRAPS proofs.
+ * Validates construction of genesis and incremental WRAPS proofs, and that the network then
+ * externalizes blocks signed with the resulting WRAPS chain-of-trust proof.
  */
 @Tag(WRAPS)
 @HapiTestLifecycle
@@ -94,7 +96,8 @@ public class WrapsHandoffsTest implements LifecycleTest {
                                         LOG_POLL_INTERVAL,
                                         () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
                                         })
-                                .loggingOff());
+                                .loggingOff(),
+                        waitUntilNextBlocks(5).withBackgroundTraffic(true));
             } else {
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(false);
                 return noOp();
