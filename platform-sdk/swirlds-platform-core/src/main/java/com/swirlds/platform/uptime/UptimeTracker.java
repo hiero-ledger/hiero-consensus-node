@@ -8,7 +8,8 @@ import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -48,25 +49,28 @@ public class UptimeTracker {
     /**
      * Construct a new uptime detector.
      *
-     * @param platformContext       the platform context
-     * @param selfId                the ID of this node
+     * @param configuration the configuration
+     * @param metrics       the metrics
+     * @param time          the time source
+     * @param selfId        the ID of this node
      */
-    public UptimeTracker(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
-
+    public UptimeTracker(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId) {
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
-        this.time = Objects.requireNonNull(platformContext).getTime();
-        this.degradationThreshold = platformContext
-                .getConfiguration()
-                .getConfigData(UptimeConfig.class)
-                .degradationThreshold();
-        this.uptimeMetrics = new UptimeMetrics(platformContext.getMetrics(), this::isSelfDegraded);
+        this.time = Objects.requireNonNull(time);
+        this.degradationThreshold =
+                configuration.getConfigData(UptimeConfig.class).degradationThreshold();
+        this.uptimeMetrics = new UptimeMetrics(metrics, this::isSelfDegraded);
         this.uptimeData = new UptimeData();
     }
 
     /**
      * Look at the events in a round to determine which nodes are up and which nodes are down.
      *
-     * @param round       the round to analyze
+     * @param round the round to analyze
      * @return true if a new self event was found in this round
      */
     public boolean trackRound(@NonNull final ConsensusRound round) {
@@ -92,11 +96,11 @@ public class UptimeTracker {
     }
 
     /**
-     * Add and remove nodes as necessary. Will only make changes if roster membership in this round is different
-     * from the roster in the previous round, or at genesis.
+     * Add and remove nodes as necessary. Will only make changes if roster membership in this round is different from
+     * the roster in the previous round, or at genesis.
      *
-     * @param uptimeData  the uptime data
-     * @param roster the current roster
+     * @param uptimeData the uptime data
+     * @param roster     the current roster
      */
     private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final Roster roster) {
         final Set<NodeId> rosterNodes = roster.rosterEntries().stream()

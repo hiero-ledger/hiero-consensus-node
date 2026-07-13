@@ -10,19 +10,16 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
-import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.hedera.node.config.data.NodesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -70,12 +67,6 @@ class FreezeUpgradeActionsTest {
     private WritableUpgradeFileStore upgradeFileStore;
 
     @Mock
-    private ReadableNodeStore nodeStore;
-
-    @Mock
-    private ReadableStakingInfoStore stakingInfoStore;
-
-    @Mock
     private EntityIdFactory entityIdFactory;
 
     @Mock
@@ -84,26 +75,16 @@ class FreezeUpgradeActionsTest {
     @Mock
     private NetworkAdminConfig adminServiceConfig;
 
-    @Mock
-    private NodesConfig nodesConfig;
-
     @BeforeEach
     void setUp() throws IOException {
         given(configuration.getConfigData(NetworkAdminConfig.class)).willReturn(adminServiceConfig);
-        given(configuration.getConfigData(NodesConfig.class)).willReturn(nodesConfig);
 
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
 
         final Executor freezeExectuor = new ForkJoinPool(
                 1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true);
-        subject = new FreezeUpgradeActions(
-                configuration,
-                freezeStore,
-                freezeExectuor,
-                upgradeFileStore,
-                nodeStore,
-                stakingInfoStore,
-                entityIdFactory);
+        subject =
+                new FreezeUpgradeActions(configuration, freezeStore, freezeExectuor, upgradeFileStore, entityIdFactory);
 
         // set up test zip
         zipSourceDir = Files.createTempDirectory("zipSourceDir");
