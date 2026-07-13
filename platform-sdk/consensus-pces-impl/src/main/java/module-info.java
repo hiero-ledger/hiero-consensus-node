@@ -4,7 +4,7 @@ import org.hiero.consensus.pces.impl.DefaultPcesModule;
 
 module org.hiero.consensus.pces.impl {
     exports org.hiero.consensus.pces.impl to
-            org.hiero.consensus.state.management;
+            org.hiero.consensus.state;
     exports org.hiero.consensus.pces.impl.common to
             com.swirlds.platform.core,
             com.swirlds.platform.core.test.fixtures,
@@ -22,7 +22,6 @@ module org.hiero.consensus.pces.impl {
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
-    requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;

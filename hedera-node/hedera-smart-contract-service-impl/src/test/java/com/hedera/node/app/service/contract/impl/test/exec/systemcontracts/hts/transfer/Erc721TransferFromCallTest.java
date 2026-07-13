@@ -31,14 +31,15 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
 class Erc721TransferFromCallTest extends CallTestBase {
-    private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
+    private static final Address FROM_ADDRESS =
+            ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
     private static final Address TO_ADDRESS =
             ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
@@ -83,8 +84,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(Bytes.EMPTY, result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(Bytes.EMPTY, result.output());
         // check that events was added
         assertEquals(1, logs.size());
         assertEquals(4, logs.getFirst().getTopics().size());
@@ -94,7 +95,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
                 convertAccountToLog(localReceiver), logs.getFirst().getTopics().get(2));
         assertEquals(
                 1L,
-                UInt256.fromBytes(Bytes.wrap(logs.getFirst().getTopics().get(3).toArray()))
+                UInt256.fromBytes(Bytes.wrap(
+                                logs.getFirst().getTopics().get(3).getBytes().toArray()))
                         .toLong());
     }
 
@@ -113,8 +115,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.output());
     }
 
     private void givenSynthIdHelperForToAccount() {

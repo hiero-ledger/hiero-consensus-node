@@ -163,6 +163,7 @@ jobs:
           if [[ -n "${RC_TAG}" ]]; then
             echo "::group::Use RC Tag"
             echo "Using RC Tag: ${RC_TAG}"
+            set +e
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
@@ -209,8 +210,10 @@ jobs:
 
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
+            set +e
             LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
             LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
+            set -e
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
               echo "::debug::Using latest xts-pass tag"
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
@@ -228,13 +231,16 @@ jobs:
 
           echo "::group::Check if XTS COMMIT is on default branch"
           # Determine which branch the commit belongs to
+          set +e
           XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          set -e
           echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
 
           XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
           COMMIT_ON_DEFAULT_BRANCH=0
 
           # Check if the commit on the default branch
+          set +e
           if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
             echo "::debug::Commit ${XTS_COMMIT} found on main branch."
           else
@@ -246,6 +252,7 @@ jobs:
               | sed 's/~.*//'
             )"
           fi
+          set -e
 
           # Print branch debug info
           echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
@@ -344,9 +351,15 @@ jobs:
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
       enable-block-node-regression-panel: "true"
+      enable-mirror-node-regression-panel: "true"
+      enable-rpc-relay-regression-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
+      bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
@@ -380,10 +393,7 @@ jobs:
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
-      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
       custom-job-label: "XTS (Optional):"
-      enable-mirror-node-regression-panel: "true"
-      enable-rpc-relay-regression-panel: "true"
       enable-migration-testing-panel: "true"
       enable-chaos-otter-test-suite: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
@@ -391,7 +401,6 @@ jobs:
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
       bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
       bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
-      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
