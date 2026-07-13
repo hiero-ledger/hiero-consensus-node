@@ -4,7 +4,6 @@ package com.swirlds.benchmark.reconnect;
 import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
 import com.swirlds.benchmark.reconnect.network.NetworkTransport;
@@ -12,14 +11,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
-import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A utility class to support benchmarks for reconnect.
@@ -59,47 +55,33 @@ public class MerkleBenchmarkUtils {
             final NetworkTransport transport,
             final Configuration configuration)
             throws Exception {
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (PairedStreams streams = new PairedStreams(transport, networkConfig, configuration)) {
+        try (final PairedStreams streams = new PairedStreams(transport, networkConfig, configuration)) {
             streams.getSocketDiagnostics()
                     .ifPresent(diagnostics -> logger.info("Socket transport diagnostics: {}", diagnostics));
 
             final LearningSynchronizer learner =
-                    new LearningSynchronizer(getStaticThreadManager(), reconnectConfig, metrics);
+                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
             final TeachingSynchronizer teacher =
-                    new TeachingSynchronizer(desiredTree, Time.getCurrent(), getStaticThreadManager(), reconnectConfig);
+                    new TeachingSynchronizer(desiredTree, getStaticThreadManager(), configuration);
 
-            final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = t -> {
-                firstReconnectException.compareAndSet(null, t);
-                return false;
-            };
+            final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
 
-            AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
-            final StandardWorkGroup workGroup =
-                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", null, exceptionListener);
-            workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
-            workGroup.execute(
-                    "learning-synchronizer-main",
-                    () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
-
-            try {
-                workGroup.waitForTermination();
-            } catch (InterruptedException e) {
-                workGroup.shutdown();
+            try (final StandardWorkGroup workGroup =
+                    new StandardWorkGroup(getStaticThreadManager(), "synchronization-test", streams::disconnect)) {
+                workGroup.fork("teaching-synchronizer-main", () -> teachingSynchronizerThread(streams, teacher));
+                workGroup.fork(
+                        "learning-synchronizer-main",
+                        () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
+                workGroup.join();
+            } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
             }
 
             // Live-W readout: what the kernel actually granted per pacing window (autotuning included).
             streams.getSocketPacingSummary().ifPresent(summary -> logger.info("Socket read pacing: {}", summary));
-
-            if (workGroup.hasExceptions()) {
-                throw new MerkleSynchronizationException(
-                        "Exception(s) in synchronization test", firstReconnectException.get());
-            }
 
             return new ReconnectBenchmarkResult(
                     syncMapContainer.get(),

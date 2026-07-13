@@ -65,12 +65,10 @@ public final class LoopbackSocketTransport implements AutoCloseable {
 
         final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
         serverSocket = new ServerSocket();
-        SocketFactory.configureAndBind(
-                BENCHMARK_NODE_ID, serverSocket, socketConfig, emptyGossipConfig(), 0);
+        SocketFactory.configureAndBind(BENCHMARK_NODE_ID, serverSocket, socketConfig, emptyGossipConfig(), 0);
 
         teacherSocket = new Socket();
-        SocketFactory.configureAndConnect(
-                teacherSocket, socketConfig, LOOPBACK_HOST, serverSocket.getLocalPort());
+        SocketFactory.configureAndConnect(teacherSocket, socketConfig, LOOPBACK_HOST, serverSocket.getLocalPort());
 
         learnerSocket = serverSocket.accept();
         learnerSocket.setTcpNoDelay(socketConfig.tcpNoDelay());
@@ -80,8 +78,8 @@ public final class LoopbackSocketTransport implements AutoCloseable {
 
         // Write path: raw socket output in all profiles (see class javadoc).
         teacherToLearnerWritten = new CountingOutputStream(teacherSocket.getOutputStream());
-        teacherOutput = new DataOutputStream(
-                new BufferedOutputStream(teacherToLearnerWritten, socketConfig.bufferSize()));
+        teacherOutput =
+                new DataOutputStream(new BufferedOutputStream(teacherToLearnerWritten, socketConfig.bufferSize()));
 
         // Read path: the pacer is the bottom-most wrapper, directly on the raw socket input, so bytes it
         // withholds stay in the kernel receive buffer. The effective window of a direction is the remote
@@ -91,24 +89,22 @@ public final class LoopbackSocketTransport implements AutoCloseable {
                 rawTeacherToLearner,
                 config,
                 () -> teacherSocket.getSendBufferSize() + learnerSocket.getReceiveBufferSize());
-        teacherToLearnerRead = new CountingInputStream(
-                teacherToLearnerPacer != null ? teacherToLearnerPacer : rawTeacherToLearner);
-        learnerInput =
-                new DataInputStream(new BufferedInputStream(teacherToLearnerRead, socketConfig.bufferSize()));
+        teacherToLearnerRead =
+                new CountingInputStream(teacherToLearnerPacer != null ? teacherToLearnerPacer : rawTeacherToLearner);
+        learnerInput = new DataInputStream(new BufferedInputStream(teacherToLearnerRead, socketConfig.bufferSize()));
 
         learnerToTeacherWritten = new CountingOutputStream(learnerSocket.getOutputStream());
-        learnerOutput = new DataOutputStream(
-                new BufferedOutputStream(learnerToTeacherWritten, socketConfig.bufferSize()));
+        learnerOutput =
+                new DataOutputStream(new BufferedOutputStream(learnerToTeacherWritten, socketConfig.bufferSize()));
 
         final InputStream rawLearnerToTeacher = teacherSocket.getInputStream();
         learnerToTeacherPacer = maybePace(
                 rawLearnerToTeacher,
                 config,
                 () -> learnerSocket.getSendBufferSize() + teacherSocket.getReceiveBufferSize());
-        learnerToTeacherRead = new CountingInputStream(
-                learnerToTeacherPacer != null ? learnerToTeacherPacer : rawLearnerToTeacher);
-        teacherInput =
-                new DataInputStream(new BufferedInputStream(learnerToTeacherRead, socketConfig.bufferSize()));
+        learnerToTeacherRead =
+                new CountingInputStream(learnerToTeacherPacer != null ? learnerToTeacherPacer : rawLearnerToTeacher);
+        teacherInput = new DataInputStream(new BufferedInputStream(learnerToTeacherRead, socketConfig.bufferSize()));
 
         diagnostics = new SocketTransportDiagnostics(
                 NetworkTransport.LOOPBACK_SOCKET,
@@ -166,8 +162,8 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         if (teacherToLearnerPacer == null) {
             return Optional.empty();
         }
-        return Optional.of("teacherToLearner=" + format(teacherToLearnerPacer.stats())
-                + ", learnerToTeacher=" + format(learnerToTeacherPacer.stats()));
+        return Optional.of("teacherToLearner=" + format(teacherToLearnerPacer.stats()) + ", learnerToTeacher="
+                + format(learnerToTeacherPacer.stats()));
     }
 
     public void disconnect() {
@@ -198,8 +194,7 @@ public final class LoopbackSocketTransport implements AutoCloseable {
 
     /** Whether read-side bandwidth pacing (release-then-wait cursor) is active. */
     private static boolean isBandwidthShapingActive(final NetworkSimulationConfig config) {
-        return config.profile() == NetworkProfile.REALISTIC
-                && config.bandwidthBytesPerSecond() != Long.MAX_VALUE;
+        return config.profile() == NetworkProfile.REALISTIC && config.bandwidthBytesPerSecond() != Long.MAX_VALUE;
     }
 
     /**
@@ -215,10 +210,7 @@ public final class LoopbackSocketTransport implements AutoCloseable {
             return null;
         }
         return new PacingInputStream(
-                raw,
-                Math.multiplyExact(2L, config.latencyNanos()),
-                config.bandwidthBytesPerSecond(),
-                windowSupplier);
+                raw, Math.multiplyExact(2L, config.latencyNanos()), config.bandwidthBytesPerSecond(), windowSupplier);
     }
 
     private static String format(final PacingInputStream.PacingStats stats) {

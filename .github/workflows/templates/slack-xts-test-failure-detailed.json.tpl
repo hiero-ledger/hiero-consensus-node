@@ -36,6 +36,10 @@
             {
               "type": "mrkdwn",
               "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "*Run attempt*: %s" (getenv "RUN_ATTEMPT") | data.ToJSON }}
             }
           ]
         },
@@ -71,7 +75,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ getenv "SLACK_USER_ID" | data.ToJSON }}
+              "text": {{ getenv "SLACK_USER_ID" | default "N/A" | data.ToJSON }}
             },
             {
               "type": "mrkdwn",

@@ -163,8 +163,7 @@ class LoopbackSocketTransportTest {
     @Test
     void realisticProfilePacesLargeWrites() throws Exception {
         final byte[] payload = new byte[64 * 1024];
-        try (LoopbackSocketTransport transport =
-                new LoopbackSocketTransport(realisticConfig(0, 1), configuration())) {
+        try (LoopbackSocketTransport transport = new LoopbackSocketTransport(realisticConfig(0, 1), configuration())) {
             final long start = System.nanoTime();
             transport.getTeacherOutput().writeInt(payload.length);
             transport.getTeacherOutput().write(payload);

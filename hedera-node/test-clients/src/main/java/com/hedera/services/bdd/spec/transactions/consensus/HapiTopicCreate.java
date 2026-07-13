@@ -8,14 +8,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
-import static com.hederahashgraph.api.proto.java.SubType.TOPIC_CREATE_WITH_CUSTOM_FEES;
 import static java.util.stream.Collectors.toList;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -23,8 +20,6 @@ import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.ArrayList;
 import java.util.List;
@@ -233,18 +228,6 @@ public class HapiTopicCreate extends HapiTxnOp<HapiTopicCreate> {
     }
 
     @Override
-    protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        final var txnSubType = getTxnSubType(CommonUtils.extractTransactionBody(txn));
-        return spec.fees()
-                .forActivityBasedOp(
-                        ConsensusCreateTopic,
-                        txnSubType,
-                        ConsensusServiceFeeBuilder::getConsensusCreateTopicFee,
-                        txn,
-                        numPayerKeys);
-    }
-
-    @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         final MoreObjects.ToStringHelper helper = super.toStringHelper().add("topic", topic);
         autoRenewAccountId.ifPresent(id -> helper.add("autoRenewId", id));
@@ -260,15 +243,5 @@ public class HapiTopicCreate extends HapiTxnOp<HapiTopicCreate> {
         return Optional.ofNullable(lastReceipt)
                 .map(receipt -> receipt.getTopicID().getTopicNum())
                 .orElse(-1L);
-    }
-
-    private SubType getTxnSubType(final TransactionBody txn) {
-        final var op = txn.getConsensusCreateTopic();
-        final var usesCustomFees = !op.getCustomFeesList().isEmpty();
-        if (usesCustomFees) {
-            return TOPIC_CREATE_WITH_CUSTOM_FEES;
-        } else {
-            return DEFAULT;
-        }
     }
 }

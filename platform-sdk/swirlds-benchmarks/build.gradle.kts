@@ -34,24 +34,23 @@ jmhModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions")
-    requires("com.swirlds.metrics.api")
     requires("com.swirlds.merkledb")
+    requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
-    requires("org.hiero.base.crypto")
+    requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.concurrent")
-    requires("org.hiero.consensus.gossip")
-    requires("org.hiero.consensus.gossip.impl")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
-    requires("org.hiero.consensus.reconnect")
     requires("org.hiero.consensus.utility")
+    requires("awaitility")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")
+
     runtimeOnly("com.swirlds.config.impl")
-    requires("awaitility")
 }
 
 testModuleInfo {
@@ -61,6 +60,7 @@ testModuleInfo {
     requires("org.hiero.consensus.gossip")
     requires("org.hiero.consensus.gossip.impl")
     requires("org.junit.jupiter.api")
+
     runtimeOnly("com.swirlds.config.impl")
 }
 
@@ -89,7 +89,10 @@ fun JMHTask.configureReconnectParameters(
     defaultProfile: String,
 ) {
     includes.set(listOf("ReconnectBench"))
-    benchmarkParameters.put("networkTransport", jmhParamProperty("networkTransport", defaultTransport))
+    benchmarkParameters.put(
+        "networkTransport",
+        jmhParamProperty("networkTransport", defaultTransport),
+    )
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", defaultProfile))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
@@ -104,9 +107,18 @@ fun JMHTask.configureReconnectParameters(
         jmhParamProperty("networkInflightBytesLimit", "16777216"),
     )
     benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
-    benchmarkParameters.put("teacherAddProbability", jmhParamProperty("teacherAddProbability", "0.1"))
-    benchmarkParameters.put("teacherRemoveProbability", jmhParamProperty("teacherRemoveProbability", "0.0"))
-    benchmarkParameters.put("teacherModifyProbability", jmhParamProperty("teacherModifyProbability", "0.3"))
+    benchmarkParameters.put(
+        "teacherAddProbability",
+        jmhParamProperty("teacherAddProbability", "0.1"),
+    )
+    benchmarkParameters.put(
+        "teacherRemoveProbability",
+        jmhParamProperty("teacherRemoveProbability", "0.0"),
+    )
+    benchmarkParameters.put(
+        "teacherModifyProbability",
+        jmhParamProperty("teacherModifyProbability", "0.3"),
+    )
     benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "10"))
     benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100"))
     benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))

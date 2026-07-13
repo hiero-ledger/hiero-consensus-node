@@ -1,6 +1,6 @@
 # Architecture
 
-The topic-organized lens on the consensus layer. Eleven topics, plus an overview and the module-boundary APIs.
+The topic-organized lens on the consensus layer: one file per topic, plus an overview and the module-boundary APIs.
 
 Where `../concepts/` defines foundational mental models and the catalog directories (`../invariants/`, `../rules/`, `../decisions/`, `../scenarios/`, `../heuristics/`) capture cross-cutting claims, this directory walks the consensus layer one topic at a time. Each topic file describes its responsibilities, state, contracts, and code anchors, and cross-references the catalog entries that touch it.
 
@@ -10,7 +10,7 @@ Where `../concepts/` defines foundational mental models and the catalog director
 
 ## Topics
 
-One file per topic, in `topics/`. Twelve topics total.
+One file per topic, in `topics/`; the full set is the table below.
 
 |                 Topic file                  |              Topic              |                                                                        Summary                                                                         |
 |---------------------------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|---|

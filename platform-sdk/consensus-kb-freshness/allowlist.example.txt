@@ -1,0 +1,24 @@
+# kb-freshness allowlist — generated/external sources (invariant 4)
+#
+# Symbols cited from sources OUTSIDE the hand-written platform-sdk tree cannot be authoritatively
+# resolved by the parse-only engine, so an unresolved citation to them is `unverifiable` (routed to
+# the quiet log) rather than `absent` (asserted). This file EXTENDS the built-in defaults; pass it
+# with `--allowlist platform-sdk/consensus-kb-freshness/allowlist.example.txt`.
+#
+# Directives (one per line; blank lines and `#` comments ignored):
+#   path-contains:<s>   a path substring that marks a source as external (e.g. /build/generated/)
+#   path-prefix:<s>     a repo-relative path prefix (e.g. hapi/)
+#   path-suffix:<s>     a path suffix (e.g. .proto)
+#   name:<SimpleName>   a generated/external type simple name (e.g. Roster)
+#
+# Built-in defaults already cover:
+#   path-contains:/build/generated/
+#   path-prefix:hapi/
+#   path-suffix:.proto
+#   name:Roster  name:RosterEntry  name:ConsensusSnapshot  name:SigSet
+#   name:Signature  name:GossipSyncData  name:GossipKnownTips  name:State
+#
+# Add repo-specific entries below as new generated/external sources appear. Examples:
+# name:TransactionLimits
+# name:TimestampedTransaction
+# path-prefix:hedera-node/hapi/

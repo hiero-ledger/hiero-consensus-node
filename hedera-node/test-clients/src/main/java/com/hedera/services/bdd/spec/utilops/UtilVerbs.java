@@ -1006,23 +1006,23 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns an operation that validates that each node's generated <i>config.txt</i> in its upgrade
-     * artifacts directory passes the given validator.
+     * Returns an operation that validates that each node's exported <i>candidate-roster.json</i> in its
+     * working directory passes the given validator.
      *
-     * @param rosterValidator the validator to apply to each node's <i>config.txt</i>
-     * @return the operation that validates the <i>config.txt</i> files
+     * @param rosterValidator the validator to apply to each node's candidate roster
+     * @return the operation that validates the <i>candidate-roster.json</i> files
      */
     public static CandidateRosterValidationOp validateCandidateRoster(@NonNull final Consumer<Roster> rosterValidator) {
         return validateCandidateRoster(NodeSelector.allNodes(), rosterValidator);
     }
 
     /**
-     * Returns an operation that validates that each node's generated <i>config.txt</i> in its upgrade
-     * artifacts directory passes the given validator.
+     * Returns an operation that validates that each node's exported <i>candidate-roster.json</i> in its
+     * working directory passes the given validator.
      *
      * @param selector the selector for the nodes to validate
-     * @param rosterValidator the validator to apply to each node's <i>config.txt</i>
-     * @return the operation that validates the <i>config.txt</i> files
+     * @param rosterValidator the validator to apply to each node's candidate roster
+     * @return the operation that validates the <i>candidate-roster.json</i> files
      */
     public static CandidateRosterValidationOp validateCandidateRoster(
             @NonNull final NodeSelector selector, @NonNull final Consumer<Roster> rosterValidator) {
@@ -2489,13 +2489,7 @@ public class UtilVerbs {
     }
 
     public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equalsIgnoreCase(flag)) {
-                return validateChargedUsd(txnName, newPrice);
-            } else {
-                return validateChargedUsd(txnName, oldPrice);
-            }
-        });
+        return validateChargedUsd(txnName, newPrice);
     }
 
     public static SpecOperation safeValidateChargedUsdWithin(
@@ -2504,13 +2498,7 @@ public class UtilVerbs {
             double oldAllowedPercentDiff,
             double newPrice,
             double newAllowedPercentDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equalsIgnoreCase(flag)) {
-                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
-            } else {
-                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
-            }
-        });
+        return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
     }
 
     public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
@@ -2541,13 +2529,8 @@ public class UtilVerbs {
             OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
         List<SpecOperation> opsList = new ArrayList<>();
 
-        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
         opsList.addAll(provider.provide());
         opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
-
-        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
-        opsList.addAll(provider.provide());
-        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
 
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
@@ -2642,39 +2625,6 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
-        });
-    }
-
-    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
-            String txn,
-            String parent,
-            double oldPrice,
-            double oldAllowedPercentDiff,
-            double newPrice,
-            double newAllowedPercentDiff) {
-        return assertionsHold((spec, assertLog) -> {
-            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
-            if ("true".equalsIgnoreCase(flag)) {
-                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
-                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
-                assertEquals(
-                        newPrice,
-                        actualUsdCharged,
-                        (effectivePercentDiff / 100.0) * newPrice,
-                        String.format(
-                                "%s fee (%s) more than %.2f percent different than expected!",
-                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
-            } else {
-                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
-                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
-                assertEquals(
-                        oldPrice,
-                        actualUsdCharged,
-                        (effectivePercentDiff / 100.0) * oldPrice,
-                        String.format(
-                                "%s fee (%s) more than %.2f percent different than expected!",
-                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
-            }
         });
     }
 

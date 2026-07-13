@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPropagatedCallFailure;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.maybeNext;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
@@ -20,15 +21,20 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
@@ -42,7 +48,7 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
  */
 @Singleton
 public class FrameRunner {
-    private final CustomGasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final EntityIdFactory entityIdFactory;
 
     /**
@@ -50,7 +56,7 @@ public class FrameRunner {
      */
     @Inject
     public FrameRunner(
-            @NonNull final CustomGasCalculator gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final HederaGasCalculatorImpl gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
         this.gasCalculator = gasCalculator;
         this.entityIdFactory = entityIdFactory;
     }
@@ -59,42 +65,54 @@ public class FrameRunner {
      * Runs the EVM transaction implied by the given {@link MessageFrame} to completion using the provided
      * {@link org.hyperledger.besu.evm.processor.AbstractMessageProcessor} implementations, and returns the result.
      *
-     * @param gasLimit the gas limit for the transaction
-     * @param frame the frame to run
-     * @param senderId the Hedera id of the sending account
-     * @param tracer the tracer to use
-     * @param messageCall the message call processor to use
+     * @param gasLimit         the gas limit for the transaction
+     * @param frame            the frame to run
+     * @param senderId         the Hedera id of the sending account
+     * @param tracer           the tracer to use
+     * @param messageCall      the message call processor to use
      * @param contractCreation the contract creation processor to use
+     * @param gasCharges       the gas charges of the transaction
      * @return the result of the transaction
      */
     public HederaEvmTransactionResult runToCompletion(
             final long gasLimit,
-            @NonNull AccountID senderId,
-            @NonNull MessageFrame frame,
-            @NonNull ActionSidecarContentTracer tracer,
-            @NonNull CustomMessageCallProcessor messageCall,
-            @NonNull ContractCreationProcessor contractCreation,
+            @NonNull final AccountID senderId,
+            @NonNull final MessageFrame frame,
+            @NonNull final ActionSidecarContentTracer tracer,
+            @NonNull final CustomMessageCallProcessor messageCall,
+            @NonNull final ContractCreationProcessor contractCreation,
+            @NonNull final GasCharges gasCharges,
             @NonNull HEVM hevm) {
-        var recipientAddress = frame.getRecipientAddress();
+        requireNonNull(frame);
+        requireNonNull(tracer);
+        requireNonNull(senderId);
+        requireNonNull(messageCall);
+        requireNonNull(contractCreation);
+
+        final var recipientAddress = frame.getRecipientAddress();
         // We compute the called contract's Hedera id up front because it could
         // self-destruct, preventing us from looking up its id after the fact
-        var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
+        final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
         tracer.traceOriginAction(frame);
 
-        if (hevm instanceof BonnevilleEVM bonneville) {
-            bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
-            runToCompletion(frame, tracer, messageCall, contractCreation);
-        } else {
-            // Now run the transaction implied by the frame
-            final var stack = frame.getMessageFrameStack();
-            while (!stack.isEmpty()) {
-                runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
+        try {
+            if (hevm instanceof BonnevilleEVM bonneville) {
+                bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
+                runToCompletion(frame, tracer, messageCall, contractCreation);
+            } else {
+                // Now run the transaction implied by the frame
+                final var stack = frame.getMessageFrameStack();
+                while (!stack.isEmpty()) {
+                    runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
+                }
             }
+        } catch (final HandleException e) {
+            haltFramesRemainingAfter(frame, e, tracer);
         }
         tracer.sanitizeTracedActions(frame);
 
         // And return the result, success or failure
-        final var gasUsed = effectiveGasUsed(gasLimit, frame);
+        final var gasUsed = effectiveGasUsed(gasLimit, frame, gasCharges);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
@@ -130,6 +148,39 @@ public class FrameRunner {
         }
     }
 
+    /**
+     * Resolves a {@link HandleException} that escaped a message processor (e.g., one re-thrown by a
+     * system contract mid-execution) as an exceptional halt of the entire run. Every frame still open
+     * on the message frame stack is halted with a reason preserving the exception's status, and its
+     * pending action is finalized; so the run completes through the normal lifecycle (action
+     * sanitization, gas accounting, commit) and still externalizes a failed result with that status.
+     *
+     * @param initialFrame the initial frame of the transaction
+     * @param exception the exception that escaped the frame execution machinery
+     * @param tracer the tracer whose action stack must be kept in sync with the frame stack
+     */
+    private void haltFramesRemainingAfter(
+            @NonNull final MessageFrame initialFrame,
+            @NonNull final HandleException exception,
+            @NonNull final ActionSidecarContentTracer tracer) {
+        final var haltReason = Optional.<ExceptionalHaltReason>of(new HandleExceptionHaltReason(exception.getStatus()));
+        final var actionSidecarsEnabled = hasActionSidecarsEnabled(initialFrame);
+        final var stack = initialFrame.getMessageFrameStack();
+        while (!stack.isEmpty()) {
+            final var openFrame = stack.removeFirst();
+            openFrame.setState(EXCEPTIONAL_HALT);
+            openFrame.setExceptionalHaltReason(haltReason);
+            if (actionSidecarsEnabled) {
+                tracer.traceNotExecuting(openFrame);
+            }
+        }
+        initialFrame.setState(EXCEPTIONAL_HALT);
+        initialFrame.setExceptionalHaltReason(haltReason);
+        // As with any exceptional halt, all remaining gas is consumed and refunds are forfeited
+        initialFrame.clearGasRemaining();
+        initialFrame.clearGasRefund();
+    }
+
     private void runToCompletion(
             @NonNull final MessageFrame frame,
             @NonNull final ActionSidecarContentTracer tracer,
@@ -158,15 +209,25 @@ public class FrameRunner {
         }
     }
 
-    private long effectiveGasUsed(final long gasLimit, @NonNull final MessageFrame frame) {
+    private long effectiveGasUsed(
+            final long gasLimit, @NonNull final MessageFrame frame, @NonNull final GasCharges gasCharges) {
         final var nominalGasUsed = gasLimit - frame.getRemainingGas();
 
-        // A gas refund limit as defined in EIP-3529
+        // Gas refund limit as defined in EIP-3529 (including any EIP-7702 refunds)
         final var nominalRefund = frame.getGasRefund();
         final var maxGasRefunded = nominalGasUsed / gasCalculator.getMaxRefundQuotient();
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
+        var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
 
-        final var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;
+        // This check is added according to https://eips.ethereum.org/EIPS/eip-7623. Issue
+        // https://github.com/hiero-ledger/hiero-consensus-node/issues/21553
+        // 1. `minimumGasUsed = max(intrinsicGas, floorGas)`
+        // 2. we can calculate `gasUsedAfterRefund` just after `execution_gas_used` will be calculated and refund will
+        // be applied
+        // 3. if `gasUsedAfterRefund < minimumGasUsed` we should charge `minimumGasUsed` instead.
+        if (gasUsedAfterRefund < gasCharges.minimumGasUsed()) {
+            gasUsedAfterRefund = gasCharges.minimumGasUsed();
+        }
 
         // Hedera-specific restriction: the transaction can't use less gas than a certain percentage of gasLimit
         final var maxRefundPercentOfGasLimit = contractsConfigOf(frame).maxRefundPercentOfGasLimit();

@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
@@ -28,8 +27,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class CryptoDeleteHandler implements TransactionHandler {
-    private final CryptoFeeBuilder usageEstimator = new CryptoFeeBuilder();
-
     /**
      * Default constructor for injection.
      */

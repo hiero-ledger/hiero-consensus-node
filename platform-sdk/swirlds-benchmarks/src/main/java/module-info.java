@@ -4,9 +4,8 @@ module com.swirlds.benchmarks {
 
     requires com.swirlds.config.api;
     requires com.swirlds.metrics.api;
-    requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.gossip.impl;
+    requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.model;
-
     requires static com.github.spotbugs.annotations;
 }

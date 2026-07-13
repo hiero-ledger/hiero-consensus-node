@@ -2,12 +2,12 @@
 package com.swirlds.platform.system;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.uptime.UptimeTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -45,14 +45,19 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     /**
      * Create a new platform monitor.
      *
-     * @param platformContext the platform context
-     * @param selfId          the ID of this node
+     * @param configuration the configuration
+     * @param metrics       the metrics
+     * @param time          the time source
+     * @param selfId        the ID of this node
      */
-    public DefaultPlatformMonitor(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
-        time = platformContext.getTime();
-        statusStateMachine =
-                new StatusStateMachine(platformContext.getConfiguration(), platformContext.getMetrics(), time);
-        uptimeTracker = new UptimeTracker(platformContext, selfId);
+    public DefaultPlatformMonitor(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId) {
+        this.time = time;
+        statusStateMachine = new StatusStateMachine(configuration, metrics, time);
+        uptimeTracker = new UptimeTracker(configuration, metrics, time, selfId);
         lastQuiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
         lastQuiescenceCommandTime = time.now();
     }
@@ -115,8 +120,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
      */
     @Nullable
     @Override
-    public PlatformStatus issNotification(@NonNull final List<IssNotification> notifications) {
-        if (notifications.stream().map(IssNotification::getIssType).anyMatch(CATASTROPHIC_ISS_TYPES::contains)) {
+    public PlatformStatus issNotification(@NonNull final IssNotification notification) {
+        if (CATASTROPHIC_ISS_TYPES.contains(notification.getIssType())) {
             return statusStateMachine.submitStatusAction(new CatastrophicFailureAction());
         }
         // don't change status for other types of ISSs

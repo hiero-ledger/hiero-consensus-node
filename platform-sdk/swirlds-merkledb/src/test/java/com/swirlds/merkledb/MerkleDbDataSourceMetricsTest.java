@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertDatabaseFolderDeleted;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertSomeDatabasesStillOpen;
@@ -114,7 +114,7 @@ class MerkleDbDataSourceMetricsTest extends AbstractFileManagerAwareTest {
         assertMetricValue("ds_offheap_dataSourceMb_" + dataSource.getTableName(), 16);
         assertNoMemoryForInternalList();
 
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig merkleDbConfig = DEFAULT_MERKLE_DB_CONFIG;
 
         dataSource.saveRecords(
                 firstLeafIndex,

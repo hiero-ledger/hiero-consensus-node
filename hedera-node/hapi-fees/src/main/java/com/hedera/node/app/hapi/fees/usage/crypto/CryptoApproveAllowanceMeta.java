@@ -5,10 +5,10 @@ import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.conv
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.convertToNftMap;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.convertToTokenMap;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.countSerials;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.CRYPTO_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_ALLOWANCE_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TOKEN_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.CRYPTO_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.TOKEN_ALLOWANCE_SIZE;
 
 import com.google.common.base.MoreObjects;
 import com.hederahashgraph.api.proto.java.CryptoApproveAllowanceTransactionBody;
