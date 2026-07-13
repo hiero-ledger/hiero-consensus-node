@@ -26,7 +26,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -86,9 +85,7 @@ public final class VirtualMapLearner {
     private final ConcurrentBlockingIterator<VirtualLeafBytes> reconnectIterator =
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
 
-    private final CompletableFuture<Hash> reconnectHashingFuture = new CompletableFuture<>();
-    private final AtomicBoolean reconnectHashingStarted = new AtomicBoolean(false);
-
+    private volatile CompletableFuture<Hash> reconnectHashingFuture;
     private volatile FutureTask<Void> leafDeletionTask;
 
     // Tracks current stage of the reconnect process
@@ -222,8 +219,6 @@ public final class VirtualMapLearner {
         // May block if the hashing thread is slower than the incoming data rate.
         try {
             reconnectIterator.supply(leaf);
-        } catch (final MerkleSynchronizationException e) {
-            throw e;
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new MerkleSynchronizationException(
@@ -259,6 +254,7 @@ public final class VirtualMapLearner {
 
         logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
+        reconnectIterator.close();
         waitForLeafDeletionToComplete();
         waitForHashingToComplete();
         reconnectFlusher.finish();
@@ -366,27 +362,19 @@ public final class VirtualMapLearner {
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
 
-        new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("virtualmap")
-                .setThreadName("hasher")
-                .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
+        reconnectHashingFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),
                         hashChunkPreloader,
                         reconnectIterator,
                         firstLeafPath,
                         lastLeafPath,
-                        hashListener)))
-                .setExceptionHandler((_, exception) -> {
+                        hashListener)
+                .exceptionally(throwable -> {
+                    // close iterator to fail fast
                     reconnectIterator.close();
-                    final var message = "Failed to hash during reconnect";
-                    logger.error(EXCEPTION.getMarker(), message, exception);
-                    reconnectHashingFuture.completeExceptionally(
-                            new MerkleSynchronizationException(message, exception));
-                })
-                .build()
-                .start();
+                    throw new MerkleSynchronizationException(throwable);
+                });
 
-        reconnectHashingStarted.set(true);
         logger.info(RECONNECT.getMarker(), "Reconnect hashing thread started");
     }
 
@@ -395,17 +383,22 @@ public final class VirtualMapLearner {
      * Called by {@link #finish()} after all nodes have been signalled as received.
      */
     private void waitForHashingToComplete() {
+        CompletableFuture<Hash> hashingFuture = reconnectHashingFuture;
+        if (hashingFuture == null) {
+            logger.warn(RECONNECT.getMarker(), "Hashing thread was never started");
+            return;
+        }
+
         try {
-            reconnectIterator.close();
-            if (reconnectHashingStarted.get()) {
-                logger.info(RECONNECT.getMarker(), "Waiting for reconnect hashing to complete");
-                finalHash = reconnectHashingFuture.get();
-                logger.info(RECONNECT.getMarker(), "Reconnect hashing completed");
-            } else {
-                logger.warn(RECONNECT.getMarker(), "Hashing thread was never started");
-            }
+            logger.info(RECONNECT.getMarker(), "Waiting for reconnect hashing to complete");
+            finalHash = hashingFuture.get();
+            logger.info(RECONNECT.getMarker(), "Reconnect hashing completed");
         } catch (final ExecutionException e) {
-            throw new MerkleSynchronizationException(e);
+            if (e.getCause() instanceof MerkleSynchronizationException mex) {
+                throw mex;
+            } else {
+                throw new MerkleSynchronizationException(e);
+            }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new MerkleSynchronizationException(e);
@@ -472,10 +465,13 @@ public final class VirtualMapLearner {
     public void abortOnException() {
         logger.info(RECONNECT.getMarker(), "Aborting reconnect and cleaning up resources");
 
+        reconnectIterator.close();
         if (leafDeletionTask != null) {
             leafDeletionTask.cancel(true);
         }
-        reconnectIterator.close();
+        if (reconnectHashingFuture != null) {
+            reconnectHashingFuture.cancel(true);
+        }
         try {
             dataSource.close(false);
         } catch (final Exception e) {

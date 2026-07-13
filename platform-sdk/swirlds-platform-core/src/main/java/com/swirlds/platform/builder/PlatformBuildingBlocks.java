@@ -25,7 +25,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.SavedStateController;
+import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusActionSubmitter;
@@ -56,8 +56,6 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  *                                               platform status management is handled by the wiring framework
  * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
  *                                               reconnect
- * @param firstPlatform                          if this is the first platform being built (there is static setup that
- *                                               needs to be done, long term plan is to stop using static variables)
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
  * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
@@ -87,7 +85,6 @@ public record PlatformBuildingBlocks(
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
         @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-        boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
         @NonNull FallenBehindMonitor fallenBehindMonitor,

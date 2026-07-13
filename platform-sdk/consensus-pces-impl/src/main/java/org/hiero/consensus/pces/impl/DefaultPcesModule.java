@@ -26,6 +26,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
@@ -38,7 +39,6 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
@@ -75,7 +75,7 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
@@ -128,7 +128,7 @@ public class DefaultPcesModule implements PcesModule {
                 time,
                 pcesReplayerWiring.eventOutput(),
                 flushPrimaryPipeline,
-                latestImmutableStateSupplier,
+                replayProgressSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
 

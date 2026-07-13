@@ -6,7 +6,7 @@ import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATIO
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignedStateToDisk;
+import static org.hiero.consensus.state.SignedStateFileWriter.writeSignedStateToDisk;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,7 +45,7 @@ import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig_;
-import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
