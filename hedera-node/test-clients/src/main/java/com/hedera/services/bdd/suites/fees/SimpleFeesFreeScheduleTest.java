@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumContractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -215,6 +216,32 @@ public class SimpleFeesFreeScheduleTest {
 
     private static final String DEPOSIT = "deposit";
     public static final long depositAmount = 20_000L;
+
+    @HapiTest
+    final Stream<DynamicTest> runEthereumContractCreateWithFreeFees() {
+        final AtomicReference<ByteString> originalSimpleFeeSchedule = new AtomicReference<>();
+        return hapiTest(
+                withOpContext((spec, opLog) -> saveFeeSchedule(spec, originalSimpleFeeSchedule)),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, simpleFeesWithEverythingFree())),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via("autoAccount"),
+                getTxnRecord("autoAccount").andAllChildRecords(),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(ResponseCodeEnum.SUCCESS)
+                        .via("ethCreateTxn"),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                validateChargedUsdWithinWithTxnSize("ethCreateTxn", txnSize -> 0, 0.01),
+                withOpContext((spec, opLog) -> swapSimpleFeeSchedule(spec, originalSimpleFeeSchedule.get())));
+    }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesAreFree"})
     final Stream<DynamicTest> depositSuccess() {
