@@ -102,6 +102,17 @@ class CustomGasChargingTest {
     }
 
     @Test
+    void freeFeesSkipGasCollectionButStillReturnIntrinsicGas() {
+        // shouldChargeGasFees=false simulates the free fees scenario; gasPrice is still non-zero
+        final var context = new HederaEvmContext(
+                NETWORK_GAS_PRICE, false, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
+        givenWellKnownIntrinsicGasCost();
+        final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
+        verifyNoInteractions(worldUpdater);
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+    }
+
+    @Test
     void staticCallsDoNotRefundGas() {
         subject.maybeRefundGiven(
                 GAS_LIMIT / 2,
