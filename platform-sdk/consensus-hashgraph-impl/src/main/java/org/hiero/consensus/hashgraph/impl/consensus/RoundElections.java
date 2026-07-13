@@ -2,7 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+import static org.hiero.consensus.model.event.PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,7 +38,7 @@ public class RoundElections {
      */
     private final List<CandidateWitness> elections = new ArrayList<>();
     /** The minimum sequence number of all the judges. Only set once the judges are found. */
-    private long minSeqNum = SEQUENCE_NUMBER_UNDEFINED;
+    private long minSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
     /** the minimum birth round of all the judges, this is only set once the judges are found */
     private long minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
 
@@ -104,7 +104,7 @@ public class RoundElections {
      * @return the minimum sequence number of all the judges(unique famous witnesses) in this round
      */
     public long getMinSeqNum() {
-        if (minSeqNum == SEQUENCE_NUMBER_UNDEFINED) {
+        if (minSeqNum == UNASSIGNED_SEQUENCE_NUMBER) {
             throw new IllegalStateException("Cannot provide the minimum sequence number until all judges are found");
         }
         return minSeqNum;
@@ -190,7 +190,7 @@ public class RoundElections {
         round++;
         numUnknownFame.set(0);
         elections.clear();
-        minSeqNum = SEQUENCE_NUMBER_UNDEFINED;
+        minSeqNum = UNASSIGNED_SEQUENCE_NUMBER;
         minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
     }
 

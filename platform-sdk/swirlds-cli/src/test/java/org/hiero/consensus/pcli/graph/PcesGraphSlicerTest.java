@@ -44,7 +44,7 @@ public class PcesGraphSlicerTest {
     private static final List<NodeId> NODE_IDS =
             IntStream.range(START_NODE_ID, END_NODE_ID).mapToObj(NodeId::of).toList();
     private static final Long MINIMUM_BIRTHROUND = 60L;
-    private static final int MIN_SEQUENCE_NUM = 200;
+    private static final int MIN_NGEN = 100;
 
     @TempDir
     private Path baseDir;
@@ -128,9 +128,7 @@ public class PcesGraphSlicerTest {
     }
 
     private static List<EventGraphPipeline.EventFilter> filters() {
-        return List.of(
-                event -> event.getBirthRound() >= MINIMUM_BIRTHROUND,
-                event -> event.getSequenceNumber() >= MIN_SEQUENCE_NUM);
+        return List.of(event -> event.getBirthRound() >= MINIMUM_BIRTHROUND, event -> event.getNGen() >= MIN_NGEN);
     }
 
     private static EventCore overrideBirthround(@NonNull final EventCore event) {
