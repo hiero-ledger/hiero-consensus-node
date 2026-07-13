@@ -375,16 +375,21 @@ jobs:
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
+      - name: Checkout NLG
+        if: false
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/network-load-generator
+          token: ${{ secrets.perf_ghp }}
+          ref: main
+          path: "./network-load-generator"
+
       - name: Build NLG test
         if: false
-        env:
-          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
           set +x
           set +e
-          git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/network-load-generator network-load-generator
           cd network-load-generator
-          git checkout main
           ./gradlew --no-daemon clean assemble
           cd build/libs
           tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
