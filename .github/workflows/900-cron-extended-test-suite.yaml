@@ -701,7 +701,7 @@ jobs:
       # Notification routing:
       #   test failures       -> citr-operations (detailed)
       #   environment         -> citr-operations (summary) + citr-failures (detailed)
-      #   canceled            -> citr-operations (summary) + citr-failures (summary)
+      #   canceled            -> citr-operations (summary)
       - name: Notify test failure detailed (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
@@ -734,15 +734,6 @@ jobs:
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload_summary.json
-
-      - name: Notify cancelled summary (citr-failures)
-        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
-        with:
-          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
