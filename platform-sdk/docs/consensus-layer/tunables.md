@@ -89,7 +89,7 @@ Selects consensus module implementations via ServiceLoader. Each value is a JPMS
 
 ## `platformStatus.*` — PlatformStatusConfig
 
-Module: `swirlds-platform-core`. Source: [PlatformStatusConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/status/PlatformStatusConfig.java).
+Module: `consensus-utility`. Source: [PlatformStatusConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java).
 
 |   ID    |                        Key                         |   Type   | Default |                                                Effect                                                 | Range | Fragility |
 |---------|----------------------------------------------------|----------|---------|-------------------------------------------------------------------------------------------------------|-------|-----------|
