@@ -65,6 +65,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
         return hapiTest(sourcingContextual(spec -> {
             if (hasWrapsArtifactsPath()) {
+                StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
                         withExternalizedLedgerIdFromHgcaaLog(
