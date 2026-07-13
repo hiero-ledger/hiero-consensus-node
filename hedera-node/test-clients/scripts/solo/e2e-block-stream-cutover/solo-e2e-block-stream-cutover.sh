@@ -122,11 +122,6 @@ Environment:
                             Bound on waiting for the mirror-1-restjava rollout in Step 13 (default: 300)
   TCK_TEST_TIMEOUT_SECS      Timeout for the full suite / each test:file invocation (default: 3600)
   TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 13 (default: 900)
-  TCK_APPLY_NODE_TEST_PATCH  true|false (default: true). Applies resources/tck-patches/* to a
-                            freshly cloned TCK so node-service tests sign createNode with the
-                            node account's key and avoid the hardcoded 0.0.4 (which is a genesis
-                            node account on multi-node networks). Skipped for TCK_REPO_PATH.
-  TCK_NODE_TEST_PATCH_FILE   Override path of the node-test workaround patch file.
 EOF
       exit 0
       ;;
@@ -362,12 +357,6 @@ MIRROR_RESTJAVA_LOCAL_PORT="${MIRROR_RESTJAVA_LOCAL_PORT:-8084}"
 MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
 TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
 TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
-# Workaround patch for the TCK node-service tests on multi-node networks: the stock v0.11.0
-# tests don't sign createNode with the node account's key (NodeCreateHandler requires it →
-# INVALID_SIGNATURE) and hardcode account 0.0.4, which is genesis-linked to node2 here
-# (ACCOUNT_IS_LINKED_TO_A_NODE). Candidate upstream fix; drop once released in a TCK tag.
-TCK_APPLY_NODE_TEST_PATCH="${TCK_APPLY_NODE_TEST_PATCH:-true}"
-TCK_NODE_TEST_PATCH_FILE="${TCK_NODE_TEST_PATCH_FILE:-${SCRIPT_DIR}/resources/tck-patches/v0.11.0-node-tests-sign-with-node-account-key.patch}"
 # ENABLE_TCK_TESTS is deliberately not defaulted here: the START_STEP block below needs to
 # distinguish "unset" (auto-implied by START_STEP=13) from an explicit false.
 
@@ -3768,26 +3757,6 @@ clone_repo_at_tag() {
   fi
 }
 
-# Applies the node-service workaround patch to a freshly cloned TCK (see the
-# TCK_APPLY_NODE_TEST_PATCH config comment). Skipped for TCK_REPO_PATH checkouts (never
-# git-mutate a user's tree). Non-fatal when the patch no longer applies (e.g. a newer
-# TCK_VERSION whose sources drifted): warns and runs unpatched.
-apply_tck_node_test_patch() {
-  if [[ "${TCK_APPLY_NODE_TEST_PATCH}" != "true" ]]; then
-    return 0
-  fi
-  if [[ ! -f "${TCK_NODE_TEST_PATCH_FILE}" ]]; then
-    echo "WARNING: TCK node-test patch not found: ${TCK_NODE_TEST_PATCH_FILE}; node-service tests will fail on multi-node networks" >&2
-    return 0
-  fi
-  if git -C "${TCK_REPO_DIR}" apply --check "${TCK_NODE_TEST_PATCH_FILE}" >/dev/null 2>&1; then
-    git -C "${TCK_REPO_DIR}" apply "${TCK_NODE_TEST_PATCH_FILE}"
-    echo "Applied TCK node-test workaround patch: node tests now sign with the node account's key and avoid the hardcoded 0.0.4 ($(basename "${TCK_NODE_TEST_PATCH_FILE}"))"
-  else
-    echo "WARNING: TCK node-test patch does not apply to this checkout (${TCK_VERSION:-default branch}); continuing unpatched — node-service tests may fail with INVALID_SIGNATURE" >&2
-  fi
-}
-
 # Resolves TCK_REPO_DIR / JS_SDK_REPO_DIR: reuse the *_REPO_PATH checkouts as-is when given,
 # otherwise clone the *_VERSION tags (default: the XTS pins from .citr-env) into WORK_DIR.
 prepare_tck_repos() {
@@ -3799,14 +3768,10 @@ prepare_tck_repos() {
     if [[ -n "${TCK_VERSION}" ]]; then
       echo "NOTE: TCK_REPO_PATH is set; using the checkout as-is (TCK_VERSION=${TCK_VERSION} ignored)"
     fi
-    if [[ "${TCK_APPLY_NODE_TEST_PATCH}" == "true" ]]; then
-      echo "NOTE: TCK_REPO_PATH is set; skipping the node-test workaround patch (fresh clones only)"
-    fi
     TCK_REPO_DIR="${TCK_REPO_PATH}"
   else
     clone_repo_at_tag "https://github.com/hiero-ledger/hiero-sdk-tck.git" "${TCK_CLONE_DIR}" "${TCK_VERSION}" || return 1
     TCK_REPO_DIR="${TCK_CLONE_DIR}"
-    apply_tck_node_test_patch
   fi
 
   if [[ -n "${JS_SDK_REPO_PATH}" ]]; then
