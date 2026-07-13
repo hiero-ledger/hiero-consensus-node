@@ -1031,20 +1031,24 @@ jobs:
           # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
           RAYON_NUM_THREADS: "4"
           HAPI_TEST_NODE_POOL_MIB: "12288"
-        # (TEMPORARY) Memory watchdog. The runner container's cgroup cap is 64 GiB with no
-        # swap; the ~32-min runner death with no in-JVM error points at memory, and a
-        # container OOM kills the runner agent too (no logs). This samples every 5s and, at
-        # 60 GiB, dumps the memory breakdown + top RSS and kills the JVMs so the agent stays
-        # up and the logs + peak survive. Remove before merge.
+        # (TEMPORARY) Memory watchdog. The runner container's cgroup cap is 64 GiB with no swap.
+        # The WRAPS prover offloads its large allocations into per-node, disk-backed mmap swap files
+        # (TSS_LIB_WRAPS_SWAP_FILE), which live in RECLAIMABLE page cache -- counted by memory.current
+        # but dropped/written-back by the kernel before any OOM. So we gate on `anon` (real,
+        # unreclaimable process memory) from memory.stat, NOT memory.current, otherwise we kill a
+        # healthy job over page cache. At 50 GiB anon (5x the ~10 GiB healthy peak) we dump the
+        # breakdown + top RSS and kill the JVMs so the agent stays up and logs survive instead of a
+        # silent container OOM. Remove before merge.
         run: |
-          ( hi=$((60 * 1024 * 1024 * 1024))
+          ( hi=$((50 * 1024 * 1024 * 1024))
             peak=0
             while true; do
+              anon=$(awk '/^anon /{print $2; exit}' /sys/fs/cgroup/memory.stat 2>/dev/null || echo 0)
               cur=$(cat /sys/fs/cgroup/memory.current 2>/dev/null || echo 0)
-              [ "$cur" -gt "$peak" ] && peak=$cur
-              echo "[rsample $(date -u +%H:%M:%S)] mem.current=${cur} peak=${peak} loadavg=$(cut -d' ' -f1-3 /proc/loadavg)"
-              if [ "$cur" -gt "$hi" ]; then
-                echo "::error::mem.current=${cur} peak=${peak} exceeded 60 GiB; dumping breakdown and killing JVMs before the 64 GiB container OOM"
+              [ "$anon" -gt "$peak" ] && peak=$anon
+              echo "[rsample $(date -u +%H:%M:%S)] anon=${anon} peak_anon=${peak} mem.current=${cur} loadavg=$(cut -d' ' -f1-3 /proc/loadavg)"
+              if [ "$anon" -gt "$hi" ]; then
+                echo "::error::anon=${anon} peak=${peak} exceeded 50 GiB; dumping breakdown and killing JVMs before the 64 GiB container OOM"
                 head -n 20 /sys/fs/cgroup/memory.stat 2>/dev/null || true
                 ps -eo pid,rss,comm --sort=-rss 2>/dev/null | head -n 15 || true
                 pkill -9 java 2>/dev/null || true
