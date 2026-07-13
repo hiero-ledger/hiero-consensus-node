@@ -12,7 +12,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
 
 public record PendingCreation(
-        @NonNull Address address, long number, long parentNumber, @Nullable ContractCreateTransactionBody body) {
+        @NonNull Address address,
+        long number,
+        long parentNumber,
+        @Nullable ContractCreateTransactionBody body) {
     public PendingCreation {
         requireNonNull(address);
     }

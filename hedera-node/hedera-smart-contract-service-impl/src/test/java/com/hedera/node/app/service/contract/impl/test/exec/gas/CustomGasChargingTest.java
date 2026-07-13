@@ -18,7 +18,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKno
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
@@ -35,7 +36,6 @@ import com.hedera.node.app.service.contract.impl.records.ContractOperationStream
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,7 +63,7 @@ class CustomGasChargingTest {
     private HederaWorldUpdater worldUpdater;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     private CustomGasCharging subject;
 
@@ -96,6 +96,7 @@ class CustomGasChargingTest {
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.minimumGasUsed());
     }
 
     @Test
@@ -416,12 +417,12 @@ class CustomGasChargingTest {
     }
 
     private void givenWellKnownIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation), anyLong()))
-                .willReturn(TestHelpers.INTRINSIC_GAS);
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), eq(isCreation), any(), any()))
+                .willReturn(TestHelpers.NO_ALLOWANCE_CHARGING_RESULT);
     }
 
     private void givenExcessiveIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionIntrinsicGasCost(any(), eq(isCreation), anyLong()))
-                .willReturn(100_000_000L);
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), eq(isCreation), any(), any()))
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(100_000_000L));
     }
 }
