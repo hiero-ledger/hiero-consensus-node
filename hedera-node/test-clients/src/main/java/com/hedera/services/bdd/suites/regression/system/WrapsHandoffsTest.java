@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -56,9 +55,12 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 1)
     static SpecAccount NODE1_STAKER;
 
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
+    static SpecAccount NODE2_STAKER;
+
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo());
+        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo());
     }
 
     @HapiTest
@@ -97,8 +99,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
                                         LOG_POLL_INTERVAL,
                                         () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
                                         })
-                                .loggingOff(),
-                        waitUntilNextBlocks(5).withBackgroundTraffic(true));
+                                .loggingOff());
             } else {
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(false);
                 return noOp();
@@ -126,6 +127,6 @@ public class WrapsHandoffsTest implements LifecycleTest {
     }
 
     private static List<SpecAccount> stakers() {
-        return List.of(NODE0_STAKER, NODE1_STAKER);
+        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER);
     }
 }
