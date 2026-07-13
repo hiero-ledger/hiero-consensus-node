@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
