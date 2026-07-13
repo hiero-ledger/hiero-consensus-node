@@ -35,7 +35,6 @@ import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
 import com.hedera.node.app.service.networkadmin.impl.utils.NetworkAdminServiceUtil;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
@@ -58,12 +57,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
-    private final CryptoOpsUsage cryptoOpsUsage;
 
     @Inject
-    public NetworkGetAccountDetailsHandler(final CryptoOpsUsage cryptoOpsUsage) {
-        this.cryptoOpsUsage = cryptoOpsUsage;
-    }
+    public NetworkGetAccountDetailsHandler() {}
 
     @Override
     @NonNull

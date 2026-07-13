@@ -28,6 +28,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
@@ -105,6 +106,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     private AtomicInteger globalActiveStreamingConnectionCount;
     private ExecutorService realExecutor;
     private BlockNodeStats stats;
+    private BlockStreamingObs streamingObs;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -119,6 +121,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         metrics = mock(BlockStreamMetrics.class);
         requestCall = mock(GrpcCall.class);
         pipelineExecutor = mock(ExecutorService.class);
+        streamingObs = mock(BlockStreamingObs.class);
 
         // Set up default behavior for pipelineExecutor using a real executor
         realExecutor = Executors.newCachedThreadPool();
@@ -161,7 +164,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 pipelineExecutor,
                 null,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         // Unlike unit tests, we do NOT set a fake worker thread here
         // This allows real worker threads to be spawned during tests
@@ -242,7 +246,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 pipelineExecutor,
                 null,
                 localFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         // Ensure publish stream returns pipeline
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
@@ -305,7 +310,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 pipelineExecutor,
                 null,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -407,7 +413,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 pipelineExecutor,
                 null,
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -708,7 +715,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 pipelineExecutor,
                 blockNumber, // start streaming with block 10
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
 
@@ -774,7 +782,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 pipelineExecutor,
                 blockNumber, // start streaming with block 10
                 clientFactory,
-                NODE_ID);
+                NODE_ID,
+                streamingObs);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
 

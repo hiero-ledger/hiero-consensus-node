@@ -15,9 +15,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.state.schedule.Schedule;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
@@ -28,9 +25,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -39,8 +34,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ScheduleDeleteHandler extends AbstractScheduleHandler implements TransactionHandler {
-    private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
-
     @Inject
     public ScheduleDeleteHandler(@NonNull final ScheduleFeeCharging feeCharging) {
         super(feeCharging);
@@ -112,21 +105,6 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
             return schedule;
         } catch (final PreCheckException e) {
             throw new HandleException(e.responseCode());
-        }
-    }
-
-    private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            @NonNull final SigValueObj svo,
-            @Nullable final Schedule schedule,
-            final long scheduledTxExpiryTimeSecs) {
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        if (schedule != null) {
-            return scheduleOpsUsage.scheduleDeleteUsage(txn, sigUsage, schedule.calculatedExpirationSecond());
-        } else {
-            final long latestExpiry =
-                    txn.getTransactionID().getTransactionValidStart().getSeconds() + scheduledTxExpiryTimeSecs;
-            return scheduleOpsUsage.scheduleDeleteUsage(txn, sigUsage, latestExpiry);
         }
     }
 }

@@ -15,8 +15,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
-import com.hedera.hapi.node.transaction.CustomFee;
-import com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -32,7 +30,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -150,44 +147,5 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         validateTrue(!isEmpty(token.feeScheduleKey()), TOKEN_HAS_NO_FEE_SCHEDULE_KEY);
         validateTrue(op.customFees().size() <= config.maxCustomFeesAllowed(), CUSTOM_FEES_LIST_TOO_LONG);
         return token;
-    }
-
-    private int currentFeeScheduleSize(List<CustomFee> feeSchedule, final TokenOpsUsage tokenOpsUsage) {
-        int numFixedHbarFees = 0;
-        int numFixedHtsFees = 0;
-        int numFractionalFees = 0;
-        int numRoyaltyNoFallbackFees = 0;
-        int numRoyaltyHtsFallbackFees = 0;
-        int numRoyaltyHbarFallbackFees = 0;
-        for (var fee : feeSchedule) {
-            if (fee.fee().kind().equals(CustomFee.FeeOneOfType.FIXED_FEE)) {
-                if (fee.fixedFee().hasDenominatingTokenId()) {
-                    numFixedHtsFees++;
-                } else {
-                    numFixedHbarFees++;
-                }
-            } else if (fee.fee().kind().equals(CustomFee.FeeOneOfType.FRACTIONAL_FEE)) {
-                numFractionalFees++;
-            } else {
-                final var royaltyFee = fee.royaltyFee();
-                final var fallbackFee = royaltyFee.fallbackFee();
-                if (fallbackFee != null) {
-                    if (fallbackFee.hasDenominatingTokenId()) {
-                        numRoyaltyHtsFallbackFees++;
-                    } else {
-                        numRoyaltyHbarFallbackFees++;
-                    }
-                } else {
-                    numRoyaltyNoFallbackFees++;
-                }
-            }
-        }
-        return tokenOpsUsage.bytesNeededToRepr(
-                numFixedHbarFees,
-                numFixedHtsFees,
-                numFractionalFees,
-                numRoyaltyNoFallbackFees,
-                numRoyaltyHtsFallbackFees,
-                numRoyaltyHbarFallbackFees);
     }
 }

@@ -11,7 +11,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -211,7 +210,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 delayStorageFuzzRangePercent,
                 delayNetworkMicroseconds,
                 delayNetworkFuzzRangePercent,
-                new NodeId(),
                 configuration);
     }
 

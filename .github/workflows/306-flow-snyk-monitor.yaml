@@ -49,6 +49,9 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: npm install -g snyk
 
+      - name: Disable Gradle Isolated Projects
+        run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
+
       - name: Run Snyk Monitor
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

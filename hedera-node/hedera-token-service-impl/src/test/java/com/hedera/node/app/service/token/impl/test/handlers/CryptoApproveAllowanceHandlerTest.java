@@ -28,6 +28,7 @@ import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
@@ -342,6 +343,95 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         assertThat(writableNftStore.get(nftIdSl2).ownerId()).isEqualTo(ownerId);
         assertThat(writableNftStore.get(nftIdSl1).spenderId()).isEqualTo(spenderId);
         assertThat(writableNftStore.get(nftIdSl2).spenderId()).isEqualTo(spenderId);
+    }
+
+    @Test
+    void delegatingSpenderCannotRevokeAnotherSpendersApproveForAll() {
+        final var victimApproval = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(spenderId)
+                .build();
+        final var delegatingApproval = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(delegatingSpenderId)
+                .build();
+        // The owner has granted approve-for-all to both the (victim) spender and the delegating spender.
+        writableAccountStore.put(writableAccountStore
+                .getAccountById(ownerId)
+                .copyBuilder()
+                .approveForAllNftAllowances(victimApproval, delegatingApproval)
+                .build());
+
+        // The delegating spender sub-delegates individual serials to the (victim) spender with approvedForAll=false.
+        // This must NOT strip the victim's owner-granted approve-for-all (nftAllowanceWithDelegatingSpender uses
+        // spender=spenderId, delegatingSpender=delegatingSpenderId, approvedForAll=false, serials=[1, 2]).
+        final var txn = cryptoApproveAllowanceTransaction(payerId, true, List.of(), List.of(), List.of());
+        given(handleContext.body()).willReturn(txn);
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .containsExactlyInAnyOrder(victimApproval, delegatingApproval);
+
+        subject.handle(handleContext);
+
+        final var modifiedOwner = writableAccountStore.getAccountById(ownerId);
+        // Both approve-for-all grants remain intact - the delegating spender cannot revoke a peer's grant.
+        assertThat(modifiedOwner.approveForAllNftAllowances())
+                .containsExactlyInAnyOrder(victimApproval, delegatingApproval);
+        // The legitimate per-serial sub-delegation still takes effect.
+        assertThat(writableNftStore.get(nftIdSl1).spenderId()).isEqualTo(spenderId);
+        assertThat(writableNftStore.get(nftIdSl2).spenderId()).isEqualTo(spenderId);
+    }
+
+    @Test
+    void delegatingSpenderWithEmptySerialsIsRejected() {
+        // Owner has granted approve-for-all to the delegating spender, so it is otherwise a valid delegating spender.
+        writableAccountStore.put(writableAccountStore
+                .getAccountById(ownerId)
+                .copyBuilder()
+                .approveForAllNftAllowances(AccountApprovalForAllAllowance.newBuilder()
+                        .tokenId(nonFungibleTokenId)
+                        .spenderId(delegatingSpenderId)
+                        .build())
+                .build());
+
+        // A delegated allowance with no serials can accomplish nothing (it is the shape of the exploit) and must be
+        // rejected rather than silently no-op'd.
+        final var delegatedWithNoSerials = NftAllowance.newBuilder()
+                .owner(ownerId)
+                .spender(spenderId)
+                .tokenId(nonFungibleTokenId)
+                .approvedForAll(Boolean.FALSE)
+                .delegatingSpender(delegatingSpenderId)
+                .build();
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId, false, List.of(), List.of(), List.of(delegatedWithNoSerials));
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(EMPTY_ALLOWANCES));
+    }
+
+    @Test
+    void ownerCanRevokeApproveForAllWithEmptySerials() {
+        // A non-delegated approvedForAll=false with empty serials is the legitimate way an owner revokes a blanket
+        // grant - the new delegated-empty-serials guard must NOT reject it. (Owner already holds a single
+        // approve-for-all grant to spenderId from the base setup.)
+        final var revoke = NftAllowance.newBuilder()
+                .owner(ownerId)
+                .spender(spenderId)
+                .tokenId(nonFungibleTokenId)
+                .approvedForAll(Boolean.FALSE)
+                .build();
+        final var txn = cryptoApproveAllowanceTransaction(payerId, false, List.of(), List.of(), List.of(revoke));
+        given(handleContext.body()).willReturn(txn);
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .hasSize(1);
+
+        // Must not throw EMPTY_ALLOWANCES; it should simply remove the owner's blanket grant.
+        subject.handle(handleContext);
+
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .isEmpty();
     }
 
     @Test

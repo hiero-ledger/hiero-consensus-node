@@ -37,6 +37,7 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.hiero.consensus.state.test.fixtures")
     requires("com.esaulpaugh.headlong")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")
