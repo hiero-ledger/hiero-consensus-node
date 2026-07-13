@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Quiescence
-last_reviewed: 2026-06-08
+last_reviewed: 2026-07-13
 ---
 
 # Quiescence

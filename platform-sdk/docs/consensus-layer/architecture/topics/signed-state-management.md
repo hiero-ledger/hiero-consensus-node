@@ -269,8 +269,8 @@ the component framework it also crosses scheduler queues, and every
 fan-out from one wire to multiple listeners must mint one reservation
 per listener so that the fastest consumer cannot release the last
 reservation while a slower consumer is still waiting in queue. Three
-`AdvancedTransformation` implementations in
-`com.swirlds.platform.wiring` enforce this:
+`AdvancedTransformation` implementations (in `consensus-state` and
+`consensus-transaction-handling`) enforce this:
 
 - [`SignedStateReserver`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/utils/SignedStateReserver.java)
   — fans out a `ReservedSignedState`.
@@ -358,13 +358,6 @@ behavior are covered in [iss-detection.md](iss-detection.md).
 The proposal at
 [`Consensus-Layer.md`](../../../proposals/consensus-layer/Consensus-Layer.md)
 places signed-state lifecycle entirely under Execution. Current code
-reflects a partial move: the runtime types (`SignedState`,
-`ReservedSignedState`, `SignedStateReference`, `StateToDiskReason`,
-`DefaultStateGarbageCollector`, `StateConfig`) live in the
-`consensus-state` module under the `org.hiero.consensus.state` package.
-File I/O and snapshot orchestration (`SignedStateFileWriter` /
-`SignedStateFileReader`, `SignedStateFilePath`, `SavedStateMetadata`,
-`StateDumpRequest`, `DefaultStateSignatureCollector`,
-`DefaultSavedStateController`) remain in `swirlds-platform-core` under
-`com.swirlds.platform.state.snapshot` and
-`com.swirlds.platform.components`.
+reflects a partial move: the signed-state types and machinery described
+above now live in the `consensus-state` module, but have not yet moved
+to Execution.
