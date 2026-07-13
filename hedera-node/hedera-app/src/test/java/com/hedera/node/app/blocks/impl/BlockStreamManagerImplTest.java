@@ -35,7 +35,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -312,9 +311,10 @@ class BlockStreamManagerImplTest {
     @Test
     void recoversAllOnDiskPendingBlocksWhenNoneFail() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
+        // A fresh writer is created per recovered block, mirroring production's per-block writerSupplier
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
-                () -> aWriter,
+                () -> mock(BlockItemWriter.class),
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
@@ -333,14 +333,30 @@ class BlockStreamManagerImplTest {
         assertEquals(
                 List.of(100L, 101L, 102L),
                 recovered.stream().map(PendingBlock::number).toList());
+        // Each recovered block gets its own writer from the supplier
+        assertEquals(3, recovered.stream().map(PendingBlock::writer).distinct().count());
     }
 
     @Test
     void recoversOnlyContiguousSuffixWhenAnOnDiskPendingBlockFailsToRecover() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
+        // A fresh writer is created per block; the writer that re-creates #101 fails, so #100 must be discarded
+        // as well or the pending block queue would have a gap that breaks indirect proof generation — only the
+        // contiguous suffix [#102, #103] is provable
+        final List<BlockItemWriter> writers = new ArrayList<>();
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
-                () -> aWriter,
+                () -> {
+                    final var writer = mock(BlockItemWriter.class);
+                    // lenient: only the writer that opens #101 actually throws; the others are handed out but
+                    // never asked to open #101, and strict stubbing would otherwise flag that as unnecessary
+                    lenient()
+                            .doThrow(new IllegalStateException("disk failure"))
+                            .when(writer)
+                            .openBlock(101L);
+                    writers.add(writer);
+                    return writer;
+                },
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
@@ -352,10 +368,6 @@ class BlockStreamManagerImplTest {
                 quiescedHeartbeat,
                 metrics,
                 streamingObs);
-        // Block #101 fails to be re-created, so #100 must be discarded as well or the pending block queue would
-        // have a gap that breaks indirect proof generation; only the contiguous suffix [#102, #103] is provable
-        doNothing().when(aWriter).openBlock(anyLong());
-        doThrow(new IllegalStateException("disk failure")).when(aWriter).openBlock(101L);
 
         final var recovered = subject.recoverableSuffixOf(List.of(
                 onDiskPendingBlock(100L),
@@ -366,7 +378,10 @@ class BlockStreamManagerImplTest {
         assertEquals(
                 List.of(102L, 103L),
                 recovered.stream().map(PendingBlock::number).toList());
-        verify(aWriter, never()).openBlock(100L);
+        // Recovery stops at the first failure (#101), so a writer is requested for #103/#102/#101 only — #100 is
+        // never attempted — and each recovered block gets its own writer
+        assertEquals(3, writers.size());
+        assertEquals(2, recovered.stream().map(PendingBlock::writer).distinct().count());
     }
 
     @Test
