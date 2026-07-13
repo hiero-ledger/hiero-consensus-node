@@ -757,8 +757,8 @@ public class BaseTranslator {
                             builder.slot(writtenKey).valueWritten(value);
                         } else if (parts.status() != REVERTED_SUCCESS) {
                             // for status == REVERTED_SUCCESS slot changes was cleaned up from 'contractStateChanges'
-                            // see com.hedera.node.app.workflows.handle.record.RecordStreamBuilder.build() status ==
-                            // REVERTED_SUCCESS logic
+                            // see com.hedera.node.app.workflows.handle.record.RecordStreamBuilder.build()
+                            // `status == REVERTED_SUCCESS` logic
                             builder.slot(read.keyOrThrow());
                         }
                         recoveredChanges.add(builder.build());

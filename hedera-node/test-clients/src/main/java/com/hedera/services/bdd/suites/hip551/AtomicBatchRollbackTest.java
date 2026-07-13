@@ -17,8 +17,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -60,7 +60,12 @@ public class AtomicBatchRollbackTest {
                 cryptoCreate(name).key(name).withMatchingEvmAddress().balance(ONE_HUNDRED_HBARS));
     }
 
-    @LeakyHapiTest
+    // This test was added to check if `StreamValidationTest.streamsAreValid` correctly translates block->record for
+    // nested contract creation with rollback.
+    // If a nested contract was created but reverted, the address and existence of that contract were still retained —
+    // especially in cases where value was moved and that frame was not reverted. In a sense, the contract
+    // address/contractId was burned and is no longer valid for new assignment.
+    @HapiTest
     final Stream<DynamicTest> nestedContractCreationWithAtomicBatchRollback() {
         final var delegatingAccount = "TestAccount";
         return hapiTest(
