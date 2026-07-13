@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -356,7 +357,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = source.pipeline;
 
-        if (this.pipeline.isTerminated()) {
+        if (this.pipeline.isShutdown()) {
             throw new IllegalStateException("A fast-copy was made of a VirtualMap with a terminated pipeline!");
         }
         this.pipeline.registerCopy(this);
@@ -542,9 +543,17 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return records;
     }
 
-    // Exposed for tests only.
-    public VirtualPipeline getPipeline() {
-        return pipeline;
+    /**
+     * Waits until all copies in the same family as current instance are destroyed
+     * (with possible hash/flush/merge) or until the given timeout expires.
+     *
+     * @param timeout timeout to wait until all copies in the same family as current instance are destroyed
+     * @return {@code true} if all copies are destroyed and finally processed if needed.
+     *
+     * @throws InterruptedException if current thread was interrupted
+     */
+    public boolean awaitFamilyDestroyed(final Duration timeout) throws InterruptedException {
+        return pipeline.awaitTermination(timeout.toMillis(), MILLISECONDS);
     }
 
     // ---- Package-private accessors for VirtualMapReconnect ----

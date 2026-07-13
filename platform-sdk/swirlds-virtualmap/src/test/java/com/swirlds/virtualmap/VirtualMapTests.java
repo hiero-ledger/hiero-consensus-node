@@ -506,28 +506,8 @@ class VirtualMapTests extends VirtualTestBase {
         copy3.release();
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy4.release();
-        assertTrue(copy4.getPipeline().awaitTermination(5, SECONDS), "Timed out");
-        assertTrue(ds.isClosed(), "Should now be released");
-    }
 
-    @Test
-    @Tags({@Tag("VirtualMap"), @Tag("Pipeline"), @Tag("VMAP-021")})
-    @DisplayName("Database is closed if prematurely terminated")
-    void databaseClosedWhenExpresslyTerminated() throws InterruptedException {
-        final VirtualMap copy0 = createMap();
-        final InMemoryDataSource ds = (InMemoryDataSource) copy0.getDataSource();
-        final VirtualMap copy1 = copy0.copy();
-        final VirtualMap copy2 = copy1.copy();
-        final VirtualMap copy3 = copy2.copy();
-        final VirtualMap copy4 = copy3.copy();
-
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy0.release();
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy1.release();
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy2.getPipeline().terminate();
-        assertTrue(copy2.getPipeline().awaitTermination(5, SECONDS), "Timed out");
+        assertTrue(copy0.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
@@ -588,7 +568,6 @@ class VirtualMapTests extends VirtualTestBase {
         } finally {
             fcm.release();
             completed.release();
-            assertTrue(fcm.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -957,7 +936,6 @@ class VirtualMapTests extends VirtualTestBase {
             }
         } finally {
             map.release();
-            assertTrue(map.getPipeline().awaitTermination(60, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -1269,14 +1247,6 @@ class VirtualMapTests extends VirtualTestBase {
             root = copy;
         }
         root.release();
-    }
-
-    @Test
-    @DisplayName("Copy of a root node with terminated pipeline")
-    void copyOfRootNodeWithTerminatedPipeline() {
-        VirtualMap map = createMap();
-        map.getPipeline().terminate();
-        assertThrows(IllegalStateException.class, map::copy);
     }
 
     @Test

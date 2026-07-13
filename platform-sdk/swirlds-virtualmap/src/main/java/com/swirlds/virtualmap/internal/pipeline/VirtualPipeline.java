@@ -27,7 +27,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * <p>
- * Manages the lifecycle of an object that implements {@link VirtualRoot}.
+ * Manages the lifecycle of {@link VirtualRoot} family objects created via {@link VirtualRoot#copy()}.
  * </p>
  *
  * <p>
@@ -124,13 +124,6 @@ public class VirtualPipeline {
     private final AtomicReference<VirtualRoot> mostRecentCopy = new AtomicReference<>();
 
     /**
-     * True if the pipeline is alive and running. When set to false, any already scheduled work
-     * will still complete. A pipeline is either terminated because the last copy has been destroyed
-     * or because of an explicit call to {@link #terminate()}.
-     */
-    private volatile boolean alive;
-
-    /**
      * A single-threaded executor on which we perform all flush and merge tasks.
      */
     private final ExecutorService executorService;
@@ -156,11 +149,10 @@ public class VirtualPipeline {
         copies = new PipelineList<>();
         unhashedCopies = new ConcurrentLinkedDeque<>();
 
-        alive = true;
         executorService = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
                 .setComponent(PIPELINE_COMPONENT)
                 .setThreadName(PIPELINE_THREAD_NAME)
-                .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
+                .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
                 .buildFactory());
 
         statistics = new VirtualMapStatistics(label);
@@ -267,31 +259,16 @@ public class VirtualPipeline {
     }
 
     /**
-     * Waits for any pending flushes or merges to complete, and then terminates the pipeline. No
-     * further operations will occur.
-     */
-    public synchronized void terminate() {
-        // If we've already shutdown, we can just return. This method is synchronized, and
-        // by the time we return this from this method, we will be terminated. So subsequent
-        // calls (even races) will see alive as false by that point.
-        if (!alive) {
-            return;
-        }
-
-        pausePipelineAndExecute("terminate", () -> {
-            shutdown(false);
-            return null;
-        });
-    }
-
-    /**
      * Destroy a copy of the map. The pipeline may still perform operations on the copy
      * at a later time (i.e. merge and flush), and so this method only gives the guarantee
      * that the resources held by the copy will be eventually destroyed.
      */
     public synchronized void destroyCopy(final VirtualRoot copy) {
-        if (!alive) {
-            // Copy destroyed after the pipeline was manually shut down.
+        if (isShutdown()) {
+            logger.warn(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Ignore destroy copy {} after pipeline shutdown",
+                    copy.getFastCopyVersion());
             return;
         }
 
@@ -300,11 +277,13 @@ public class VirtualPipeline {
         final int remainingCopies = undestroyedCopies.decrementAndGet();
         if (remainingCopies < 0) {
             throw new IllegalStateException("copies destroyed too many times");
-        } else if (remainingCopies == 0) {
+        }
+
+        scheduleWork();
+
+        if (remainingCopies == 0) {
             // Let pipeline shutdown gracefully, e.g. complete any flushes in progress
-            shutdownAfterFinalWork();
-        } else {
-            scheduleWork();
+            shutdown(false);
         }
     }
 
@@ -348,7 +327,7 @@ public class VirtualPipeline {
     public <T, E extends Exception> T pausePipelineAndRun(final String label, final CheckedSupplier<T, E> action)
             throws E {
         final T ret = pausePipelineAndExecute(label, action);
-        if (alive) {
+        if (!isShutdown()) {
             scheduleWork();
         }
         return ret;
@@ -508,39 +487,15 @@ public class VirtualPipeline {
      * 		running. Useful for when there is an error, or for when the virtual map is no longer in use
      * 		(and therefore any/all pending work will never be used).
      */
-    private synchronized void shutdown(final boolean immediately) {
-        alive = false;
-        if (!executorService.isShutdown()) {
+    synchronized void shutdown(final boolean immediately) {
+        if (!isShutdown()) {
             if (immediately) {
                 executorService.shutdownNow();
-                fireOnShutdown(immediately);
+                fireOnShutdown(true);
             } else {
                 executorService.submit(() -> fireOnShutdown(false));
                 executorService.shutdown();
             }
-        }
-    }
-
-    /**
-     * Run one final lifecycle pass and then gracefully shut down the pipeline.
-     *
-     * <p>This is needed when the final copy is destroyed. Destroying the final copy can make older
-     * copies eligible for flush or merge, so shutting down immediately may abandon work that has just
-     * become possible.
-     */
-    private synchronized void shutdownAfterFinalWork() {
-        alive = false;
-        if (!executorService.isShutdown()) {
-            executorService.submit(() -> {
-                try {
-                    hashFlushMerge();
-                } catch (final Throwable e) { // NOSONAR: Must log since this is on the lifecycle thread.
-                    logger.error(EXCEPTION.getMarker(), "exception during final virtual pipeline work", e);
-                } finally {
-                    fireOnShutdown(false);
-                }
-            });
-            executorService.shutdown();
         }
     }
 
@@ -586,12 +541,13 @@ public class VirtualPipeline {
     }
 
     /**
-     * Gets whether this pipeline has been terminated.
+     * Gets whether this pipeline has been shutdown.
      *
-     * @return True if this pipeline has been terminated.
+     * @return {@code true} if this pipeline has been shutdown and doesn't accept more {@link VirtualRoot} copies,
+     * but still may process remaining copies. Use {@link #awaitTermination(long, TimeUnit)} to wait for all copies to be processed.
      */
-    public boolean isTerminated() {
-        return !alive;
+    public boolean isShutdown() {
+        return executorService.isShutdown();
     }
 
     /**
@@ -631,7 +587,7 @@ public class VirtualPipeline {
 
             sb.append(index);
             sb.append(", flushed = ").append(uppercaseBoolean(copy.isFlushed()));
-            sb.append(", flushed = ").append(uppercaseBoolean(copy.isMerged()));
+            sb.append(", merged = ").append(uppercaseBoolean(copy.isMerged()));
             sb.append(", destroyed = ").append(uppercaseBoolean(copy.isDestroyed()));
             sb.append(", hashed = ").append(uppercaseBoolean(copy.isHashed()));
             sb.append("\n");
