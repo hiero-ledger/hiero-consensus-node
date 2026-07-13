@@ -541,7 +541,7 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @DisplayName("Million sized hashed maps have non-null hashes on everything")
-    void millionNonNullHashesOnHashedMap() throws InterruptedException {
+    void millionNonNullHashesOnHashedMap() {
         VirtualMap fcm = createMap();
         for (int i = 0; i < 1_000_000; i++) {
             fcm.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);

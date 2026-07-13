@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -339,7 +340,16 @@ public class VirtualPipeline {
      */
     private void scheduleWork() {
         if (workScheduled.compareAndSet(false, true)) {
-            executorService.submit(this::doWork);
+            try {
+                executorService.submit(this::doWork);
+            } catch (final RejectedExecutionException ex) {
+                // This can happen if the executor service is shutting down. In that case, we don't need to do anything.
+                logger.warn(
+                        VIRTUAL_MERKLE_STATS.getMarker(),
+                        "Failed to schedule work due to shutdown executor service: {}",
+                        ex.getMessage());
+                workScheduled.set(false);
+            }
         }
     }
 

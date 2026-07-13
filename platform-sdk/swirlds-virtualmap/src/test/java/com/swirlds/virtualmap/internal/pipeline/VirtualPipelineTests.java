@@ -413,7 +413,7 @@ class VirtualPipelineTests {
         copy1.mergeFinishedLatch.countDown();
 
         root.getPipeline().shutdown(false);
-        root.getPipeline().awaitTermination(3, SECONDS);
+        assertTrue(root.getPipeline().awaitTermination(3, SECONDS), "Pipeline should shut down");
 
         // Root will have finished, but the others will not have done anything.
         assertTrue(root.isFlushed(), "Should have flushed before terminate finished");

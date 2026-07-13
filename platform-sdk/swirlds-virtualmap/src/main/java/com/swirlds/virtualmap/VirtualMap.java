@@ -358,7 +358,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.pipeline = source.pipeline;
 
         if (this.pipeline.isShutdown()) {
-            throw new IllegalStateException("A fast-copy was made of a VirtualMap with a terminated pipeline!");
+            throw new IllegalStateException("A fast-copy was made of a VirtualMap with a shutdown pipeline!");
         }
         this.pipeline.registerCopy(this);
     }
