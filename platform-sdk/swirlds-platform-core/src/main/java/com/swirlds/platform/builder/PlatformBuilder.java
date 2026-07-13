@@ -1,84 +1,40 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.lang.Thread.UncaughtExceptionHandler;
-import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerFactory;
+import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.DefaultIntakeEventCounter;
-import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.NoOpIntakeEventCounter;
-import org.hiero.consensus.event.creator.EventCreatorModule;
-import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.gossip.GossipModule;
-import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.gossip.config.SyncConfig;
-import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.iss.detection.IssDetectionModule;
-import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
-import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.state.management.SavedStateController;
-import org.hiero.consensus.state.management.StateManagementModule;
-import org.hiero.consensus.state.management.persistence.DefaultSavedStateController;
-import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
-import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
-import org.hiero.consensus.state.nexus.LockFreeStateNexus;
-import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.system.SystemExitUtils;
-import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -96,19 +52,9 @@ public final class PlatformBuilder {
 
     private final NodeId selfId;
     private final String swirldName;
-
     private Configuration configuration;
-    private ExecutorFactory executorFactory;
-
-    private EventCreatorModule eventCreatorModule;
-    private EventIntakeModule eventIntakeModule;
-    private HashgraphModule hashgraphModule;
-    private PcesModule pcesModule;
     private GossipModule gossipModule;
     private long transactionOffsetNanos;
-
-    private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
-            (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
 
     /**
      * A RosterHistory that allows one to lookup a roster for a given round, or get the active/previous roster.
@@ -125,11 +71,6 @@ public final class PlatformBuilder {
      * This node's cryptographic keys.
      */
     private KeysAndCerts keysAndCerts;
-
-    /**
-     * The path to the settings file (i.e. the file with the optional settings).
-     */
-    private final Path settingsPath = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
 
     /**
      * The wiring model to use for this platform.
@@ -335,107 +276,6 @@ public final class PlatformBuilder {
     /**
      * Provide the consensus event creator to use for this platform.
      *
-     * @param eventCreatorModule the consensus event creator
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withEventCreatorModule(@NonNull final EventCreatorModule eventCreatorModule) {
-        throwIfAlreadyUsed();
-        this.eventCreatorModule = requireNonNull(eventCreatorModule);
-        return this;
-    }
-
-    private void initializeEventCreatorModule() {
-        eventCreatorModule.initialize(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                secureRandomSupplier.get(),
-                keysAndCerts,
-                rosterHistory.getCurrentRoster(),
-                selfId,
-                execution,
-                execution);
-    }
-
-    /**
-     * Provide the Hashgraph module to use for this platform.
-     *
-     * @param hashgraphModule the hashgraph module
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withHashgraphModule(@NonNull final HashgraphModule hashgraphModule) {
-        throwIfAlreadyUsed();
-        this.hashgraphModule = requireNonNull(hashgraphModule);
-        return this;
-    }
-
-    private void initializeHashgraphModule(@Nullable final EventPipelineTracker pipelineTracker) {
-        hashgraphModule.initialize(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                rosterHistory.getCurrentRoster(),
-                selfId,
-                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                pipelineTracker,
-                transactionOffsetNanos);
-    }
-
-    /**
-     * Provide the consensus event intake to use for this platform.
-     *
-     * @param eventIntakeModule the consensus event intake module
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withEventIntakeModule(@NonNull final EventIntakeModule eventIntakeModule) {
-        throwIfAlreadyUsed();
-        this.eventIntakeModule = requireNonNull(eventIntakeModule);
-        return this;
-    }
-
-    private void initializeEventIntakeModule(
-            @NonNull final IntakeEventCounter intakeEventCounter,
-            @Nullable final EventPipelineTracker pipelineTracker) {
-        eventIntakeModule.initialize(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                rosterHistory,
-                intakeEventCounter,
-                execution.getTransactionLimits(),
-                pipelineTracker);
-    }
-
-    private void initializePcesModule(
-            @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
-            @Nullable final EventPipelineTracker pipelineTracker) {
-        pcesModule.initialize(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                selfId,
-                platformContext.getRecycleBin(),
-                platformContext.getFileSystemManager(),
-                initialState.get().getRound(),
-                platformCoordinator::flushPrimaryPipeline,
-                replayProgressSupplier,
-                platformCoordinator::submitStatusAction,
-                platformCoordinator::flushPlatformStatus,
-                platformCoordinator::signalEndOfPcesReplay,
-                pipelineTracker);
-    }
-
-    /**
-     * Provide the consensus event creator to use for this platform.
-     *
      * @param gossipModule the consensus event creator
      * @return this
      */
@@ -460,82 +300,6 @@ public final class PlatformBuilder {
         return this;
     }
 
-    private void initializeGossipModule(
-            @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final Supplier<ReservedSignedState> latestCompleteStateSupplier,
-            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        if (this.gossipModule == null) {
-            this.gossipModule = createModule(GossipModule.class, configuration);
-        }
-
-        gossipModule.initialize(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                keysAndCerts,
-                rosterHistory.getCurrentRoster(),
-                selfId,
-                softwareVersion,
-                intakeEventCounter,
-                latestCompleteStateSupplier,
-                reservedSignedStateResultPromise,
-                fallenBehindMonitor,
-                stateLifecycleManager);
-    }
-
-    private IssDetectionModule createIssDetectionModule() {
-        return new IssDetectionModule(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                rosterHistory.getCurrentRoster(),
-                selfId,
-                platformContext.getFileSystemManager(),
-                initialState.get().getRound(),
-                latestFreezeRoundOf(initialState.get().getState()),
-                SystemExitUtils::handleFatalError);
-    }
-
-    @NonNull
-    private TransactionHandlingModule createTransactionHandlingModule(
-            @NonNull final SignedStateNexus latestImmutableStateNexus,
-            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
-        return new TransactionHandlingModule(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                latestImmutableStateNexus,
-                consensusStateEventHandler,
-                stateLifecycleManager,
-                statusActionSubmitterReference,
-                softwareVersion,
-                selfId,
-                transactionOffsetNanos);
-    }
-
-    @NonNull
-    private StateManagementModule createStateManagementModule(
-            @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
-            @NonNull final SavedStateController savedStateController) {
-        return new StateManagementModule(
-                model,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                platformContext.getFileSystemManager(),
-                keysAndCerts,
-                appName,
-                selfId,
-                swirldName,
-                stateLifecycleManager,
-                latestCompleteStateNexus,
-                savedStateController);
-    }
-
     /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
@@ -546,188 +310,57 @@ public final class PlatformBuilder {
     }
 
     /**
-     * Construct a platform component builder. This can be used for advanced use cases where custom component
-     * implementations are required. If custom components are not required then {@link #build()} can be used and this
-     * method can be ignored.
-     *
-     * @return a new platform component builder
-     */
-    @NonNull
-    public PlatformComponentBuilder buildComponentBuilder() {
-        throwIfAlreadyUsed();
-        used = true;
-
-        if (executorFactory == null) {
-            executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
-        }
-
-        final boolean firstPlatform = doStaticSetup(configuration, settingsPath);
-
-        final Roster currentRoster = rosterHistory.getCurrentRoster();
-
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
-        final IntakeEventCounter intakeEventCounter;
-        if (syncConfig.waitForEventsInIntake()) {
-            intakeEventCounter = new DefaultIntakeEventCounter(currentRoster);
-        } else {
-            intakeEventCounter = new NoOpIntakeEventCounter();
-        }
-
-        if (model == null) {
-            final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
-
-            final int coreCount = Runtime.getRuntime().availableProcessors();
-            final int parallelism = (int)
-                    Math.max(1, wiringConfig.defaultPoolMultiplier() * coreCount + wiringConfig.defaultPoolConstant());
-            final ForkJoinPool defaultPool =
-                    platformContext.getExecutorFactory().createForkJoinPool(parallelism);
-            logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
-
-            model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .enableJvmAnchor()
-                    .withDefaultPool(defaultPool)
-                    .withWiringConfig(wiringConfig)
-                    .build();
-        }
-
-        if (secureRandomSupplier == null) {
-            secureRandomSupplier = () -> {
-                try {
-                    return SecureRandom.getInstanceStrong();
-                } catch (final NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                }
-            };
-        }
-
-        final boolean eventPipelineMetricsEnabled = platformContext
-                .getConfiguration()
-                .getConfigData(PlatformMetricsConfig.class)
-                .eventPipelineMetricsEnabled();
-        final EventPipelineTracker pipelineTracker =
-                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
-                new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(currentRoster, configuration, platformContext.getMetrics());
-
-        if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = createModule(EventCreatorModule.class, configuration);
-        }
-        if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = createModule(EventIntakeModule.class, configuration);
-        }
-        this.pcesModule = createModule(PcesModule.class, configuration);
-        if (this.hashgraphModule == null) {
-            this.hashgraphModule = createModule(HashgraphModule.class, configuration);
-        }
-        if (this.gossipModule == null) {
-            this.gossipModule = createModule(GossipModule.class, configuration);
-        }
-
-        final IssDetectionModule issDetectionModule = createIssDetectionModule();
-
-        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
-        final TransactionHandlingModule transactionHandlingModule =
-                createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
-
-        final LatestCompleteStateNexus latestCompleteStateNexus =
-                new DefaultLatestCompleteStateNexus(configuration, platformContext.getMetrics());
-        final Supplier<ReservedSignedState> latestCompleteStateSupplier =
-                () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
-        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final StateManagementModule stateManagementModule =
-                createStateManagementModule(latestCompleteStateNexus, savedStateController);
-
-        final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext,
-                model,
-                eventCreatorModule,
-                eventIntakeModule,
-                pcesModule,
-                hashgraphModule,
-                gossipModule,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateManagementModule);
-
-        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
-        statusActionSubmitterReference.set(platformCoordinator);
-
-        initializeEventCreatorModule();
-
-        // Register the event creation stage (self-only, step 1) and wire monitoring
-        // before intake initialization so step numbers are sequential.
-        if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("eventCreation", EventOrigin.RUNTIME);
-            eventCreatorModule
-                    .createdEventOutputWire()
-                    .solderForMonitoring(event -> pipelineTracker.recordEvent("eventCreation", event));
-        }
-
-        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        final Supplier<PcesReplayProgress> replayProgressSupplier =
-                buildPcesReplayProgressSupplier(latestImmutableStateNexus);
-        initializePcesModule(platformCoordinator, replayProgressSupplier, pipelineTracker);
-        initializeHashgraphModule(pipelineTracker);
-        initializeGossipModule(
-                intakeEventCounter, latestCompleteStateSupplier, reservedSignedStateResultPromise, fallenBehindMonitor);
-
-        PlatformWiring.wire(platformContext, execution, platformComponents, staleEventConsumer);
-
-        final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
-                platformComponents,
-                platformContext,
-                model,
-                keysAndCerts,
-                selfId,
-                appName,
-                swirldName,
-                softwareVersion,
-                initialState,
-                rosterHistory,
-                intakeEventCounter,
-                secureRandomSupplier,
-                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
-                consensusEventStreamName,
-                NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusActionSubmitterReference,
-                stateLifecycleManager,
-                firstPlatform,
-                consensusStateEventHandler,
-                execution,
-                fallenBehindMonitor,
-                reservedSignedStateResultPromise,
-                platformCoordinator,
-                latestImmutableStateNexus,
-                transactionOffsetNanos,
-                savedStateController);
-
-        return new PlatformComponentBuilder(buildingBlocks);
-    }
-
-    @NonNull
-    private Supplier<PcesReplayProgress> buildPcesReplayProgressSupplier(
-            @NonNull final SignedStateNexus latestImmutableStateNexus) {
-        return () -> {
-            try (final ReservedSignedState reservedState = latestImmutableStateNexus.getState("PCES replay")) {
-                if (reservedState == null || reservedState.isNull()) {
-                    return PcesReplayProgress.EMPTY;
-                }
-                final SignedState signedState = reservedState.get();
-                return new PcesReplayProgress(signedState.getRound(), signedState.getConsensusTimestamp());
-            }
-        };
-    }
-
-    /**
      * Build a platform. Platform is not started.
      *
      * @return a new platform instance
      */
     @NonNull
     public Platform build() {
-        return buildComponentBuilder().build();
+        throwIfAlreadyUsed();
+        used = true;
+        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+                configuration,
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                keysAndCerts,
+                selfId,
+                platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
+                execution,
+                consensusStateEventHandler,
+                initialState,
+                stateLifecycleManager,
+                softwareVersion,
+                appName,
+                swirldName,
+                consensusEventStreamName,
+                transactionOffsetNanos,
+                staleEventConsumer,
+                model,
+                secureRandomSupplier == null ? null : secureRandomSupplier.get(),
+                gossipModule);
+        final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
+        final ConsensusLayerFactoryResult factoryOutput = factory.create();
+
+        final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+        PlatformWiring.wire(inputs, buildingBlocks);
+
+        try (final ReservedSignedState ignored = inputs.initialState()) {
+            final SwirldsPlatform platform =
+                    new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+            // Future work - capture the reconnect module, add a start() method to it, and call it later
+            factory.createReconnectModule(
+                    platform,
+                    factoryOutput.platformCoordinator(),
+                    buildingBlocks.platformComponents(),
+                    buildingBlocks.savedStateController(),
+                    buildingBlocks.reservedSignedStateResultPromise(),
+                    buildingBlocks.fallenBehindMonitor());
+            return platform;
+        } finally {
+            // TODO figure out if this can be moved into Platform.start()
+            getMetricsProvider().start();
+        }
     }
 }
