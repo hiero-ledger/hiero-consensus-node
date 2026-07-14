@@ -4,6 +4,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.CallContractOperation;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -15,6 +16,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThrottleTest.enableDefaultOpsDurationThrottleNoRefill;
 import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThrottleTest.restoreDefaults;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 
 @Tag(SMART_CONTRACT)
@@ -53,18 +55,25 @@ public class OpsDurationDynamicOpcodesTest {
                 call(name, BigInteger.valueOf(128)),
                 call(name, BigInteger.valueOf(1024)),
                 call(name, BigInteger.valueOf(1048576)),
+                call(name, BigInteger.valueOf(1048576), CONSENSUS_GAS_EXHAUSTED),
                 withOpContext((spec, _) -> restoreDefaults(spec))
         );
     }
 
     private static CallContractOperation call(String name, BigInteger length) {
+        return call(name, length, null);
+    }
+
+    private static CallContractOperation call(final String name, final BigInteger length, final ResponseCodeEnum status) {
         return contract.call(name, length)
                 .gas(10_000_000)
                 .andAssert(e -> {
-            if ("benchRevert".equals(name)) {
-                e.hasKnownStatus(CONTRACT_REVERT_EXECUTED);
-            }
-        });
+                    if (status != null) {
+                        e.hasKnownStatus(status);
+                    } else if ("benchRevert".equals(name)) {
+                        e.hasKnownStatus(CONTRACT_REVERT_EXECUTED);
+                    }
+                });
     }
 
 }

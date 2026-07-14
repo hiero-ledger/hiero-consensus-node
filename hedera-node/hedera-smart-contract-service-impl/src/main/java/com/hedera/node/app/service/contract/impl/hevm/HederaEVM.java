@@ -251,7 +251,7 @@ public class HederaEVM extends HEVM {
                             : opCodeCost;
                     opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
                     if (opcode == 32) {
-                        System.out.printf("!!!!!!!!!!!!!! opCodeCost:%s opsByGas:%s\n", opCodeCost, result.getGasCost() * opsDurationMultiplier / opsDurationDenominator);
+                        System.out.printf("!!!!!!!!!!!!!! opCodeCost:%s gasCost:%s opsByGas:%s\n", opCodeCost, result.getGasCost(), result.getGasCost() * opsDurationMultiplier / opsDurationDenominator);
                     }
                 }
             }
