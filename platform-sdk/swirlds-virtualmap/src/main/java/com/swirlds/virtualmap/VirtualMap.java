@@ -546,13 +546,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /**
      * Waits until all copies in the same family as current instance are destroyed
      * (with possible hash/flush/merge) or until the given timeout expires.
+     * It can be called on any copy in the family, even released ones.
      *
      * @param timeout timeout to wait until all copies in the same family as current instance are destroyed
      * @return {@code true} if all copies are destroyed and finally processed if needed.
      *
      * @throws InterruptedException if current thread was interrupted
      */
-    public boolean awaitFamilyDestroyed(final Duration timeout) throws InterruptedException {
+    public boolean waitUntilFamilyDestroyed(final Duration timeout) throws InterruptedException {
         return pipeline.awaitTermination(timeout.toMillis(), MILLISECONDS);
     }
 
@@ -793,8 +794,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             if (lastLeafParent == ROOT_PATH) {
                 if (firstLeafPath == lastLeafPath) {
                     // We just removed the very last leaf, so set these paths to be invalid
-                    metadata.setFirstLeafPath(INVALID_PATH);
-                    metadata.setLastLeafPath(INVALID_PATH);
+                    metadata.reset();
                 } else {
                     // We removed the second to last leaf, so the first & last leaf paths are now the same.
                     metadata.setLastLeafPath(FIRST_LEFT_PATH);
@@ -813,9 +813,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 cache.clearLeafPath(lastLeafSibling);
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
-                // Update the first & last leaf paths
-                metadata.setFirstLeafPath(lastLeafParent); // replaced by the sibling, it is now first
-                metadata.setLastLeafPath(lastLeafSibling - 1); // One left of the last leaf sibling
+                // first - replaced by the sibling, last - one left of the last leaf sibling
+                metadata.setPaths(lastLeafParent, lastLeafSibling - 1);
             }
             statistics.setSize(metadata.getSize());
 
@@ -1340,8 +1339,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         if (lastLeafPath == INVALID_PATH) {
             // There are no leaves! So this one will just go left on the root
             leafPath = getLeftChildPath(ROOT_PATH);
-            metadata.setLastLeafPath(leafPath);
-            metadata.setFirstLeafPath(leafPath);
+            metadata.setPaths(leafPath, leafPath);
         } else if (isLeft(lastLeafPath)) {
             // The only time that lastLeafPath is a left node is if the parent is root.
             // In all other cases, it will be a right node. So we can just add this
@@ -1369,8 +1367,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             leafPath = getRightChildPath(firstLeafPath);
 
             // Save the first and last leaf paths
-            metadata.setLastLeafPath(leafPath);
-            metadata.setFirstLeafPath(nextFirstLeafPath);
+            metadata.setPaths(nextFirstLeafPath, leafPath);
         }
         statistics.setSize(metadata.getSize());
 

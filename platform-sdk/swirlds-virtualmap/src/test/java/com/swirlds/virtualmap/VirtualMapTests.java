@@ -507,7 +507,7 @@ class VirtualMapTests extends VirtualTestBase {
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy4.release();
 
-        assertTrue(copy0.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+        assertTrue(copy0.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
@@ -1214,8 +1214,7 @@ class VirtualMapTests extends VirtualTestBase {
         try {
             VirtualMapMetadata originalMetadata = original.getMetadata();
             // let's change the original state and make sure that the detached copy is not affected
-            originalMetadata.setFirstLeafPath(-1);
-            originalMetadata.setLastLeafPath(-1);
+            originalMetadata.reset();
             VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
             assertNotNull(leafRecord);
             assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");

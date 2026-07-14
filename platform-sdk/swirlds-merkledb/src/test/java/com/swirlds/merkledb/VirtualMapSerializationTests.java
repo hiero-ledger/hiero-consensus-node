@@ -112,9 +112,9 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
             map1.release();
             map2.release();
 
-            assertTrue(map0.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
-            assertTrue(map1.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
-            assertTrue(map2.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map0.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map1.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map2.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 
@@ -165,7 +165,7 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
             map.release();
             copy.release();
 
-            assertTrue(map.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Maps should be destroyed");
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Maps should be destroyed");
         }
     }
 
@@ -192,7 +192,7 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
             serializedCopy.release();
             mutableCopy.release();
 
-            assertTrue(map.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 
@@ -223,7 +223,7 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
             copy0.release();
             copy1.release();
 
-            assertTrue(map.awaitFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 }

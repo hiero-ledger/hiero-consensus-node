@@ -95,8 +95,7 @@ public class RecordAccessorTest {
         cache.prepareForHashing();
 
         // Set up the state for a 6 leaf in memory tree
-        state.setLastLeafPath(10);
-        state.setFirstLeafPath(5);
+        state.setPaths(5, 10);
     }
 
     @Test
@@ -259,8 +258,7 @@ public class RecordAccessorTest {
     @DisplayName("close() closes the data source")
     void closeClosesDataSource() throws Exception {
         final VirtualMapMetadata state = new VirtualMapMetadata();
-        state.setLastLeafPath(2);
-        state.setFirstLeafPath(1);
+        state.setPaths(1, 2);
 
         final InMemoryDataSource ds = new InMemoryDataSource("closeClosesDataSource");
         final int hashChunkHeight = ds.getHashChunkHeight();
