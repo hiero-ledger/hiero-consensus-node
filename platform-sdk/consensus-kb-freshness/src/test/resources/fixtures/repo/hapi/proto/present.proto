@@ -1,0 +1,4 @@
+syntax = "proto3";
+
+// A committed external proto the engine cannot parse but can see on disk.
+message Present {}

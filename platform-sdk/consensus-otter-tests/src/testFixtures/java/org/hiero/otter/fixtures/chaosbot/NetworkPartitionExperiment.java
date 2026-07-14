@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -115,10 +116,9 @@ public record NetworkPartitionExperiment(
         final double partitionFraction =
                 minPartitionFraction + (randotron.nextDouble() * (maxPartitionFraction - minPartitionFraction));
         final int partitionSize = (int) Math.ceil(nodes.size() * partitionFraction);
-        final List<Node> partitionNodes = randotron
-                .ints(partitionSize, 0, nodes.size())
-                .mapToObj(nodes::get)
-                .toList();
+        final List<Node> shuffledNodes = new ArrayList<>(nodes);
+        Collections.shuffle(shuffledNodes, randotron);
+        final List<Node> partitionNodes = shuffledNodes.subList(0, partitionSize);
         final Duration duration = randotron.nextDuration(minDuration, maxDuration);
 
         log.info(
