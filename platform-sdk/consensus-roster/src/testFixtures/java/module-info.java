@@ -13,5 +13,6 @@ open module org.hiero.consensus.roster.test.fixtures {
     requires org.junit.jupiter.params;
     requires org.hiero.consensus.platformstate;
     requires org.mockito;
+    requires transitive com.swirlds.state.api;
     requires static transitive com.github.spotbugs.annotations;
 }
