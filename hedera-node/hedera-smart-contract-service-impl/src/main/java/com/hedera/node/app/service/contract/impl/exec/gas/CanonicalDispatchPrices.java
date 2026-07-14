@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec.gas;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Map;
@@ -17,10 +16,6 @@ import org.hiero.hapi.support.fees.FeeSchedule;
  */
 public class CanonicalDispatchPrices {
     private final Map<DispatchType, Long> pricesMap = new EnumMap<>(DispatchType.class);
-    /**
-     * Value to convert prices from USD to tinycents in Hedera
-     */
-    public static final BigDecimal USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
 
     /**
      * Constructs a price map from a simple fees schedule, using the base fee of each
