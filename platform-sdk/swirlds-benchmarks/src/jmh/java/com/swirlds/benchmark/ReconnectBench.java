@@ -36,18 +36,18 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public long randomSeed;
 
     /** The probability of the teacher map having an extra node. */
-    @Param({"0.05"})
+    @Param({"0.09"})
     public double teacherAddProbability;
 
     /** The probability of the teacher map having removed a node, while the learner still having it. */
-    @Param({"0.05"})
+    @Param({"0.0"})
     public double teacherRemoveProbability;
 
     /**
      * The probability of the teacher map having a value under a key that differs from the value under the same key in
      * the learner map.
      */
-    @Param({"0.05"})
+    @Param({"0.40"})
     public double teacherModifyProbability;
 
     /** Selects whether network shaping is applied ({@code REALISTIC}) or disabled ({@code LOOPBACK}). */
@@ -55,18 +55,18 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public NetworkProfile networkProfile;
 
     /** One-way simulated latency in microseconds, applied when the {@code REALISTIC} profile is selected. */
-    @Param({"500"})
+    @Param({"270"})
     public long networkLatencyMicroseconds;
 
     /** Per-direction simulated bandwidth in decimal megabits per second under the {@code REALISTIC} profile. */
-    @Param({"1000"})
+    @Param({"200"})
     public long networkBandwidthMegabitsPerSecond;
 
     /**
      * Maximum accepted-but-unread bytes in each direction under the {@code REALISTIC} profile. When this limit is
      * reached, writes block until the receiver consumes bytes, providing finite buffering and backpressure.
      */
-    @Param({"131072"})
+    @Param({"134217728"})
     public int networkInflightBytesLimit;
 
     private static final String TEACHER_MAP_NAME = "teacher";
