@@ -382,8 +382,11 @@ public class RecordStreamBuilder
         transactionFee = 0L;
 
         if (contractFunctionResult != null) {
-            final var clearLogs =
-                    contractFunctionResult.copyBuilder().logInfo(emptyList()).bloom(Bytes.EMPTY);
+            final var clearLogs = contractFunctionResult
+                    .copyBuilder()
+                    .logInfo(emptyList())
+                    .bloom(Bytes.EMPTY)
+                    .createdContractIDs(emptyList());
             if (isContractCreate) {
                 transactionRecordBuilder.contractCreateResult(clearLogs);
             } else {
