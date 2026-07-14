@@ -35,6 +35,8 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      * @param gcLoggingEnabled {@code true} if GC logging should be enabled for the node process
      * @param jvmArgs additional JVM arguments to pass to the node process
+     * @param onKillListener a best-effort listener invoked after this node has been killed, used to clean up network
+     *     state
      */
     public InstrumentedContainerNode(
             @NonNull final NodeId selfId,
@@ -46,7 +48,8 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool,
             final boolean gcLoggingEnabled,
-            @NonNull final List<String> jvmArgs) {
+            @NonNull final List<String> jvmArgs,
+            @NonNull final Runnable onKillListener) {
         super(
                 selfId,
                 timeManager,
@@ -57,7 +60,8 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
                 networkConfiguration,
                 consensusRoundPool,
                 gcLoggingEnabled,
-                jvmArgs);
+                jvmArgs,
+                onKillListener);
     }
 
     /**
