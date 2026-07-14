@@ -51,7 +51,7 @@ Benchmarks:
 - `ReconnectBench.reconnect`: runs reconnect synchronization from the learner
   state to the teacher state.
 
-See [ReconnectBench](ReconnectBench.md) for simulated-network semantics, run parameters, and local-to-cluster
+See [ReconnectBench](docs/ReconnectBench.md) for simulated-network semantics, run parameters, and local-to-cluster
 calibration results.
 
 ## Run with Gradle

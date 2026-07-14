@@ -18,7 +18,6 @@ jmhModuleInfo {
     requires("com.swirlds.merkledb")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
-    requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
@@ -34,49 +33,10 @@ jmhModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
 }
 
-fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
-
 fun jmhParamProperty(name: String, defaultValue: String) =
     objects
         .listProperty<String>()
         .value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
-
-fun JMHTask.configureReconnectParameters() {
-    includes.set(listOf("ReconnectBench"))
-    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
-    benchmarkParameters.put(
-        "networkLatencyMicroseconds",
-        jmhParamProperty("networkLatencyMicroseconds", "500"),
-    )
-    benchmarkParameters.put(
-        "networkBandwidthMegabitsPerSecond",
-        jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000"),
-    )
-    benchmarkParameters.put(
-        "networkInflightBytesLimit",
-        jmhParamProperty("networkInflightBytesLimit", "131072"),
-    )
-    benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
-    benchmarkParameters.put(
-        "teacherAddProbability",
-        jmhParamProperty("teacherAddProbability", "0.05"),
-    )
-    benchmarkParameters.put(
-        "teacherRemoveProbability",
-        jmhParamProperty("teacherRemoveProbability", "0.05"),
-    )
-    benchmarkParameters.put(
-        "teacherModifyProbability",
-        jmhParamProperty("teacherModifyProbability", "0.05"),
-    )
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "500"))
-    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
-    benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
-    benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
-    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "1024"))
-    benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
-}
 
 // ── Benchmark run configurations ─────────────────────────────────────
 // Gradle JMH tasks are intended for regular benchmark runs.
@@ -100,7 +60,42 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
+// Defaults are based on the large-state local calibration profile documented in
+// docs/ReconnectBench.md.
 tasks.register<JMHTask>("jmhReconnect") {
-    configureReconnectParameters()
-    jvmArgs.set(listOf("-Xmx16g"))
+    includes.set(listOf("ReconnectBench"))
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
+    benchmarkParameters.put(
+        "networkLatencyMicroseconds",
+        jmhParamProperty("networkLatencyMicroseconds", "270"),
+    )
+    benchmarkParameters.put(
+        "networkBandwidthMegabitsPerSecond",
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
+    )
+    benchmarkParameters.put(
+        "networkInflightBytesLimit",
+        jmhParamProperty("networkInflightBytesLimit", "134217728"),
+    )
+    benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
+    benchmarkParameters.put(
+        "teacherAddProbability",
+        jmhParamProperty("teacherAddProbability", "0.09"),
+    )
+    benchmarkParameters.put(
+        "teacherRemoveProbability",
+        jmhParamProperty("teacherRemoveProbability", "0.0"),
+    )
+    benchmarkParameters.put(
+        "teacherModifyProbability",
+        jmhParamProperty("teacherModifyProbability", "0.40"),
+    )
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "7500"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
+    benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
+    benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
+    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
+    benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+    jvmArgs.set(listOf("-Xms24g", "-Xmx24g", "-XX:+AlwaysPreTouch"))
 }

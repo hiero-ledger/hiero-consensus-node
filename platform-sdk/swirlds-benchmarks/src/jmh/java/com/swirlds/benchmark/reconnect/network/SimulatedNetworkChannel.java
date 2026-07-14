@@ -36,6 +36,9 @@ import java.util.concurrent.locks.ReentrantLock;
  *   <li>backpressure: the sender blocks when accepted-but-unread bytes would exceed the in-flight cap.
  * </ul>
  *
+ * <p>The channel does not open sockets or model packetization, jitter, loss, retransmission, or TCP congestion control.
+ * Both network profiles use this same channel; {@link NetworkProfile#LOOPBACK} disables its shaping limits.
+ *
  * <p>All mutable channel state is guarded by {@link #lock}. Closing the output side is a normal end-of-stream:
  * queued bytes drain first and then the reader sees EOF. Closing the input side rejects future writes.
  * {@link #disconnect()} is an abort path used by reconnect failure handling; it wakes blocked readers and writers with
@@ -79,29 +82,14 @@ public class SimulatedNetworkChannel {
     /** Largest observed value of {@link #inflightBytes}. */
     private long maxInflightBytes;
 
-    /** Number of top-level write calls received from the sending stream. */
-    private long writeCalls;
-
-    /** Number of byte ranges scheduled on the simulated link after write splitting. */
-    private long writeRanges;
-
-    /** Number of read calls received from the receiving stream. */
-    private long readCalls;
-
     /** Number of waits caused by the in-flight byte cap. */
     private long capacityWaitCount;
 
     /** Observed wall-clock nanoseconds spent waiting for in-flight capacity. */
     private long capacityWaitNanos;
 
-    /** Number of waits while the reader had no queued data because the peer had not produced bytes. */
-    private long emptyReadWaitCount;
-
     /** Observed wall-clock nanoseconds spent waiting for the peer to produce queued data. */
     private long emptyReadWaitNanos;
-
-    /** Number of waits while queued data existed but had not reached its simulated arrival time. */
-    private long arrivalWaitCount;
 
     /** Observed wall-clock nanoseconds waiting for scheduled arrival, including scheduler overhead. */
     private long arrivalWaitNanos;
@@ -131,6 +119,8 @@ public class SimulatedNetworkChannel {
      * Returns the receiver side of this channel.
      *
      * <p>Reads block until data is queued and sufficiently arrived according to the latency and bandwidth schedule.
+     *
+     * @return the single receiver stream owned by this channel
      */
     public InputStream inputStream() {
         return inputStream;
@@ -139,8 +129,10 @@ public class SimulatedNetworkChannel {
     /**
      * Returns the sender side of this channel.
      *
-     * <p>Copies the provided bytes into the simulated wire, schedules their arrival, and may block when the in-flight
-     * cap is full.
+     * <p>Writes copy bytes into the simulated wire, schedule their arrival, and may block when the in-flight cap is
+     * full.
+     *
+     * @return the single sender stream owned by this channel
      */
     public OutputStream outputStream() {
         return outputStream;
@@ -158,14 +150,9 @@ public class SimulatedNetworkChannel {
                     bytesWritten,
                     bytesRead,
                     maxInflightBytes,
-                    writeCalls,
-                    writeRanges,
-                    readCalls,
                     capacityWaitCount,
                     capacityWaitNanos,
-                    emptyReadWaitCount,
                     emptyReadWaitNanos,
-                    arrivalWaitCount,
                     arrivalWaitNanos);
         } finally {
             lock.unlock();
@@ -218,7 +205,6 @@ public class SimulatedNetworkChannel {
                 ensureConnected();
                 ensureOpenForWrite();
                 ensureReceiverOpen();
-                writeCalls++;
             } finally {
                 lock.unlock();
             }
@@ -281,7 +267,6 @@ public class SimulatedNetworkChannel {
                 // Latency shifts delivery; bandwidth stretches it across arrivalStart..arrivalEnd.
                 ranges.add(new ByteRange(bytes, sendStart + config.latencyNanos(), sendEnd + config.latencyNanos()));
                 nextTransmissionAvailableAtNanos = sendEnd;
-                writeRanges++;
                 bytesWritten += bytes.length;
                 inflightBytes += bytes.length;
                 maxInflightBytes = Math.max(maxInflightBytes, inflightBytes);
@@ -341,7 +326,6 @@ public class SimulatedNetworkChannel {
             lock.lock();
             try {
                 ensureOpenForRead();
-                readCalls++;
                 while (true) {
                     ensureConnected();
                     ensureOpenForRead();
@@ -412,7 +396,6 @@ public class SimulatedNetworkChannel {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while waiting for simulated network data", e);
             } finally {
-                emptyReadWaitCount++;
                 emptyReadWaitNanos += System.nanoTime() - waitStart;
             }
         }
@@ -426,7 +409,6 @@ public class SimulatedNetworkChannel {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while waiting for simulated network timing", e);
             } finally {
-                arrivalWaitCount++;
                 arrivalWaitNanos += System.nanoTime() - waitStart;
             }
         }

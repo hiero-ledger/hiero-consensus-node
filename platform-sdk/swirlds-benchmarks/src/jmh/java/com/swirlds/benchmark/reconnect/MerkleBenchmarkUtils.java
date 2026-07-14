@@ -6,6 +6,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
+import com.swirlds.benchmark.reconnect.network.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;

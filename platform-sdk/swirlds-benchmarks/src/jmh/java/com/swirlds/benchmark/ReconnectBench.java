@@ -50,21 +50,28 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Param({"0.05"})
     public double teacherModifyProbability;
 
+    /** Selects whether network shaping is applied ({@code REALISTIC}) or disabled ({@code LOOPBACK}). */
     @Param({"REALISTIC"})
     public NetworkProfile networkProfile;
 
+    /** One-way simulated latency in microseconds, applied when the {@code REALISTIC} profile is selected. */
     @Param({"500"})
     public long networkLatencyMicroseconds;
 
+    /** Per-direction simulated bandwidth in decimal megabits per second under the {@code REALISTIC} profile. */
     @Param({"1000"})
     public long networkBandwidthMegabitsPerSecond;
 
+    /**
+     * Maximum accepted-but-unread bytes in each direction under the {@code REALISTIC} profile. When this limit is
+     * reached, writes block until the receiver consumes bytes, providing finite buffering and backpressure.
+     */
     @Param({"131072"})
     public int networkInflightBytesLimit;
 
     private static final String TEACHER_MAP_NAME = "teacher";
     private VirtualMap teacherMap;
-    private VirtualMap teacherMapDataSourceHead;
+    private VirtualMap teacherMapCopy;
 
     private static final String LEARNER_MAP_NAME = "learner";
     private VirtualMap learnerMap;
@@ -137,8 +144,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
             teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
         }
 
-        // Freeze the teacher map for synchronization and retain its mutable data-source head for the trial lifetime.
-        teacherMapDataSourceHead = teacherMap.copy();
+        // Make teacher immutable by creating a copy; keep the copy as the mutable head
+        teacherMapCopy = teacherMap.copy();
 
         // Pre-hash the teacher map once — it's never modified
         teacherMap.getHash();
@@ -177,11 +184,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
     protected void onTrialTearDown() throws Exception {
         learnerMap.release();
         teacherMap.release();
-        teacherMapDataSourceHead.release();
+        teacherMapCopy.release();
 
         learnerMap = null;
         teacherMap = null;
-        teacherMapDataSourceHead = null;
+        teacherMapCopy = null;
         teacherData = null;
 
         await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
