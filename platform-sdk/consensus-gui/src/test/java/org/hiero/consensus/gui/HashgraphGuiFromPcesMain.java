@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -17,6 +18,7 @@ import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.pcli.graph.PcesEventGraphSource;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * Main class for running the hashgraph GUI with PCES files.
@@ -27,7 +29,7 @@ public class HashgraphGuiFromPcesMain {
      * The root directory containing the roster file and PCES directory to display. Update this path to point to your
      * local test data.
      */
-    private static final String ROOT_DIR = "/Users/kellygreco/Desktop/ISS_HAPI_Test/build/hapi-test/hapiTestMiscRecordsSerial/node0/data/saved/";
+    private static final String ROOT_DIR = "/path/to/root/";
 
     /**
      * The name of the directory containing the PCES files to display. The PCES files within can be in nested
@@ -39,7 +41,7 @@ public class HashgraphGuiFromPcesMain {
      * The name of the JSON file containing the {@link Roster} used to create the events in the PCES directory. Must be
      * located in {@link #ROOT_DIR}.
      */
-    private static final String ROSTER_FILE = "roster.json";
+    private static final String ROSTER_FILE = "currentRoster.json";
 
     /**
      * The name of the JSON file containing the {@link com.hedera.hapi.platform.state.ConsensusSnapshot} to start the
@@ -72,19 +74,28 @@ public class HashgraphGuiFromPcesMain {
         final ConsensusSnapshot consensusSnapshot;
 
         if (CONSENSUS_SNAPSHOT_FILE != null) {
+            /*
+             * Note that if starting from a consensus snapshot, all non-ancient events must be replayed into consensus
+             * before consensus calculations and data will be available. This can be a lot of events. The GUI will show
+             * all of these events as gray until the judges are received. Then consensus data will be displayed
+             * in the GUI.
+             */
             final Path consensusSnapshotPath = resourceDir.resolve(CONSENSUS_SNAPSHOT_FILE);
             consensusSnapshot = ConsensusSnapshot.JSON.parse(
                     new ReadableStreamingData(new FileInputStream(consensusSnapshotPath.toFile())));
             startingRound = consensusSnapshot.round();
-            minimumNonAncientRound =
-                    startingRound - configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+            final int roundsNonAncient =
+                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+            minimumNonAncientRound = EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient)
+                    .ancientThreshold();
         } else {
             startingRound = 0;
             minimumNonAncientRound = 0;
             consensusSnapshot = GenesisSnapshotFactory.newGenesisSnapshot();
         }
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesPath, configuration, recycleBin, true, startingRound, minimumNonAncientRound);
+        final PcesEventGraphSource source = new PcesEventGraphSource(
+                pcesPath, configuration, recycleBin, true, startingRound, minimumNonAncientRound);
         final TestGuiSource guiSource = new TestGuiSource(metrics, configuration, roster, source);
 
         guiSource.loadSnapshot(consensusSnapshot);

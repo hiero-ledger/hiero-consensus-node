@@ -7,10 +7,11 @@ plugins {
 description = "Consensus Hashgraph GUI"
 
 testModuleInfo {
+    requires("com.hedera.pbj.runtime")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.pcli")
-    requires("com.swirlds.config.extensions.test.fixtures")
 }
 
 // TODO add real tests to 'src/test/java' or remove 'src/test/java'

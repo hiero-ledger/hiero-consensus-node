@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.EventGraphSource;
-import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
@@ -36,7 +32,9 @@ public class PcesEventGraphSource implements EventGraphSource {
      * @param configuration the platform configuration
      * @param recycleBin    the recycle bin for managing temporary files
      */
-    public PcesEventGraphSource(@NonNull final Path pcesLocation, @NonNull final Configuration configuration,
+    public PcesEventGraphSource(
+            @NonNull final Path pcesLocation,
+            @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin) {
         this(pcesLocation, configuration, recycleBin, false, 0, 0);
     }
@@ -48,11 +46,16 @@ public class PcesEventGraphSource implements EventGraphSource {
      * @param configuration the platform configuration
      * @param recycleBin    the recycle bin for managing temporary files
      */
-    public PcesEventGraphSource(@NonNull final Path pcesLocation, @NonNull final Configuration configuration,
-            @NonNull final RecycleBin recycleBin, final boolean hashEvents, final long startingRound, final long lowerBound) {
+    public PcesEventGraphSource(
+            @NonNull final Path pcesLocation,
+            @NonNull final Configuration configuration,
+            @NonNull final RecycleBin recycleBin,
+            final boolean hashEvents,
+            final long startingRound,
+            final long lowerBound) {
         try {
-            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    configuration, recycleBin, pcesLocation, startingRound, false);
+            this.pcesFileTracker =
+                    PcesFileReader.readFilesFromDisk(configuration, recycleBin, pcesLocation, startingRound, false);
             this.eventIterator = pcesFileTracker.getEventIterator(lowerBound, startingRound);
             this.hashEvents = hashEvents;
         } catch (final IOException e) {
