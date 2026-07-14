@@ -174,12 +174,6 @@ public class ProcessUtils {
         } else {
             environment.remove("TSS_LIB_WRAPS_SWAP_FILE");
         }
-        // Cap the WRAPS prover's rayon thread pool when the orchestrating environment requests it
-        // (e.g. CI runners whose cgroup CPU quota is shared by several nodes proving concurrently)
-        final var rayonThreads = System.getenv("RAYON_NUM_THREADS");
-        if (rayonThreads != null && !rayonThreads.isBlank()) {
-            environment.put("RAYON_NUM_THREADS", rayonThreads);
-        }
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts

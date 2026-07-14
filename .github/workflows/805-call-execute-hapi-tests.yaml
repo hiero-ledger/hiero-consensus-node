@@ -1027,9 +1027,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
-          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently; cap each
-          # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
-          RAYON_NUM_THREADS: "4"
+          # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
           HAPI_TEST_NODE_POOL_MIB: "12288"
         run: ${GRADLE_EXEC} hapiTestWraps --no-daemon
 
@@ -1122,9 +1120,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
-          # The pod's 8-CPU quota is shared by 3 nodes proving concurrently; cap each
-          # prover's rayon pool and each node JVM's share of the heap pool (4 GiB x 3)
-          RAYON_NUM_THREADS: "4"
+          # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
           HAPI_TEST_NODE_POOL_MIB: "12288"
         run: |
           status=0
