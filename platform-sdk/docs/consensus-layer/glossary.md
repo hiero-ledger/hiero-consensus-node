@@ -250,8 +250,7 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 A per-event count: one plus the maximum parent generation. The paper used a single
 *deterministic* generation as the ancient horizon; current code uses *Birth round* for that
 and keeps three separate generation counters instead, each calculated differently and used
-for a different purpose — *nGen* (local; topological ordering, now migrating to the event
-*Sequence number*, ADR-008), *deGen* (deterministic,
+for a different purpose — *nGen* (local, for topological ordering), *deGen* (deterministic,
 for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a
 *Consensus round*).
 See [concepts/birth-round.md](concepts/birth-round.md).

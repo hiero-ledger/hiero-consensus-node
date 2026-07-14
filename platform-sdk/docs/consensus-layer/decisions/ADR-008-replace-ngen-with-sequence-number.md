@@ -229,8 +229,8 @@ See **Decision** above.
 - `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
   `ChildlessEventTracker.java` — the first consumer migrated (#24991).
 - `consensus-hashgraph-impl/.../consensus/` — `ConsensusImpl`, `ConsensusRounds`,
-  `RoundElections` (consensus algorithm, #24844) and
-  `LocalConsensusGeneration.assignCGen` (the `cGen` initial topological sort, #24883)
+  `RoundElections`, `ConsensusSorter`, `LocalConsensusGeneration`: the consensus
+  and `cGen` consumers still on `nGen` (#24844, #24883).
   migrated off `nGen` to the sequence number; `ConsensusSorter` orders by the resulting
   `cGen`, never `nGen`.
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
