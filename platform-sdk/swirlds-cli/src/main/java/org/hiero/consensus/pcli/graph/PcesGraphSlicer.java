@@ -81,7 +81,7 @@ public class PcesGraphSlicer {
         this.eventCoreModifier = builder.graphEventCoreModifier;
 
         final PcesEventGraphSource rawSource =
-                new PcesEventGraphSource(builder.existingPcesFilesLocation, this.context);
+                new PcesEventGraphSource(builder.existingPcesFilesLocation, context.getConfiguration(), context.getRecycleBin());
         // Use OrphanBufferEventGraphSource to process events through hasher and orphan buffer
         // This computes ngen and links parents without the overhead of running consensus
         final OrphanBufferEventGraphSource orphanBufferSource =

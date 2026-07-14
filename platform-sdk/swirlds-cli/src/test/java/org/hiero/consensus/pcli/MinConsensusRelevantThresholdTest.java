@@ -7,20 +7,29 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Function;
 import org.hiero.base.utility.test.fixtures.io.ResourceExtractor;
+import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
+import org.hiero.consensus.pcli.graph.PcesEventGraphSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,6 +45,9 @@ public class MinConsensusRelevantThresholdTest {
     private static final String PCES_DIR = "preconsensusEvents";
     private static final String ROSTER_FILE = "roster.json";
 
+    private static final String ORIG_RESOURCE_DIR = "/Users/kellygreco/Desktop/ISS_HAPI_Test/build/hapi-test/hapiTestMiscRecordsSerial/node0/data/saved/";
+    private static final String ORIG_PCES_DIR = "preconsensus-events";
+
     @TempDir
     Path testDataDirectory;
 
@@ -46,6 +58,29 @@ public class MinConsensusRelevantThresholdTest {
         final Path tempDir = loader.loadDirectory(RESOURCE_DIR);
         Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);
     }
+
+
+    @Test
+    void runGuiWithPces() throws IOException, ParseException {
+        final int initialEvents = 10;
+
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final RecycleBin recycleBin = new NoOpRecycleBin();
+
+        final Path resourceDir = Path.of(ORIG_RESOURCE_DIR);
+        final Path rosterPath = resourceDir.resolve(ROSTER_FILE);
+        final Path pcesPath = resourceDir.resolve(ORIG_PCES_DIR);
+        final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
+
+        final PcesEventGraphSource source = new PcesEventGraphSource(pcesPath, configuration, recycleBin);
+
+        final TestGuiSource guiSource =
+                new TestGuiSource(metrics, configuration, roster, source);
+        guiSource.generateEvents(initialEvents);
+        guiSource.runGui();
+    }
+
 
     /**
      * This test exercises a bug that has since been fixed that caused an ISS. Using an improper value for the minimum

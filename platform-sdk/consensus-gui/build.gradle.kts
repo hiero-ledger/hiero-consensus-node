@@ -9,6 +9,7 @@ description = "Consensus Hashgraph GUI"
 testModuleInfo {
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.pcli")
     requires("com.swirlds.config.extensions.test.fixtures")
 }
 
