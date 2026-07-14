@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Restart and PCES
-last_reviewed: 2026-06-26
+last_reviewed: 2026-07-13
 ---
 
 # Restart and PCES

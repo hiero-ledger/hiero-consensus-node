@@ -103,6 +103,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      */
     @Override
     public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
+        long shardNum = 0;
+        long realmNum = 0;
         long entityId = IMPERMISSIBLE_ENTITY_ID;
 
         try {
@@ -110,26 +112,38 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
             switch (key.key().kind()) {
                 case TOKENSERVICE_I_TOKENS -> {
                     final TokenID tokenId = key.key().as();
+                    shardNum = tokenId.shardNum();
+                    realmNum = tokenId.realmNum();
                     entityId = tokenId.tokenNum();
                 }
                 case TOKENSERVICE_I_ACCOUNTS -> {
                     final AccountID accountId = key.key().as();
+                    shardNum = accountId.shardNum();
+                    realmNum = accountId.realmNum();
                     entityId = accountId.accountNumOrElse(IMPERMISSIBLE_ENTITY_ID);
                 }
                 case CONTRACTSERVICE_I_BYTECODE -> {
                     final ContractID contractId = key.key().as();
+                    shardNum = contractId.shardNum();
+                    realmNum = contractId.realmNum();
                     entityId = contractId.contractNumOrElse(IMPERMISSIBLE_ENTITY_ID);
                 }
                 case CONSENSUSSERVICE_I_TOPICS -> {
                     final TopicID topicId = key.key().as();
+                    shardNum = topicId.shardNum();
+                    realmNum = topicId.realmNum();
                     entityId = topicId.topicNum();
                 }
                 case FILESERVICE_I_FILES -> {
                     final FileID fileId = key.key().as();
+                    shardNum = fileId.shardNum();
+                    realmNum = fileId.realmNum();
                     entityId = fileId.fileNum();
                 }
                 case SCHEDULESERVICE_I_SCHEDULES_BY_ID -> {
                     final ScheduleID scheduleId = key.key().as();
+                    shardNum = scheduleId.shardNum();
+                    realmNum = scheduleId.realmNum();
                     entityId = scheduleId.scheduleNum();
                 }
             }
@@ -138,7 +152,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
         }
 
         if (entityId != IMPERMISSIBLE_ENTITY_ID) {
-            checkEntityUniqueness(entityId);
+            checkEntityUniqueness(shardNum, realmNum, entityId);
         }
     }
 
@@ -152,7 +166,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
         }
     }
 
-    private void checkEntityUniqueness(long entityId) {
+    private void checkEntityUniqueness(long shardNum, long realmNum, long entityId) {
         // From time to time we need to reset cache to prevent OOM errors
         if (idCounter.incrementAndGet() % 100_000 == 0) {
             cacheLock.writeLock().lock();
@@ -165,43 +179,56 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
         cacheLock.readLock().lock();
         try {
             int counter = 0;
-            final Token token = tokensState.get(new TokenID(0, 0, entityId));
+            final Token token = tokensState.get(new TokenID(shardNum, realmNum, entityId));
             if (token != null) {
                 counter++;
             }
 
-            final Account account =
-                    accountState.get(AccountID.newBuilder().accountNum(entityId).build());
+            final Account account = accountState.get(AccountID.newBuilder()
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
+                    .accountNum(entityId)
+                    .build());
             if (account != null) {
                 counter++;
             }
 
-            final Bytecode contract = smartContractState.get(
-                    ContractID.newBuilder().contractNum(entityId).build());
+            final Bytecode contract = smartContractState.get(ContractID.newBuilder()
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
+                    .contractNum(entityId)
+                    .build());
 
             if (contract != null) {
                 counter++;
             }
 
-            final Topic topic =
-                    topicState.get(TopicID.newBuilder().topicNum(entityId).build());
+            final Topic topic = topicState.get(TopicID.newBuilder()
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
+                    .topicNum(entityId)
+                    .build());
 
             if (topic != null) {
                 counter++;
             }
 
-            final File file =
-                    fileState.get(FileID.newBuilder().fileNum(entityId).build());
+            final File file = fileState.get(FileID.newBuilder()
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
+                    .fileNum(entityId)
+                    .build());
             if (file != null) {
                 counter++;
             }
 
-            final Schedule schedule = scheduleState.get(new ScheduleID(0, 0, entityId));
+            final Schedule schedule = scheduleState.get(new ScheduleID(shardNum, realmNum, entityId));
             if (schedule != null) {
                 counter++;
             }
             if (counter == 0) {
-                final String errorMessage = String.format("No entity found for Entity ID %d", entityId);
+                final String errorMessage =
+                        String.format("No entity found for Entity ID %d.%d.%d", shardNum, realmNum, entityId);
                 log.error(errorMessage);
                 issuesFound.incrementAndGet();
             }
@@ -211,9 +238,9 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                     return;
                 }
 
-                final String errorMessage =
-                        String.format("""
-                                      Entity ID %d is not unique, found %d entities.\s
+                final String errorMessage = String.format(
+                        """
+                                      Entity ID %d.%d.%d is not unique, found %d entities.\s
                                        Token = %s, \
                                       \s
                                        Account = %s,\s
@@ -221,7 +248,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                                        Topic = %s,\s
                                        File = %s,\s
                                        Schedule = %s
-                          """, entityId, counter, token, account, contract, topic, file, schedule);
+                          """, shardNum, realmNum, entityId, counter, token, account, contract, topic, file, schedule);
                 log.error(errorMessage);
                 issuesFound.incrementAndGet();
             }
