@@ -105,29 +105,32 @@ public class ChaosBotImpl implements ChaosBot {
                 final Instant nextBreak = scheduledSteps.peek().timestamp();
                 timeManager.waitFor(Duration.between(timeManager.now(), nextBreak));
 
-            do {
-                final Experiment.Step step = scheduledSteps.poll();
-                try {
-                    step.action().run();
-                } catch (final NetworkControlUnavailableException e) {
-                    // A chaos run must not die because the network was momentarily too chaotic to modify: when the
-                    // network-control mechanism is transiently unavailable, skip the step, record it, and carry on.
-                    failedSteps++;
-                    log.warn("A chaos experiment step failed and was skipped (total failed steps: {})", failedSteps, e);
-                }
-            } while (scheduledSteps.peek().timestamp().isBefore(timeManager.now()));
-        }
+                do {
+                    final Experiment.Step step = scheduledSteps.poll();
+                    try {
+                        step.action().run();
+                    } catch (final NetworkControlUnavailableException e) {
+                        // A chaos run must not die because the network was momentarily too chaotic to modify: when the
+                        // network-control mechanism is transiently unavailable, skip the step, record it, and carry on.
+                        failedSteps++;
+                        log.warn(
+                                "A chaos experiment step failed and was skipped (total failed steps: {})",
+                                failedSteps,
+                                e);
+                    }
+                } while (scheduledSteps.peek().timestamp().isBefore(timeManager.now()));
+            }
 
-        log.info("Chaos bot finished. Statistics of experiments run:");
-        for (final Map.Entry<String, Integer> entry : statistics.entrySet()) {
-            log.info("  {}: {}", entry.getKey(), entry.getValue());
-        }
-        log.info("  Failed steps: {}", failedSteps);
+            log.info("Chaos bot finished. Statistics of experiments run:");
+            for (final Map.Entry<String, Integer> entry : statistics.entrySet()) {
+                log.info("  {}: {}", entry.getKey(), entry.getValue());
+            }
+            log.info("  Failed steps: {}", failedSteps);
 
-        if (statistics.isEmpty()) {
-            throw new IllegalStateException(
-                    "Chaos bot did not successfully execute a single experiment; the network was never perturbed");
-        }
+            if (statistics.isEmpty()) {
+                throw new IllegalStateException(
+                        "Chaos bot did not successfully execute a single experiment; the network was never perturbed");
+            }
 
             // End any remaining experiments.
             network.restoreConnectivity();
