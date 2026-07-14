@@ -331,18 +331,6 @@ public class ReconnectTest {
 
         final Node nodeToReconnect = network.nodes().getLast();
 
-        network.newReconnectResults().subscribe(notification -> {
-            if (notification.payload().getClass().equals(ReconnectStartPayload.class)) {
-                final ReconnectStartPayload payload = (ReconnectStartPayload) notification.payload();
-                final Node node = network.nodes().stream()
-                        .filter(n -> n.selfId().id() == payload.getOtherNodeId())
-                        .findFirst()
-                        .orElse(nodeToReconnect);
-                network.isolate(node);
-            }
-            return SubscriberAction.CONTINUE;
-        });
-
         enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
         timeManager.waitForCondition(
                 nodeToReconnect::isBehind,
