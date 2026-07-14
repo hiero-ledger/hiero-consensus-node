@@ -120,9 +120,9 @@ a dependency on it.
   |----------------------------------------------------------|----------------------------------------|--------------------|---------|
   | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done    |
   | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
-  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | done    |
+  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | pending |
   | Sync                                                     | `consensus-gossip-impl`                | #24843             | done    |
-  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | done    |
+  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | pending |
   | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending |
   | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | pending |
 
@@ -229,8 +229,8 @@ See **Decision** above.
 - `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
   `ChildlessEventTracker.java` — the first consumer migrated (#24991).
 - `consensus-hashgraph-impl/.../consensus/` — `ConsensusImpl`, `ConsensusRounds`,
-  `RoundElections` (consensus algorithm, #24844) and
-  `LocalConsensusGeneration.assignCGen` (the `cGen` initial topological sort, #24883)
+  `RoundElections`, `ConsensusSorter`, `LocalConsensusGeneration`: the consensus
+  and `cGen` consumers still on `nGen` (#24844, #24883).
   migrated off `nGen` to the sequence number; `ConsensusSorter` orders by the resulting
   `cGen`, never `nGen`.
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
@@ -260,10 +260,8 @@ See **Decision** above.
   implementation followed: PR #24937 (2026-04-16) added the counter and renamed
   the consensus-side `sequence` to `consensusSequence`; PR #24991 (2026-04-30)
   migrated the tipset. Sync (#24843) migrated the send-list sort to the sequence
-  number. Consensus (#24844) migrated the algorithm's ordering key
-  (`consensusRelevantSeqNum`, `RoundElections.minSeqNum`,
-  `isOlderThanDecidedRoundSeqNum`). `cGen` (#24883), tools (#24885), and the
-  final `nGen` removal (#24846) remain open at the time of writing.
+  number. number. Consensus (#24844), `cGen` (#24883), tools (#24885), and the final
+  `nGen` removal (#24846) remain open at the time of writing.
 - This entry fulfills #25482 ("Create ADR for replacing nGen with sequence
   number"). It supersedes an earlier draft scoped to event creation only; the
   scope was broadened to the full `nGen` removal.

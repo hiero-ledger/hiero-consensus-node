@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +26,10 @@ public final class Git {
     private final boolean available;
     /** Per-run cache of repo-relative path to its last commit date (or {@code null} if none). */
     private final Map<String, String> lastCommitDateCache = new HashMap<>();
+    /** Per-run cache of a gone repo-relative path to the path it was renamed to (or {@code null}). */
+    private final Map<String, String> renameCache = new HashMap<>();
+    /** Per-run cache of a pathspec to the short hash and subject of the commit that deleted it. */
+    private final Map<String, String> deletionCache = new HashMap<>();
 
     /**
      * Creates a wrapper rooted at the given repository and probes whether git is usable.
@@ -57,6 +62,67 @@ public final class Git {
     }
 
     /**
+     * The path a now-gone file was most recently renamed to, if git can trace it and the target still
+     * exists. Follows the cited path's history for rename ({@code R}) commits; the newest one names the
+     * current location. Returns {@code null} when git is unavailable, no rename is recorded, or the traced
+     * target no longer exists.
+     *
+     * @param repoRelPath the gone repo-relative path to trace.
+     * @return the repo-relative path it was renamed to, or {@code null}.
+     */
+    public String findRename(final String repoRelPath) {
+        if (!available) {
+            return null;
+        }
+        return renameCache.computeIfAbsent(repoRelPath, path -> {
+            final String out = run(List.of(
+                    "git",
+                    "log",
+                    "--follow",
+                    "--find-renames",
+                    "--diff-filter=R",
+                    "--name-status",
+                    "--format=",
+                    "--",
+                    path));
+            if (out == null || out.isBlank()) {
+                return null;
+            }
+            // Newest first; a rename line is "R<score>\t<old>\t<new>". The first names the current location.
+            for (final String line : out.split("\n")) {
+                if (line.startsWith("R")) {
+                    final String[] parts = line.split("\t");
+                    if (parts.length >= 3) {
+                        final String newPath = parts[2].strip();
+                        if (!newPath.isEmpty() && Files.isRegularFile(repoRoot.resolve(newPath))) {
+                            return newPath;
+                        }
+                    }
+                }
+            }
+            return null;
+        });
+    }
+
+    /**
+     * The short hash and subject of the most recent commit that deleted a file matching the pathspec
+     * (git wildcard syntax; a plain repo-relative path also works). Returns {@code null} when git is
+     * unavailable or no deletion is recorded.
+     *
+     * @param pathspec the git pathspec to trace (e.g. a repo-relative path, or {@code *&#47;File.java}).
+     * @return {@code "<short-hash> <subject>"} of the deleting commit, or {@code null}.
+     */
+    public String findDeletion(final String pathspec) {
+        if (!available) {
+            return null;
+        }
+        return deletionCache.computeIfAbsent(pathspec, ps -> {
+            final String out = run(List.of("git", "log", "--diff-filter=D", "-1", "--format=%h %s", "--", ps));
+            return out == null || out.isBlank() ? null : out.strip();
+        });
+    }
+
+    /**
      * Probes whether the repository root is inside a git work tree.
      *
      * @return {@code true} if git reports this directory is inside a working tree.
@@ -76,7 +142,7 @@ public final class Git {
         try {
             final Process process = new ProcessBuilder(command)
                     .directory(repoRoot.toFile())
-                    .redirectErrorStream(false)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
             final String output;
             try (BufferedReader reader =

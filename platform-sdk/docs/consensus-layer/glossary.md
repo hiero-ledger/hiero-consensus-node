@@ -250,8 +250,7 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 A per-event count: one plus the maximum parent generation. The paper used a single
 *deterministic* generation as the ancient horizon; current code uses *Birth round* for that
 and keeps three separate generation counters instead, each calculated differently and used
-for a different purpose — *nGen* (local; topological ordering, now migrating to the event
-*Sequence number*, ADR-008), *deGen* (deterministic,
+for a different purpose — *nGen* (local, for topological ordering), *deGen* (deterministic,
 for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a
 *Consensus round*).
 See [concepts/birth-round.md](concepts/birth-round.md).
@@ -317,14 +316,12 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
 ### NGen
 
-*Non-deterministic generation* (`NonDeterministicGeneration`): historically the consensus
-layer's local topological-ordering key, answering "higher in the hashgraph" comparisons.
-Assigned to every non-orphan event, locally by each node, so it may differ between nodes; set
-once at intake and then stable. That ordering role has moved to the event *Sequence number*
-(ADR-008); `nGen` now survives only for the not-yet-migrated `cGen` path, pending removal.
-Contrast the deterministic *DeGen* and *CGen*; see *Generation*.
-See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md)
-and [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
+*Non-deterministic generation* (`NonDeterministicGeneration`): orders events into one valid
+topological order and answers "higher in the hashgraph" comparisons. Assigned to every
+non-orphan event, locally by each node, so it may differ between nodes; set once at intake and
+then stable. Used throughout the consensus layer. Contrast the deterministic *DeGen* and
+*CGen*; see *Generation*.
+See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
 

@@ -23,6 +23,7 @@ import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 import org.hiero.otter.fixtures.chaosbot.Experiment;
 import org.hiero.otter.fixtures.chaosbot.Experiment.Step;
+import org.hiero.otter.fixtures.exceptions.NetworkControlUnavailableException;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
@@ -60,6 +61,9 @@ public class ChaosBotImpl implements ChaosBot {
 
     /** Statistics about how many times each experiment has been run. */
     private final Map<String, Integer> statistics = new HashMap<>();
+
+    /** The number of experiment steps that threw while being executed and were skipped. */
+    private int failedSteps = 0;
 
     /**
      * Create a new chaos bot.
@@ -103,13 +107,29 @@ public class ChaosBotImpl implements ChaosBot {
 
                 do {
                     final Experiment.Step step = scheduledSteps.poll();
-                    step.action().run();
+                    try {
+                        step.action().run();
+                    } catch (final NetworkControlUnavailableException e) {
+                        // A chaos run must not die because the network was momentarily too chaotic to modify: when the
+                        // network-control mechanism is transiently unavailable, skip the step, record it, and carry on.
+                        failedSteps++;
+                        log.warn(
+                                "A chaos experiment step failed and was skipped (total failed steps: {})",
+                                failedSteps,
+                                e);
+                    }
                 } while (scheduledSteps.peek().timestamp().isBefore(timeManager.now()));
             }
 
             log.info("Chaos bot finished. Statistics of experiments run:");
             for (final Map.Entry<String, Integer> entry : statistics.entrySet()) {
                 log.info("  {}: {}", entry.getKey(), entry.getValue());
+            }
+            log.info("  Failed steps: {}", failedSteps);
+
+            if (statistics.isEmpty()) {
+                throw new IllegalStateException(
+                        "Chaos bot did not successfully execute a single experiment; the network was never perturbed");
             }
 
             // End any remaining experiments.
@@ -161,16 +181,20 @@ public class ChaosBotImpl implements ChaosBot {
 
         // Create a step that does two things:
         final Step startExperiment = new Step(startTime, () -> {
-            // 1. Start the experiment and schedule its remaining steps
-            final List<Step> remainingSteps = experiment.start(env.network(), startTime, randotron);
-            if (remainingSteps.isEmpty()) {
-                log.info("Experiment '{}' could not be started.", experiment.name());
-            } else {
-                scheduledSteps.addAll(remainingSteps);
-                statistics.merge(experiment.name(), 1, Integer::sum);
+            try {
+                // 1. Start the experiment and schedule its remaining steps
+                final List<Step> remainingSteps = experiment.start(env.network(), startTime, randotron);
+                if (remainingSteps.isEmpty()) {
+                    log.info("Experiment '{}' could not be started.", experiment.name());
+                } else {
+                    scheduledSteps.addAll(remainingSteps);
+                    statistics.merge(experiment.name(), 1, Integer::sum);
+                }
+            } finally {
+                // 2. Schedule the next experiment. This runs even if starting the experiment threw, so the
+                //    scheduled-steps queue that the main loop relies on can never be left empty.
+                scheduleNextExperiment();
             }
-            // 2. Schedule the next experiment
-            scheduleNextExperiment();
         });
         scheduledSteps.add(startExperiment);
     }
