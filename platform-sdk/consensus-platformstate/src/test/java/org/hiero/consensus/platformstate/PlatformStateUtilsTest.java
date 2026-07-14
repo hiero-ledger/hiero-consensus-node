@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.platformstate;
 
-import static org.hiero.consensus.platformstate.PlatformStateFactory.randomPlatformState;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
+import static org.hiero.consensus.platformstate.PlatformStateFactory.randomPlatformState;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;

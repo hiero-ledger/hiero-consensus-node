@@ -60,5 +60,4 @@ public class PlatformContextFactory {
         }
         return platformContextBuilder.build();
     }
-
 }

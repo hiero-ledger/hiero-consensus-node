@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.exceptions;
 
-
 import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.CAUSE;
 import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.CAUSE_MESSAGE;
 import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.MESSAGE;
