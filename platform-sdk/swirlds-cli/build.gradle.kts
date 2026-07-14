@@ -12,7 +12,6 @@ testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.event.stream.test.fixtures")
-    requires("org.hiero.consensus.gui")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.pces.impl.test.fixtures")
     requires("org.hiero.consensus.pcli")
