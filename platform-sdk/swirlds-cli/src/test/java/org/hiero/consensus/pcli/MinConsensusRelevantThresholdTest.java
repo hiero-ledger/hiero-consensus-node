@@ -44,7 +44,7 @@ public class MinConsensusRelevantThresholdTest {
         final ResourceExtractor<MinConsensusRelevantThresholdTest> loader =
                 new ResourceExtractor<>(MinConsensusRelevantThresholdTest.class);
         final Path tempDir = loader.loadDirectory(RESOURCE_DIR);
-        Files.copy(tempDir, testDataDirectory, REPLACE_EXISTING);
+        Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);
     }
 
     /**
