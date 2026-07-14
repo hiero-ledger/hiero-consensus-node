@@ -587,14 +587,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * {@inheritDoc}
      */
     @Override
-    public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {
-        return pipeline == this.pipeline;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     protected void destroyNode() {
         if (pipeline != null) {
             pipeline.destroyCopy(this);

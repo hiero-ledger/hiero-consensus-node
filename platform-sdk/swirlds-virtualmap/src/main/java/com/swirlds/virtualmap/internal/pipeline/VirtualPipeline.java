@@ -170,18 +170,6 @@ public class VirtualPipeline {
     }
 
     /**
-     * Make sure that the given copy is properly registered with this pipeline.
-     *
-     * @param copy
-     * 		the copy in question
-     */
-    private void validatePipelineRegistration(final VirtualRoot copy) {
-        if (!copy.isRegisteredToPipeline(this)) {
-            throw new IllegalStateException("copy is not registered with this pipeline");
-        }
-    }
-
-    /**
      * Slow down the fast copy operation if total size of all (unreleased) virtual root copies
      * in this pipeline exceeds {@link VirtualMapConfig#getFamilyThrottleThreshold()}.
      */
@@ -296,8 +284,6 @@ public class VirtualPipeline {
      * 		a copy of the map that needs to be hashed
      */
     public void hashCopy(final VirtualRoot copy) {
-        validatePipelineRegistration(copy);
-
         for (; ; ) {
             final VirtualRoot unhashedCopy = unhashedCopies.peekFirst();
             if (unhashedCopy == null) {
@@ -321,7 +307,7 @@ public class VirtualPipeline {
             }
         }
         if (!copy.isHashed()) {
-            throw new IllegalStateException("failed to hash copy");
+            throw new IllegalStateException("Failed to hash copy. Most likely copy is not registered to the pipeline");
         }
     }
 
