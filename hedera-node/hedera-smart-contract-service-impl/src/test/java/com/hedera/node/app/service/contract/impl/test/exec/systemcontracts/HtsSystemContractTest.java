@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
@@ -17,13 +19,16 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
@@ -236,6 +241,62 @@ class HtsSystemContractTest {
 
         verify(dispatchedRecordBuilder, never()).contractCallResult(any());
         verify(dispatchedRecordBuilder).evmCallTransactionResult(any());
+    }
+
+    @Test
+    void maxChildRecordsExceededDuringExecutionHaltsWithInsufficientChildRecords() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        // A HandleException thrown from call.execute() (execution phase) with MAX_CHILD_RECORDS_EXCEEDED
+        // is converted to an INSUFFICIENT_CHILD_RECORDS halt rather than escaping the system contract.
+        given(call.execute(frame)).willThrow(new HandleException(MAX_CHILD_RECORDS_EXCEEDED));
+
+        final var expected =
+                haltResult(CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS, frame.getRemainingGas());
+        final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+        assertSamePrecompileResult(expected, result);
+    }
+
+    @Test
+    void handleExceptionDuringExecutionWithInvalidTokenIdStatusIsRethrown() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        given(call.execute(frame)).willThrow(new HandleException(INVALID_TOKEN_ID));
+
+        final var thrown =
+                assertThrows(HandleException.class, () -> subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+        assertEquals(INVALID_TOKEN_ID, thrown.getStatus());
+    }
+
+    @Test
+    void unqualifiedDelegateCallHaltsWithPrecompileError() {
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> callTypeOf(frame, EntityType.TOKEN)).thenReturn(FrameUtils.CallType.UNQUALIFIED_DELEGATE);
+
+        final var expected = haltResult(ExceptionalHaltReason.PRECOMPILE_ERROR, frame.getRemainingGas());
+        final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+        assertSamePrecompileResult(expected, result);
+    }
+
+    @Test
+    void staticFrameWithNonStaticCallHaltsAndConsumesDefaultGas() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        given(frame.isStatic()).willReturn(true);
+        given(call.allowsStaticFrame()).willReturn(false);
+
+        final var expected = haltResult(DEFAULT_CONTRACTS_CONFIG.precompileHtsDefaultGasCost());
+        final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+        assertSamePrecompileResult(expected, result);
     }
 
     private void givenValidCallAttempt() {

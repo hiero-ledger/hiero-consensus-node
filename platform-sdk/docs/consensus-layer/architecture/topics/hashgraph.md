@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-02
+last_reviewed: 2026-07-13
 ---
 
 # Hashgraph
@@ -288,10 +288,10 @@ into the loaded state — is covered in
 > `consensusRelevantSeqNum` / `RoundElections.minSeqNum` and
 > `ConsensusRounds.isOlderThanDecidedRoundSeqNum`) and the `DeGen`/`cGen`
 > family used inside the algorithm. The sequence number replaced `NGen`
-> as the algorithm's ordering key, and `NGen`
-> (`NonDeterministicGeneration`) has since been removed entirely (see
-> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md)).
-> Conceptual
+> as the algorithm's ordering key (see
+> [`../../decisions/ADR-008-replace-ngen-with-sequence-number.md`](../../decisions/ADR-008-replace-ngen-with-sequence-number.md));
+> `NonDeterministicGeneration` lingers in this module only for the
+> not-yet-migrated `cGen` path. Conceptual
 > background lives in
 > [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md)
 > and [`../../concepts/birth-round.md`](../../concepts/birth-round.md).
