@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -77,14 +76,14 @@ public class AtomicBatchRollbackTest {
     }
 
     @LeakyHapiTest
-    final Stream<DynamicTest> test() {
+    final Stream<DynamicTest> batchContractDelegationSuppressesRolledBackFields() {
         final var delegatingAccount = "TestAccount";
         return hapiTest(
                 createFundedAccount(delegatingAccount),
                 atomicBatch(
                                 ethereumCall(LOGGED_CONTRACT, "create")
                                         .signingWith(delegatingAccount)
-                                        .via("ethCall")
+                                        .via("ethTx")
                                         .payingWith(RELAYER)
                                         .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER),
@@ -95,7 +94,7 @@ public class AtomicBatchRollbackTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 doingContextual(spec -> {
-                    var ecrOp = QueryVerbs.getTxnRecord("ethCall").exposingTo(rcd -> {
+                    var ecrOp = QueryVerbs.getTxnRecord("ethTx").exposingTo(rcd -> {
                         final var result = rcd.getContractCallResult();
                         final List<ContractID> createdContractIDs = result.getCreatedContractIDsList();
                         Assertions.assertTrue(
@@ -106,17 +105,13 @@ public class AtomicBatchRollbackTest {
                                 result.getLogInfoList().isEmpty(), "Expected logInfo to be empty after rollback");
                         Assertions.assertTrue(result.getBloom().isEmpty(), "Expected bloom to be empty after rollback");
                     });
-                    allRunFor(spec, ecrOp, sleepFor(10000L));
+                    allRunFor(spec, ecrOp);
                 }));
     }
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {
         return blockingOrder(
                 newKeyNamed(name).shape(SECP_256K1_SHAPE),
-                cryptoCreate(name)
-                        .key(name)
-                        .withMatchingEvmAddress()
-                        .balance(ONE_HUNDRED_HBARS)
-                        .memo("matt: funded acct"));
+                cryptoCreate(name).key(name).withMatchingEvmAddress().balance(ONE_HUNDRED_HBARS));
     }
 }
