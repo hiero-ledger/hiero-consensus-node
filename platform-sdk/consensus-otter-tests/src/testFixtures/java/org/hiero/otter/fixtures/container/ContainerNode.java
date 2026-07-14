@@ -23,6 +23,8 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -95,6 +97,9 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
+
+    /** Backoff between retries of the unary {@code start} RPC while the channel reconnects. */
+    private static final Duration START_RETRY_BACKOFF = Duration.ofMillis(250);
 
     /** The time manager to use for this node */
     private final TimeManager timeManager;
@@ -247,8 +252,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
 
         // Start the platform. This is a unary call and throws if the server returns an error.
-        //noinspection ResultOfMethodCallIgnored
-        nodeCommBlockingStub.start(startRequest);
+        startPlatform(startRequest, timeout);
 
         lifeCycle = RUNNING;
 
@@ -257,6 +261,33 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         eventStreamClient =
                 new EventStreamClient(selfId, asyncStub, receivedEvents, () -> lifeCycle == RUNNING, this::isAlive);
         eventStreamClient.start();
+    }
+
+    /**
+     * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the
+     * start budget has not been exhausted. This tolerates the shared channel needing to reconnect to a
+     * freshly (re)started node process; any other status, or exhausting the budget, propagates the error.
+     *
+     * @param startRequest the request to send
+     * @param timeout the overall budget for starting the platform
+     */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private void startPlatform(@NonNull final StartRequest startRequest, @NonNull final Duration timeout) {
+        final Instant deadline = timeManager.now().plus(timeout);
+        while (true) {
+            try {
+                nodeCommBlockingStub.start(startRequest);
+                return;
+            } catch (final StatusRuntimeException e) {
+                if (e.getStatus().getCode() != Code.UNAVAILABLE
+                        || !timeManager.now().isBefore(deadline)) {
+                    throw e;
+                }
+                log.warn("Start of node {} returned UNAVAILABLE; retrying while the channel reconnects", selfId);
+            }
+            // Back off before retrying to give the channel time to reconnect to the new node process.
+            timeManager.waitFor(START_RETRY_BACKOFF);
+        }
     }
 
     /**
@@ -370,6 +401,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         if (!response.getAlive()) {
             lifeCycle = SHUTDOWN;
             platformStatus = null;
+            if (eventStreamClient != null) {
+                eventStreamClient.close();
+            }
         }
         return response.getAlive();
     }
