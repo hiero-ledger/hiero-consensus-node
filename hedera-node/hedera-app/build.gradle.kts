@@ -113,6 +113,13 @@ val copyLib =
     tasks.register<Sync>("copyLib") {
         from(project.configurations.getByName("runtimeClasspath"))
         into(layout.projectDirectory.dir("../data/lib"))
+        // Gradle 9.6+ stores downloaded artifacts with owner-only (0600) permissions, and Sync
+        // preserves the source mode. Jars deployed to a consensus node via Solo's
+        // --local-build-path keep that mode and owner uid in the container, where the node JVM
+        // runs as a different user and silently skips any classpath jar it cannot read
+        // (NoClassDefFoundError at startup). Normalize to world-readable.
+        filePermissions { unix("0644") }
+        dirPermissions { unix("0755") }
     }
 
 // Copy built jar into `data/apps` and rename HederaNode.jar
@@ -122,6 +129,8 @@ val copyApp =
         into(layout.projectDirectory.dir("../data/apps"))
         rename { "HederaNode.jar" }
         shouldRunAfter(tasks.named("copyLib"))
+        filePermissions { unix("0644") }
+        dirPermissions { unix("0755") }
     }
 
 // Working directory for 'run' tasks
