@@ -351,4 +351,15 @@ public interface Node {
      * @throws UnsupportedOperationException if profiling is not supported in this environment
      */
     void stopProfiling();
+
+    /**
+     * Captures a JVM thread dump of the node for diagnostics, typically to investigate a node that is stuck (for
+     * example, one that failed to become active again after a chaotic run). This is best-effort and never throws:
+     * implementations that cannot capture a dump return a short explanatory message instead.
+     *
+     * @return the thread dump as text, or an explanatory message if a dump could not be captured
+     */
+    default String dumpThreads() {
+        return "(thread dump not supported for " + getClass().getSimpleName() + ")";
+    }
 }

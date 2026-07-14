@@ -11,6 +11,7 @@ import com.google.protobuf.Empty;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +31,7 @@ import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PingResponse;
+import org.hiero.otter.fixtures.container.proto.ThreadDumpResponse;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -238,5 +240,62 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 .build());
         responseObserver.onCompleted();
         log.debug("Ping response sent");
+    }
+
+    /**
+     * Captures a JVM thread dump of the consensus node process for diagnostics (for example, to investigate a node
+     * that failed to recover after chaos). The dump is produced by {@code jcmd} attaching to the child process, so it
+     * works even when the node's own threads are wedged. This is best-effort: on any failure, or if the process is not
+     * alive, a short explanatory message is returned instead of a dump and the RPC still succeeds.
+     *
+     * @param request An empty request.
+     * @param responseObserver The observer used to receive the thread dump.
+     */
+    @Override
+    public void dumpThreads(
+            @NonNull final Empty request, @NonNull final StreamObserver<ThreadDumpResponse> responseObserver) {
+        log.info("Received thread dump request");
+        final Process nodeProcess;
+        synchronized (this) {
+            nodeProcess = process;
+        }
+        final String threadDump;
+        if (nodeProcess == null || !nodeProcess.isAlive()) {
+            threadDump = "(consensus node process is not alive)";
+        } else {
+            threadDump = captureThreadDump(nodeProcess.pid());
+        }
+        responseObserver.onNext(
+                ThreadDumpResponse.newBuilder().setThreadDump(threadDump).build());
+        responseObserver.onCompleted();
+        log.info("Thread dump request completed");
+    }
+
+    /**
+     * Runs {@code jcmd <pid> Thread.print -l} against the consensus node process and returns its combined output.
+     *
+     * @param pid the process ID of the consensus node process to dump
+     * @return the thread dump text, or a short explanatory message if the dump could not be captured
+     */
+    private static String captureThreadDump(final long pid) {
+        final String jcmd =
+                Path.of(System.getProperty("java.home"), "bin", "jcmd").toString();
+        try {
+            final Process dump = new ProcessBuilder(jcmd, Long.toString(pid), "Thread.print", "-l")
+                    .redirectErrorStream(true)
+                    .start();
+            // Drain the pipe first (avoids a full-buffer deadlock), then wait for jcmd to exit.
+            final String output = new String(dump.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            if (!dump.waitFor(30, TimeUnit.SECONDS)) {
+                dump.destroyForcibly();
+                return "(thread dump timed out after 30s for pid " + pid + ")";
+            }
+            return output;
+        } catch (final IOException e) {
+            return "(thread dump failed for pid " + pid + ": " + e + ")";
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "(thread dump interrupted for pid " + pid + ")";
+        }
     }
 }
