@@ -35,7 +35,8 @@ class VirtualMapMetadataTest {
         VirtualMapMetadata state = new VirtualMapMetadata();
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = nextInt(firstLeafPath + 1, firstLeafPath * 2);
-        state.setPaths(firstLeafPath, lastLeafPath);
+        state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
         assertEquals(firstLeafPath, state.getFirstLeafPath());
         assertEquals(lastLeafPath, state.getLastLeafPath());
     }
@@ -45,7 +46,8 @@ class VirtualMapMetadataTest {
         VirtualMapMetadata state = new VirtualMapMetadata();
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
-        state.setPaths(firstLeafPath, lastLeafPath);
+        state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -70,7 +72,7 @@ class VirtualMapMetadataTest {
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
         state.setLastLeafPath(lastLeafPath);
-        state.setPaths(firstLeafPath, lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -95,7 +97,8 @@ class VirtualMapMetadataTest {
 
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
-        state.setPaths(firstLeafPath, lastLeafPath);
+        state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
 
         assertEquals(lastLeafPath - firstLeafPath + 1, state.getSize());
     }

@@ -12,7 +12,7 @@ import java.util.Objects;
  * Contains state for a {@link VirtualMap}. This state is stored in memory. When an instance of {@link VirtualMap}
  * is serialized, it's stored as one of the key-value pairs.
  */
-public final class VirtualMapMetadata {
+public class VirtualMapMetadata {
 
     /**
      * The path of the very first leaf in the tree. Can be -1 if there are no leaves.
@@ -28,7 +28,8 @@ public final class VirtualMapMetadata {
      * Create a new {@link VirtualMapMetadata}.
      */
     public VirtualMapMetadata() {
-        reset();
+        firstLeafPath = INVALID_PATH;
+        lastLeafPath = INVALID_PATH;
     }
 
     /**
@@ -37,6 +38,31 @@ public final class VirtualMapMetadata {
     public VirtualMapMetadata(final long firstLeafPath, final long lastLeafPath) {
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
+    }
+
+    /**
+     * Create a new {@link VirtualMapMetadata}.
+     */
+    public VirtualMapMetadata(final long stateSize) {
+        if (stateSize == 0) {
+            firstLeafPath = INVALID_PATH;
+            lastLeafPath = INVALID_PATH;
+        }
+        if (stateSize == 1) {
+            firstLeafPath = 1;
+            lastLeafPath = 1;
+        } else {
+            firstLeafPath = stateSize - 1;
+            lastLeafPath = firstLeafPath + stateSize - 1;
+        }
+    }
+
+    /**
+     * Copy constructor.
+     */
+    private VirtualMapMetadata(final VirtualMapMetadata virtualMapMetadata) {
+        firstLeafPath = virtualMapMetadata.getFirstLeafPath();
+        lastLeafPath = virtualMapMetadata.getLastLeafPath();
     }
 
     /**
@@ -89,22 +115,6 @@ public final class VirtualMapMetadata {
         this.lastLeafPath = path;
     }
 
-    /**
-     * Reset range to invalid values. This is used when the virtual map is empty.
-     */
-    public void reset() {
-        this.firstLeafPath = INVALID_PATH;
-        this.lastLeafPath = INVALID_PATH;
-    }
-
-    /**
-     * Set both first and last leaf paths.
-     *
-     * @param firstLeafPath first path
-     * @param lastLeafPath last path
-     *
-     * @throws IllegalArgumentException if the paths are invalid
-     */
     public void setPaths(final long firstLeafPath, final long lastLeafPath) {
         if (lastLeafPath == firstLeafPath) {
             if ((firstLeafPath != INVALID_PATH) && (firstLeafPath != 1)) {
@@ -130,7 +140,7 @@ public final class VirtualMapMetadata {
     }
 
     public VirtualMapMetadata copy() {
-        return new VirtualMapMetadata(getFirstLeafPath(), getLastLeafPath());
+        return new VirtualMapMetadata(this);
     }
 
     /**

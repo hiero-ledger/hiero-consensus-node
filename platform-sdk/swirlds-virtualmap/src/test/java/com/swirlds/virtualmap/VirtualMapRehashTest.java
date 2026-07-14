@@ -51,7 +51,8 @@ class VirtualMapRehashTest extends VirtualTestBase {
     void testRehashSkippedIfHashMatches() throws IOException {
         VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setPaths(1, 1);
+        metadata.setLastLeafPath(1);
+        metadata.setFirstLeafPath(1);
 
         final VirtualDataSource dataSource = vm.getDataSource();
         // Prepare data in data source
@@ -73,7 +74,8 @@ class VirtualMapRehashTest extends VirtualTestBase {
     void testRehashTriggeredIfHashMismatches() throws IOException {
         VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
         VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setPaths(1, 2);
+        metadata.setLastLeafPath(2);
+        metadata.setFirstLeafPath(1);
 
         final VirtualDataSource dataSource = vm.getDataSource();
         // Prepare data in a data source with a wrong hash
@@ -123,7 +125,8 @@ class VirtualMapRehashTest extends VirtualTestBase {
                 .build();
         VirtualMap vm = new VirtualMap(builder, configuration);
         VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setPaths(1, 1);
+        metadata.setLastLeafPath(1);
+        metadata.setFirstLeafPath(1);
 
         final VirtualDataSource dataSource = vm.getDataSource();
         final int chunkHeight = dataSource.getHashChunkHeight();

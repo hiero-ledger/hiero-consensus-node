@@ -1214,7 +1214,8 @@ class VirtualMapTests extends VirtualTestBase {
         try {
             VirtualMapMetadata originalMetadata = original.getMetadata();
             // let's change the original state and make sure that the detached copy is not affected
-            originalMetadata.reset();
+            originalMetadata.setFirstLeafPath(-1);
+            originalMetadata.setLastLeafPath(-1);
             VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
             assertNotNull(leafRecord);
             assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
