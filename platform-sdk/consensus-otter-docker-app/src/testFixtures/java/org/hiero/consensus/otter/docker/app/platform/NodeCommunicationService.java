@@ -78,12 +78,14 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     /**
      * Starts the platform using the provided {@link StartRequest}.
      * <p>
-     * This method initializes the {@link ConsensusNodeManager} and sets up listeners that publish platform events into
-     * the {@link EventStreamManager}. The event messages themselves are delivered over the separate {@code subscribe}
-     * stream rather than through this call's response.
+     * The request is validated and acknowledged synchronously, but the {@link ConsensusNodeManager} is constructed and
+     * started afterwards, so this call returns as soon as the request has been accepted rather than once the platform is
+     * fully up. Listeners that publish platform events into the {@link EventStreamManager} are registered as part of that
+     * construction; the event messages themselves are delivered over the separate {@code subscribe} stream rather than
+     * through this call's response.
      *
      * @param request The request containing details required to construct the platform.
-     * @param responseObserver The observer used to acknowledge that the platform has started.
+     * @param responseObserver The observer used to acknowledge that the start request has been accepted.
      * @throws StatusRuntimeException if the platform is already started, or if the request contains invalid arguments.
      */
     @Override
@@ -106,17 +108,23 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-        wrapWithErrorHandling(responseObserver, () -> {
+        // Acknowledge the request *before* constructing and starting the platform. Platform construction is
+        // expensive, and the test harness starts nodes sequentially with a blocking call; waiting for
+        // construction to finish here would serialize startup across the whole network and make the
+        // last-started nodes fall so far behind that they have to reconnect. Replying first lets every node
+        // construct its platform in parallel. Construction failures can no longer be returned to the caller,
+        // so they are logged instead.
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
+
+        try {
             consensusNodeManager =
                     new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
-
             setupStreamingEventDispatcher();
-
             consensusNodeManager.start();
-
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
-        });
+        } catch (final Exception e) {
+            log.error(ERROR.getMarker(), "Failed to construct and start the platform", e);
+        }
     }
 
     /**
