@@ -1180,6 +1180,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true);
                 }
 
+                logger.debug(
+                        "{} No block available to stream; will sleep before retrying",
+                        BlockNodeStreamingConnection.this);
                 return true;
             }
 
@@ -1223,11 +1226,17 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                             hardLimitBytes);
                     sendEndStream(ERROR);
                     close(CloseReason.INTERNAL_ERROR, true);
+                    logger.debug(
+                            "{} Exiting doWork after item exceeded hard limit and closing connection",
+                            BlockNodeStreamingConnection.this);
                     return true;
                 } else if (itemSize >= softLimitBytes) {
                     // the item is too large to fit into a normal request, so make it a part of its own request
                     // we want to send any previous pending items first though
                     if (!pendingRequestItems.isEmpty() && !trySendPendingRequest()) {
+                        logger.debug(
+                                "{} Failed to send pending request before large item; exiting doWork early",
+                                BlockNodeStreamingConnection.this);
                         return true; // failed to send the request for some reason; exit early
                     }
 
@@ -1239,12 +1248,18 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     ++itemIndex;
 
                     if (!trySendPendingRequest()) {
+                        logger.debug(
+                                "{} Failed to send large item request; exiting doWork early",
+                                BlockNodeStreamingConnection.this);
                         return true; // failed to send the request for some reason; exit early
                     }
                 } else if (newRequestBytes > softLimitBytes) {
                     // if we add the item to the current request, the request would exceed the soft limit so send
                     // the pending request and start a new request with the item
                     if (!trySendPendingRequest()) {
+                        logger.debug(
+                                "{} Failed to send pending request when approaching soft limit; exiting doWork early",
+                                BlockNodeStreamingConnection.this);
                         return true; // failed to send the request for some reason; exit early
                     }
                 } else {
@@ -1254,6 +1269,14 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     pendingRequestHasBlockProof |= item.hasBlockProof();
                     pendingRequestHasBlockHeader |= item.hasBlockHeader();
                     ++itemIndex;
+                    logger.debug(
+                            "{} Adding item to pending request (block: {}, itemIndex: {}, itemSize: {} bytes, pendingRequestBytes: {} bytes, Item Kind: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber(),
+                            itemIndex,
+                            itemSize,
+                            pendingRequestBytes,
+                            item.item().kind());
                 }
             }
 
@@ -1265,6 +1288,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             number of items associated with this block is the same as the number of items we've collected thus far (i.e.
             the has caught up with all the items produced for the block.)
              */
+            logger.trace("{} doWork completing", BlockNodeStreamingConnection.this);
             return block == null || block.itemCount() == itemIndex;
         }
 
@@ -1337,6 +1361,14 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     && block.itemCount() == itemIndex; // we've exhausted all items in the block
 
             if (!finishedWithCurrentBlock) {
+                logger.debug(
+                        "{} Not finished with current block (block: {}, pendingRequestItems: {}, blockClosed: {}, itemIndex: {}, blockItemCount: {})",
+                        BlockNodeStreamingConnection.this,
+                        block.blockNumber(),
+                        pendingRequestItems.size(),
+                        block.isClosed(),
+                        itemIndex,
+                        block.itemCount());
                 return; // still more work to do
             }
 

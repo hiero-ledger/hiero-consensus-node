@@ -461,7 +461,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 noOpenWrbWritersFuture = new CompletableFuture<>();
                 logger.debug("Created noOpenWrbWritersFuture after opening WRB writer for block #{}", blockNumber);
             }
-            logger.debug("Opened WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
+            logger.info("Opened WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
         }
     }
 
@@ -470,7 +470,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final CompletableFuture<Void> futureToComplete;
         synchronized (noOpenWrbWritersFutureLock) {
             openWrbWriters.remove(blockNumber, writer);
-            logger.debug("Removed WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
+            logger.info("Removed WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
             if (!openWrbWriters.isEmpty() || noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 return;
             }
@@ -910,6 +910,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         writer.writePbjItem(footerItem);
         final var proofItem = signedRecordFileProofItem(blockNumber, serializedRosterSignatures);
         writer.writePbjItem(proofItem);
+        logger.info("Finalized WRB block #{} with root hash {}", blockNumber, blockRootHash);
         writer.closeCompleteBlock();
         removeOpenWrbWriter(blockNumber, writer);
     }

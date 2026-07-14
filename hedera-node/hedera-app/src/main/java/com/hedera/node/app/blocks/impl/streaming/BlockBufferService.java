@@ -323,9 +323,11 @@ public class BlockBufferService {
         requireNonNull(blockItem, "blockItem must not be null");
         final BlockState blockState = getBlockState(blockNumber);
         if (blockState == null || blockState.isClosed()) {
+            logger.info("Block {} is not open or already closed; ignoring block item", blockNumber);
             return;
         }
         blockStreamMetrics.recordBlockItemBytes(blockItem.protobufSize());
+        logger.info("Adding block item to block {}", blockNumber);
         blockState.addItem(blockItem);
     }
 
@@ -632,7 +634,8 @@ public class BlockBufferService {
             }
 
             if (shouldPrune) {
-                blockBuffer.remove(blockNumber);
+                var item = blockBuffer.remove(blockNumber);
+                logger.info("Pruned block {} from buffer (item count: {})", blockNumber, item.itemCount());
                 ++numPruned;
                 --size;
             } else {
