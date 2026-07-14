@@ -3,7 +3,7 @@
 ###################################
 # NOTE: This rule is overriden by the more specific rules below. This is the catch-all rule for all files not covered by the more specific rules below.
 *                                               @hiero-ledger/github-maintainers
-**/*.gradle*                                    @hiero-ledger/github-maintainers
+**/*.gradle*                                    @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/github-maintainers
 
 #########################
 ##### Example apps ######
