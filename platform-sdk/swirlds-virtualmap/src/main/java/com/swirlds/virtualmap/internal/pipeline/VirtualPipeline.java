@@ -470,13 +470,19 @@ public class VirtualPipeline {
                 merge(next);
                 copies.remove(next);
             }
-            statistics.setPipelineSize(copies.getSize());
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Pipeline size {}", copies.getSize());
-            final long totalSize = currentTotalSize();
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Total size {}", totalSize);
-            statistics.setNodeCacheSize(totalSize);
+
             next = next.getNext();
         }
+
+        final int pipelineSize = copies.getSize();
+        final long totalSize = currentTotalSize();
+        statistics.setPipelineSize(pipelineSize);
+        statistics.setNodeCacheSize(totalSize);
+        logger.debug(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "Pipeline copies size {}, total cache size {}",
+                pipelineSize,
+                totalSize);
     }
 
     private void doWork() {
