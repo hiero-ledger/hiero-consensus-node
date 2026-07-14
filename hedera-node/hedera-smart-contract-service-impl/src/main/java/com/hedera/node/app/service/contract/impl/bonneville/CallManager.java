@@ -352,11 +352,9 @@ public abstract class CallManager {
     }
 
     private static boolean checkHookExec(BEVM bevm) {
-        if( bevm._top._hookOwner == null ) return false;
-
-        // isNotRedirectFromNativeEntity
-        final var recipient = bevm._updater.getHederaAccount(bevm._recvAddr);
-        return !recipient.isTokenFacade() && !recipient.isScheduleTxnFacade() && !recipient.isRegularAccount();
+        // Delegate/callcode are blocked outright during hook execution, matching the
+        // canonical CustomDelegateCall/CustomCallCodeOperation guard (no facade exemption).
+        return bevm._top._hookOwner != null;
     }
 
     private static Address hookSender(BEVM bevm) {
