@@ -9,7 +9,6 @@ import com.swirlds.benchmark.reconnect.ReconnectBenchmarkResult;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.benchmark.reconnect.network.NetworkProfile;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
-import com.swirlds.benchmark.reconnect.network.NetworkTransport;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -29,7 +28,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @BenchmarkMode(Mode.SingleShotTime)
 @Fork(value = 1)
 @Warmup(iterations = 0)
-@Measurement(iterations = 3)
+@Measurement(iterations = 1)
 public class ReconnectBench extends VirtualMapBaseBench {
 
     /** A random seed for the StateBuilder. */
@@ -63,12 +62,9 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Param({"131072"})
     public int networkInflightBytesLimit;
 
-    @Param({"SIMULATED"})
-    public NetworkTransport networkTransport;
-
     private static final String TEACHER_MAP_NAME = "teacher";
     private VirtualMap teacherMap;
-    private VirtualMap teacherMapCopy;
+    private VirtualMap teacherMapDataSourceHead;
 
     private static final String LEARNER_MAP_NAME = "learner";
     private VirtualMap learnerMap;
@@ -141,8 +137,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
             teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
         }
 
-        // Make teacher immutable by creating a copy; keep the copy as the mutable head
-        teacherMapCopy = teacherMap.copy();
+        // Freeze the teacher map for synchronization and retain its mutable data-source head for the trial lifetime.
+        teacherMapDataSourceHead = teacherMap.copy();
 
         // Pre-hash the teacher map once — it's never modified
         teacherMap.getHash();
@@ -181,11 +177,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
     protected void onTrialTearDown() throws Exception {
         learnerMap.release();
         teacherMap.release();
-        teacherMapCopy.release();
+        teacherMapDataSourceHead.release();
 
         learnerMap = null;
         teacherMap = null;
-        teacherMapCopy = null;
+        teacherMapDataSourceHead = null;
         teacherData = null;
 
         await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
@@ -204,17 +200,24 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 networkInflightBytesLimit);
         final String reconnectMode =
                 configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
+        logger.info(
+                "ReconnectBench state: learnerSize={}, teacherSize={}, randomSeed={}, teacherAddProbability={}, teacherRemoveProbability={}, teacherModifyProbability={}",
+                learnerMap.size(),
+                teacherMap.size(),
+                randomSeed,
+                teacherAddProbability,
+                teacherRemoveProbability,
+                teacherModifyProbability);
         logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
-                "ReconnectBench transport={}, network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
-                networkTransport,
+                "ReconnectBench network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
                 networkConfig.profile(),
                 networkConfig.latencyNanos(),
                 networkConfig.bandwidthBytesPerSecond(),
                 networkConfig.inflightBytesLimit());
 
-        reconnectResult = MerkleBenchmarkUtils.hashAndTestSynchronization(
-                learnerMap, teacherMap, networkConfig, networkTransport, configuration);
+        reconnectResult =
+                MerkleBenchmarkUtils.hashAndTestSynchronization(learnerMap, teacherMap, networkConfig, configuration);
 
         logger.info("Reconnect stats: {}", reconnectResult.reconnectStats().format());
         logger.info("Network teacherToLearner: {}", reconnectResult.teacherToLearnerStats());

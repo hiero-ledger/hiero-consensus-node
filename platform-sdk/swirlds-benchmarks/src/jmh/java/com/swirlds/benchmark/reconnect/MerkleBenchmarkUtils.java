@@ -6,15 +6,13 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
-import com.swirlds.benchmark.reconnect.network.NetworkTransport;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
@@ -22,13 +20,10 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  */
 public class MerkleBenchmarkUtils {
 
-    private static final Logger logger = LogManager.getLogger(MerkleBenchmarkUtils.class);
-
     public static ReconnectBenchmarkResult hashAndTestSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final NetworkSimulationConfig networkConfig,
-            final NetworkTransport transport,
             final Configuration configuration)
             throws Exception {
         printVirtualMap("Starting Tree", startingTree);
@@ -42,7 +37,7 @@ public class MerkleBenchmarkUtils {
             // calculate hash
             desiredTree.getHash();
         }
-        return testSynchronization(startingTree, desiredTree, networkConfig, transport, configuration);
+        return testSynchronization(startingTree, desiredTree, networkConfig, configuration);
     }
 
     /**
@@ -52,15 +47,11 @@ public class MerkleBenchmarkUtils {
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final NetworkSimulationConfig networkConfig,
-            final NetworkTransport transport,
             final Configuration configuration)
             throws Exception {
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (final PairedStreams streams = new PairedStreams(transport, networkConfig, configuration)) {
-            streams.getSocketDiagnostics()
-                    .ifPresent(diagnostics -> logger.info("Socket transport diagnostics: {}", diagnostics));
-
+        try (final PairedStreams streams = new PairedStreams(networkConfig)) {
             final LearningSynchronizer learner =
                     new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
             final TeachingSynchronizer teacher =
@@ -77,11 +68,8 @@ public class MerkleBenchmarkUtils {
                 workGroup.join();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw new MerkleSynchronizationException("Reconnect benchmark was interrupted", e);
             }
-
-            // Live-W readout: what the kernel actually granted per pacing window (autotuning included).
-            streams.getSocketPacingSummary().ifPresent(summary -> logger.info("Socket read pacing: {}", summary));
 
             return new ReconnectBenchmarkResult(
                     syncMapContainer.get(),
@@ -96,6 +84,7 @@ public class MerkleBenchmarkUtils {
             teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Teacher synchronization was interrupted", ex);
         }
     }
 
@@ -109,6 +98,7 @@ public class MerkleBenchmarkUtils {
                     startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Learner synchronization was interrupted", e);
         }
     }
 }

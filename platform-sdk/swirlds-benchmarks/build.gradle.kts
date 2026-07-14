@@ -6,28 +6,9 @@ plugins {
     id("org.hiero.gradle.feature.benchmark")
 }
 
-val gossipConnectivityExport =
-    "--add-exports=org.hiero.consensus.gossip.impl/org.hiero.consensus.gossip.impl.network.connectivity=com.swirlds.benchmarks,ALL-UNNAMED"
-
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
-tasks.named<JavaCompile>("compileJava") {
-    options.compilerArgs.add("-Xlint:-static")
-    options.compilerArgs.add(gossipConnectivityExport)
-}
-
-tasks.named<JavaCompile>("compileTestJava") {
-    options.compilerArgs.add("-Xlint:-static")
-    options.compilerArgs.add(gossipConnectivityExport)
-}
-
-tasks.withType<Test>().configureEach {
-    jvmArgs(gossipConnectivityExport)
-}
-
-tasks.withType<JMHTask>().configureEach {
-    jvmArgs.add(gossipConnectivityExport)
-}
+tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-static") }
 
 jmhModuleInfo {
     requires("com.hedera.pbj.runtime")
@@ -53,17 +34,6 @@ jmhModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
 }
 
-testModuleInfo {
-    requires("com.swirlds.config.api")
-    requires("com.swirlds.config.extensions")
-    requires("com.swirlds.metrics.api")
-    requires("org.hiero.consensus.gossip")
-    requires("org.hiero.consensus.gossip.impl")
-    requires("org.junit.jupiter.api")
-
-    runtimeOnly("com.swirlds.config.impl")
-}
-
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
 
 fun jmhParamProperty(name: String, defaultValue: String) =
@@ -71,65 +41,41 @@ fun jmhParamProperty(name: String, defaultValue: String) =
         .listProperty<String>()
         .value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
 
-fun JMHTask.configureReconnectJvmArgs() {
-    val gcLog = layout.buildDirectory.file("reconnectbench-gc.log").get().asFile
-    gcLog.parentFile.mkdirs()
-    jvmArgs.set(
-        listOf(
-            gossipConnectivityExport,
-            "-Xms2g",
-            "-Xmx8g",
-            "-Xlog:gc*:file=${gcLog.absolutePath}:time,uptime,level,tags",
-        )
-    )
-}
-
-fun JMHTask.configureReconnectParameters(
-    defaultTransport: String,
-    defaultProfile: String,
-) {
+fun JMHTask.configureReconnectParameters() {
     includes.set(listOf("ReconnectBench"))
-    benchmarkParameters.put(
-        "networkTransport",
-        jmhParamProperty("networkTransport", defaultTransport),
-    )
-    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", defaultProfile))
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
-        jmhParamProperty("networkLatencyMicroseconds", "270"),
+        jmhParamProperty("networkLatencyMicroseconds", "500"),
     )
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
-        jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000"),
     )
     benchmarkParameters.put(
         "networkInflightBytesLimit",
-        jmhParamProperty("networkInflightBytesLimit", "16777216"),
+        jmhParamProperty("networkInflightBytesLimit", "131072"),
     )
     benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
     benchmarkParameters.put(
         "teacherAddProbability",
-        jmhParamProperty("teacherAddProbability", "0.1"),
+        jmhParamProperty("teacherAddProbability", "0.05"),
     )
     benchmarkParameters.put(
         "teacherRemoveProbability",
-        jmhParamProperty("teacherRemoveProbability", "0.0"),
+        jmhParamProperty("teacherRemoveProbability", "0.05"),
     )
     benchmarkParameters.put(
         "teacherModifyProbability",
-        jmhParamProperty("teacherModifyProbability", "0.3"),
+        jmhParamProperty("teacherModifyProbability", "0.05"),
     )
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "10"))
-    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "500"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
     benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
     benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
-    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
+    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "1024"))
     benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
-}
-
-tasks.named<Jar>("jmhJarWithMergedServiceFiles") {
-    from(sourceSets.main.get().output) { include("com/swirlds/benchmark/reconnect/**") }
 }
 
 // ── Benchmark run configurations ─────────────────────────────────────
@@ -154,22 +100,7 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
-tasks.register<JMHTask>("jmhReconnectSimulatedFast") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "LOOPBACK")
-}
-
-tasks.register<JMHTask>("jmhReconnectSimulatedRealistic") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "REALISTIC")
-}
-
-tasks.register<JMHTask>("jmhReconnectLoopbackFast") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "LOOPBACK")
-}
-
-tasks.register<JMHTask>("jmhReconnectLoopbackRealistic") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "REALISTIC")
+tasks.register<JMHTask>("jmhReconnect") {
+    configureReconnectParameters()
+    jvmArgs.set(listOf("-Xmx16g"))
 }

@@ -9,10 +9,6 @@ public record ReconnectMapStatsSnapshot(
         long transfersFromLearner,
         long internalHashes,
         long internalCleanHashes,
-        long internalData,
-        long internalCleanData,
-        long leafHashes,
-        long leafCleanHashes,
         long leafData,
         long leafCleanData) {
 
@@ -25,10 +21,6 @@ public record ReconnectMapStatsSnapshot(
                 read(metrics, "transfersFromLearnerTotal"),
                 read(metrics, "internalHashesTotal"),
                 read(metrics, "internalCleanHashesTotal"),
-                read(metrics, "internalDataTotal"),
-                read(metrics, "internalCleanDataTotal"),
-                read(metrics, "leafHashesTotal"),
-                read(metrics, "leafCleanHashesTotal"),
                 read(metrics, "leafDataTotal"),
                 read(metrics, "leafCleanDataTotal"));
     }
@@ -47,10 +39,6 @@ public record ReconnectMapStatsSnapshot(
                 + "; transfersFromLearner=" + transfersFromLearner
                 + "; internalHashes=" + internalHashes
                 + "; internalCleanHashes=" + internalCleanHashes
-                + "; internalData=" + internalData
-                + "; internalCleanData=" + internalCleanData
-                + "; leafHashes=" + leafHashes
-                + "; leafCleanHashes=" + leafCleanHashes
                 + "; leafData=" + leafData
                 + "; leafCleanData=" + leafCleanData;
     }

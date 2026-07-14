@@ -91,19 +91,19 @@ public class SimulatedNetworkChannel {
     /** Number of waits caused by the in-flight byte cap. */
     private long capacityWaitCount;
 
-    /** Cumulative nanoseconds spent waiting for in-flight capacity. */
+    /** Observed wall-clock nanoseconds spent waiting for in-flight capacity. */
     private long capacityWaitNanos;
 
-    /** Number of waits while the reader had no queued data to inspect. */
+    /** Number of waits while the reader had no queued data because the peer had not produced bytes. */
     private long emptyReadWaitCount;
 
-    /** Cumulative nanoseconds spent waiting for any queued data to appear. */
+    /** Observed wall-clock nanoseconds spent waiting for the peer to produce queued data. */
     private long emptyReadWaitNanos;
 
     /** Number of waits while queued data existed but had not reached its simulated arrival time. */
     private long arrivalWaitCount;
 
-    /** Cumulative nanoseconds spent waiting for scheduled byte arrival. */
+    /** Observed wall-clock nanoseconds waiting for scheduled arrival, including scheduler overhead. */
     private long arrivalWaitNanos;
 
     /** End time of the last scheduled transmission; serializes bandwidth use for this direction. */
