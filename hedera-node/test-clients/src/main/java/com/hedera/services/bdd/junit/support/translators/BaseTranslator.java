@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
@@ -667,7 +668,7 @@ public class BaseTranslator {
                 .filter(ScopedTraceData::hasEvmTraceData)
                 .toList();
         for (final var evmTraceData : evmTraces) {
-            if (!evmTraceData.contractSlotUsages().isEmpty()) {
+            if (!evmTraceData.contractSlotUsages().isEmpty() && parts.status() != REVERTED_SUCCESS) {
                 final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {

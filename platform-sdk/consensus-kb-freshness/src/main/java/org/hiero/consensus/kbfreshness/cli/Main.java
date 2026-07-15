@@ -7,17 +7,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.hiero.consensus.kbfreshness.apply.AutoFixApplier;
+import org.hiero.consensus.kbfreshness.apply.ReviewedMarker;
 import org.hiero.consensus.kbfreshness.engine.Engine;
 import org.hiero.consensus.kbfreshness.engine.RunConfig;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.findings.Baseline;
 import org.hiero.consensus.kbfreshness.model.Lane;
-import org.hiero.consensus.kbfreshness.model.Triage;
 import org.hiero.consensus.kbfreshness.render.AutoFixRenderer;
 import org.hiero.consensus.kbfreshness.render.CoverageRenderer;
 import org.hiero.consensus.kbfreshness.render.FindingsJson;
 import org.hiero.consensus.kbfreshness.render.QuietLogRenderer;
 import org.hiero.consensus.kbfreshness.render.ReportRenderer;
+import org.hiero.consensus.kbfreshness.render.SuggestionsRenderer;
 import org.hiero.consensus.kbfreshness.render.WorklistRenderer;
 import org.hiero.consensus.kbfreshness.resolve.Allowlist;
 import picocli.CommandLine;
@@ -27,8 +29,8 @@ import picocli.CommandLine.Option;
 /**
  * Command-line entry point for the deterministic KB freshness checker. Scans the curated
  * consensus-layer KB, resolves its code anchors against the current checkout, and writes a report,
- * quiet log, auto-fix proposals, a machine artifact, a semantic worklist, and a proposed baseline.
- * No model, no network.
+ * quiet log, auto-fix proposals, suggestions, a coverage lane, a machine artifact, a semantic
+ * worklist, and a proposed baseline. No model, no network.
  */
 @Command(
         name = "kb-freshness",
@@ -95,6 +97,23 @@ public final class Main implements Callable<Integer> {
     @Option(names = "--fail-on-drift", description = "Exit 2 if any new assertion is found.")
     private boolean failOnDrift;
 
+    /** When set, write the certain auto-fix edits (moved lines and unique path moves) into the KB files. */
+    @Option(
+            names = "--fix",
+            description = "Apply the certain auto-fix edits (moved lines and unique path moves) to the KB in place.")
+    private boolean fix;
+
+    /**
+     * Entries to mark as reviewed: each spec is {@code <key>[=<yyyy-MM-dd>]}; a spec without a date uses
+     * {@code --date}. Rewrites only an existing {@code last_reviewed:} frontmatter line.
+     */
+    @Option(
+            names = "--mark-reviewed",
+            paramLabel = "<key[=date]>",
+            description = "Bump an entry's existing last_reviewed: frontmatter date (repeatable); "
+                    + "a spec without =<date> uses --date.")
+    private List<String> markReviewed = List.of();
+
     /**
      * Process entry point: parses arguments with picocli and exits with the command's return code.
      *
@@ -132,25 +151,44 @@ public final class Main implements Callable<Integer> {
 
         writeArtifacts(outDir, result, baselineFile);
 
-        final long newDrift = countNewDrift(result);
+        if (fix) {
+            final AutoFixApplier.Result applied = AutoFixApplier.apply(result, repoRoot);
+            System.out.printf(
+                    "kb-freshness --fix: applied %d edit(s) across %d file(s)%s. Re-run to refresh artifacts.%n",
+                    applied.applied(),
+                    applied.filesChanged().size(),
+                    applied.skipped() > 0 ? " (" + applied.skipped() + " skipped: line diverged)" : "");
+        }
+
+        if (!markReviewed.isEmpty()) {
+            final ReviewedMarker.Result marked = ReviewedMarker.apply(result, repoRoot, markReviewed, date);
+            System.out.printf(
+                    "kb-freshness --mark-reviewed: updated %d doc(s). Re-run to refresh the worklist.%n",
+                    marked.updated());
+            for (final String problem : marked.problems()) {
+                System.err.println("error: --mark-reviewed " + problem);
+            }
+            if (!marked.problems().isEmpty()) {
+                return 1;
+            }
+        }
+
+        final long newDrift = result.newDriftCount();
         System.out.printf(
                 "kb-freshness: %d findings (%d new assert, %d quiet, %d auto-fix). Artifacts in %s%n",
                 result.findings().size(),
                 newDrift,
-                result.findings().stream()
-                        .filter(f -> f.lane() == Lane.QUIET_LOG)
-                        .count(),
-                result.findings().stream()
-                        .filter(f -> f.lane() == Lane.AUTO_FIX)
-                        .count(),
+                result.stats().findingsByLane().getOrDefault(Lane.QUIET_LOG, 0),
+                result.stats().findingsByLane().getOrDefault(Lane.AUTO_FIX, 0),
                 outDir);
 
         return failOnDrift && newDrift > 0 ? 2 : 0;
     }
 
     /**
-     * Writes every run artifact (findings JSON, report, quiet log, auto-fix proposals, worklist, and
-     * proposed baseline) into {@code outDir}, optionally overwriting the baseline file in place.
+     * Writes every run artifact (findings JSON, report, quiet log, auto-fix proposals, suggestions,
+     * coverage, worklist, and proposed baseline) into {@code outDir}, optionally overwriting the
+     * baseline file in place.
      *
      * @param outDir       the directory to write artifacts into (created if absent).
      * @param result       the run result to render.
@@ -163,6 +201,7 @@ public final class Main implements Callable<Integer> {
         write(outDir.resolve("report.md"), ReportRenderer.render(result, date));
         write(outDir.resolve("quiet-log.md"), QuietLogRenderer.render(result));
         write(outDir.resolve("auto-fix.md"), AutoFixRenderer.render(result));
+        write(outDir.resolve("suggestions.md"), SuggestionsRenderer.render(result, result.git()));
         write(outDir.resolve("coverage.md"), CoverageRenderer.render(result));
         write(outDir.resolve("worklist.md"), WorklistRenderer.renderMarkdown(result));
         write(outDir.resolve("worklist.json"), WorklistRenderer.renderJson(result));
@@ -172,18 +211,6 @@ public final class Main implements Callable<Integer> {
         if (writeBaseline && baselineFile != null) {
             write(baselineFile, proposed);
         }
-    }
-
-    /**
-     * Counts findings that assert new drift: assert-lane, not previously baselined, and not dismissed.
-     *
-     * @param result the run result.
-     * @return the number of new asserted-drift findings.
-     */
-    private static long countNewDrift(final RunResult result) {
-        return result.join().joined().stream()
-                .filter(j -> j.finding().lane() == Lane.ASSERT && j.isNew() && j.triage() != Triage.DISMISSED)
-                .count();
     }
 
     /**

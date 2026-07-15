@@ -13,17 +13,19 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.consensus.kbfreshness.model.Entry;
 import org.hiero.consensus.kbfreshness.model.EntryType;
+import org.hiero.consensus.kbfreshness.util.Patterns;
 
 /**
  * Walks the consensus-layer KB directory and produces one {@link KbDocument} per drift-checkable
- * entry. Entry type is derived from the path per the KB {@code LAYOUT.md} type vocabulary; scaffolding
- * ({@code README}/{@code FORMAT}/{@code LAYOUT}/{@code CLAUDE}) is skipped. Output is sorted by path
- * for determinism.
+ * entry. Entry type is derived from the path per the KB {@code LAYOUT.md} type vocabulary; {@code README}
+ * index files are scanned as {@link EntryType#INDEX} (their rows carry a sync obligation), while
+ * convention scaffolding ({@code FORMAT}/{@code LAYOUT}/{@code CLAUDE} — placeholder examples by design)
+ * is skipped. Output is sorted by path for determinism.
  */
 public final class KbScanner {
 
-    /** Matches a catalog ID prefix ({@code ADR}/{@code INV}/{@code RUL}/{@code SCN}/{@code HEU} plus three digits) at the start of a file name. */
-    private static final Pattern CATALOG_ID = Pattern.compile("^(ADR|INV|RUL|SCN|HEU)-(\\d{3})");
+    /** Matches a per-file catalog ID prefix (one that gets its own markdown file) at the start of a file name. */
+    private static final Pattern CATALOG_ID = Pattern.compile("^(" + Patterns.FILE_CATALOG_PREFIXES + ")-(\\d{3})");
 
     /** Repository root (absolute, normalized), used to compute display paths. */
     private final Path repoRoot;
@@ -85,10 +87,11 @@ public final class KbScanner {
     static EntryType classify(final Path relToKb) {
         final String rel = relToKb.toString().replace('\\', '/');
         final String name = relToKb.getFileName().toString();
-        if (name.equals("README.md")
-                || name.equals("FORMAT.md")
-                || name.equals("LAYOUT.md")
-                || name.equals("CLAUDE.md")) {
+        if (name.equals("README.md")) {
+            // Index files carry entry links and catalog IDs with a sync obligation — drift-checked.
+            return EntryType.INDEX;
+        }
+        if (name.equals("FORMAT.md") || name.equals("LAYOUT.md") || name.equals("CLAUDE.md")) {
             return EntryType.OTHER;
         }
         if (rel.equals("glossary.md")) {
@@ -157,6 +160,10 @@ public final class KbScanner {
             case ARCHITECTURE_TOPIC -> "topic:" + slug;
             case ARCHITECTURE_INTERFACE -> "interface:" + slug;
             case ARCHITECTURE_OVERVIEW -> "architecture-overview";
+            case INDEX -> {
+                final Path parent = relToKb.getParent();
+                yield parent == null ? "index" : "index:" + parent.toString().replace('\\', '/');
+            }
             case CONCEPT -> "concept:" + slug;
             case DELTA_MAP -> "delta-map:" + slug;
             case GLOSSARY -> "glossary";
