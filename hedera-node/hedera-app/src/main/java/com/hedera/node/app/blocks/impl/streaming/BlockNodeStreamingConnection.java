@@ -1102,6 +1102,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         private final long hardLimitBytes;
         private final int requestBasePaddingBytes;
         private final int requestItemPaddingBytes;
+        private long lastBlockItemRecvMillis = -1;
+        private long lastBlockItemWaitLogMillis = -1;
 
         private ConnectionWorkerLoopTask() {
             softLimitBytes = configuration().messageSizeSoftLimitBytes();
@@ -1190,17 +1192,27 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
             while (true) {
                 item = block.blockItem(itemIndex);
+                // spotless:off
                 if (item == null) {
-                    logger.trace(
-                            "{} Wanted block item at index {} but it isn't available yet (block: {}, itemCount: {}, isClosed: {})",
-                            BlockNodeStreamingConnection.this,
-                            itemIndex,
-                            block.blockNumber(),
-                            block.itemCount(),
-                            block.isClosed());
+                    final long currentTimeMillis = System.currentTimeMillis();
+                    if (lastBlockItemRecvMillis != -1
+                            && (currentTimeMillis - lastBlockItemRecvMillis) > 1_000 // only log if 1 second has elapsed waiting
+                            && lastBlockItemWaitLogMillis == -1 || (currentTimeMillis - lastBlockItemWaitLogMillis) >= 250) { // log every 250 ms
+                        lastBlockItemWaitLogMillis = System.currentTimeMillis();
+                        logger.trace(
+                                "{} Wanted block item at index {} but it isn't available yet (block: {}, itemCount: {}, isClosed: {})",
+                                BlockNodeStreamingConnection.this,
+                                itemIndex,
+                                block.blockNumber(),
+                                block.itemCount(),
+                                block.isClosed());
+                    }
+
                     break;
                 }
+                // spotless:on
 
+                lastBlockItemRecvMillis = System.currentTimeMillis();
                 connStats.recordHeartbeat(System.currentTimeMillis());
 
                 if (itemIndex == 0) {
@@ -1587,6 +1599,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             requestCtr.set(1);
             pendingRequestHasBlockProof = false;
             pendingRequestHasBlockHeader = false;
+            lastBlockItemRecvMillis = System.currentTimeMillis();
 
             if (block == null) {
                 logger.trace(
