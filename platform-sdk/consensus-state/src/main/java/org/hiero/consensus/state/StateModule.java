@@ -331,9 +331,9 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for clearing the state management component.
+     * Get the input wire for clearing the state module.
      *
-     * @return the input wire for clearing the state management component.
+     * @return the input wire for clearing the state module.
      */
     public InputWire<NoInput> clearInputWire() {
         return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);

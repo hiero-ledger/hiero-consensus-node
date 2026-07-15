@@ -173,7 +173,7 @@ public class SwirldsPlatform implements Platform {
                 new RunningEventHashOverride(legacyRunningEventHash, false);
         buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
 
-        // Load the minimum generation into the pre-consensus event writer
+        // Load the minimum birth round into the pre-consensus event writer
         final String actualMainClassName =
                 configuration.getConfigData(StateConfig.class).getMainClassName(inputs.appName());
 
@@ -181,10 +181,10 @@ public class SwirldsPlatform implements Platform {
                 new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
-            // The minimum generation of non-ancient events for the oldest state snapshot on disk.
-            final long minimumGenerationNonAncientForOldestState =
+            // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
+            final long minimumBirthRoundNonAncientForOldestState =
                     savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumGenerationNonAncientForOldestState);
+            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumBirthRoundNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
