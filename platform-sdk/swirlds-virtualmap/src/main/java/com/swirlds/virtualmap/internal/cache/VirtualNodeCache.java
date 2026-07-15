@@ -535,9 +535,9 @@ public final class VirtualNodeCache implements FastCopyable {
             }
 
             if (inMemory) {
-                purgeOnMerge(p.dirtyLeaves);
-                purgeOnMerge(p.dirtyLeafPaths);
-                purgeOnMerge(p.dirtyHashChunks);
+                purgeOnMerge(p.dirtyLeaves, keyToDirtyLeafIndex);
+                purgeOnMerge(p.dirtyLeafPaths, pathToDirtyKeyIndex);
+                purgeOnMerge(p.dirtyHashChunks, idToDirtyHashChunkIndex);
             } else {
                 // Merge my mutations into the previous (newer) cache's arrays.
                 // This operation has a high probability of producing override mutations. That is, two mutations
@@ -570,9 +570,19 @@ public final class VirtualNodeCache implements FastCopyable {
         }
     }
 
-    private <K, V> void purgeOnMerge(final ConcurrentArray<Mutation<K, V>> newArray) {
+    private <K, V> void purgeOnMerge(
+            final ConcurrentArray<Mutation<K, V>> newArray,
+            final Map<K, Mutation<K, V>> map) {
         newArray.parallelTraverse(cleaningPool, (_, m) -> {
             m.next = null;
+            if (m.isDeleted()) {
+                map.compute(m.key, (_, mm) -> {
+                    if (m == mm) {
+                        return null;
+                    }
+                    return mm;
+                });
+            }
         });
     }
 
