@@ -87,7 +87,8 @@ public class GuiEventStorage {
      *
      * @param event the event to handle
      */
-    public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
+    @Nullable
+    public synchronized EventWindow handlePreconsensusEvent(@NonNull final PlatformEvent event) {
         maxGeneration = Math.max(maxGeneration, event.getNGen());
 
         // Detect branches before linking
@@ -97,7 +98,7 @@ public class GuiEventStorage {
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());
         if (eventImpl == null) {
-            return;
+            return null;
         }
         eventImpl.getBaseEvent().setNGen(event.getNGen());
         eventImpl.getBaseEvent().setSequenceNumber(event.getSequenceNumber());
@@ -105,13 +106,14 @@ public class GuiEventStorage {
         final List<ConsensusRound> rounds = consensus.addEvent(eventImpl);
 
         if (rounds.isEmpty()) {
-            return;
+            return null;
         }
         lastConsensusRound = rounds.getLast();
 
         final EventWindow currentEventWindow = rounds.getLast().getEventWindow();
         branchDetector.setEventWindow(currentEventWindow);
         linker.setEventWindow(currentEventWindow);
+        return currentEventWindow;
     }
 
     /**

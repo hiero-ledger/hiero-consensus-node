@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.components.state.output;
+package org.hiero.consensus.state.signing;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
