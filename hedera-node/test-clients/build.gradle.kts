@@ -229,7 +229,7 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to "staking.periodMins=16",
         "hapiTestCutover" to
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=16",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
