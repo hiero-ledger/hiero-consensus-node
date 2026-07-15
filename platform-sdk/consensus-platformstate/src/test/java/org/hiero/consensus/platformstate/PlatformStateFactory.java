@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures;
+package org.hiero.consensus.platformstate;
 
 import static java.util.Arrays.asList;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
@@ -19,23 +19,16 @@ import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.platformstate.PlatformStateModifier;
 
-public final class PlatformStateUtils {
+public final class PlatformStateFactory {
 
-    private PlatformStateUtils() {}
+    private PlatformStateFactory() {}
 
     /**
      * Generate a randomized PlatformState object. Values contained internally may be nonsensical.
      */
     public static PlatformStateModifier randomPlatformState(State state) {
-        return randomPlatformState(new Random(), state);
-    }
-
-    /**
-     * Generate a randomized PlatformState object. Values contained internally may be nonsensical.
-     */
-    public static PlatformStateModifier randomPlatformState(final Random random, State state) {
+        final Random random = new Random();
 
         bulkUpdateOf(state, v -> {
             v.setLegacyRunningEventHash(randomHash(random));
