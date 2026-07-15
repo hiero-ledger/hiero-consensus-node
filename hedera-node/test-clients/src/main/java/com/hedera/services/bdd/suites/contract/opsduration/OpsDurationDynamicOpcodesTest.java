@@ -23,11 +23,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 public class OpsDurationDynamicOpcodesTest {
 
     private static final String[] OPS_DURATION_BENCHMARK_DYNAMIC_FUNCTIONS = {
-            "benchKeccak256",
+//            "benchKeccak256",
 //            "benchCalldatacopy",
 //            "benchCodecopy",
 //            "benchExtcodecopy",
-//            "benchReturndatacopy",
+            "benchReturndatacopy", //TODO not dynamic
 //            "benchLog0",
 //            "benchLog1",
 //            "benchLog2",

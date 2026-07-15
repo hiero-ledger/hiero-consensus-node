@@ -12,7 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -100,6 +102,8 @@ public class HederaEVM extends HEVM {
 
         enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
     }
+
+    private static Set<Integer> OPCODES = Set.of(32, 55, 57, 60, 62, 160, 161, 162, 163, 164, 240, 245, 243, 253);
 
     @Override
     @SuppressWarnings({"java:S3776", "java:S1479"})
@@ -250,8 +254,8 @@ public class HederaEVM extends HEVM {
                             ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
                             : opCodeCost;
                     opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
-                    if (opcode == 32) {
-                        System.out.printf("!!!!!!!!!!!!!! opCodeCost:%s gasCost:%s opsByGas:%s\n", opCodeCost, result.getGasCost(), result.getGasCost() * opsDurationMultiplier / opsDurationDenominator);
+                    if (OPCODES.contains(opcode)) {
+                        System.out.printf("!!!!!!!!!!!!!! opcode:%s opCodeCost:%s gasCost:%s opsByGas:%s\n", opcode, opCodeCost, result.getGasCost(), result.getGasCost() * opsDurationMultiplier / opsDurationDenominator);
                     }
                 }
             }
