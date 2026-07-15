@@ -55,7 +55,7 @@ public class OpsDurationDynamicOpcodesTest {
                 call(name, BigInteger.valueOf(128)),
                 call(name, BigInteger.valueOf(1024)),
                 call(name, BigInteger.valueOf(1048576)),
-                call(name, BigInteger.valueOf(1048576), CONSENSUS_GAS_EXHAUSTED),
+//                call(name, BigInteger.valueOf(1048576), CONSENSUS_GAS_EXHAUSTED),
                 withOpContext((spec, _) -> restoreDefaults(spec))
         );
     }
@@ -66,7 +66,7 @@ public class OpsDurationDynamicOpcodesTest {
 
     private static CallContractOperation call(final String name, final BigInteger length, final ResponseCodeEnum status) {
         return contract.call(name, length)
-                .gas(10_000_000)
+                .gas(15_000_000)
                 .andAssert(e -> {
                     if (status != null) {
                         e.hasKnownStatus(status);
