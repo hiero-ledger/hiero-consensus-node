@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +41,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * 	<li>all copies must be <strong>flushed</strong> or <strong>merged</strong> prior to eviction from memory</li>
  * 	<li>a copy can only be <strong>flushed</strong> or <strong>merged</strong>, not both</li>
  * 	<li>no <strong>flushes</strong> or <strong>merges</strong> are processed during copy detachment</li>
- * 	<li>pipelines can be terminated even when not all copies are destroyed or detached (e.g. during node shutdown).
+ * 	<li>pipelines can be terminated {@link #shutdown(boolean)} when all copies are destroyed or destroy of any copy throws an exception.
  * 	    A terminated pipeline is not required to <strong>flush</strong> or <strong>merge</strong>
  * 		copies before those copies are collected by the java garbage collector.</li>
  * </ul>
@@ -228,6 +227,11 @@ public class VirtualPipeline {
     public void registerCopy(final VirtualRoot copy) {
         Objects.requireNonNull(copy);
 
+        if (isShutdown()) {
+            throw new IllegalStateException(
+                    "Registering a copy while pipeline is shutdown: " + copy.getFastCopyVersion());
+        }
+
         if (copy.isImmutable()) {
             throw new IllegalStateException("Only mutable copies may be registered");
         }
@@ -311,13 +315,47 @@ public class VirtualPipeline {
         }
     }
 
-    public <T, E extends Exception> T pausePipelineAndRun(final String label, final CheckedSupplier<T, E> action)
+    /**
+     * Waits for any pending flushes or merges to complete and then pauses the pipeline while the
+     * given supplier provides a value, and then resumes pipeline operation. Fatal errors happen
+     * if the background thread is interrupted.
+     *
+     * @param label a log/error friendly label to describe the runnable
+     * @param supplier the supplier. Cannot be null.
+     * @param <V> the type of the value supplied
+     * @param <E> the type of exception that may be thrown
+     * @return the value supplied by the supplier
+     * @throws E if the supplier throws an exception
+     */
+    public <V, E extends Exception> V pausePipelineAndExecute(final String label, final CheckedSupplier<V, E> supplier)
             throws E {
-        final T ret = pausePipelineAndExecute(label, action);
-        if (!isShutdown()) {
-            scheduleWork();
+        Objects.requireNonNull(supplier);
+        final CountDownLatch waitForBackgroundThreadToStart = new CountDownLatch(1);
+        final CountDownLatch waitForRunnableToFinish = new CountDownLatch(1);
+        executorService.execute(() -> {
+            waitForBackgroundThreadToStart.countDown();
+
+            try {
+                waitForRunnableToFinish.await();
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(
+                        "Fatal error: interrupted while waiting for runnable " + label + " to finish");
+            }
+        });
+
+        try {
+            waitForBackgroundThreadToStart.await();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Fatal error: failed to start " + label);
         }
-        return ret;
+
+        try {
+            return supplier.get();
+        } finally {
+            waitForRunnableToFinish.countDown();
+        }
     }
 
     /**
@@ -326,16 +364,7 @@ public class VirtualPipeline {
      */
     private void scheduleWork() {
         if (workScheduled.compareAndSet(false, true)) {
-            try {
-                executorService.submit(this::doWork);
-            } catch (final RejectedExecutionException ex) {
-                // This can happen if the executor service is shutting down. In that case, we don't need to do anything.
-                logger.warn(
-                        VIRTUAL_MERKLE_STATS.getMarker(),
-                        "Failed to schedule work due to shutdown executor service: {}",
-                        ex.getMessage());
-                workScheduled.set(false);
-            }
+            executorService.submit(this::doWork);
         }
     }
 
@@ -502,53 +531,12 @@ public class VirtualPipeline {
     }
 
     /**
-     * Waits for any pending flushes or merges to complete and then pauses the pipeline while the
-     * given supplier provides a value, and then resumes pipeline operation. Fatal errors happen
-     * if the background thread is interrupted.
-     *
-     * @param label
-     * 		A log/error friendly label to describe the runnable
-     * @param supplier
-     * 		The supplier. Cannot be null.
-     */
-    <V, E extends Exception> V pausePipelineAndExecute(final String label, final CheckedSupplier<V, E> supplier)
-            throws E {
-        Objects.requireNonNull(supplier);
-        final CountDownLatch waitForBackgroundThreadToStart = new CountDownLatch(1);
-        final CountDownLatch waitForRunnableToFinish = new CountDownLatch(1);
-        executorService.execute(() -> {
-            waitForBackgroundThreadToStart.countDown();
-
-            try {
-                waitForRunnableToFinish.await();
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(
-                        "Fatal error: interrupted while waiting for runnable " + label + " to finish");
-            }
-        });
-
-        try {
-            waitForBackgroundThreadToStart.await();
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Fatal error: failed to start " + label);
-        }
-
-        try {
-            return supplier.get();
-        } finally {
-            waitForRunnableToFinish.countDown();
-        }
-    }
-
-    /**
-     * Gets whether this pipeline has been shutdown.
+     * Checks whether this pipeline has been shutdown.
      *
      * @return {@code true} if this pipeline has been shutdown and doesn't accept more {@link VirtualRoot} copies,
      * but still may process remaining copies. Use {@link #awaitTermination(long, TimeUnit)} to wait for all copies to be processed.
      */
-    public boolean isShutdown() {
+    private boolean isShutdown() {
         return executorService.isShutdown();
     }
 

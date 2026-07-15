@@ -33,7 +33,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -1199,8 +1198,8 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Detach Test")
-    void detachTest() throws IOException {
+    @DisplayName("Detach is not affected when map destroyed")
+    void detachIsNotAffectedByMapDestroy() throws IOException, InterruptedException {
         final VirtualMap original = new VirtualMap(new InMemoryBuilder(), DEFAULT_CONFIGURATION);
         Bytes testKey = Bytes.wrap("testKey");
         original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
@@ -1211,17 +1210,17 @@ class VirtualMapTests extends VirtualTestBase {
         final RecordAccessor detachedCopy = original.detach();
         assertNotNull(detachedCopy);
 
+        // release maps family
+        original.release();
+        copy.release();
+
         try {
-            VirtualMapMetadata originalMetadata = original.getMetadata();
-            // let's change the original state and make sure that the detached copy is not affected
-            originalMetadata.setFirstLeafPath(-1);
-            originalMetadata.setLastLeafPath(-1);
+            assertTrue(original.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+
             VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
             assertNotNull(leafRecord);
             assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
         } finally {
-            original.release();
-            copy.release();
             detachedCopy.close();
         }
     }

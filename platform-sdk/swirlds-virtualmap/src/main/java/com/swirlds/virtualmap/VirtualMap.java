@@ -356,10 +356,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.cache = source.cache.copy();
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = source.pipeline;
-
-        if (this.pipeline.isShutdown()) {
-            throw new IllegalStateException("A fast-copy was made of a VirtualMap with a shutdown pipeline!");
-        }
         this.pipeline.registerCopy(this);
     }
 
@@ -1209,7 +1205,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @return copy of underlying datasource with cache copy flushed into it, and running compaction
      */
     VirtualDataSource detachAsDataSourceCopy() {
-        return pipeline.pausePipelineAndRun("detach", () -> {
+        return pipeline.pausePipelineAndExecute("detach", () -> {
             final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
             try {
                 VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
@@ -1234,7 +1230,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @return a reference to the detached state of virtual map at some moment
      */
     public RecordAccessor detach() {
-        return pipeline.pausePipelineAndRun("detach", () -> {
+        return pipeline.pausePipelineAndExecute("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
             try {
                 final VirtualDataSource dataSourceCopy =
@@ -1406,7 +1402,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public void createSnapshot(@NonNull final Path outputDirectory) throws IOException {
         final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
-        final Path snapshotPath = pipeline.pausePipelineAndRun("detach", () -> {
+        final Path snapshotPath = pipeline.pausePipelineAndExecute("detach", () -> {
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
             cacheSnapshot.setValue(cache.snapshot());
             // And make a data source snapshot. The snapshot is not loaded here, though, it is
@@ -1414,7 +1410,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return dataSourceSnapshot();
         });
 
-        // build(), flush() and snapshot() below are called outside pausePipelineAndRun() to
+        // build(), flush() and snapshot() below are called outside pausePipelineAndExecute() to
         // unpause the lifecycle thread as quickly as possible. If the lifecycle thread is paused
         // for too long, unhandled copies pile up in the virtual pipeline, which triggers size
         // backpressure mechanism
