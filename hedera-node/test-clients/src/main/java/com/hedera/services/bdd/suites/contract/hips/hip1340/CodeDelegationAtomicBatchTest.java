@@ -986,6 +986,50 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    final Stream<DynamicTest> testAtomicBatchType4NoncesWithInvalidSelfAuthorization() {
+        final var sender = "SenderAccount";
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var senderNonceBefore = new AtomicLong();
+        final var senderNonceAfter = new AtomicLong();
+        return hapiTest(
+                overriding("contracts.codeDelegations.enabled", "true"),
+                createHollowAccounts(sender),
+                getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceBefore::set),
+                atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        // Wrong nonce on purpose: this entry still recovers to the sender's address,
+                                        // but the node skips it, so it must not contribute to signer_nonce.
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, sender)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .nonce(2)
+                                        .type(EthTransactionType.EIP7702)
+                                        // Wrong nonce on purpose: this entry still recovers to the sender's address,
+                                        // but the node skips it, so it must not contribute to signer_nonce.
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, sender)
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 3, sender)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER)
+                                )
+                        .payingWith(RELAYER)
+                        .hasKnownStatus(SUCCESS)
+                ,
+                getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
+                assertionsHold((_, _) -> assertEquals(
+                        senderNonceBefore.get() + 4,
+                        senderNonceAfter.get(),
+                        "Sender nonce should increment by 4 (2 x (tx + valid auth)); invalid auth must be skipped")),
+                getAliasedAccountInfo(sender).hasDelegationAddress(delegationTargetAddress));
+    }
+
     private static SpecOperation createFundedAccount(@NonNull final String name) {
         return blockingOrder(
                 newKeyNamed(name).shape(SECP_256K1_SHAPE),

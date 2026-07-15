@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
@@ -21,6 +20,7 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.state.SingleTransactionRecord;
@@ -35,7 +35,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import org.bouncycastle.util.encoders.Hex;
 
@@ -120,7 +119,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             } else {
                                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                             }
-                                            baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                            baseTranslator.addCreatedIdsTo(
+                                                    derivedBuilder, parts, remainingStateChanges);
                                             baseTranslator.addChangedContractNonces(
                                                     derivedBuilder, evmResult.contractNonces());
                                             Bytes initcode = null;
@@ -151,16 +151,10 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                 derivedBuilder, createdId, remainingStateChanges);
                                     } else if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
                                         mapTracesToVerboseLogs(derivedBuilder, parts.traces());
-                                        baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                        baseTranslator.addCreatedIdsTo(derivedBuilder, parts, remainingStateChanges);
                                         baseTranslator.addChangedContractNonces(
                                                 derivedBuilder, evmResult.contractNonces());
                                     }
-                                } else if (parts.status() == REVERTED_SUCCESS
-                                        && (parts.isTopLevel() || parts.isInnerBatchTxn())) {
-                                    // if we are on REVERTED_SUCCESS, we do not have remainingStateChanges to find
-                                    // "createdContractIDs"
-                                    // so we are trying to find "createdContractIDs" from traces data
-                                    baseTranslator.addCreatedIdsFromTraces(derivedBuilder, parts.traces());
                                 }
                                 if (knownCreation) {
                                     if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
@@ -212,15 +206,21 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                 // if the transaction is EIP7702 (type 4)
                 // we are incrementing +1 signer nonce for each eth address matching with CodeDelegation signer address
                 final var txSig = EthTxSigs.extractSignatures(ethTxData);
-                final var selfSponsoredCodeDelegations = ethTxData.extractCodeDelegations().stream()
-                        .map(EthTxSigs::extractAuthoritySignature)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .filter(e -> Arrays.equals(txSig.address(), e.address()))
-                        .count();
-                builder.signerNonce(ethTxData.nonce() + 1L + selfSponsoredCodeDelegations);
+                long expectedNonce = ethTxData.nonce() + 1;
+                for (CodeDelegation delegation : ethTxData.extractCodeDelegations()) {
+                    final var optionalDelegationSig = EthTxSigs.extractAuthoritySignature(delegation);
+                    if (optionalDelegationSig.isPresent()) {
+                        EthTxSigs delegationSig = optionalDelegationSig.get();
+                        if (Arrays.equals(txSig.address(), delegationSig.address())
+                                && expectedNonce == delegation.nonce()) {
+                            expectedNonce++;
+                        }
+                    }
+                }
+                System.out.printf("!!!!!!!!!! Nonce:%s expectedNonce:%s\n", ethTxData.nonce(), expectedNonce);
+                builder.signerNonce(expectedNonce);
             } else {
-                builder.signerNonce(ethTxData.nonce() + 1L);
+                builder.signerNonce(ethTxData.nonce() + 1);
             }
         } else {
             baseTranslator.addSignerNonce(senderId, builder, remainingStateChanges);

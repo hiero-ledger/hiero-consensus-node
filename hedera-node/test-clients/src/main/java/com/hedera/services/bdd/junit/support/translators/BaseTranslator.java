@@ -453,7 +453,7 @@ public class BaseTranslator {
             log.error("No created numbers found for entity type {} when consuming {}", type, num);
             return false;
         }
-        return createdNums.remove(num);
+        return createdNums.remove(Long.valueOf(num));
     }
 
     /**
@@ -484,44 +484,41 @@ public class BaseTranslator {
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
      *
      * @param resultBuilder the builder to populate with created IDs
+     * @param parts         the block transaction data parts
      * @param stateChanges  the state changes to process
      */
     public void addCreatedIdsTo(
             @NonNull final ContractFunctionResult.Builder resultBuilder,
+            @NonNull final BlockTransactionParts parts,
             @NonNull final List<StateChange> stateChanges) {
         requireNonNull(resultBuilder);
+        requireNonNull(parts);
         requireNonNull(stateChanges);
-        final var createdIds = stateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
-                .filter(StateChange::hasMapUpdate)
-                .map(StateChange::mapUpdateOrThrow)
-                .map(MapUpdateChange::keyOrThrow)
-                .map(MapChangeKey::contractIdKeyOrThrow)
-                .sorted(CONTRACT_ID_COMPARATOR)
-                .toList();
-        resultBuilder.createdContractIDs(createdIds);
-    }
-
-    /**
-     * Adds the created IDs from the given traces to the provided {@link ContractFunctionResult.Builder}.
-     *
-     * @param resultBuilder the builder to populate with created IDs
-     * @param traces        the list of traces
-     */
-    public void addCreatedIdsFromTraces(
-            @NonNull final ContractFunctionResult.Builder resultBuilder, @Nullable final List<TraceData> traces) {
-        if (traces != null) {
-            final var createdIds = traces.stream()
+        final List<ContractID> createdIds;
+        if (parts.isBatchScoped() && parts.traces() != null) {
+            // if we are in a batch and have traces, try to recover createdContractIDs from traces first
+            // this will cover the situation when we have multiple ethereum transactions in a batch that both create a
+            // nested contract. 'stateChanges' will hold the final createdContractIDs for both, and we need to derive
+            // createdContractIDs for transactions that are in the middle of the batch
+            createdIds = parts.traces().stream()
                     .filter(TraceData::hasEvmTraceData)
                     .map(TraceData::evmTraceDataOrThrow)
                     .flatMap(e -> e.contractActions().stream())
                     .filter(e -> ContractActionType.CREATE.equals(e.callType()))
                     .filter(ContractAction::hasRecipientContract)
                     .map(ContractAction::recipientContractOrThrow)
+                    .toList();
+        } else {
+            createdIds = stateChanges.stream()
+                    .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
+                    .filter(StateChange::hasMapUpdate)
+                    .map(StateChange::mapUpdateOrThrow)
+                    .map(MapUpdateChange::keyOrThrow)
+                    .map(MapChangeKey::contractIdKeyOrThrow)
                     .sorted(CONTRACT_ID_COMPARATOR)
                     .toList();
-            resultBuilder.createdContractIDs(createdIds);
         }
+        resultBuilder.createdContractIDs(createdIds);
     }
 
     /**
@@ -679,13 +676,13 @@ public class BaseTranslator {
                 .filter(change -> change.stateId() == STATE_ID_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
-                .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), _ -> Bytes.EMPTY));
+                .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
         writtenSlots.putAll(slotRemovals);
         final var hookSlotRemovals = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
-                .collect(toMap(d -> d.keyOrThrow().evmHookSlotKeyOrThrow(), _ -> Bytes.EMPTY));
+                .collect(toMap(d -> d.keyOrThrow().evmHookSlotKeyOrThrow(), d -> Bytes.EMPTY));
         writtenHookSlots.putAll(hookSlotRemovals);
 
         // Now filter to just EVM traces and build the sidecars
@@ -755,10 +752,7 @@ public class BaseTranslator {
                                 value = HookUtils.minimalRepresentationOf(valueFromState);
                             }
                             builder.slot(writtenKey).valueWritten(value);
-                        } else if (parts.status() != REVERTED_SUCCESS) {
-                            // for status == REVERTED_SUCCESS slot changes was cleaned up from 'contractStateChanges'
-                            // see com.hedera.node.app.workflows.handle.record.RecordStreamBuilder.build()
-                            // `status == REVERTED_SUCCESS` logic
+                        } else {
                             builder.slot(read.keyOrThrow());
                         }
                         recoveredChanges.add(builder.build());
@@ -1211,7 +1205,7 @@ public class BaseTranslator {
                     // add missing token serials
                     highestPutSerialNos.computeIfAbsent(token, ignore -> serials);
                     // merge serials for present tokens
-                    highestPutSerialNos.computeIfPresent(token, (_, list) -> {
+                    highestPutSerialNos.computeIfPresent(token, (key, list) -> {
                         Set<Long> mergedSet = new HashSet<>(list);
                         mergedSet.addAll(serials);
                         return new ArrayList<>(mergedSet);
