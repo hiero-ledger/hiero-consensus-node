@@ -487,9 +487,9 @@ jobs:
           # (TSS_LIB_WRAPS_ARTIFACTS_PATH is set), so solo packs data/keys/wraps*
           # (the ~4 GB/node proving-key archive) into each *-log-config.zip,
           # bloating the "cn-logs" artifact to ~10 GB. Drop it; keep the logs.
-          for z in "$LOG_FOLDER"/*-log-config.zip; do
-            [[ -f "$z" ]] || continue
-            zip -d "$z" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+          for z in "${LOG_FOLDER}"/*-log-config.zip; do
+            [[ -f "${z}" ]] || continue
+            zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
           done
 
       - name: Upload BN and MN Logs
