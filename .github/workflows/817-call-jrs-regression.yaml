@@ -344,6 +344,7 @@ jobs:
       - name: Install RClone
         run: |
           curl -O -L -s https://github.com/rclone/rclone/releases/download/v1.58.1/rclone-v1.58.1-linux-amd64.deb
+          echo "80c4fd53fa4391adb0414bd60b34d05fa0371f95859b97d39e2238d32ef549aa  rclone-v1.58.1-linux-amd64.deb" | sha256sum --check --strict
           sudo apt install -y ./rclone-v1.58.1-linux-amd64.deb
           rm -rf rclone-v1.58.1-linux-amd64.deb
 
