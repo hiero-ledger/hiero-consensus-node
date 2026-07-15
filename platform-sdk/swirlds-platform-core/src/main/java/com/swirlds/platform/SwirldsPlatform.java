@@ -289,7 +289,7 @@ public class SwirldsPlatform implements Platform {
 
         inputs.recycleBin().start();
         inputs.metrics().start();
-        platformCoordinator.start();
+        buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
         platformCoordinator.startGossip();
@@ -299,7 +299,7 @@ public class SwirldsPlatform implements Platform {
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
         inputs.recycleBin().stop();
-        platformCoordinator.stop();
+        buildingBlocks.wiringModel().stop();
         getMetricsProvider().removePlatformMetrics(selfId);
     }
 
