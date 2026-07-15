@@ -253,15 +253,15 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
     }
 
     @Test
-    void aggregatedFungibleChangesOverflowFails() {
-        // Same account twice so the aggregation sum overflows; checked merge must fail.
+    void aggregatedFungibleChangesOutOfRangeFails() {
+        // Same account twice so the aggregation sum exceeds long range; checked merge must fail.
         given(handleContext.payer()).willReturn(spenderId);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        final var overflowingTransfers = TokenTransferList.newBuilder()
+        final var outOfRangeTransfers = TokenTransferList.newBuilder()
                 .token(fungibleTokenId)
                 .transfers(List.of(aaWith(ownerId, Long.MAX_VALUE), aaWith(ownerId, 1L)))
                 .build();
-        adjustFungibleTokenChangesStep = new AdjustFungibleTokenChangesStep(List.of(overflowingTransfers), payerId);
+        adjustFungibleTokenChangesStep = new AdjustFungibleTokenChangesStep(List.of(outOfRangeTransfers), payerId);
 
         assertThatThrownBy(() -> adjustFungibleTokenChangesStep.doIn(transferContext))
                 .isInstanceOf(HandleException.class)

@@ -306,7 +306,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
-    void claimingPendingAirdropWithOverflowingValueFails() {
+    void claimingPendingAirdropWithOutOfRangeValueFails() {
         // Legacy pending value unreachable post-fix; claim must fail, not wrap.
         handlerTestBaseInternalSetUp(true);
         givenPendingFungibleTokenAirdrop(fungibleTokenId, spenderId, tokenReceiverNoAssociationId, Long.MIN_VALUE);
@@ -327,8 +327,8 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     }
 
     @Test
-    void claimingMergedAirdropsThatOverflowFails() {
-        // Two same-token airdrops to the same receiver: merging the credits overflows, so the claim must fail.
+    void claimingMergedAirdropsOutOfRangeFails() {
+        // Two same-token airdrops to the same receiver: merging the credits exceeds long range, so the claim must fail.
         handlerTestBaseInternalSetUp(true);
         givenPendingFungibleTokenAirdrop(fungibleTokenId, spenderId, tokenReceiverNoAssociationId, Long.MAX_VALUE);
         givenPendingFungibleTokenAirdrop(fungibleTokenId, ownerId, tokenReceiverNoAssociationId, Long.MAX_VALUE);
