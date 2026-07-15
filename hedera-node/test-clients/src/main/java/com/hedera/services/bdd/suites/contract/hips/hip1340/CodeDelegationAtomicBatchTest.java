@@ -22,6 +22,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -548,7 +550,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
-                assertionsHold((_, _) -> {
+                doAdhoc(() -> {
                     assertEquals(
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
@@ -747,7 +749,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountBalance(successSender).exposingBalanceTo(successSenderAfter::set),
 
                 // Compare gas charges between success and rollback paths
-                assertionsHold((spec, _) -> {
+                doingContextual(spec -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var successRecord = getTxnRecord(successType4Txn);
@@ -1021,10 +1023,10 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
-                assertionsHold((_, _) -> assertEquals(
+                doAdhoc(() -> assertEquals(
                         senderNonceBefore.get() + 4,
                         senderNonceAfter.get(),
-                        "Sender nonce should increment by 4 (2 x (tx + valid auth)); invalid auth must be skipped")),
+                        "Sender nonce should increment by 4 (2 * (tx + valid auth)); invalid auth must be skipped")),
                 getAliasedAccountInfo(sender).hasDelegationAddress(delegationTargetAddress));
     }
 

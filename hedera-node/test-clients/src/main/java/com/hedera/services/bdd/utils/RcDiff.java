@@ -174,8 +174,8 @@ public class RcDiff implements Callable<Integer> {
         final var actualFields = new ArrayList<>(actualMessage.getAllFields().entrySet());
         if (expectedFields.size() != actualFields.size()) {
             Assertions.fail("Mismatched field counts "
-                    + " (" + describeFieldCountMismatch(expectedFields, actualFields) + ") " + "between expected\n"
-                    + expectedMessage + "➡️ and \n" + actualMessage + " - " + mismatchContext.get());
+                    + " (" + describeFieldCountMismatch(expectedFields, actualFields) + ") " + "between expected "
+                    + expectedMessage + " and " + actualMessage + " - " + mismatchContext.get());
         }
         for (int i = 0, n = expectedFields.size(); i < n; i++) {
             final var expectedField = expectedFields.get(i);
@@ -184,8 +184,8 @@ public class RcDiff implements Callable<Integer> {
             final var actualName = actualField.getKey().getName();
             if (!Objects.equals(expectedName, actualName)) {
                 Assertions.fail(
-                        "Mismatched field names ('" + expectedName + "' vs '" + actualName + "' between expected\n"
-                                + expectedMessage + "➡️ and \n" + actualMessage + " - " + mismatchContext.get());
+                        "Mismatched field names ('" + expectedName + "' vs '" + actualName + "' between expected "
+                                + expectedMessage + " and " + actualMessage + " - " + mismatchContext.get());
             }
             matchValues(expectedName, expectedField.getValue(), actualField.getValue(), mismatchContext);
         }
@@ -314,17 +314,17 @@ public class RcDiff implements Callable<Integer> {
             sb.append(diff.summary()).append("\n");
         }
         if (firstEncounteredDifference == CONSENSUS_TIME_MISMATCH) {
-            sb.append("➡️ Expected ")
+            sb.append("➡️  Expected ")
                     .append(requireNonNull(diff.firstEntry()).consensusTime())
                     .append("\n\n")
-                    .append("➡️ but was \n")
+                    .append("➡️ but was ")
                     .append(requireNonNull(diff.secondEntry()).consensusTime());
         } else if (firstEncounteredDifference == TRANSACTION_RECORD_MISMATCH
                 || firstEncounteredDifference == TRANSACTION_MISMATCH) {
             sb.append("\nFor body,\n").append(requireNonNull(diff.firstEntry()).body());
-            sb.append("➡️ Expected Record ")
+            sb.append("➡️  Expected Record ")
                     .append(requireNonNull(diff.firstEntry()).transactionRecord())
-                    .append("➡️ but was \n")
+                    .append(" but was ")
                     .append(requireNonNull(diff.secondEntry()).transactionRecord());
         }
         return sb.toString();
