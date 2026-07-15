@@ -494,12 +494,20 @@ public class BaseTranslator {
         requireNonNull(resultBuilder);
         requireNonNull(parts);
         requireNonNull(stateChanges);
-        final List<ContractID> createdIds;
-        if (parts.isBatchScoped() && parts.traces() != null) {
-            // if we are in a batch and have traces, try to recover createdContractIDs from traces first
-            // this will cover the situation when we have multiple ethereum transactions in a batch that both create a
-            // nested contract. 'stateChanges' will hold the final createdContractIDs for both, and we need to derive
-            // createdContractIDs for transactions that are in the middle of the batch
+        var createdIds = stateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
+                .filter(StateChange::hasMapUpdate)
+                .map(StateChange::mapUpdateOrThrow)
+                .map(MapUpdateChange::keyOrThrow)
+                .map(MapChangeKey::contractIdKeyOrThrow)
+                .sorted(CONTRACT_ID_COMPARATOR)
+                .toList();
+        if (createdIds.size() > 1 && parts.isBatchScoped() && parts.traces() != null) {
+            // If there are few createdIds, we are in a batch and have traces, try to recover createdContractIDs from
+            // traces first.
+            // This will cover the situation when we have multiple transactions in a batch that each create
+            // nested contracts. 'stateChanges' will hold the final createdContractIDs for all transactions,
+            // and we need to derive createdContractIDs for transactions that are in the middle of the batch.
             createdIds = parts.traces().stream()
                     .filter(TraceData::hasEvmTraceData)
                     .map(TraceData::evmTraceDataOrThrow)
@@ -507,15 +515,6 @@ public class BaseTranslator {
                     .filter(e -> ContractActionType.CREATE.equals(e.callType()))
                     .filter(ContractAction::hasRecipientContract)
                     .map(ContractAction::recipientContractOrThrow)
-                    .toList();
-        } else {
-            createdIds = stateChanges.stream()
-                    .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
-                    .filter(StateChange::hasMapUpdate)
-                    .map(StateChange::mapUpdateOrThrow)
-                    .map(MapUpdateChange::keyOrThrow)
-                    .map(MapChangeKey::contractIdKeyOrThrow)
-                    .sorted(CONTRACT_ID_COMPARATOR)
                     .toList();
         }
         resultBuilder.createdContractIDs(createdIds);
