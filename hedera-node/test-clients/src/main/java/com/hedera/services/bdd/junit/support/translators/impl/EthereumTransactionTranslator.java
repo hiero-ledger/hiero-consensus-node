@@ -217,7 +217,6 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                         }
                     }
                 }
-                System.out.printf("!!!!!!!!!! Nonce:%s expectedNonce:%s\n", ethTxData.nonce(), expectedNonce);
                 builder.signerNonce(expectedNonce);
             } else {
                 builder.signerNonce(ethTxData.nonce() + 1);
