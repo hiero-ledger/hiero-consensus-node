@@ -55,6 +55,13 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
+# application.properties applied to BOTH the baseline deploy and the upgrade
+# target. Its only migration-specific delta is tss.wrapsEnabled=false: WRAPS
+# genesis-proof construction OOM-kills the node on this ~16 GB runner. Passed
+# to solo via --application-properties (the only channel that reaches the node;
+# --local-build-path stages platform JARs only, not config).
+APP_PROPS_FILE="${APP_PROPS_FILE:-${SCRIPT_DIR}/resources/application.properties}"
+
 # Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
 # Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
 # deployments seed by default. Override via env vars in CI if needed.
@@ -274,6 +281,7 @@ deploy_baseline() {
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
+    --application-properties "${APP_PROPS_FILE}" \
     --pvcs true \
     --release-tag "${DEPLOY_RELEASE_TAG}"
 
@@ -348,6 +356,7 @@ upgrade_to_local() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
+    --application-properties "${APP_PROPS_FILE}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --quiet-mode
     --force
