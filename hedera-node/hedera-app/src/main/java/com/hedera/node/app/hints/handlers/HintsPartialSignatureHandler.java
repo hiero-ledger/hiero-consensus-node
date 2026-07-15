@@ -108,8 +108,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
             return;
         }
         final var hintsStore = context.createStore(ReadableHintsStore.class);
-        final var crs = requireNonNull(hintsStore.crsIfKnown());
         try {
+            final var crs = requireNonNull(hintsStore.crsIfKnown());
             final var partialSignature = new PartialSignature(op.constructionId(), crs, creatorId, op);
             if (tssConfig.useDeterministicHintsSignatures()) {
                 //noinspection ResultOfMethodCallIgnored

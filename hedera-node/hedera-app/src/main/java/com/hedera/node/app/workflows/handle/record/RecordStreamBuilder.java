@@ -321,23 +321,7 @@ public class RecordStreamBuilder
 
         // create list of sidecar records
         List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
-        if (contractStateChanges != null) {
-            if (status == REVERTED_SUCCESS) {
-                contractStateChanges = contractStateChanges.stream()
-                        .map(entry -> {
-                            final var changes = new ContractStateChanges(entry.getKey().contractStateChanges().stream()
-                                    .map(change -> change.copyBuilder()
-                                            .storageChanges(change.storageChanges().stream()
-                                                    .map(sc -> sc.copyBuilder()
-                                                            .valueWritten(null)
-                                                            .build())
-                                                    .toList())
-                                            .build())
-                                    .toList());
-                            return new AbstractMap.SimpleEntry<>(changes, entry.getValue());
-                        })
-                        .toList();
-            }
+        if (contractStateChanges != null && status != REVERTED_SUCCESS) {
             contractStateChanges.stream()
                     .map(pair -> new TransactionSidecarRecord(
                             transactionRecord.consensusTimestamp(),
@@ -382,8 +366,11 @@ public class RecordStreamBuilder
         transactionFee = 0L;
 
         if (contractFunctionResult != null) {
-            final var clearLogs =
-                    contractFunctionResult.copyBuilder().logInfo(emptyList()).bloom(Bytes.EMPTY);
+            final var clearLogs = contractFunctionResult
+                    .copyBuilder()
+                    .logInfo(emptyList())
+                    .bloom(Bytes.EMPTY)
+                    .createdContractIDs(emptyList());
             if (isContractCreate) {
                 transactionRecordBuilder.contractCreateResult(clearLogs);
             } else {
