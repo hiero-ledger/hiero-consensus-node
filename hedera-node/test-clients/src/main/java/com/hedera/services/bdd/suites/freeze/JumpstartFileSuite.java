@@ -44,6 +44,7 @@ import com.hedera.services.bdd.spec.utilops.upgrade.VerifyCutoverBlockStreamOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -199,7 +200,12 @@ class JumpstartFileSuite implements LifecycleTest {
                 // voting window would have block numbers < F2 and would fail this assertion.
                 sourcing(() -> doingContextual(spec -> {
                     final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
-                    final String log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
+                    final String log;
+                    try {
+                        log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                     final int initIdx = log.lastIndexOf("Initialized wrapped record voting singleton with deadline=");
                     assertTrue(initIdx >= 0, "Expected to find cycle 2 voting init in log");
                     final var logAfterInit = log.substring(initIdx);
