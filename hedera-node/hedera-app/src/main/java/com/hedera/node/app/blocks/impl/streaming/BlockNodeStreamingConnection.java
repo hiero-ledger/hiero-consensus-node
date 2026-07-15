@@ -1197,7 +1197,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     final long currentTimeMillis = System.currentTimeMillis();
                     if (lastBlockItemRecvMillis != -1
                             && (currentTimeMillis - lastBlockItemRecvMillis) > 1_000 // only log if 1 second has elapsed waiting
-                            && lastBlockItemWaitLogMillis == -1 || (currentTimeMillis - lastBlockItemWaitLogMillis) >= 250) { // log every 250 ms
+                            && (lastBlockItemWaitLogMillis == -1 || (currentTimeMillis - lastBlockItemWaitLogMillis) >= 250)) { // log every 250 ms
                         lastBlockItemWaitLogMillis = System.currentTimeMillis();
                         logger.trace(
                                 "{} Wanted block item at index {} but it isn't available yet (block: {}, itemCount: {}, isClosed: {})",
