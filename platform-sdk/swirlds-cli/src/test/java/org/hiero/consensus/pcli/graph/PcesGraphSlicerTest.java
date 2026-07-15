@@ -85,10 +85,12 @@ public class PcesGraphSlicerTest {
         assertTrue(Files.exists(pcesOutputLocation));
         assertFilteredPcesExist(pcesOutputLocation);
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, newContext);
+        final PcesEventGraphSource source =
+                new PcesEventGraphSource(pcesLocation, newContext.getConfiguration(), newContext.getRecycleBin());
         final List<PlatformEvent> oldEventsInPCes = new ArrayList<>();
         source.forEachRemaining(oldEventsInPCes::add);
-        final PcesEventGraphSource newSource = new PcesEventGraphSource(pcesOutputLocation, newContext);
+        final PcesEventGraphSource newSource =
+                new PcesEventGraphSource(pcesOutputLocation, newContext.getConfiguration(), newContext.getRecycleBin());
         final List<PlatformEvent> newEventsInPCes = new ArrayList<>();
         newSource.forEachRemaining(newEventsInPCes::add);
         Assertions.assertTrue(

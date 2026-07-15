@@ -63,7 +63,8 @@ class PcesEventGraphSourceTest {
         final PlatformContext context =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
+        final PcesEventGraphSource source =
+                new PcesEventGraphSource(pcesLocation, context.getConfiguration(), context.getRecycleBin());
 
         int i = 0;
         while (i++ < NUM_EVENTS) {
@@ -79,7 +80,8 @@ class PcesEventGraphSourceTest {
         final PlatformContext context =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
+        final PcesEventGraphSource source =
+                new PcesEventGraphSource(pcesLocation, context.getConfiguration(), context.getRecycleBin());
 
         final List<PlatformEvent> allEvents = new ArrayList<>();
         source.forEachRemaining(allEvents::add);
@@ -96,7 +98,8 @@ class PcesEventGraphSourceTest {
         final PlatformContext context =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, context);
+        final PcesEventGraphSource source =
+                new PcesEventGraphSource(pcesLocation, context.getConfiguration(), context.getRecycleBin());
 
         // Consume the source fully.
         final List<PlatformEvent> firstPass = new ArrayList<>();
@@ -128,7 +131,8 @@ class PcesEventGraphSourceTest {
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
 
         final Path empty = Files.createDirectory(baseDir.resolve("empty"));
-        final PcesEventGraphSource source = new PcesEventGraphSource(empty, context);
+        final PcesEventGraphSource source =
+                new PcesEventGraphSource(empty, context.getConfiguration(), context.getRecycleBin());
         assertFalse(source.hasNext());
     }
 
@@ -138,6 +142,8 @@ class PcesEventGraphSourceTest {
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
 
         Assertions.assertThrows(
-                UncheckedIOException.class, () -> new PcesEventGraphSource(baseDir.resolve("non-existing"), context));
+                UncheckedIOException.class,
+                () -> new PcesEventGraphSource(
+                        baseDir.resolve("non-existing"), context.getConfiguration(), context.getRecycleBin()));
     }
 }
