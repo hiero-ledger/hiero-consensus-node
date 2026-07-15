@@ -20,7 +20,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -608,7 +607,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
-                assertionsHold((_, _) -> {
+                doAdhoc(() -> {
                     assertEquals(
                             senderNonceBefore.get() + 2,
                             senderNonceAfter.get(),
@@ -665,7 +664,7 @@ public class CodeDelegationAtomicBatchTest {
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
-                assertionsHold((spec, _) -> {
+                doingContextual((spec) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var type4Record = getTxnRecord(type4Txn);
@@ -847,7 +846,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                assertionsHold((spec, _) -> {
+                doingContextual((spec) -> {
                     final var accountInBatchRollbackKey = spec.registry().getKey(accountInBatchRollback);
                     final var accountInRollbackEvmAddress = ByteString.copyFrom(recoverAddressFromPubKey(
                             accountInBatchRollbackKey.getECDSASecp256K1().toByteArray()));
@@ -888,7 +887,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress),
                 getAccountBalance(successPayer).exposingBalanceTo(successPayerBalanceAfter::set),
                 getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterBoth::set),
-                assertionsHold((spec, _) -> {
+                doingContextual((spec) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
                     final var type4RecordRollback =
