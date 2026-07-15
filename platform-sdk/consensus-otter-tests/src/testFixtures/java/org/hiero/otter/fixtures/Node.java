@@ -353,13 +353,10 @@ public interface Node {
     void stopProfiling();
 
     /**
-     * Captures a JVM thread dump of the node for diagnostics, typically to investigate a node that is stuck (for
-     * example, one that failed to become active again after a chaotic run). This is best-effort and never throws:
-     * implementations that cannot capture a dump return a short explanatory message instead.
+     * Captures a JVM thread dump of the node for diagnostics, typically to investigate a node that is stuck.
      *
-     * @return the thread dump as text, or an explanatory message if a dump could not be captured
+     * @return the thread dump as text
+     * @throws UnsupportedOperationException if thread dumps are not supported in this environment
      */
-    default String dumpThreads() {
-        return "(thread dump not supported for " + getClass().getSimpleName() + ")";
-    }
+    String dumpThreads();
 }

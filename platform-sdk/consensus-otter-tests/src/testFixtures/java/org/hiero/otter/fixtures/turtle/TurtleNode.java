@@ -604,4 +604,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     public void stopProfiling() {
         throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
     }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Thread dump is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
+     */
+    @Override
+    public String dumpThreads() {
+        throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
+    }
 }
