@@ -177,6 +177,41 @@ class PrngSystemContractTest {
     }
 
     @Test
+    void computePrecompileInsufficientEntropyFailedTest() {
+        // given:
+        givenCommon();
+        commonMocks();
+        given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
+        given(messageFrame.isStatic()).willReturn(false);
+        given(proxyWorldUpdater.entropy()).willReturn(Bytes.wrap(new byte[16]));
+        when(systemContractOperations.externalizePreemptedDispatch(any(), any(), eq(UTIL_PRNG)))
+                .thenReturn(streamBuilder);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
+
+        // when:
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+
+        // then:
+        assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
+    }
+
+    @Test
+    void computePrecompileMissingSenderAccountFailedTest() {
+        // given:
+        givenCommon();
+        given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
+        given(messageFrame.isStatic()).willReturn(false);
+        given(proxyWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
+        given(proxyWorldUpdater.getAccount(any())).willReturn(null);
+
+        // when:
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+
+        // then:
+        assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
+    }
+
+    @Test
     void wrongFunctionSelectorFailedTest() {
         // given:
         commonMocks();
