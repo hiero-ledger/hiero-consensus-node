@@ -253,6 +253,22 @@ class AdjustFungibleTokenChangesStepTest extends StepsBase {
     }
 
     @Test
+    void aggregatedFungibleChangesOverflowFails() {
+        // Same account twice so the aggregation sum overflows; checked merge must fail.
+        given(handleContext.payer()).willReturn(spenderId);
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        final var overflowingTransfers = TokenTransferList.newBuilder()
+                .token(fungibleTokenId)
+                .transfers(List.of(aaWith(ownerId, Long.MAX_VALUE), aaWith(ownerId, 1L)))
+                .build();
+        adjustFungibleTokenChangesStep = new AdjustFungibleTokenChangesStep(List.of(overflowingTransfers), payerId);
+
+        assertThatThrownBy(() -> adjustFungibleTokenChangesStep.doIn(transferContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE));
+    }
+
+    @Test
     void failsWhenAppliedToNonFungibleToken() {
         // create a transfer of 1000 for a *non* fungible token id
         body = CryptoTransferTransactionBody.newBuilder()
