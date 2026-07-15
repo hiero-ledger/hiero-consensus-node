@@ -204,49 +204,56 @@ val prCheckStartPorts =
         "hapiTestBlockNodeSimCommunication" to "29600",
         "hapiTestGenesisSubProcess" to "29800",
     )
+val prCheckWrapsEnabledFromGenesis = setOf("hapiTestWraps", "hapiTestWrapsDownload")
 val prCheckPropOverrides =
     mapOf(
-        "hapiTestAdhoc" to "block.stateproof.verification.enabled=true",
-        "hapiTestToken" to
-            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
-        "hapiTestCrypto" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
-        "hapiTestCryptoSerial" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
-        "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        // hapiTestRestart forces roster handoffs (DabEnabledUpgradeTest), and a real block node
-        // cannot verify block proofs across a handoff — so keep it off the block node with
-        // writerMode=FILE (and historyEnabled=false to match its original hints-only TSS surface).
-        "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.historyEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
-        "hapiTestWrapsDownload" to
-            "tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyPath=data/keys/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
-        "hapiTestMisc" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
-        "hapiTestMiscSerial" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
-        "hapiTestTimeConsuming" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestWraps" to "staking.periodMins=16",
-        "hapiTestCutover" to
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
-        "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
-        "hapiTestMiscRecordsSerial" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
-        "hapiTestSimpleFees" to
-            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
-        "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
-        "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
-        // ISS suites read the block stream from disk and intentionally diverge one node's state,
-        // which a block node would reject, so keep a FILE writer (no block node needed for ISS).
-        "hapiTestIss" to "blockStream.writerMode=FILE",
-        "hapiTestAtomicBatch" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-    )
+            "hapiTestAdhoc" to "block.stateproof.verification.enabled=true",
+            "hapiTestToken" to
+                "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "hapiTestCrypto" to
+                "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "hapiTestCryptoSerial" to
+                "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+            "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            // hapiTestRestart forces roster handoffs (DabEnabledUpgradeTest), and a real BN cannot
+            // verify block proofs across a handoff — so keep it off the BN with writerMode=FILE
+            // (and historyEnabled=false to match its original hints-only TSS surface).
+            "hapiTestRestart" to
+                "blockStream.writerMode=FILE,tss.historyEnabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "hapiTestWrapsDownload" to
+                "tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyPath=data/keys/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
+            "hapiTestMisc" to
+                "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "hapiTestMiscSerial" to
+                "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
+            "hapiTestTimeConsuming" to
+                "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "hapiTestWraps" to "staking.periodMins=16",
+            "hapiTestCutover" to
+                "blockStream.streamMode=BOTH,blockStream.writerMode=FILE_AND_GRPC,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.buffer.isBufferPersistenceEnabled=false,tss.forceMockSignatures=true,tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
+            "hapiTestTimeConsumingSerial" to
+                "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "hapiTestMiscRecords" to
+                "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "hapiTestMiscRecordsSerial" to
+                "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
+            "hapiTestSimpleFees" to
+                "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
+            "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
+            "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
+            // ISS suites read the block stream from disk and intentionally
+            // diverge one node's state, which a block node would reject,
+            // so keep a FILE writer (no block node needed for ISS).
+            "hapiTestIss" to "blockStream.writerMode=FILE",
+            "hapiTestAtomicBatch" to
+                "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        )
+        .mapValues { (task, overrides) ->
+            if (task in prCheckWrapsEnabledFromGenesis) "tss.wrapsEnabled=true,$overrides"
+            else overrides
+        }
 val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
