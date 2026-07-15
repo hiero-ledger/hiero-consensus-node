@@ -56,9 +56,12 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
         // JVMs and OS
         val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
         val testMaxHeap = "${testClientHeapGib}g"
-        // Pass remaining memory pool to ProcessUtils, which divides by actual node count at runtime
+        // Pass remaining memory pool to ProcessUtils, which divides by actual node count at
+        // runtime; HAPI_TEST_NODE_POOL_MIB overrides the computed pool for memory-hungry suites
+        // whose peak usage is dominated by native (non-JVM) allocations
         val nodePoolMib =
-            ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
+            System.getenv("HAPI_TEST_NODE_POOL_MIB")?.trim()?.toIntOrNull()
+                ?: ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
 
         logger.lifecycle(
             "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
@@ -218,7 +221,7 @@ val prCheckPropOverrides =
         "hapiTestRestart" to
             "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestWrapsDownload" to
-            "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
+            "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyPath=data/keys/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
             "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
@@ -270,6 +273,11 @@ val prCheckNetSizeOverrides =
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
         "hapiTestStateThrottling" to "3",
+        // Each node runs a native WRAPS prover during proof construction; 3 nodes keeps
+        // peak memory within the dedicated runner pool's limits
+        "hapiTestWraps" to "3",
+        "hapiTestCutover" to "3",
+        "hapiTestWrapsDownload" to "3",
     )
 
 tasks {
