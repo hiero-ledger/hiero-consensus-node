@@ -2105,24 +2105,6 @@ report_wraps_download_times() {
 run_077_upgrade() {
   # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10; the
   # 0.77 properties keep the same download URL so any restarted pod re-fetches from it.
-
-  # Clear the previous build's jars on every node before staging the local build: solo's
-  # --local-build-path staging has a history of leaving baseline jars alongside the local
-  # ones (see the solo >= 0.73 note in 825-call-migration-testing.yaml), and a mixed
-  # data/apps + data/lib only turns fatal at the 0.77 restart. The nodes are still running
-  # here, but their JVMs keep the already-loaded jars open until solo stops them during the
-  # upgrade, so deleting the on-disk copies is safe.
-  local node pod
-  local nodes=()
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  echo "Clearing previous build jars (data/apps, data/lib) on all consensus nodes before local-build staging"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "rm -f '${HAPI_PATH}/data/apps'/*.jar '${HAPI_PATH}/data/lib'/*.jar" \
-      || echo "WARN: could not clear previous jars on ${pod}; continuing" >&2
-  done
-
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
