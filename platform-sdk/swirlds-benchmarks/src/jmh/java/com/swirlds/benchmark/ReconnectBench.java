@@ -9,6 +9,8 @@ import com.swirlds.benchmark.reconnect.ReconnectBenchmarkResult;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.benchmark.reconnect.network.NetworkProfile;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -70,6 +72,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public int networkInflightBytesLimit;
 
     private static final String TEACHER_MAP_NAME = "teacher";
+    private static final String SAVE_DATA_DIRECTORY_PROPERTY = "benchmark.saveDataDirectory";
     private VirtualMap teacherMap;
     private VirtualMap teacherMapCopy;
 
@@ -83,6 +86,16 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Override
     String benchmarkName() {
         return "ReconnectBench";
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void configureBenchmarkConfiguration(final ConfigurationBuilder configurationBuilder) {
+        super.configureBenchmarkConfiguration(configurationBuilder);
+        configurationBuilder.withSource(
+                new SimpleConfigSource(SAVE_DATA_DIRECTORY_PROPERTY, true).withOrdinal(Integer.MAX_VALUE));
     }
 
     /**

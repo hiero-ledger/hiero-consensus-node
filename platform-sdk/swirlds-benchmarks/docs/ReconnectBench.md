@@ -1,6 +1,6 @@
 # ReconnectBench
 
-`ReconnectBench` measures virtual-map reconnect from a learner state to a teacher state.
+`ReconnectBench` measures virtual-map synchronization from a learner state to a teacher state.
 
 ## Simulated Network
 
@@ -21,6 +21,8 @@ arrival schedule. These counters are diagnostics and are not pure configured net
 
 ## Running the Benchmark
 
+### Gradle
+
 From the repository root, run:
 
 ```shell
@@ -36,6 +38,29 @@ small unshaped smoke run can use:
   -PnumFiles=1 \
   -PnumRecords=1000
 ```
+
+### IDE Main Method
+
+For a local IDE run or profiling session, run the `main` method in `ReconnectBench`. Set the run configuration's
+working directory to `<repo>/platform-sdk/swirlds-benchmarks` so the benchmark loads this module's `settings.txt`.
+This entry point runs without a JMH fork so that an IDE profiler attaches directly to the benchmark workload.
+
+### JMH JAR
+
+Build the JMH uber JAR from the repository root:
+
+```shell
+./gradlew :swirlds-benchmarks:jmhJar
+```
+
+Then run it from the benchmark module directory so `settings.txt` and relative paths resolve correctly:
+
+```shell
+cd platform-sdk/swirlds-benchmarks
+java -jar build/libs/*-jmh.jar ReconnectBench
+```
+
+Use JMH CLI options such as `-p` to override benchmark parameters for a JAR run.
 
 The network parameters are:
 
@@ -62,15 +87,19 @@ Run from `platform-sdk/swirlds-benchmarks` when using the JMH JAR or an IDE so t
 expected directory. The module [README](../README.md) describes the working-directory requirement and general JMH
 usage.
 
-### Saved-State Caution
+### Saved-State Preservation
 
-When `benchmark.saveDataDirectory=true`, `ReconnectBench` restores both teacher and learner maps from the configured
-benchmark data directory if they are present. Generation parameters do not alter an already saved state. Use a new
-benchmark data directory or remove the old `ReconnectBench` state before changing state size, record size, seed, or
-divergence probabilities.
+`ReconnectBench` enforces `benchmark.saveDataDirectory=true` regardless of the value in `settings.txt`. It restores both
+teacher and learner maps from the configured benchmark data directory when they are present, and it retains newly
+generated maps after teardown. `settingsUsed.txt` reports the enforced value.
+
+Generation parameters do not alter an already saved state. Use a new benchmark data directory or deliberately remove
+the old `ReconnectBench` state before changing state size, record size, seed, or divergence probabilities.
 
 ## Large-State Local Calibration
 
+> **This calibration was performed at the beginning of July 2026.**
+>
 > Traversal order was selected as the calibration variable because it is a clear reconnect-level difference whose
 > directional effect can be compared between local and cluster environments. This calibration choice does not limit
 > `ReconnectBench` to traversal-order comparisons.
@@ -120,7 +149,9 @@ All accepted results used the same saved state and network profile and produced 
 
 ## Cluster Results
 
-The first July 1, 2026 cluster reconnect for each traversal mode started with approximately 295 million learner
+> **These runs were performed at the beginning of July 2026.**
+
+Cluster reconnect for each traversal mode started with approximately 295 million learner
 entities and approximately 320 million teacher entities. The table includes both the first reconnect iteration and the
 entire catch-up episode through the final successful learner reconnect.
 
@@ -131,6 +162,8 @@ entire catch-up episode through the final successful learner reconnect.
 | `pullParallelSync`        | `294,620,525` |        `319,844,811` | `25,224,286` |     `716.087 s` |                `8` |     `1,776.607 s` |
 
 ## Local-to-Cluster Correspondence
+
+> **This calibration was performed at the beginning of July 2026.**
 
 The comparable directional signal is the first reconnect iteration:
 
