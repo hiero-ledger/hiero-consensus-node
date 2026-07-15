@@ -332,7 +332,7 @@ MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 # COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
 # currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
 # itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.158.0}"
 
 # --- Step 13: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
 # TCK/JS-SDK version defaults come from the CITR pin file so a default run tests exactly the
@@ -517,11 +517,11 @@ cleanup() {
     kill "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
   fi
 
-  if [[ ${exit_code} -ne 0 ]]; then
-    return
-  fi
-
-  if [[ "${KEEP_NETWORK}" == "true" ]]; then
+  if [[ ${exit_code} -ne 0 || "${KEEP_NETWORK}" == "true" ]]; then
+    if [[ "${KEEP_PORT_FORWARD_WATCHDOG}" == "true" && -z "${PORT_FORWARD_WATCHDOG_PID}" ]]; then
+      start_port_forward_watchdog
+      echo "Started port-forward watchdog for the kept network (pid=${PORT_FORWARD_WATCHDOG_PID}, log=${PORT_FORWARD_WATCHDOG_LOG})"
+    fi
     return
   fi
 
@@ -1303,6 +1303,9 @@ restart_post_upgrade_port_forwards() {
   fi
   if [[ "${cn_ok}" == "true" && "${mirror_ok}" == "true" ]]; then
     echo "  CN gRPC (:${CN_GRPC_LOCAL_PORT}) and Mirror REST (:${MIRROR_REST_LOCAL_PORT}) forwards survived the upgrade; skipping destructive re-establishment"
+    # The explorer UI forward has no in-run healer and upgrade pod churn commonly kills it;
+    # start_explorer_ingress_port_forward is idempotent (no-op while the forward is alive).
+    start_explorer_ingress_port_forward || echo "  WARN: explorer UI port-forward not re-established" >&2
     return 0
   fi
   echo "  Post-upgrade forward health check: cn_ok=${cn_ok} mirror_ok=${mirror_ok} -- a forward is down, re-establishing it"
@@ -1400,6 +1403,8 @@ restart_post_upgrade_port_forwards() {
     tail -n 20 "${mirror_log}" >&2 2>/dev/null || true
     return 1
   fi
+
+  start_explorer_ingress_port_forward || echo "  WARN: explorer UI port-forward not re-established" >&2
 }
 
 minio_discover_service() {
@@ -3673,7 +3678,11 @@ importer:
       memory: ${MIRROR_IMPORTER_MEMORY_LIMIT}
   env:
     HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'true'
-    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    # Mirror >= 0.157 restructured BlockNodeProperties: nodes[].host/port became a
+    # nodes[].endpoints[] collection; the old flat host key fails Spring binding at startup
+    # (importer CrashLoopBackOff, "elements ... left unbound").
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_PORT: '40840'
 EOF
   if [[ -n "${MIRROR_BLOCK_CUTOVER_HAPIVERSION}" ]]; then
     # 0.155+ only: pin the HAPI version at which to switch from record to block stream.
@@ -3807,8 +3816,14 @@ TCK_SDK_SERVER_PROTO_VERSION=""
 tck_sdk_server_pnpm_install() {
   (
     cd "${JS_SDK_REPO_DIR}/tck" || exit 1
+    # pnpm >= 10 refuses to run dependency build scripts unless approved and fails the
+    # install with ERR_PNPM_IGNORED_BUILDS. Only the CLI flag reliably overrides this
+    # (the .npmrc key and package.json onlyBuiltDependencies are not honored on 11.x),
+    # and older pnpm rejects the unknown flag — hence the version gate.
+    local allow_builds=()
+    [[ "$(pnpm --version 2>/dev/null | cut -d. -f1)" -ge 10 ]] && allow_builds=(--dangerously-allow-all-builds)
     pnpm add "@hiero-ledger/sdk@^${TCK_SDK_SERVER_SDK_VERSION}" "long@${TCK_SDK_SERVER_LONG_VERSION}" "@hiero-ledger/proto@${TCK_SDK_SERVER_PROTO_VERSION}" \
-      && pnpm install
+      && pnpm install "${allow_builds[@]}"
   )
 }
 

@@ -438,8 +438,6 @@ jobs:
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
               ENABLE_TCK_TESTS="true" \
-              TCK_TEST_SCRIPT="test:serial" \
-              TCK_TEST_TIMEOUT_SECS="5400" \
             "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
