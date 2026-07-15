@@ -3812,31 +3812,24 @@ install_tck_client_dependencies() {
 TCK_SDK_SERVER_SDK_VERSION=""
 TCK_SDK_SERVER_LONG_VERSION=""
 TCK_SDK_SERVER_PROTO_VERSION=""
+TCK_SDK_SERVER_TS_VERSION=""
 
 tck_sdk_server_pnpm_install() {
   (
     cd "${JS_SDK_REPO_DIR}/tck" || exit 1
-    # The browser drivers are test-only deps of the sdk repo and irrelevant to the tck server;
-    # their postinstall scripts break on unpinned transitive drift (chromedriver's install.js
-    # dies with ERR_REQUIRE_ESM on node 20). Never build them — pnpm reads this from the
-    # workspace ROOT package.json, and it takes precedence over --dangerously-allow-all-builds.
-    node -e '
-      const fs = require("fs");
-      const p = process.argv[1];
-      const j = JSON.parse(fs.readFileSync(p, "utf8"));
-      j.pnpm = j.pnpm || {};
-      const never = new Set([...(j.pnpm.neverBuiltDependencies || []), "chromedriver", "geckodriver"]);
-      j.pnpm.neverBuiltDependencies = [...never];
-      fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
-    ' "${JS_SDK_REPO_DIR}/package.json"
-    # pnpm >= 10 refuses to run dependency build scripts unless approved and fails the
-    # install with ERR_PNPM_IGNORED_BUILDS. Only the CLI flag reliably overrides this
-    # (the .npmrc key and package.json onlyBuiltDependencies are not honored on 11.x),
-    # and older pnpm rejects the unknown flag — hence the version gate.
-    local allow_builds=()
-    [[ "$(pnpm --version 2>/dev/null | cut -d. -f1)" -ge 10 ]] && allow_builds=(--dangerously-allow-all-builds)
+    # tck/ is not a member of the sdk repo's pnpm workspace, so give it its own config-only
+    # workspace file (pnpm >= 10 reads build-script approvals from pnpm-workspace.yaml, not
+    # package.json): run dependency build scripts — a plain install fails on pnpm >= 10 with
+    # ERR_PNPM_IGNORED_BUILDS otherwise — but never the browser drivers, which are test-only
+    # deps of the sdk repo, irrelevant to the tck server, and whose postinstalls break on
+    # unpinned transitive drift (chromedriver's install.js dies with ERR_REQUIRE_ESM on node 20).
+    printf 'dangerouslyAllowAllBuilds: true\nignoredBuiltDependencies:\n  - chromedriver\n  - geckodriver\n' > pnpm-workspace.yaml
+    # tck/package.json pins ts-node but not typescript; resolved standalone that floats to the
+    # newest major, which ts-node 10 cannot drive (readConfig fileExists crash on TS 7). Pin the
+    # sdk root's own typescript so the server runs against what the sdk repo develops with.
     pnpm add "@hiero-ledger/sdk@^${TCK_SDK_SERVER_SDK_VERSION}" "long@${TCK_SDK_SERVER_LONG_VERSION}" "@hiero-ledger/proto@${TCK_SDK_SERVER_PROTO_VERSION}" \
-      && pnpm install "${allow_builds[@]}"
+      && pnpm add -D "typescript@${TCK_SDK_SERVER_TS_VERSION}" \
+      && pnpm install
   )
 }
 
@@ -3850,13 +3843,18 @@ start_tck_sdk_server() {
   TCK_SDK_SERVER_SDK_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').version)" 2>/dev/null || true)"
   TCK_SDK_SERVER_LONG_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').dependencies.long)" 2>/dev/null || true)"
   TCK_SDK_SERVER_PROTO_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../packages/proto/package.json').version)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_TS_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').devDependencies.typescript)" 2>/dev/null || true)"
+  if [[ -z "${TCK_SDK_SERVER_TS_VERSION}" || "${TCK_SDK_SERVER_TS_VERSION}" == "undefined" ]]; then
+    # Known-good with the tck server's ts-node 10 pin; only used if the sdk root drops its own pin.
+    TCK_SDK_SERVER_TS_VERSION="5.9.3"
+  fi
   if [[ -z "${TCK_SDK_SERVER_SDK_VERSION}" || -z "${TCK_SDK_SERVER_LONG_VERSION}" || "${TCK_SDK_SERVER_LONG_VERSION}" == "undefined" || -z "${TCK_SDK_SERVER_PROTO_VERSION}" ]]; then
     echo "Could not extract sdk/long/proto versions from the JS-SDK checkout at ${JS_SDK_REPO_DIR}" >&2
     echo "  sdk='${TCK_SDK_SERVER_SDK_VERSION}' long='${TCK_SDK_SERVER_LONG_VERSION}' proto='${TCK_SDK_SERVER_PROTO_VERSION}'" >&2
     return 1
   fi
 
-  run_step "Pinning tck server deps (sdk ^${TCK_SDK_SERVER_SDK_VERSION}, long ${TCK_SDK_SERVER_LONG_VERSION}, proto ${TCK_SDK_SERVER_PROTO_VERSION}) + pnpm install" \
+  run_step "Pinning tck server deps (sdk ^${TCK_SDK_SERVER_SDK_VERSION}, long ${TCK_SDK_SERVER_LONG_VERSION}, proto ${TCK_SDK_SERVER_PROTO_VERSION}, typescript ${TCK_SDK_SERVER_TS_VERSION}) + pnpm install" \
     run_command_with_timeout "${TCK_INSTALL_TIMEOUT_SECS}" tck_sdk_server_pnpm_install || return 1
 
   # 819 starts the server with no args (default port 8544). Pass the port only when overridden;
