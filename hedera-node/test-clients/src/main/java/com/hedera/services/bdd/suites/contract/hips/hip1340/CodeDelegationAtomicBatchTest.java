@@ -1017,11 +1017,9 @@ public class CodeDelegationAtomicBatchTest {
                                         .addCodeDelegationWithNonce(delegationTargetAddress, 999L, sender)
                                         .addCodeDelegationWithNonce(delegationTargetAddress, 3, sender)
                                         .gasLimit(GAS_LIMIT_2M)
-                                        .batchKey(RELAYER)
-                                )
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
-                        .hasKnownStatus(SUCCESS)
-                ,
+                        .hasKnownStatus(SUCCESS),
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 assertionsHold((_, _) -> assertEquals(
                         senderNonceBefore.get() + 4,
