@@ -1272,10 +1272,14 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
             /*
             Inform the worker thread to sleep if the current block isn't available (e.g. due to advancing blocks) or the
-            number of items associated with this block is the same as the number of items we've collected thus far (i.e.
-            the has caught up with all the items produced for the block.)
+            next item hasn't been produced yet (i.e. we have caught up with all items currently available for the
+            block). This is deliberately keyed off bufferedItem(itemIndex) rather than itemCount() == itemIndex: if the
+            item count were ever observed ahead of what bufferedItem() can return (e.g. a reader seeing the mid-add
+            window in BlockState.addSerializedItem), keying off itemCount() would make this return false and the worker
+            would busy-spin on the block forever without sending or advancing. Sleeping when the next contiguous item is
+            absent avoids that wedge and is still immediate (returns false) whenever more items are ready to send.
              */
-            return block == null || block.itemCount() == itemIndex;
+            return block == null || block.bufferedItem(itemIndex) == null;
         }
 
         /**

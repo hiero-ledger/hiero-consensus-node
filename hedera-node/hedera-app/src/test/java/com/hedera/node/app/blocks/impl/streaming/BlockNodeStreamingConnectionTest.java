@@ -84,6 +84,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private static final Thread FAKE_WORKER_THREAD = new Thread(() -> {}, "fake-worker");
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
+    private static final VarHandle blockStateItemIndexHandle;
     private static final MethodHandle sendRequestHandle;
 
     static {
@@ -95,6 +96,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeStreamingConnection.class, "streamingBlockNumber", AtomicLong.class);
             workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
                     .findVarHandle(BlockNodeStreamingConnection.class, "workerThreadRef", AtomicReference.class);
+            blockStateItemIndexHandle = MethodHandles.privateLookupIn(BlockState.class, lookup)
+                    .findVarHandle(BlockState.class, "itemIndex", AtomicInteger.class);
 
             final Method sendRequest =
                     BlockNodeStreamingConnection.class.getDeclaredMethod("sendRequest", StreamRequest.class);
@@ -1318,6 +1321,76 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(requestCall);
     }
 
+    /**
+     * Regression test for the streaming-worker wedge on a wrapped-record block (WRB) whose items are published in
+     * phases across threads. A block can be observed while a later item has reserved its index (via
+     * {@code itemIndex.incrementAndGet()} in {@link BlockState#addSerializedItem}) but has not yet been published into
+     * the buffer. If {@link BlockState#itemCount()} counts that reserved-but-unpublished slot, the worker can never
+     * satisfy {@code itemCount() == itemIndex}: it neither sends the {@code BlockEnd} nor advances, and {@code doWork()}
+     * returns {@code false} so the worker busy-spins forever on the block (observed as a block sent-but-never-acked,
+     * saturating the buffer).
+     *
+     * <p>Here block 10 is closed with its header published at index 0 and a second item's index reserved but never
+     * published. A correct worker must finish the closed block (header + {@code BlockEnd}) and advance to block 11.
+     */
+    @Test
+    void testConnectionWorker_doesNotWedgeWhenItemIndexReservedButUnpublished() throws Exception {
+        activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(10);
+
+        final BlockState block10 = new BlockState(10);
+        block10.addItem(newBlockHeaderItem(10)); // index 0, fully published
+        reserveItemIndexWithoutPublishing(block10); // reserve index 1 but never publish it
+        block10.closeBlock();
+
+        doReturn(block10).when(bufferService).getBlockState(10);
+        lenient().doReturn(null).when(bufferService).getBlockState(11L);
+
+        final Object worker = createWorker();
+        invokeDoWork(worker);
+
+        // The worker must finish the closed block and advance -- not wedge on block 10.
+        assertThat(streamingBlockNumber).hasValue(11);
+        // header request + BlockEnd request
+        verify(requestCall, atLeast(2)).sendRequest(any(), anyBoolean());
+    }
+
+    /**
+     * Defense-in-depth for the worker itself: even if {@link BlockState#itemCount()} is ever observed ahead of what
+     * {@link BlockState#bufferedItem(int)} can return (the {@code BlockState} fix closes the known window, but a future
+     * regression or an out-of-order multi-writer could reintroduce skew), {@code doWork()} must not busy-spin. It must
+     * decide to sleep based on whether the next contiguous item is available, not on {@code itemCount() == itemIndex}.
+     *
+     * <p>Here an <em>open</em> block reports {@code itemCount() == 2} while only index 0 is retrievable. The worker
+     * consumes the header, finds no item at index 1, and must return {@code true} (sleep) rather than {@code false}
+     * (busy-spin), and must not advance/finalize the unfinished block.
+     */
+    @Test
+    void testConnectionWorker_sleepsInsteadOfBusySpinningWhenItemCountAheadOfBuffer() throws Exception {
+        activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(10);
+
+        final BlockState block10 = spy(new BlockState(10));
+        block10.addItem(newBlockHeaderItem(10)); // index 0 is retrievable
+        // Claim 2 items though index 1 is not retrievable. lenient() because the whole point of the hardening is that
+        // doWork()'s sleep decision must NOT consult itemCount() (an open block short-circuits the other itemCount()
+        // callers), so this stub may go unused -- which is itself the property under test.
+        lenient().doReturn(2).when(block10).itemCount();
+        // block10 is intentionally left open (not closed)
+
+        doReturn(block10).when(bufferService).getBlockState(10);
+
+        final Object worker = createWorker();
+        final boolean shouldSleep = invokeDoWork(worker);
+
+        assertThat(shouldSleep)
+                .as("worker must sleep, not busy-spin, when the next item is unavailable")
+                .isTrue();
+        assertThat(streamingBlockNumber).hasValue(10); // did not advance an unfinished block
+    }
+
     @Test
     void testConnectionWorker_blockNodeTooFarBehind() throws Exception {
         activateConnection();
@@ -2164,6 +2237,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     /**
+     * Simulates the mid-add window of {@link BlockState#addSerializedItem}: reserves the next item index (as
+     * {@code itemIndex.incrementAndGet()} does) without publishing an item into the buffer, so the reserved slot is not
+     * retrievable via {@code bufferedItem(index)}.
+     */
+    private static void reserveItemIndexWithoutPublishing(final BlockState block) {
+        final AtomicInteger itemIndex = (AtomicInteger) blockStateItemIndexHandle.get(block);
+        itemIndex.incrementAndGet();
+    }
+
+    /**
      * Helper method to create a ConnectionWorkerLoopTask instance using reflection.
      * The worker task is an inner class of BlockNodeConnection.
      *
@@ -2194,10 +2277,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
      * @param worker the worker instance (from createWorker())
      * @throws Exception if reflection or doWork() execution fails
      */
-    private void invokeDoWork(final Object worker) throws Exception {
+    private boolean invokeDoWork(final Object worker) throws Exception {
         final Method doWorkMethod = worker.getClass().getDeclaredMethod("doWork");
         doWorkMethod.setAccessible(true);
-        doWorkMethod.invoke(worker);
+        return (boolean) doWorkMethod.invoke(worker);
     }
 
     private void sendRequest(final StreamRequest request) {

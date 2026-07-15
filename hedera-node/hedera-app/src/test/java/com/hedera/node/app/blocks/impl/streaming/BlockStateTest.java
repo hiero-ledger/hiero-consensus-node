@@ -14,6 +14,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -23,12 +24,15 @@ import org.junit.jupiter.api.Test;
 class BlockStateTest {
 
     private static final VarHandle blockItemsHandle;
+    private static final VarHandle itemIndexHandle;
 
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
             blockItemsHandle = MethodHandles.privateLookupIn(BlockState.class, lookup)
                     .findVarHandle(BlockState.class, "bufferedItems", ConcurrentMap.class);
+            itemIndexHandle = MethodHandles.privateLookupIn(BlockState.class, lookup)
+                    .findVarHandle(BlockState.class, "itemIndex", AtomicInteger.class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -143,6 +147,35 @@ class BlockStateTest {
         assertThat(block.itemCount()).isZero();
     }
 
+    /**
+     * Reproduces the mid-add window in {@link BlockState#addSerializedItem}: an item's index is reserved via
+     * {@code itemIndex.incrementAndGet()} <em>before</em> the item is published into {@code bufferedItems}. A reader
+     * (the streaming worker) that observes this window must never see {@link BlockState#itemCount()} advertise an index
+     * whose {@link BlockState#bufferedItem(int)} is still {@code null}; otherwise the worker cannot satisfy
+     * {@code itemCount() == itemIndex} and wedges (see
+     * {@code BlockNodeStreamingConnection.ConnectionWorkerLoopTask.doWork()}).
+     */
+    @Test
+    void testItemCount_neverCountsUnpublishedReservedIndex() {
+        block.addItem(newBlockHeaderItem()); // index 0, fully published
+        assertThat(block.itemCount()).isOne();
+        assertThat(block.bufferedItem(0)).isNotNull();
+
+        // Simulate a concurrent second add that reserved index 1 (itemIndex.incrementAndGet()) but has not yet
+        // performed bufferedItems.put(1, ...).
+        itemIndex().set(1);
+
+        // The reserved-but-unpublished slot must not be retrievable...
+        assertThat(block.bufferedItem(1)).isNull();
+        // ...and itemCount() must not count it: every index it advertises must be retrievable.
+        assertThat(block.itemCount()).isOne();
+        for (int i = 0; i < block.itemCount(); i++) {
+            assertThat(block.bufferedItem(i))
+                    .as("item at index %d is counted by itemCount() but is not retrievable", i)
+                    .isNotNull();
+        }
+    }
+
     @Test
     void testCloseBlock_auto() {
         assertThat(block.isClosed()).isFalse();
@@ -183,5 +216,9 @@ class BlockStateTest {
     @SuppressWarnings("unchecked")
     private ConcurrentMap<Integer, BlockState.BufferedItem> blockItems() {
         return (ConcurrentMap<Integer, BlockState.BufferedItem>) blockItemsHandle.get(block);
+    }
+
+    private AtomicInteger itemIndex() {
+        return (AtomicInteger) itemIndexHandle.get(block);
     }
 }

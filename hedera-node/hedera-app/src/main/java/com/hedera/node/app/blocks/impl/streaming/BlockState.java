@@ -33,6 +33,15 @@ public class BlockState {
      */
     private final AtomicInteger itemIndex = new AtomicInteger(-1);
     /**
+     * Count of items fully published into {@link #bufferedItems}. Incremented only <em>after</em> an item's entry is
+     * put into the map, so it never advertises a reserved-but-unpublished index. {@link #itemCount()} is derived from
+     * this rather than from {@link #itemIndex} (which is bumped before the {@code put} to reserve the slot); otherwise a
+     * concurrent reader — notably the streaming worker in {@code BlockNodeStreamingConnection.doWork()} — could observe
+     * {@code itemCount()} counting an index whose {@link #bufferedItem(int)} is still {@code null}, be unable to satisfy
+     * {@code itemCount() == itemIndex}, and wedge on the block (never sending its {@code BlockEnd} nor advancing).
+     */
+    private final AtomicInteger publishedItemCount = new AtomicInteger(0);
+    /**
      * Map that contains all items associated with this block. Each item is stored in its serialized form (paired with
      * its item type) to reduce memory usage compared to retaining the deserialized {@link BlockItem} object graph. Each
      * item in the map is specified by an integer key that represents the order in which the item was added to the block.
@@ -97,6 +106,8 @@ public class BlockState {
 
         final int index = itemIndex.incrementAndGet();
         bufferedItems.put(index, new BufferedItem(serializedItem, itemType));
+        // Publish the count only after the item is retrievable via bufferedItem(index). See publishedItemCount.
+        publishedItemCount.incrementAndGet();
         if (itemType == BlockItem.ItemOneOfType.BLOCK_HEADER) {
             openedNanos = System.nanoTime();
             openedTimestamp = Instant.now();
@@ -248,7 +259,7 @@ public class BlockState {
      * @return count of the number of items associated with this block
      */
     public int itemCount() {
-        return itemIndex.get() + 1;
+        return publishedItemCount.get();
     }
 
     @Override
