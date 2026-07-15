@@ -120,24 +120,6 @@ public interface GossipModule {
     InputWire<Duration> healthStatusInputWire();
 
     /**
-     * {@link InputWire} for control signals to start gossiping.
-     *
-     * @return the {@link InputWire} for start signals
-     */
-    @InputWireLabel("start")
-    @NonNull
-    InputWire<NoInput> startInputWire();
-
-    /**
-     * {@link InputWire} for control signals to stop gossiping.
-     *
-     * @return the {@link InputWire} for stop signals
-     */
-    @InputWireLabel("stop")
-    @NonNull
-    InputWire<NoInput> stopInputWire();
-
-    /**
      * {@link InputWire} for control signals to clear internal gossip state.
      *
      * @return the {@link InputWire} for clear signals
@@ -163,6 +145,11 @@ public interface GossipModule {
     @InputWireLabel("resume")
     @NonNull
     InputWire<NoInput> resumeInputWire();
+
+    /**
+     * Starts gossiping.
+     */
+    void start();
 
     /**
      * Flushes the gossip module.

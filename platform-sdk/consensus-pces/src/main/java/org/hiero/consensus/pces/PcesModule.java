@@ -123,6 +123,13 @@ public interface PcesModule {
     InputWire<Long> discontinuityInputWire();
 
     /**
+     * Inject the minimum birth round to store on disk.
+     *
+     * @param minimumBirthRoundNonAncientForOldestState the minimum birth round to store on disk
+     */
+    void injectMinimumBirthRound(long minimumBirthRoundNonAncientForOldestState);
+
+    /**
      * Flushes all events of the internal components.
      */
     void flush();

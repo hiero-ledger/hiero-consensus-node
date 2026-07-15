@@ -160,24 +160,6 @@ public final class DefaultGossipModule implements GossipModule {
      */
     @Override
     @NonNull
-    public InputWire<NoInput> startInputWire() {
-        return requireNonNull(gossipWiring, "Not initialized").getStartInput();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<NoInput> stopInputWire() {
-        return requireNonNull(gossipWiring, "Not initialized").getStopInput();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
     public InputWire<NoInput> clearInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").getClearInput();
     }
@@ -198,6 +180,14 @@ public final class DefaultGossipModule implements GossipModule {
     @NonNull
     public InputWire<NoInput> resumeInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").resumeInput();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void start() {
+        requireNonNull(gossipWiring, "Not initialized").getStartInput().inject(NoInput.getInstance());
     }
 
     /**

@@ -171,7 +171,7 @@ public class SwirldsPlatform implements Platform {
                 : legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
-        platformCoordinator.updateRunningHash(runningEventHashOverride);
+        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
 
         // Load the minimum generation into the pre-consensus event writer
         final String actualMainClassName =
@@ -184,7 +184,7 @@ public class SwirldsPlatform implements Platform {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
                     savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
+            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumGenerationNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
@@ -201,12 +201,12 @@ public class SwirldsPlatform implements Platform {
             initialAncientThreshold = ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
-            platformCoordinator.sendStateToStateManagement(initialState);
+            buildingBlocks.stateModule().sendState(initialState);
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
             final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(initialState.getState()));
-            platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
+            buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
@@ -215,7 +215,9 @@ public class SwirldsPlatform implements Platform {
                     configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
             platformCoordinator.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
+            buildingBlocks
+                    .issDetectionModule()
+                    .overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 
         if (!initialState.isGenesisState()) {
@@ -292,7 +294,7 @@ public class SwirldsPlatform implements Platform {
         buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
-        platformCoordinator.startGossip();
+        buildingBlocks.gossipModule().start();
     }
 
     @Override

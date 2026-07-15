@@ -209,6 +209,15 @@ public class DefaultPcesModule implements PcesModule {
     /**
      * {@inheritDoc}
      */
+    public void injectMinimumBirthRound(final long minimumBirthRoundNonAncientForOldestState) {
+        requireNonNull(pcesWriterWiring, "Not initialized")
+                .getInputWire(InlinePcesWriter::setMinimumBirthRoundToStore)
+                .inject(minimumBirthRoundNonAncientForOldestState);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void flush() {
         requireNonNull(pcesWriterWiring, "Not initialized").flush();
