@@ -8,8 +8,7 @@ import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.ReconnectBenchmarkResult;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.benchmark.reconnect.network.NetworkProfile;
-import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
-import com.swirlds.benchmark.reconnect.network.NetworkTransport;
+import com.swirlds.benchmark.reconnect.network.SocketNetworkConfig;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -59,12 +58,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     @Param({"1000"})
     public long networkBandwidthMegabitsPerSecond;
-
-    @Param({"131072"})
-    public int networkInflightBytesLimit;
-
-    @Param({"SIMULATED"})
-    public NetworkTransport networkTransport;
 
     private static final String TEACHER_MAP_NAME = "teacher";
     private VirtualMap teacherMap;
@@ -197,24 +190,19 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public void reconnect() throws Exception {
         logger.info(RUN_DELIMITER);
 
-        final NetworkSimulationConfig networkConfig = NetworkSimulationConfig.resolve(
-                networkProfile,
-                networkLatencyMicroseconds,
-                networkBandwidthMegabitsPerSecond,
-                networkInflightBytesLimit);
+        final SocketNetworkConfig networkConfig = SocketNetworkConfig.resolve(
+                networkProfile, networkLatencyMicroseconds, networkBandwidthMegabitsPerSecond);
         final String reconnectMode =
                 configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
         logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
-                "ReconnectBench transport={}, network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
-                networkTransport,
+                "ReconnectBench socket network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}",
                 networkConfig.profile(),
                 networkConfig.latencyNanos(),
-                networkConfig.bandwidthBytesPerSecond(),
-                networkConfig.inflightBytesLimit());
+                networkConfig.bandwidthBytesPerSecond());
 
-        reconnectResult = MerkleBenchmarkUtils.hashAndTestSynchronization(
-                learnerMap, teacherMap, networkConfig, networkTransport, configuration);
+        reconnectResult =
+                MerkleBenchmarkUtils.hashAndTestSynchronization(learnerMap, teacherMap, networkConfig, configuration);
 
         logger.info("Reconnect stats: {}", reconnectResult.reconnectStats().format());
         logger.info("Network teacherToLearner: {}", reconnectResult.teacherToLearnerStats());

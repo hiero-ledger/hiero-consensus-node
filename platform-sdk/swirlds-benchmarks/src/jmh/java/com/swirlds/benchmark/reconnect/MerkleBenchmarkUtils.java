@@ -5,8 +5,8 @@ import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.benchmark.BenchmarkMetrics;
-import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
-import com.swirlds.benchmark.reconnect.network.NetworkTransport;
+import com.swirlds.benchmark.reconnect.network.LoopbackSocketTransport;
+import com.swirlds.benchmark.reconnect.network.SocketNetworkConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
@@ -27,8 +27,7 @@ public class MerkleBenchmarkUtils {
     public static ReconnectBenchmarkResult hashAndTestSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
-            final NetworkSimulationConfig networkConfig,
-            final NetworkTransport transport,
+            final SocketNetworkConfig networkConfig,
             final Configuration configuration)
             throws Exception {
         printVirtualMap("Starting Tree", startingTree);
@@ -42,7 +41,7 @@ public class MerkleBenchmarkUtils {
             // calculate hash
             desiredTree.getHash();
         }
-        return testSynchronization(startingTree, desiredTree, networkConfig, transport, configuration);
+        return testSynchronization(startingTree, desiredTree, networkConfig, configuration);
     }
 
     /**
@@ -51,15 +50,13 @@ public class MerkleBenchmarkUtils {
     private static ReconnectBenchmarkResult testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
-            final NetworkSimulationConfig networkConfig,
-            final NetworkTransport transport,
+            final SocketNetworkConfig networkConfig,
             final Configuration configuration)
             throws Exception {
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (final PairedStreams streams = new PairedStreams(transport, networkConfig, configuration)) {
-            streams.getSocketDiagnostics()
-                    .ifPresent(diagnostics -> logger.info("Socket transport diagnostics: {}", diagnostics));
+        try (final LoopbackSocketTransport streams = new LoopbackSocketTransport(networkConfig, configuration)) {
+            logger.info("Socket transport diagnostics: {}", streams.diagnostics());
 
             final LearningSynchronizer learner =
                     new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
@@ -81,7 +78,7 @@ public class MerkleBenchmarkUtils {
             }
 
             // Live-W readout: what the kernel actually granted per pacing window (autotuning included).
-            streams.getSocketPacingSummary().ifPresent(summary -> logger.info("Socket read pacing: {}", summary));
+            streams.pacingSummary().ifPresent(summary -> logger.info("Socket read pacing: {}", summary));
 
             return new ReconnectBenchmarkResult(
                     syncMapContainer.get(),
@@ -91,7 +88,8 @@ public class MerkleBenchmarkUtils {
         }
     }
 
-    private static void teachingSynchronizerThread(final PairedStreams streams, final TeachingSynchronizer teacher) {
+    private static void teachingSynchronizerThread(
+            final LoopbackSocketTransport streams, final TeachingSynchronizer teacher) {
         try {
             teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
@@ -100,7 +98,7 @@ public class MerkleBenchmarkUtils {
     }
 
     private static void learningSynchronizerThread(
-            final PairedStreams streams,
+            final LoopbackSocketTransport streams,
             final VirtualMap startingTree,
             final LearningSynchronizer learner,
             final AtomicReference<VirtualMap> syncMapContainer) {

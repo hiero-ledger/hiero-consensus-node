@@ -6,7 +6,6 @@ package com.swirlds.benchmark.reconnect.network;
  * experiments are auditable. Buffer values are the post-connect/accept readbacks (OS-clamped); they may autotune
  * further under load — the live per-window values appear in the end-of-run pacing summary, not here.
  *
- * @param transport the selected byte transport
  * @param profile the selected network profile
  * @param latencyShapingActive whether read-side latency pacing (RTT-windowed release by {@link PacingInputStream})
  *     is active — REALISTIC profile with a positive latency
@@ -14,9 +13,6 @@ package com.swirlds.benchmark.reconnect.network;
  *     profile with a finite bandwidth
  * @param configuredLatencyNanos configured one-way latency; the pacer's window period (RTT) is twice this value
  * @param configuredBandwidthBytesPerSecond configured bandwidth cap
- * @param inflightBytesLimitIgnored always {@code true} for socket transport: {@code networkInflightBytesLimit} is
- *     simulator-only; the pacer's window is kernel-derived (live send-buffer + receive-buffer readback), not this
- *     parameter
  * @param streamBufferBytes Java stream buffer size ({@code SocketConfig.bufferSize()}), distinct from the kernel
  *     socket buffers
  * @param serverReceiveBufferBytes listening socket receive buffer (inherited by the accepted socket)
@@ -29,13 +25,11 @@ package com.swirlds.benchmark.reconnect.network;
  * @param acceptedTcpNoDelay whether TCP_NODELAY is set on the learner/accepted socket
  */
 public record SocketTransportDiagnostics(
-        NetworkTransport transport,
         NetworkProfile profile,
         boolean latencyShapingActive,
         boolean bandwidthShapingActive,
         long configuredLatencyNanos,
         long configuredBandwidthBytesPerSecond,
-        boolean inflightBytesLimitIgnored,
         int streamBufferBytes,
         int serverReceiveBufferBytes,
         int clientSendBufferBytes,

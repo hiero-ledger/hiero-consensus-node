@@ -43,13 +43,17 @@ Benchmarks:
 ### ReconnectBench
 
 Builds learner and teacher virtual map states with configurable differences,
-then measures reconnect synchronization between them. It can also emulate
-storage and network delays.
+then measures reconnect synchronization between them over a real loopback TCP
+connection. The socket connection can run unpaced or with read-side latency and
+bandwidth pacing.
 
 Benchmarks:
 
 - `ReconnectBench.reconnect`: runs reconnect synchronization from the learner
   state to the teacher state.
+
+See [docs/ReconnectBench.md](docs/ReconnectBench.md) for the socket profiles,
+parameters, diagnostics, and run examples.
 
 ## Run with Gradle
 
@@ -162,9 +166,10 @@ The benchmark-specific settings are:
 | `benchmark.deviceName`             | Linux block device name used for disk metrics. Set it to the device that hosts the benchmark data, for example `sda` for `/sys/block/sda`.                                                                                                         |
 
 JMH `@Param` values such as `numFiles`, `numRecords`, `maxKey`, `numThreads`,
-and the reconnect delay probabilities are JMH parameters, not `settings.txt`
-properties. Change them with JMH options such as `-p` when using the JMH JAR, or
-by adjusting the Gradle or IDE JMH configuration.
+the reconnect difference probabilities, and the reconnect socket profile are
+JMH parameters, not `settings.txt` properties. Change them with JMH options
+such as `-p` when using the JMH JAR, or with Gradle properties documented in
+[docs/ReconnectBench.md](docs/ReconnectBench.md).
 
 ## After a Run
 

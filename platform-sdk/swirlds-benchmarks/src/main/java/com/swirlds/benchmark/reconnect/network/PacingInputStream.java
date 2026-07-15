@@ -9,7 +9,7 @@ import java.util.concurrent.locks.LockSupport;
 
 /**
  * Read-side pacer that makes the real kernel socket buffers create backpressure for
- * {@code LOOPBACK_SOCKET + REALISTIC} runs.
+ * {@link NetworkProfile#REALISTIC} socket runs.
  *
  * <p>The pacer is the bottom-most read wrapper, sitting directly on the raw socket {@link InputStream}: it is the only
  * component that ever reads the socket, so bytes it withholds physically stay in the kernel receive buffer. Releasing
@@ -25,7 +25,8 @@ import java.util.concurrent.locks.LockSupport;
  * <p><b>Latency semantics</b> (recorded decision 6 of the read-pacing design): latency is modeled as a throughput
  * window only. Per-message/first-byte one-way delay is NOT modeled — after any idle gap of at least one RTT, the first
  * window's worth of bytes flows with ~zero added delay, and latency emerges as throughput limiting under sustained
- * flow. Socket and simulated transports are therefore not directly comparable at the same latency parameter.
+ * flow. Results are therefore not directly comparable with latency models that impose a first-byte delay at the same
+ * latency parameter.
  *
  * <p><b>Read coalescing dependency</b> (recorded decision 2): we rely on the
  * {@code BufferedInputStream -> CountingInputStream} chain above to coalesce reads. JDK-guaranteed part:

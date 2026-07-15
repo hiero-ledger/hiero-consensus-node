@@ -58,8 +58,7 @@ public final class LoopbackSocketTransport implements AutoCloseable {
     private final SocketTransportDiagnostics diagnostics;
 
     public LoopbackSocketTransport(
-            @NonNull final NetworkSimulationConfig config, @NonNull final Configuration configuration)
-            throws IOException {
+            @NonNull final SocketNetworkConfig config, @NonNull final Configuration configuration) throws IOException {
         Objects.requireNonNull(config, "config must not be null");
         Objects.requireNonNull(configuration, "configuration must not be null");
 
@@ -107,13 +106,11 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         teacherInput = new DataInputStream(new BufferedInputStream(learnerToTeacherRead, socketConfig.bufferSize()));
 
         diagnostics = new SocketTransportDiagnostics(
-                NetworkTransport.LOOPBACK_SOCKET,
                 config.profile(),
                 isLatencyShapingActive(config),
                 isBandwidthShapingActive(config),
                 config.latencyNanos(),
                 config.bandwidthBytesPerSecond(),
-                true,
                 socketConfig.bufferSize(),
                 serverSocket.getReceiveBufferSize(),
                 teacherSocket.getSendBufferSize(),
@@ -140,12 +137,12 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         return learnerInput;
     }
 
-    public SimulatedNetworkStats getTeacherToLearnerStats() {
-        return new SimulatedNetworkStats(teacherToLearnerWritten.count(), teacherToLearnerRead.count(), 0);
+    public NetworkTransferStats getTeacherToLearnerStats() {
+        return new NetworkTransferStats(teacherToLearnerWritten.count(), teacherToLearnerRead.count());
     }
 
-    public SimulatedNetworkStats getLearnerToTeacherStats() {
-        return new SimulatedNetworkStats(learnerToTeacherWritten.count(), learnerToTeacherRead.count(), 0);
+    public NetworkTransferStats getLearnerToTeacherStats() {
+        return new NetworkTransferStats(learnerToTeacherWritten.count(), learnerToTeacherRead.count());
     }
 
     public SocketTransportDiagnostics diagnostics() {
@@ -155,8 +152,7 @@ public final class LoopbackSocketTransport implements AutoCloseable {
     /**
      * End-of-run read-pacing summary: per-direction window count, last live window {@code W}, and total parked time.
      * Empty when pacing is inactive (LOOPBACK profile). The last window bytes are the live-{@code W} readout showing
-     * what the kernel (including autotuning) actually granted; not to be confused with the ignored
-     * {@code networkInflightBytesLimit} parameter.
+     * what the kernel, including autotuning, actually granted during the run.
      */
     public Optional<String> pacingSummary() {
         if (teacherToLearnerPacer == null) {
@@ -188,12 +184,12 @@ public final class LoopbackSocketTransport implements AutoCloseable {
     }
 
     /** Whether read-side latency pacing (RTT-windowed release) is active. */
-    private static boolean isLatencyShapingActive(final NetworkSimulationConfig config) {
+    private static boolean isLatencyShapingActive(final SocketNetworkConfig config) {
         return config.profile() == NetworkProfile.REALISTIC && config.latencyNanos() > 0;
     }
 
     /** Whether read-side bandwidth pacing (release-then-wait cursor) is active. */
-    private static boolean isBandwidthShapingActive(final NetworkSimulationConfig config) {
+    private static boolean isBandwidthShapingActive(final SocketNetworkConfig config) {
         return config.profile() == NetworkProfile.REALISTIC && config.bandwidthBytesPerSecond() != Long.MAX_VALUE;
     }
 
@@ -204,7 +200,7 @@ public final class LoopbackSocketTransport implements AutoCloseable {
      */
     private static PacingInputStream maybePace(
             final InputStream raw,
-            final NetworkSimulationConfig config,
+            final SocketNetworkConfig config,
             final PacingInputStream.WindowSupplier windowSupplier) {
         if (config.profile() != NetworkProfile.REALISTIC) {
             return null;

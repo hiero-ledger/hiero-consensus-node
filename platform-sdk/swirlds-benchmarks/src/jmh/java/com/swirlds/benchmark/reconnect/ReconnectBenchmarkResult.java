@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
-import com.swirlds.benchmark.reconnect.network.SimulatedNetworkStats;
+import com.swirlds.benchmark.reconnect.network.NetworkTransferStats;
 import com.swirlds.virtualmap.VirtualMap;
 
 public record ReconnectBenchmarkResult(
         VirtualMap reconnectedMap,
         ReconnectMapStatsSnapshot reconnectStats,
-        SimulatedNetworkStats teacherToLearnerStats,
-        SimulatedNetworkStats learnerToTeacherStats) {}
+        NetworkTransferStats teacherToLearnerStats,
+        NetworkTransferStats learnerToTeacherStats) {}

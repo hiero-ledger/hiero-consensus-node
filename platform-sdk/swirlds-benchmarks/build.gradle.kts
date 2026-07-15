@@ -64,8 +64,6 @@ testModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
 }
 
-fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
-
 fun jmhParamProperty(name: String, defaultValue: String) =
     objects
         .listProperty<String>()
@@ -84,16 +82,9 @@ fun JMHTask.configureReconnectJvmArgs() {
     )
 }
 
-fun JMHTask.configureReconnectParameters(
-    defaultTransport: String,
-    defaultProfile: String,
-) {
+fun JMHTask.configureReconnectParameters() {
     includes.set(listOf("ReconnectBench"))
-    benchmarkParameters.put(
-        "networkTransport",
-        jmhParamProperty("networkTransport", defaultTransport),
-    )
-    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", defaultProfile))
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
     benchmarkParameters.put(
         "networkLatencyMicroseconds",
         jmhParamProperty("networkLatencyMicroseconds", "270"),
@@ -101,10 +92,6 @@ fun JMHTask.configureReconnectParameters(
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
         jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
-    )
-    benchmarkParameters.put(
-        "networkInflightBytesLimit",
-        jmhParamProperty("networkInflightBytesLimit", "16777216"),
     )
     benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
     benchmarkParameters.put(
@@ -154,22 +141,7 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
-tasks.register<JMHTask>("jmhReconnectSimulatedFast") {
+tasks.register<JMHTask>("jmhReconnect") {
     configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "LOOPBACK")
-}
-
-tasks.register<JMHTask>("jmhReconnectSimulatedRealistic") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "SIMULATED", defaultProfile = "REALISTIC")
-}
-
-tasks.register<JMHTask>("jmhReconnectLoopbackFast") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "LOOPBACK")
-}
-
-tasks.register<JMHTask>("jmhReconnectLoopbackRealistic") {
-    configureReconnectJvmArgs()
-    configureReconnectParameters(defaultTransport = "LOOPBACK_SOCKET", defaultProfile = "REALISTIC")
+    configureReconnectParameters()
 }

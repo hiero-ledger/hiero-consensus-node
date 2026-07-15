@@ -29,14 +29,13 @@ class LoopbackSocketTransportTest {
                 .build();
     }
 
-    private static NetworkSimulationConfig loopbackConfig() {
-        return NetworkSimulationConfig.resolve(NetworkProfile.LOOPBACK, 0, 1, 1);
+    private static SocketNetworkConfig loopbackConfig() {
+        return SocketNetworkConfig.resolve(NetworkProfile.LOOPBACK, 0, 1);
     }
 
-    private static NetworkSimulationConfig realisticConfig(
+    private static SocketNetworkConfig realisticConfig(
             final long latencyMicroseconds, final long bandwidthMegabitsPerSecond) {
-        return NetworkSimulationConfig.resolve(
-                NetworkProfile.REALISTIC, latencyMicroseconds, bandwidthMegabitsPerSecond, 1);
+        return SocketNetworkConfig.resolve(NetworkProfile.REALISTIC, latencyMicroseconds, bandwidthMegabitsPerSecond);
     }
 
     @Test
@@ -53,8 +52,9 @@ class LoopbackSocketTransportTest {
             in.readFully(data);
             assertArrayEquals(new byte[] {1, 2, 3, 4}, data);
 
-            assertEquals(8, transport.getTeacherToLearnerStats().bytesWritten());
-            assertEquals(8, transport.getTeacherToLearnerStats().bytesRead());
+            final NetworkTransferStats stats = transport.getTeacherToLearnerStats();
+            assertEquals(8, stats.bytesWritten());
+            assertEquals(8, stats.bytesRead());
         }
     }
 
@@ -64,11 +64,9 @@ class LoopbackSocketTransportTest {
         try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration)) {
             final SocketTransportDiagnostics diagnostics = transport.diagnostics();
 
-            assertEquals(NetworkTransport.LOOPBACK_SOCKET, diagnostics.transport());
             assertEquals(NetworkProfile.LOOPBACK, diagnostics.profile());
             assertFalse(diagnostics.latencyShapingActive());
             assertFalse(diagnostics.bandwidthShapingActive());
-            assertTrue(diagnostics.inflightBytesLimitIgnored());
             assertEquals(configuration.getConfigData(SocketConfig.class).bufferSize(), diagnostics.streamBufferBytes());
             assertTrue(diagnostics.serverReceiveBufferBytes() > 0);
             assertTrue(diagnostics.clientSendBufferBytes() > 0);

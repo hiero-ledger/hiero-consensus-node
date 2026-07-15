@@ -3,10 +3,16 @@ package com.swirlds.benchmark.reconnect.network;
 
 import java.util.Objects;
 
-public record NetworkSimulationConfig(
-        NetworkProfile profile, long latencyNanos, long bandwidthBytesPerSecond, int inflightBytesLimit) {
+/**
+ * Resolved latency and bandwidth settings for the reconnect benchmark's loopback socket transport.
+ *
+ * @param profile the selected network profile
+ * @param latencyNanos configured one-way latency in nanoseconds
+ * @param bandwidthBytesPerSecond configured bandwidth in bytes per second
+ */
+public record SocketNetworkConfig(NetworkProfile profile, long latencyNanos, long bandwidthBytesPerSecond) {
 
-    public NetworkSimulationConfig {
+    public SocketNetworkConfig {
         Objects.requireNonNull(profile, "profile must not be null");
         if (latencyNanos < 0) {
             throw new IllegalArgumentException("latencyNanos must be non-negative");
@@ -14,19 +20,13 @@ public record NetworkSimulationConfig(
         if (bandwidthBytesPerSecond <= 0) {
             throw new IllegalArgumentException("bandwidthBytesPerSecond must be positive");
         }
-        if (inflightBytesLimit <= 0) {
-            throw new IllegalArgumentException("inflightBytesLimit must be positive");
-        }
     }
 
-    public static NetworkSimulationConfig resolve(
-            final NetworkProfile profile,
-            final long latencyMicroseconds,
-            final long bandwidthMegabitsPerSecond,
-            final int inflightBytesLimit) {
+    public static SocketNetworkConfig resolve(
+            final NetworkProfile profile, final long latencyMicroseconds, final long bandwidthMegabitsPerSecond) {
         Objects.requireNonNull(profile, "profile must not be null");
         if (profile == NetworkProfile.LOOPBACK) {
-            return new NetworkSimulationConfig(profile, 0, Long.MAX_VALUE, Integer.MAX_VALUE);
+            return new SocketNetworkConfig(profile, 0, Long.MAX_VALUE);
         }
         if (latencyMicroseconds < 0) {
             throw new IllegalArgumentException("latencyMicroseconds must be non-negative");
@@ -34,12 +34,9 @@ public record NetworkSimulationConfig(
         if (bandwidthMegabitsPerSecond <= 0) {
             throw new IllegalArgumentException("bandwidthMegabitsPerSecond must be positive");
         }
-        if (inflightBytesLimit <= 0) {
-            throw new IllegalArgumentException("inflightBytesLimit must be positive");
-        }
 
         final long latencyNanos = Math.multiplyExact(latencyMicroseconds, 1_000L);
         final long bandwidthBytesPerSecond = Math.multiplyExact(bandwidthMegabitsPerSecond, 1_000_000L) / 8L;
-        return new NetworkSimulationConfig(profile, latencyNanos, bandwidthBytesPerSecond, inflightBytesLimit);
+        return new SocketNetworkConfig(profile, latencyNanos, bandwidthBytesPerSecond);
     }
 }

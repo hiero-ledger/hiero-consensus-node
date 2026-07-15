@@ -103,8 +103,8 @@ class PacingInputStreamTest {
     @Test
     void bandwidthCursorPacesWhenRttZero() throws Exception {
         final AtomicInteger supplierCalls = new AtomicInteger();
-        final PacingInputStream pacer = new PacingInputStream(
-                new ByteArrayInputStream(new byte[30_000]), 0, 100_000, () -> {
+        final PacingInputStream pacer =
+                new PacingInputStream(new ByteArrayInputStream(new byte[30_000]), 0, 100_000, () -> {
                     supplierCalls.incrementAndGet();
                     return Integer.MAX_VALUE;
                 });
