@@ -236,6 +236,7 @@ jobs:
         run: |
           sudo mkdir -p /usr/local/grafana-agent
           curl -sSL -o /tmp/grafana-agent.zip https://github.com/grafana/agent/releases/download/v0.39.1/grafana-agent-linux-amd64.zip
+          echo "499fe0652958b28cdba1bf0438b270adaa41a31ce4495405addfbe6206b40b12  /tmp/grafana-agent.zip" | sha256sum --check --strict
           sudo unzip -d /usr/local/grafana-agent /tmp/grafana-agent.zip
           sudo rm -rf /tmp/grafana-agent.zip
           sudo chmod +x /usr/local/grafana-agent/grafana-agent-linux-amd64
@@ -244,6 +245,7 @@ jobs:
         run: |
           sudo mkdir -p /usr/local/ping-exporter
           curl -sSL -o /tmp/ping-exporter.tar.gz https://github.com/czerwonk/ping_exporter/releases/download/1.1.0/ping_exporter_1.1.0_linux_amd64.tar.gz
+          echo "8fa92c1ae3f67666e453664bb7396895a7e2842a5d059f84a7b37ac464a9efd4  /tmp/ping-exporter.tar.gz" | sha256sum --check --strict
           sudo tar -xzf /tmp/ping-exporter.tar.gz -C /usr/local/ping-exporter
           sudo rm -rf /tmp/ping-exporter.tar.gz
           sudo chmod +x /usr/local/ping-exporter/ping_exporter
