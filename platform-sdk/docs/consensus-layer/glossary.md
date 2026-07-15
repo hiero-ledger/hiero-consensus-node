@@ -2,7 +2,7 @@
 type: glossary
 title: Glossary
 description: Canonical one-line definitions for vocabulary used across the consensus-layer KB, with disambiguation for overloaded terms (round, ancient, stale, falling behind).
-last_reviewed: 2026-07-02
+last_reviewed: 2026-06-30
 ---
 
 # Glossary
@@ -70,7 +70,7 @@ See [architecture/topics/gossip.md](architecture/topics/gossip.md).
 *Consensus generation* (`LocalConsensusGeneration`): orders the events that reach consensus
 within a single *Consensus round* (ties broken by event hash). Assigned to those events identically on
 every node, but temporary — cleared once that round is complete. Used only within the
-hashgraph algorithm. Contrast *DeGen*; see *Generation*.
+hashgraph algorithm. Contrast *NGen* and *DeGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Child
@@ -139,8 +139,8 @@ See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 *Deterministic generation* (`DeGen`): drives *lastSee* for *Strongly seeing*. Assigned to the
 descendants of the last round's judges, identically on every node, and recomputed whenever
-hashgraph metadata is recalculated. Used only within the hashgraph algorithm. Contrast *CGen*;
-see *Generation*.
+hashgraph metadata is recalculated. Used only within the hashgraph algorithm. Contrast *NGen*
+and *CGen*; see *Generation*.
 See [architecture/topics/hashgraph.md](architecture/topics/hashgraph.md).
 
 ### Descendant
@@ -248,11 +248,11 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 ### Generation
 
 A per-event count: one plus the maximum parent generation. The paper used a single
-*deterministic* generation as the ancient horizon; current code uses *Birth round* for that.
-Local topological ordering is now the event *Sequence number* (which is not a generation;
-it replaced the former *nGen*, ADR-008), leaving two deterministic generation counters, each
-calculated differently and used only within the hashgraph algorithm — *deGen* (for *Strongly
-seeing*) and *cGen* (for consensus ordering within a *Consensus round*).
+*deterministic* generation as the ancient horizon; current code uses *Birth round* for that
+and keeps three separate generation counters instead, each calculated differently and used
+for a different purpose — *nGen* (local, for topological ordering), *deGen* (deterministic,
+for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a
+*Consensus round*).
 See [concepts/birth-round.md](concepts/birth-round.md).
 
 ### Gossip
@@ -316,13 +316,12 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
 ### NGen
 
-*Non-deterministic generation* (`NonDeterministicGeneration`): the consensus layer's former
-local topological-ordering key, a graph-height number answering "higher in the hashgraph"
-comparisons. Because it reset to 1 when an event's parents were already ancient, breaking the
-per-creator monotonic ordering its consumers relied on, it was replaced by the event *Sequence
-number* and removed entirely (ADR-008). No live code references `nGen`; the term survives only
-in git history and that decision record.
-See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).
+*Non-deterministic generation* (`NonDeterministicGeneration`): orders events into one valid
+topological order and answers "higher in the hashgraph" comparisons. Assigned to every
+non-orphan event, locally by each node, so it may differ between nodes; set once at intake and
+then stable. Used throughout the consensus layer. Contrast the deterministic *DeGen* and
+*CGen*; see *Generation*.
+See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
 
@@ -476,8 +475,8 @@ A monotonic counter the *Orphan buffer* stamps on each event as it is released
 (`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between
 nodes. The canonical local ordering key — used for "higher in the hashgraph" comparisons by
 event creation, *Sync*, and the consensus algorithm (e.g. `consensusRelevantSeqNum`). Unlike
-the former *NGen* it replaced, it never resets, even when an event's parents have gone ancient,
-and it is never used for cross-node agreement.
+*NGen* it never resets, even when an event's parents have gone ancient, and it is never used
+for cross-node agreement.
 See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ### Shadowgraph

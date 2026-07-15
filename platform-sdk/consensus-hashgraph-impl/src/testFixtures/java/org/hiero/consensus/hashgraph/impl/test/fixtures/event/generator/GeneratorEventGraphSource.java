@@ -37,7 +37,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final int maxOtherParents;
     private final Roster roster;
     private final GeneratorEventSigner eventSigner;
-    private final boolean populateSequenceNumber;
+    private final boolean populateNgen;
 
     /** The source of all randomness for this class. */
     private Randotron random;
@@ -63,7 +63,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
      * @param maxOtherParents the maximum number of other-parents an event can have
      * @param roster          the roster of network nodes
      * @param eventSigner     the signer used to produce event signatures
-     * @param populateSequenceNumber    whether to populate sequence number on generated events
+     * @param populateNgen    whether to populate ngen values on generated events
      */
     GeneratorEventGraphSource(
             @NonNull final Configuration configuration,
@@ -72,7 +72,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             final int maxOtherParents,
             @NonNull final Roster roster,
             @NonNull final GeneratorEventSigner eventSigner,
-            final boolean populateSequenceNumber) {
+            final boolean populateNgen) {
         this.configuration = configuration;
         this.time = time;
         this.seed = seed;
@@ -80,7 +80,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.roster = roster;
         this.hasher = new PbjStreamHasher();
         this.eventSigner = eventSigner;
-        this.populateSequenceNumber = populateSequenceNumber;
+        this.populateNgen = populateNgen;
 
         // These fields get reset in reset()
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
@@ -158,10 +158,10 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         copy.signalPrehandleCompletion();
 
         latestEventPerNode[eventCreator] = copy.getDescriptor().eventDescriptor();
-        if (populateSequenceNumber) {
-            // the event sent to consensus will have its sequence number populated, we should copy this value if the
-            // caller
-            // wants sequence numbers to be populated on the returned events
+        if (populateNgen) {
+            // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
+            // wants ngen values to be populated on the returned events
+            copy.setNGen(platformEvent.getNGen());
             copy.setSequenceNumber(platformEvent.getSequenceNumber());
         }
         return copy;

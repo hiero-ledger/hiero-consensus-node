@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
-import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
