@@ -16,21 +16,18 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
-import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
+import org.hiero.consensus.otter.docker.app.EventStreamManager;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SubscribeRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
@@ -45,9 +42,6 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  */
 public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
 
-    /** Default thread name for the consensus node manager gRCP service */
-    private static final String NODE_COMMUNICATION_THREAD_NAME = "grpc-outbound-dispatcher";
-
     /** Logger */
     private static final Logger log = LogManager.getLogger(NodeCommunicationService.class);
 
@@ -56,14 +50,11 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      */
     private final NodeId selfId;
 
-    /** Executor service for handling the dispatched messages */
-    private final ExecutorService dispatchExecutor;
-
-    /** Executor for background tasks, such as monitoring the file system */
-    private final Executor backgroundExecutor;
-
-    /** Handles outgoing messages, may get called from different threads/callbacks */
-    private volatile OutboundDispatcher dispatcher;
+    /**
+     * Buffers and delivers all event messages (log entries, status changes, consensus rounds). Owned by this service so
+     * that a client whose event stream died can re-subscribe and resume without losing events.
+     */
+    private final EventStreamManager eventStreamManager = new EventStreamManager();
 
     /** Manages the consensus node, including setup, tear down, and all interactions in between. */
     private ConsensusNodeManager consensusNodeManager;
@@ -75,52 +66,36 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      */
     public NodeCommunicationService(@NonNull final NodeId selfId) {
         this.selfId = requireNonNull(selfId);
-        this.dispatchExecutor = createDispatchExecutor();
-        this.backgroundExecutor = Executors.newCachedThreadPool();
+
+        // Subscribe the log listener here, not in start(), so that log messages are captured across
+        // reconnects (and even before the first subscription) and never self-unsubscribe.
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            eventStreamManager.publish(EventMessageFactory.fromStructuredLog(logEntry));
+            return SubscriberAction.CONTINUE;
+        });
     }
 
     /**
-     * Creates the default {@link ExecutorService} for the node communication gRPC server.
+     * Starts the platform using the provided {@link StartRequest}.
      * <p>
-     * The default executor is a single-threaded executor
-     * </p>
-     *
-     * @return a single-threaded {@link ExecutorService} with custom thread factory
-     */
-    private static ExecutorService createDispatchExecutor() {
-        final ThreadFactory factory = r -> {
-            final Thread t = new Thread(r, NODE_COMMUNICATION_THREAD_NAME);
-            t.setDaemon(true);
-            return t;
-        };
-        return Executors.newSingleThreadExecutor(factory);
-    }
-
-    /**
-     * Starts the communication channel with the platform using the provided {@link StartRequest}.
-     * <p>
-     * This method initializes the {@link ConsensusNodeManager} and sets up listeners for platform events. Results are
-     * sent back to the test framework via the {@link StreamObserver}.
+     * The request is validated and acknowledged synchronously, but the {@link ConsensusNodeManager} is constructed and
+     * started afterwards, so this call returns as soon as the request has been accepted rather than once the platform is
+     * fully up. Listeners that publish platform events into the {@link EventStreamManager} are registered as part of that
+     * construction; the event messages themselves are delivered over the separate {@code subscribe} stream rather than
+     * through this call's response.
      *
      * @param request The request containing details required to construct the platform.
-     * @param responseObserver The observer used to send messages back to the test framework.
+     * @param responseObserver The observer used to acknowledge that the start request has been accepted.
      * @throws StatusRuntimeException if the platform is already started, or if the request contains invalid arguments.
      */
     @Override
     public synchronized void start(
-            @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+            @NonNull final StartRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info(STARTUP.getMarker(), "Received start request: {}", request);
 
         if (isInvalidRequest(request, responseObserver)) {
             return;
         }
-
-        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return dispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
 
         if (consensusNodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
@@ -133,14 +108,37 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-        wrapWithErrorHandling(responseObserver, () -> {
+        // Acknowledge the request *before* constructing and starting the platform. Platform construction is
+        // expensive, and the test harness starts nodes sequentially with a blocking call; waiting for
+        // construction to finish here would serialize startup across the whole network and make the
+        // last-started nodes fall so far behind that they have to reconnect. Replying first lets every node
+        // construct its platform in parallel. Construction failures can no longer be returned to the caller,
+        // so they are logged instead.
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
+
+        try {
             consensusNodeManager =
                     new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
-
             setupStreamingEventDispatcher();
-
             consensusNodeManager.start();
-        });
+        } catch (final Exception e) {
+            log.error(ERROR.getMarker(), "Failed to construct and start the platform", e);
+        }
+    }
+
+    /**
+     * Subscribes the caller to the stream of event messages produced by the platform. Delivery begins with a sync point,
+     * followed by a replay of every buffered message after the requested sequence, and then live messages.
+     *
+     * @param request the subscription request carrying the last sequence number the caller has already seen
+     * @param responseObserver the observer to which event messages are delivered
+     */
+    @Override
+    public void subscribe(
+            @NonNull final SubscribeRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        log.info(STARTUP.getMarker(), "Received subscribe request after sequence {}", request.getAfterSequence());
+        eventStreamManager.subscribe(request.getAfterSequence(), responseObserver);
     }
 
     /**
@@ -148,10 +146,10 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      */
     private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
-                notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
+                notification -> eventStreamManager.publish(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
-                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
+                round -> eventStreamManager.publish(EventMessageFactory.fromConsensusRound(round)));
     }
 
     /**
@@ -164,8 +162,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
      * @param responseObserver The observer used to send error messages back to the test framework.
      * @return {@code true} if the request is invalid; {@code false} otherwise.
      */
-    private static boolean isInvalidRequest(
-            final StartRequest request, final StreamObserver<EventMessage> responseObserver) {
+    private static boolean isInvalidRequest(final StartRequest request, final StreamObserver<Empty> responseObserver) {
         if (!request.hasVersion()) {
             log.info(ERROR.getMarker(), "Invalid request - version must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT

@@ -107,11 +107,7 @@ a dependency on it.
   increasing — though not contiguous — numbers even when their parents have gone
   ancient, and every event receives a value distinct from every other. (A
   creator's events stay per-creator-monotonic because a self-parent always
-  leaves the buffer before its child.) One thing for consumers to know: the
-  counter is an in-memory `AtomicLong` that is not persisted, so a process
-  restart constructs a fresh buffer that begins numbering from `1` again and
-  renumbers replayed events. The value is therefore stable only within a single
-  run — never persist it or compare it across restarts.
+  leaves the buffer before its child.)
 - **Disambiguation.** The pre-existing consensus-side `EventImpl.sequence` is
   renamed `consensusSequence` (with `getConsensusSequence` /
   `setConsensusSequence`) so the intake-order sequence number and the
@@ -120,27 +116,26 @@ a dependency on it.
   changes, so the sensitive consumers (consensus, sync) move one at a time with
   their own testing rather than in one large switch:
 
-  |                          Stage                           |                 Scope                  |      Tracking      | State |
-  |----------------------------------------------------------|----------------------------------------|--------------------|-------|
-  | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done  |
-  | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done  |
-  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | done  |
-  | Sync                                                     | `consensus-gossip-impl`                | #24843             | done  |
-  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | done  |
-  | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | done  |
-  | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | done  |
+  |                          Stage                           |                 Scope                  |      Tracking      |  State  |
+  |----------------------------------------------------------|----------------------------------------|--------------------|---------|
+  | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done    |
+  | Event creation / tipset                                  | `consensus-event-creator-impl`         | #24991             | done    |
+  | Consensus algorithm                                      | `consensus-hashgraph-impl`             | #24844             | pending |
+  | Sync                                                     | `consensus-gossip-impl`                | #24843             | done    |
+  | `cGen` handling                                          | `consensus-hashgraph-impl`             | #24883             | pending |
+  | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending |
+  | Remove `nGen` from the orphan buffer and `PlatformEvent` | `consensus-utility`, `consensus-model` | #24846             | pending |
 
-  The final stage (#24846) deleted `assignNGen`, the `nGen` field, its
-  accessors, and `NonDeterministicGeneration.java`, completing the removal.
+  The final stage (#24846) deletes `assignNGen`, the `nGen` field, and its
+  accessors, completing the removal.
 
 ## Temporary Nature
 
-The retention of `nGen` was always temporary — it was kept only while the staged
-rollout migrated each consumer to the sequence number, during which `nGen` and
-`sequenceNumber` coexisted by design with `nGen` treated as deprecated (read by
-the not-yet-migrated consumers, written by no new ones). That rollout is now
-complete: the closing stage (#24846) removed `nGen` from the orphan buffer and
-`PlatformEvent`, so `sequenceNumber` is the sole local ordering key.
+The retention of `nGen` is temporary. It remains only until every consumer in
+the staged rollout has migrated to the sequence number; the closing stage
+(#24846) removes `nGen` from the orphan buffer and `PlatformEvent`. Until then,
+`nGen` and `sequenceNumber` coexist by design, and `nGen` must be treated as
+deprecated — read by the not-yet-migrated consumers, written by no new ones.
 
 ## Limitations
 
@@ -170,19 +165,19 @@ decisions (event creation, sync ordering) and local bookkeeping.
 ### Negative
 
 - **A large, cross-cutting migration touching the most sensitive code.** The
-  consensus algorithm and the wire-adjacent sync path both depended on `nGen`;
-  moving them carried more risk than the tipset change and had to be staged and
-  tested carefully. The migration was spread across several PRs.
-- **An extended interim where two ordering values coexisted.** Until #24846
-  landed, some consumers read `nGen` and others read `sequenceNumber`; a
-  half-migrated consumer, or one that compared the two, was a live hazard during
-  the rollout.
-- **Some uses of `nGen` were not pure ordering.** The GUI used `nGen` as actual
+  consensus algorithm and the wire-adjacent sync path both depend on `nGen`;
+  moving them carries more risk than the tipset change and must be staged and
+  tested carefully. The migration is spread across several PRs and is not yet
+  complete.
+- **An extended interim where two ordering values coexist.** Until #24846 lands,
+  some consumers read `nGen` and others read `sequenceNumber`; a half-migrated
+  consumer, or one that compares the two, is a live hazard during the rollout.
+- **Some uses of `nGen` are not pure ordering.** The GUI uses `nGen` as actual
   graph **height** to lay out the hashgraph vertically (`PictureMetadata`,
   `HashgraphPicture`), and `cGen` has its own semantics. A sequence number is
   monotonic but is not a height (siblings get different numbers), so those
-  consumers needed their replacement value confirmed case by case rather than a
-  blind substitution — which is why `cGen` (#24883) and tools (#24885) were
+  consumers need their replacement value confirmed case by case rather than a
+  blind substitution — which is why `cGen` (#24883) and tools (#24885) are
   separate stages.
 
 ### Neutral
@@ -225,24 +220,23 @@ See **Decision** above.
   assigns the sequence number at the buffer's exit; `getMissingParents(...)`
   shows that an ancient parent is not "missing", which is why such an event is
   released and its `nGen` resets.
-- `consensus-model/.../NonDeterministicGeneration.java` (deleted) — held
-  `assignNGen`, the `max(parents) + 1` with `FIRST_GENERATION` fallback that
-  produced the reset; removed in the final stage.
+- `consensus-model/.../NonDeterministicGeneration.java` — `assignNGen`, the
+  `max(parents) + 1` with `FIRST_GENERATION` fallback that produces the reset;
+  deleted in the final stage.
 - `consensus-model/.../PlatformEvent.java` — the `sequenceNumber` field,
-  `UNASSIGNED_SEQUENCE_NUMBER`, and accessors (the former `nGen` field has been
+  `UNASSIGNED_SEQUENCE_NUMBER`, and accessors (and the `nGen` field to be
   removed).
 - `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
   `ChildlessEventTracker.java` — the first consumer migrated (#24991).
 - `consensus-hashgraph-impl/.../consensus/` — `ConsensusImpl`, `ConsensusRounds`,
-  `RoundElections` (consensus algorithm, #24844) and
-  `LocalConsensusGeneration.assignCGen` (the `cGen` initial topological sort, #24883)
+  `RoundElections`, `ConsensusSorter`, `LocalConsensusGeneration`: the consensus
+  and `cGen` consumers still on `nGen` (#24844, #24883).
   migrated off `nGen` to the sequence number; `ConsensusSorter` orders by the resulting
   `cGen`, never `nGen`.
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
   `sequenceNumber` (#24843).
 - `consensus-gui/.../hashgraph/util/PictureMetadata.java`,
-  `HashgraphPicture.java` — used `nGen` as graph height for layout, migrated to
-  the sequence number (`getSequenceNumber()`) in #24885.
+  `HashgraphPicture.java` — use `nGen` as graph height for layout (#24885).
 - `consensus-hashgraph-impl/.../EventImpl.java`, `.../metrics/Sequencer.java` —
   the pre-existing consensus-order `sequence`, renamed `consensusSequence`.
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, updated
@@ -266,13 +260,8 @@ See **Decision** above.
   implementation followed: PR #24937 (2026-04-16) added the counter and renamed
   the consensus-side `sequence` to `consensusSequence`; PR #24991 (2026-04-30)
   migrated the tipset. Sync (#24843) migrated the send-list sort to the sequence
-  number. Consensus (#24844) migrated the algorithm's ordering key
-  (`consensusRelevantSeqNum`, `RoundElections.minSeqNum`,
-  `isOlderThanDecidedRoundSeqNum`), and `cGen` (#24883) migrated
-  `LocalConsensusGeneration.assignCGen`'s initial sort. Tools (#24885) then
-  migrated the GUI and CLI, and the final `nGen` removal (#24846) deleted
-  `assignNGen`, the `nGen` field, and `NonDeterministicGeneration.java`,
-  completing the rollout.
+  number. number. Consensus (#24844), `cGen` (#24883), tools (#24885), and the final
+  `nGen` removal (#24846) remain open at the time of writing.
 - This entry fulfills #25482 ("Create ADR for replacing nGen with sequence
   number"). It supersedes an earlier draft scoped to event creation only; the
   scope was broadened to the full `nGen` removal.

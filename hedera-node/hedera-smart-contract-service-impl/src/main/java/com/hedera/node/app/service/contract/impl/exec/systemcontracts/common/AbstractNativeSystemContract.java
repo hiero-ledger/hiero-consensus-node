@@ -225,7 +225,9 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         txResultFailedFor(attempt.senderId(), output, gasRequirement, status.toString(), contractID));
     }
 
-    // potentially other cases could be handled here if necessary
+    // potentially other cases could be handled here if necessary; a re-thrown exception is
+    // resolved by FrameRunner as an exceptional halt of the whole EVM transaction that
+    // preserves the exception's status
     private static FullResult haltHandleException(
             @NonNull final HandleException handleException, final long remainingGas) {
         if (handleException.getStatus().equals(MAX_CHILD_RECORDS_EXCEEDED)) {
