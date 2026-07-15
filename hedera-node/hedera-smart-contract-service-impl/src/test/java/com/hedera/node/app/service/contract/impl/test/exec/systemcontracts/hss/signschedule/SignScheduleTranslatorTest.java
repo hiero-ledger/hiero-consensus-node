@@ -30,11 +30,13 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.Dispat
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.signschedule.SignScheduleTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
 import org.apache.tuweni.bytes.Bytes;
@@ -90,68 +92,58 @@ class SignScheduleTranslatorTest extends CallAttemptTestBase {
         subject = new SignScheduleTranslator(systemContractMethodRegistry, contractMetrics);
     }
 
+    void testSignScheduleWithConfigChange(boolean configValue, @NonNull final SystemContractMethod selector) {
+        // when:
+        attempt = createHssCallAttempt(Bytes.wrap(selector.selector()), false, configuration, List.of(subject));
+
+        // then:
+        if (configValue) {
+            assertThat(subject.identifyMethod(attempt)).isPresent();
+        } else {
+            assertThat(subject.identifyMethod(attempt)).isEmpty();
+        }
+    }
+
     @Test
     void testMatchesWhenSignScheduleEnabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractSignScheduleEnabled()).willReturn(true);
-
-        // when:
-        attempt = createHssCallAttempt(
-                Bytes.wrap(SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector()),
-                false,
-                configuration,
-                List.of(subject));
-
-        // then:
-        assertThat(subject.identifyMethod(attempt)).isPresent();
+        testSignScheduleWithConfigChange(true, SignScheduleTranslator.SIGN_SCHEDULE_PROXY);
     }
 
     @Test
-    void testFailsMatchesWhenSignScheduleEnabled() {
+    void testFailsMatchesWhenSignScheduleDisabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractSignScheduleEnabled()).willReturn(false);
-
-        // when:
-        attempt = createHssCallAttempt(
-                Bytes.wrap(SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector()),
-                false,
-                configuration,
-                List.of(subject));
-
-        // then:
-        assertThat(subject.identifyMethod(attempt)).isEmpty();
+        testSignScheduleWithConfigChange(false, SignScheduleTranslator.SIGN_SCHEDULE_PROXY);
     }
 
     @Test
     void testMatchesWhenAuthorizeScheduleEnabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractAuthorizeScheduleEnabled()).willReturn(true);
-
-        // when:
-        attempt = createHssCallAttempt(
-                Bytes.wrap(SignScheduleTranslator.AUTHORIZE_SCHEDULE.selector()),
-                false,
-                configuration,
-                List.of(subject));
-
-        // then:
-        assertThat(subject.identifyMethod(attempt)).isPresent();
+        testSignScheduleWithConfigChange(true, SignScheduleTranslator.AUTHORIZE_SCHEDULE);
     }
 
     @Test
-    void testFailsMatchesWhenAuthorizeScheduleEnabled() {
+    void testFailsMatchesWhenAuthorizeScheduleDisabled() {
         given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
         given(contractsConfig.systemContractAuthorizeScheduleEnabled()).willReturn(false);
+        testSignScheduleWithConfigChange(false, SignScheduleTranslator.AUTHORIZE_SCHEDULE);
+    }
 
-        // when:
-        attempt = createHssCallAttempt(
-                Bytes.wrap(SignScheduleTranslator.AUTHORIZE_SCHEDULE.selector()),
-                false,
-                configuration,
-                List.of(subject));
+    @Test
+    void testMatchesWhenSignScheduleFromContractEnabled() {
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.systemContractSignScheduleFromContractEnabled()).willReturn(true);
+        testSignScheduleWithConfigChange(true, SignScheduleTranslator.SIGN_SCHEDULE);
+    }
 
-        // then:
-        assertThat(subject.identifyMethod(attempt)).isEmpty();
+    @Test
+    void testFailsMatchesWhenSignScheduleFromContractDisabled() {
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.systemContractSignScheduleFromContractEnabled()).willReturn(false);
+        testSignScheduleWithConfigChange(false, SignScheduleTranslator.SIGN_SCHEDULE);
     }
 
     @Test
