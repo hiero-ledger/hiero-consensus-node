@@ -18,6 +18,7 @@ import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.pcli.graph.PcesEventGraphSource;
+import org.hiero.consensus.pcli.graph.PcesEventGraphSource.HashOption;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -95,7 +96,7 @@ public class HashgraphGuiFromPcesMain {
         }
 
         final PcesEventGraphSource source = new PcesEventGraphSource(
-                pcesPath, configuration, recycleBin, true, startingRound, minimumNonAncientRound);
+                pcesPath, configuration, recycleBin, HashOption.HASH, startingRound, minimumNonAncientRound);
         final TestGuiSource guiSource = new TestGuiSource(metrics, configuration, roster, source);
 
         guiSource.loadSnapshot(consensusSnapshot);

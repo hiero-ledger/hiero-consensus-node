@@ -23,20 +23,14 @@ public class PcesEventGraphSource implements EventGraphSource {
 
     private final PcesFileTracker pcesFileTracker;
     private PcesMultiFileIterator eventIterator;
-    private final boolean hashEvents;
+    private final HashOption hashOption;
 
     /**
-     * Creates a source that reads raw events from PCES files at the given location.
-     *
-     * @param pcesLocation  path to the directory containing PCES files
-     * @param configuration the platform configuration
-     * @param recycleBin    the recycle bin for managing temporary files
+     * An enum with hashing options for events emitted by this source.
      */
-    public PcesEventGraphSource(
-            @NonNull final Path pcesLocation,
-            @NonNull final Configuration configuration,
-            @NonNull final RecycleBin recycleBin) {
-        this(pcesLocation, configuration, recycleBin, false, 0, 0);
+    public enum HashOption {
+        HASH,
+        DO_NOT_HASH;
     }
 
     /**
@@ -49,15 +43,32 @@ public class PcesEventGraphSource implements EventGraphSource {
     public PcesEventGraphSource(
             @NonNull final Path pcesLocation,
             @NonNull final Configuration configuration,
+            @NonNull final RecycleBin recycleBin) {
+        this(pcesLocation, configuration, recycleBin, HashOption.DO_NOT_HASH, 0, 0);
+    }
+
+    /**
+     * Creates a source that reads raw events from PCES files at the given location.
+     *
+     * @param pcesLocation  path to the directory containing PCES files
+     * @param configuration the platform configuration
+     * @param recycleBin    the recycle bin for managing temporary files
+     * @param hashOption    the hashing behavior option for event released from {@link #next()}
+     * @param startingRound the round of the state to replay events on top of
+     * @param lowerBound    the lowest birth round event to replay
+     */
+    public PcesEventGraphSource(
+            @NonNull final Path pcesLocation,
+            @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
-            final boolean hashEvents,
+            final HashOption hashOption,
             final long startingRound,
             final long lowerBound) {
         try {
             this.pcesFileTracker =
                     PcesFileReader.readFilesFromDisk(configuration, recycleBin, pcesLocation, startingRound, false);
             this.eventIterator = pcesFileTracker.getEventIterator(lowerBound, startingRound);
-            this.hashEvents = hashEvents;
+            this.hashOption = hashOption;
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing PCES file reader", e);
         }
@@ -71,7 +82,7 @@ public class PcesEventGraphSource implements EventGraphSource {
     public PlatformEvent next() {
         try {
             final PlatformEvent event = eventIterator.next();
-            if (hashEvents) {
+            if (HashOption.HASH.equals(hashOption)) {
                 new PbjStreamHasher().hashEvent(event);
             }
             return event;
