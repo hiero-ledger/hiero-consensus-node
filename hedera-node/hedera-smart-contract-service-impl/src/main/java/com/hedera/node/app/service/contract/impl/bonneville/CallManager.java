@@ -352,8 +352,6 @@ public abstract class CallManager {
     }
 
     private static boolean checkHookExec(BEVM bevm) {
-        // Delegate/callcode are blocked outright during hook execution, matching the
-        // canonical CustomDelegateCall/CustomCallCodeOperation guard (no facade exemption).
         return bevm._top._hookOwner != null;
     }
 
