@@ -697,7 +697,7 @@ public class BaseTranslator {
                 .filter(ScopedTraceData::hasEvmTraceData)
                 .toList();
         for (final var evmTraceData : evmTraces) {
-            if (!evmTraceData.contractSlotUsages().isEmpty()) {
+            if (!evmTraceData.contractSlotUsages().isEmpty() && parts.status() != REVERTED_SUCCESS) {
                 final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {

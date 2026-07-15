@@ -225,7 +225,8 @@ public class TokenAirdropValidator {
             final ReadableTokenRelationStore tokenRelStore) {
         // validate association and account frozen
         final var tokenRel = getIfUsable(senderAccount.accountIdOrThrow(), tokenId, tokenRelStore);
-        validateTrue(tokenRel.balance() >= Math.abs(senderAmount.amount()), INSUFFICIENT_TOKEN_BALANCE);
+        // Add rather than Math.abs: Math.abs(Long.MIN_VALUE) wraps negative and passes for any balance.
+        validateTrue(tokenRel.balance() + senderAmount.amount() >= 0, INSUFFICIENT_TOKEN_BALANCE);
     }
 
     private void validateNftTransfers(
