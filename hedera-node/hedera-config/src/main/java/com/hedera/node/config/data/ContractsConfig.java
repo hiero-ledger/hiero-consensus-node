@@ -93,7 +93,7 @@ public record ContractsConfig(
 
         @ConfigProperty(
                 value = "systemContract.scheduleService.signSchedule.from.contract.enabled",
-                defaultValue = "true")
+                defaultValue = "false")
         @NetworkProperty
         boolean systemContractSignScheduleFromContractEnabled,
 
