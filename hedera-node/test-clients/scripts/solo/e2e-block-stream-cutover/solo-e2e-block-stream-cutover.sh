@@ -3816,6 +3816,19 @@ TCK_SDK_SERVER_PROTO_VERSION=""
 tck_sdk_server_pnpm_install() {
   (
     cd "${JS_SDK_REPO_DIR}/tck" || exit 1
+    # The browser drivers are test-only deps of the sdk repo and irrelevant to the tck server;
+    # their postinstall scripts break on unpinned transitive drift (chromedriver's install.js
+    # dies with ERR_REQUIRE_ESM on node 20). Never build them — pnpm reads this from the
+    # workspace ROOT package.json, and it takes precedence over --dangerously-allow-all-builds.
+    node -e '
+      const fs = require("fs");
+      const p = process.argv[1];
+      const j = JSON.parse(fs.readFileSync(p, "utf8"));
+      j.pnpm = j.pnpm || {};
+      const never = new Set([...(j.pnpm.neverBuiltDependencies || []), "chromedriver", "geckodriver"]);
+      j.pnpm.neverBuiltDependencies = [...never];
+      fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+    ' "${JS_SDK_REPO_DIR}/package.json"
     # pnpm >= 10 refuses to run dependency build scripts unless approved and fails the
     # install with ERR_PNPM_IGNORED_BUILDS. Only the CLI flag reliably overrides this
     # (the .npmrc key and package.json onlyBuiltDependencies are not honored on 11.x),
