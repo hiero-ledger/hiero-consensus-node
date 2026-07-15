@@ -1188,7 +1188,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
             BlockItem item;
 
-            while ((item = block.blockItem(itemIndex)) != null) {
+            while (true) {
+                item = block.blockItem(itemIndex);
+                if (item == null) {
+                    logger.trace(
+                            "{} Wanted block item at index {} but it isn't available yet (block: {}, itemCount: {}, isClosed: {})",
+                            BlockNodeStreamingConnection.this,
+                            itemIndex,
+                            block.blockNumber(),
+                            block.itemCount(),
+                            block.isClosed());
+                    break;
+                }
+
                 connStats.recordHeartbeat(System.currentTimeMillis());
 
                 if (itemIndex == 0) {
