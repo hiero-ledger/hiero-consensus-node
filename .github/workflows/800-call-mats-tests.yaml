@@ -261,7 +261,7 @@ jobs:
 
   mats-snyk-scan:
     name: Snyk Scan
-    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
+    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.repository.fork }}
     needs:
       - commit-info
       - compile-and-spotless
@@ -278,7 +278,7 @@ jobs:
 
   mats-gradle-determinism:
     name: Gradle Determinism
-    if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
+    if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.repository.fork }}
     needs:
       - commit-info
       - compile-and-spotless
@@ -294,7 +294,7 @@ jobs:
 
   mats-docker-determinism:
     name: Docker Determinism
-    if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
+    if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.repository.fork }}
     needs:
       - commit-info
       - compile-and-spotless

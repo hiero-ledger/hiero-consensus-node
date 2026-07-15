@@ -72,7 +72,7 @@ jobs:
   publish-image:
     name: ${{ inputs.custom-job-name || 'Publish Production Image (GCP)' }}
     runs-on: hl-cn-default-lin-lg
-    if: ${{ !github.event.workflow_call.repository.fork }}
+    if: ${{ !github.event.repository.fork }}
     outputs:
       docker-registry: ${{ steps.set-registry.outputs.docker-registry }}
       docker-image: ${{ steps.set-registry.outputs.docker-tag-base }}/consensus-node:${{ inputs.version }}
