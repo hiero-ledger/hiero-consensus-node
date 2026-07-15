@@ -67,6 +67,7 @@ public class V0750BlockRecordSchema extends Schema<SemanticVersion> {
                         .votingComplete(false)
                         .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
                         .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
                         .build());
                 log.info(
                         "Initialized wrapped record voting singleton with deadline={}",
