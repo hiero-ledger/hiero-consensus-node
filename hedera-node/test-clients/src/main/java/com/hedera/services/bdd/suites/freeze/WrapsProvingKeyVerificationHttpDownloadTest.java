@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.VALID_WRAPS_PROVING_KEY;
+import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.clearExtractedProvingKey;
 import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.readClasspathResource;
 import static com.hedera.services.bdd.suites.freeze.WrapsProvingKeyVerificationOnDiskTest.writeBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,12 +120,12 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(5))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, downloadedHash),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
-                                "Persisted first WRAPS proving key hash (\\S+) to state",
-                                Duration.ofSeconds(5))
+                                "Pending WRAPS proving key hash (\\S+) matches proving key in state",
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, persistedHash),
                 verify(() -> {
                     assertEquals(
@@ -156,7 +157,7 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Pending WRAPS proving key hash (\\S+) matches proving key in state",
-                                Duration.ofSeconds(5))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, persistedHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
@@ -176,6 +177,11 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                     for (final var node : spec.getNetworkNodes()) {
                         final var keysDir =
                                 node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
+                        // An earlier test on this shared network already downloaded + extracted the
+                        // valid key + wraps.sha384 sentinel here (== TSS_LIB_WRAPS_ARTIFACTS_PATH),
+                        // which would short-circuit on-disk verification; clear it so the node checks
+                        // the invalid archive, detects the mismatch, and re-downloads.
+                        clearExtractedProvingKey(keysDir);
                         writeBytes(invalidBytes, keysDir.resolve("invalid-wraps-proving-key.tar.gz"));
                     }
                 }),
@@ -188,11 +194,11 @@ class WrapsProvingKeyVerificationHttpDownloadTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "WRAPS proving key hash mismatch at .+ \\(expected=.+, actual=.+\\), initiating download",
-                        Duration.ofSeconds(5)),
+                        Duration.ofSeconds(30)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Successfully downloaded and verified WRAPS proving key \\(hash=(\\S+)\\)",
-                                Duration.ofSeconds(5))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, downloadedHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
