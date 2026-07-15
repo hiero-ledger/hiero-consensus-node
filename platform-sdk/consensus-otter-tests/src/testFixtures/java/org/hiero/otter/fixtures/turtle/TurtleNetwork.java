@@ -105,6 +105,11 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.setConnections(connections);
     }
 
+    @Override
+    protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+        simulatedNetwork.setConnections(connections);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -146,6 +151,9 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 consensusRoundPool);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
         final int size = nodes().size();
@@ -180,6 +188,9 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
         nodes().forEach(node -> node.sendQuiescenceCommand(command));

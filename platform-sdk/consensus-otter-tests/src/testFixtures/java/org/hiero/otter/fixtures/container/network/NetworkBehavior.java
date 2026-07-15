@@ -26,6 +26,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.container.network.Toxin.BandwidthToxin;
 import org.hiero.otter.fixtures.container.network.Toxin.LatencyToxin;
+import org.hiero.otter.fixtures.exceptions.NetworkControlUnavailableException;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
@@ -101,13 +102,17 @@ public class NetworkBehavior {
      */
     public void onConnectionsChanged(
             @NonNull final List<Node> nodes, @NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
+        // Publish the target state before applying it, so that if a mutation wedges and triggers recovery, the
+        // recreated proxy is rebuilt with the intended toxics rather than the state we are moving away from.
+        final Map<ConnectionKey, ConnectionState> oldConnections = connections;
+        connections = newConnections;
         for (final Node sender : nodes) {
             for (final Node receiver : nodes) {
                 if (sender.equals(receiver)) {
                     continue; // Skip self-connections
                 }
                 final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
-                final ConnectionState oldConnectionState = connections.getOrDefault(connectionKey, DISCONNECTED);
+                final ConnectionState oldConnectionState = oldConnections.getOrDefault(connectionKey, DISCONNECTED);
                 final ConnectionState newConnectionState = newConnections.getOrDefault(connectionKey, DISCONNECTED);
                 if (newConnectionState.connected()) {
                     if (!oldConnectionState.connected()) {
@@ -127,56 +132,97 @@ public class NetworkBehavior {
                 }
             }
         }
-        connections = newConnections;
     }
 
     /**
-     * Resets every proxy that involves the given node, reaping the stale, half-dead TCP links a hard-killed node leaves
-     * behind. Each such proxy is briefly disabled &ndash; which makes Toxiproxy close all of its currently-open links and
-     * so unblocks any toxic goroutines that were wedged on a backpressured, now-dead link &ndash; and then re-enabled, but
-     * only if the connection's intended state is still {@code connected}. A partitioned or otherwise disconnected
-     * connection is left disabled.
+     * Recreates every proxy from scratch so that it matches the given target state. This restores a clean, toxic-free
+     * network after chaos: because each proxy is deleted and created afresh (rather than having its toxics updated in
+     * place, which can wedge), no proxy can be left in a wedged state, and the result is guaranteed to reflect exactly
+     * the target state.
      *
-     * @param nodeId the node whose proxies should be reset
+     * @param newConnections the target state that every proxy should be recreated to match
      */
-    public void resetProxiesFor(@NonNull final NodeId nodeId) {
-        for (final Map.Entry<ConnectionKey, Proxy> entry : proxies.entrySet()) {
-            final ConnectionKey connectionKey = entry.getKey();
-            if (!connectionKey.sender().equals(nodeId)
-                    && !connectionKey.receiver().equals(nodeId)) {
-                continue;
-            }
-            log.debug(
-                    "Resetting proxy between sender {} and receiver {} after node {} was killed",
+    public void recreateAllProxies(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
+        connections = newConnections;
+        for (final ConnectionKey connectionKey : proxies.keySet()) {
+            recreateProxy(connectionKey);
+        }
+    }
+
+    /**
+     * Recreates the proxy for the given connection from scratch: it is deleted &ndash; which escapes any wedge and
+     * unblocks a stuck toxic goroutine &ndash; and then created afresh with its toxics reapplied at the current intended
+     * state. Deleting first frees the listen port, so the new proxy keeps the same name, listen address, and upstream,
+     * and nodes reconnect through it transparently.
+     *
+     * @param connectionKey the connection whose proxy should be recreated
+     */
+    private void recreateProxy(@NonNull final ConnectionKey connectionKey) {
+        final Proxy previous = requireProxy(connectionKey);
+        toxiproxyClient.deleteProxy(previous);
+
+        // A proxy carries its upstream (sender -> receiver) traffic and, on its downstream, the reverse connection's
+        // (receiver -> sender) traffic, so its toxics are reapplied from both connection states.
+        final ConnectionState upstream = connections.getOrDefault(connectionKey, DISCONNECTED);
+        final ConnectionState downstream = connections.getOrDefault(connectionKey.reversed(), DISCONNECTED);
+
+        final Proxy proxy = toxiproxyClient.createProxy(
+                new Proxy(previous.name(), previous.listen(), previous.upstream(), upstream.connected()));
+        toxiproxyClient.createToxin(proxy, new LatencyToxin(upstream.latency(), upstream.jitter()));
+        toxiproxyClient.createToxin(proxy, new LatencyToxin(downstream.latency(), downstream.jitter()).downstream());
+        toxiproxyClient.createToxin(proxy, new BandwidthToxin(upstream.bandwidthLimit()));
+        toxiproxyClient.createToxin(proxy, new BandwidthToxin(downstream.bandwidthLimit()).downstream());
+        proxies.put(connectionKey, proxy);
+    }
+
+    /**
+     * Applies a control-plane mutation to a single proxy, recovering from a wedge. If the mutation fails because the
+     * proxy's control plane is wedged ({@link NetworkControlUnavailableException}), the proxy is recreated from scratch
+     * &ndash; the only operation that escapes the wedge &ndash; which restores its intended state directly, so the
+     * failed mutation needs no separate retry.
+     *
+     * @param connectionKey the proxy to mutate
+     * @param mutation the mutation to attempt
+     */
+    private void applyToProxy(@NonNull final ConnectionKey connectionKey, @NonNull final Runnable mutation) {
+        try {
+            mutation.run();
+        } catch (final NetworkControlUnavailableException e) {
+            log.warn(
+                    "Proxy between sender {} and receiver {} is wedged; recreating it to recover",
                     connectionKey.sender(),
                     connectionKey.receiver(),
-                    nodeId);
-            Proxy proxy = toxiproxyClient.updateProxy(entry.getValue().withEnabled(false));
-            if (connections.getOrDefault(connectionKey, DISCONNECTED).connected()) {
-                proxy = toxiproxyClient.updateProxy(proxy.withEnabled(true));
-            }
-            entry.setValue(proxy);
+                    e);
+            recreateProxy(connectionKey);
         }
+    }
+
+    @NonNull
+    private Proxy requireProxy(@NonNull final ConnectionKey connectionKey) {
+        final Proxy proxy = proxies.get(connectionKey);
+        if (proxy == null) {
+            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
+                    .formatted(connectionKey.sender(), connectionKey.receiver()));
+        }
+        return proxy;
     }
 
     private void connect(@NonNull final ConnectionKey connectionKey) {
         log.debug("Connecting sender {} and receiver {}", connectionKey.sender(), connectionKey.receiver());
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
-                    .formatted(connectionKey.sender(), connectionKey.receiver()));
-        }
-        proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(true)));
+        applyToProxy(
+                connectionKey,
+                () -> proxies.put(
+                        connectionKey,
+                        toxiproxyClient.updateProxy(requireProxy(connectionKey).withEnabled(true))));
     }
 
     private void disconnect(@NonNull final ConnectionKey connectionKey) {
         log.debug("Disconnecting sender {} and receiver {}", connectionKey.sender(), connectionKey.receiver());
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
-                    .formatted(connectionKey.sender(), connectionKey.receiver()));
-        }
-        proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(false)));
+        applyToProxy(
+                connectionKey,
+                () -> proxies.put(
+                        connectionKey,
+                        toxiproxyClient.updateProxy(requireProxy(connectionKey).withEnabled(false))));
     }
 
     private void setLatency(
@@ -208,12 +254,7 @@ public class NetworkBehavior {
     }
 
     private void updateToxinSingleStream(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
-                    .formatted(connectionKey.sender(), connectionKey.receiver()));
-        }
-        toxiproxyClient.updateToxin(proxy, toxin);
+        applyToProxy(connectionKey, () -> toxiproxyClient.updateToxin(requireProxy(connectionKey), toxin));
     }
 
     /**

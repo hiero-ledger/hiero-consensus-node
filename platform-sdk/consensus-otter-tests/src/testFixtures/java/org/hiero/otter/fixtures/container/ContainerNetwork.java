@@ -115,6 +115,19 @@ public class ContainerNetwork extends AbstractNetwork {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>Restoring connectivity recreates every proxy from scratch rather than updating toxics in place, so the network
+     * is guaranteed to come back clean even if a proxy's control plane was left wedged during chaos.
+     */
+    @Override
+    protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+        if (networkBehavior != null) {
+            networkBehavior.recreateAllProxies(connections);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
      */
     @Override
     @NonNull
@@ -130,8 +143,7 @@ public class ContainerNetwork extends AbstractNetwork {
                 networkConfiguration,
                 consensusRoundPool,
                 gcLoggingEnabled,
-                jvmArgs,
-                onKillListener(nodeId));
+                jvmArgs);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -154,26 +166,9 @@ public class ContainerNetwork extends AbstractNetwork {
                 networkConfiguration,
                 consensusRoundPool,
                 gcLoggingEnabled,
-                jvmArgs,
-                onKillListener(nodeId));
+                jvmArgs);
         timeManager.addTimeTickReceiver(node);
         return node;
-    }
-
-    /**
-     * Creates a best-effort listener that reaps the stale network links a node leaves behind when it is killed, so
-     * that wedged Toxiproxy toxic goroutines are unblocked. The listener is a no-op when no proxy is in use.
-     *
-     * @param nodeId the node whose kill should trigger a network reset
-     * @return the listener to pass to the node
-     */
-    @NonNull
-    private Runnable onKillListener(@NonNull final NodeId nodeId) {
-        return () -> {
-            if (networkBehavior != null) {
-                networkBehavior.resetProxiesFor(nodeId);
-            }
-        };
     }
 
     /**

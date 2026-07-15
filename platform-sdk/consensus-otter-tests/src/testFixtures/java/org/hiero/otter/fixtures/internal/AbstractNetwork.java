@@ -631,7 +631,7 @@ public abstract class AbstractNetwork implements Network {
         connected.clear();
         latencyOverrides.clear();
         bandwidthOverrides.clear();
-        updateConnections();
+        recreateConnections(computeConnections());
     }
 
     /**
@@ -1041,6 +1041,24 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void updateConnections() {
+        onConnectionsChanged(computeConnections());
+    }
+
+    /**
+     * Restores the network to a target state, as opposed to applying an incremental change.
+     * The network is guaranteed to be clean after calling this method.
+     *
+     * @param connections a map of connections representing the target state to restore
+     */
+    protected abstract void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections);
+
+    /**
+     * Computes the intended connection state for every ordered pair of distinct nodes.
+     *
+     * @return a map from each connection to its intended state
+     */
+    @NonNull
+    private Map<ConnectionKey, ConnectionState> computeConnections() {
         final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
         for (final Node sender : nodes()) {
             for (final Node receiver : nodes()) {
@@ -1052,7 +1070,7 @@ public abstract class AbstractNetwork implements Network {
                 connections.put(key, connectionState);
             }
         }
-        onConnectionsChanged(connections);
+        return connections;
     }
 
     /**

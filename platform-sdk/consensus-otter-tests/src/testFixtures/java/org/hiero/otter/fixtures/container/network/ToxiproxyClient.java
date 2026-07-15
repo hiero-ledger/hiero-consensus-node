@@ -20,14 +20,7 @@ import org.hiero.otter.fixtures.exceptions.NetworkControlUnavailableException;
 
 /**
  * A client for interacting with the Toxiproxy control server REST API.
- * This client allows creating and updating proxies to simulate network conditions.
- *
- * <p>Toxiproxy wraps its whole REST API in Go's {@code http.TimeoutHandler} with a 25-second limit and returns an
- * empty {@code 503} when a request does not finish in time (a toxic update can wedge past that limit when a link is
- * backpressured). Such a 503 describes a transient, self-healing condition rather than a permanent failure, so every
- * request is given a per-request timeout that sits deliberately <em>above</em> Toxiproxy's internal limit and is
- * retried with exponential backoff on {@code 5xx} responses and {@link IOException}s. A {@code 4xx} response signals a
- * fixture logic bug and fails fast without retrying.
+ * This client allows creating, updating, and deleting proxies to simulate network conditions.
  */
 public class ToxiproxyClient {
 
@@ -42,6 +35,9 @@ public class ToxiproxyClient {
 
     /** HTTP status code returned by Toxiproxy when a proxy or toxin with the same name already exists. */
     private static final int HTTP_CONFLICT = 409;
+
+    /** HTTP status code returned by Toxiproxy when the referenced proxy or toxin does not exist. */
+    private static final int HTTP_NOT_FOUND = 404;
 
     /** Timeout for establishing a TCP connection to the Toxiproxy control server. */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10L);
@@ -104,6 +100,29 @@ public class ToxiproxyClient {
     public Proxy updateProxy(@NonNull final Proxy proxy) {
         final URI uri = new UriBuilder(baseUri).path(proxy.name()).build();
         return readProxyFromResponse(send(postRequest(uri, proxy), EarlierSuccess.NOT_ACCEPTED));
+    }
+
+    /**
+     * Deletes the proxy with the specified name.
+     *
+     * <p>Deleting a proxy (Toxiproxy {@code RemoveProxy}) stops it and closes all of its open connections. Unlike a
+     * toxic or proxy <em>update</em>, it does not wait on the per-link toxic goroutines, so it returns promptly and
+     * unblocks any goroutine wedged on a backpressured link &ndash; it is the only control-plane operation that escapes
+     * the wedge described in the class documentation.
+     *
+     * <p>If the request comes back reporting the proxy is already gone ({@code 404}) <em>after</em> at least one retry,
+     * an earlier attempt actually succeeded on the server but its response was lost; this is treated as success.
+     *
+     * @param proxy the proxy to delete
+     */
+    public void deleteProxy(@NonNull final Proxy proxy) {
+        final URI uri = new UriBuilder(baseUri).path(proxy.name()).build();
+        final HttpRequest request = HttpRequest.newBuilder()
+                .uri(uri)
+                .timeout(REQUEST_TIMEOUT)
+                .DELETE()
+                .build();
+        send(request, EarlierSuccess.ACCEPTED);
     }
 
     /**
@@ -174,20 +193,23 @@ public class ToxiproxyClient {
     }
 
     /**
-     * Sends a request, retrying on {@code 5xx} responses and {@link IOException}s with exponential backoff, and returns
-     * the successful ({@code 2xx}) response. A {@code 4xx} response signals a fixture logic bug and fails fast without
-     * retrying.
+     * Sends a request and returns the successful ({@code 2xx}) response. A {@code 5xx} (a wedged control plane) is
+     * surfaced immediately as a {@link NetworkControlUnavailableException} without retrying, because retrying only
+     * re-wedges; an {@link IOException} (a genuinely transient failure) is retried with exponential backoff; and a
+     * {@code 4xx} response signals a fixture logic bug and fails fast.
      *
      * <p>When {@code earlierSuccess} is {@link EarlierSuccess#ACCEPTED} and a retried request comes back reporting the
-     * resource already exists ({@code 409}), an earlier attempt succeeded on the server but its response was lost; that
-     * response is returned so the caller can treat it as an idempotent success. A {@code 409} on the very first attempt
-     * (nothing was retried) still fails, because then the resource genuinely pre-existed.
+     * resource already reached its desired end state (a create already {@code 409}-exists, or a delete already
+     * {@code 404}-gone), an earlier attempt succeeded on the server but its response was lost; that response is returned
+     * so the caller can treat it as an idempotent success. The same status on the very first attempt (nothing was
+     * retried) still fails, because then the resource genuinely pre-existed or was genuinely missing.
      *
      * @param request the request to send
      * @param earlierSuccess whether a repeat reporting the work was already done should be accepted as success
      * @return the successful ({@code 2xx}), or accepted already-done, response
      * @throws AssertionError if the server returns an unaccepted {@code 4xx} response
-     * @throws NetworkControlUnavailableException if the request keeps failing after {@link #MAX_ATTEMPTS} attempts
+     * @throws NetworkControlUnavailableException if the server returns a {@code 5xx}, or an {@link IOException} keeps
+     *     recurring after {@link #MAX_ATTEMPTS} attempts
      */
     @NonNull
     private HttpResponse<String> send(
@@ -200,9 +222,12 @@ public class ToxiproxyClient {
                 if (status >= 200 && status < 300) {
                     return response;
                 }
-                if (earlierSuccess == EarlierSuccess.ACCEPTED && status == HTTP_CONFLICT && attempt > 1) {
-                    // An earlier attempt succeeded on the server but its response was lost. Return the already-done
-                    // response so the caller can treat it as an idempotent success.
+                if (earlierSuccess == EarlierSuccess.ACCEPTED
+                        && (status == HTTP_CONFLICT || status == HTTP_NOT_FOUND)
+                        && attempt > 1) {
+                    // An earlier attempt already reached the desired end state on the server (the resource exists for a
+                    // create, or is gone for a delete) but its response was lost. Return the already-done response so
+                    // the caller can treat it as an idempotent success.
                     return response;
                 }
                 if (status < 500) {
@@ -210,15 +235,12 @@ public class ToxiproxyClient {
                     throw new AssertionError(
                             "Failed to process request with error code %d: %s".formatted(status, request));
                 }
-                // A 5xx server error (e.g. Toxiproxy's 25-second TimeoutHandler) is transient. Retry. A retry that
-                // eventually succeeds is normal operation, so this is only logged at DEBUG; a permanent failure is
-                // surfaced by the NetworkControlUnavailableException thrown once all attempts are exhausted.
-                log.debug(
-                        "Toxiproxy request failed with status {} (attempt {}/{}): {}",
-                        status,
-                        attempt,
-                        MAX_ATTEMPTS,
-                        request);
+                // A 5xx (Toxiproxy's 25-second TimeoutHandler firing) means this proxy's control plane is wedged: a
+                // toxic update is stuck on a backpressured link and holds the proxy's ToxicCollection lock. The
+                // caller recovers by recreating the proxy (delete + create), which is the only operation that
+                // escapes the wedge.
+                throw new NetworkControlUnavailableException(
+                        "Toxiproxy returned status %d (control plane wedged): %s".formatted(status, request));
             } catch (final IOException e) {
                 lastException = e;
                 log.debug("Toxiproxy request failed (attempt {}/{}): {}", attempt, MAX_ATTEMPTS, request, e);
@@ -271,10 +293,10 @@ public class ToxiproxyClient {
     /**
      * Whether a repeat of a request that comes back reporting the work was already done should be accepted. This
      * happens when an earlier attempt succeeded on the server but its response was lost before reaching us, so the
-     * retry finds the resource already present.
+     * retry finds the resource already present (for a create) or already gone (for a delete).
      */
     private enum EarlierSuccess {
-        /** Accept it: the earlier, winning attempt was ours. Used for idempotent, create-style requests. */
+        /** Accept it: the earlier, winning attempt was ours. Used for idempotent create- and delete-style requests. */
         ACCEPTED,
         /** Do not accept it: treat every non-{@code 2xx} response as a failure. */
         NOT_ACCEPTED
