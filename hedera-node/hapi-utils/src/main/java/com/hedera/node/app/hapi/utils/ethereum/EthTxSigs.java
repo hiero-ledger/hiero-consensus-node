@@ -27,6 +27,8 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 public record EthTxSigs(byte[] publicKey, byte[] address) {
     private static final Logger logger = LogManager.getLogger(EthTxSigs.class);
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
+    // Lower-half boundary (N >> 1) by EIP-2 standard.
+    private static final BigInteger HALF_N = N.shiftRight(1);
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
         final var message = calculateSignableMessage(ethTx);
@@ -148,8 +150,8 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
 
         byte[] dataHash = new Keccak.Digest256().digest(message);
 
-        checkInBounds(r);
-        checkInBounds(s);
+        checkInBounds(r, N);
+        checkInBounds(s, HALF_N);
         // The RLP library output won't include leading zeros, which means
         // a simple (r, s) concatenation breaks signature verification below
         byte[] signature = concatLeftPadded(r, s);
@@ -208,13 +210,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     /**
      * Returns whether the given curve point is in bounds for the Secp256k1 curve.
      * @param curvePoint the curve point to check
+     * @param upperBound the inclusive maximum: {@code N} for r, {code N>>1} for s per EIP-2.
      */
-    private static void checkInBounds(@NonNull byte[] curvePoint) {
+    private static void checkInBounds(@NonNull byte[] curvePoint, @NonNull final BigInteger upperBound) {
         final var bi = new BigInteger(1, curvePoint);
         if (bi.compareTo(BigInteger.ONE) < 0) {
             throw new IllegalArgumentException("Curve point must be >= 1");
         }
-        if (bi.compareTo(N) >= 0) {
+        if (bi.compareTo(upperBound) >= 0) {
             throw new IllegalArgumentException("Curve point must be < N");
         }
     }

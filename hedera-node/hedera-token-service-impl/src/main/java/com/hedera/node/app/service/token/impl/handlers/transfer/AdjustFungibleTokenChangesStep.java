@@ -92,7 +92,7 @@ public class AdjustFungibleTokenChangesStep extends BaseTokenHandler implements 
 
                 // Add the amount to the aggregatedFungibleTokenChanges map.
                 // If the (accountId, tokenId) pair doesn't exist in the map, add it.
-                // Else, update the aggregated transfer amount (overflow-safe)
+                // Else, update the aggregated transfer amount (range-checked)
                 aggregatedFungibleTokenChanges.merge(pair, aa.amount(), BaseTokenHandler::addExactBalance);
 
                 // If the transfer is happening with an allowance,
