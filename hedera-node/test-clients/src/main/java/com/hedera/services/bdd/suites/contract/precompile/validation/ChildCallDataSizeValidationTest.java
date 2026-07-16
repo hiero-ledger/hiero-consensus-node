@@ -32,7 +32,7 @@ public class ChildCallDataSizeValidationTest {
     private static final int TRANSACTION_MAX_BYTES = 6144;
     private static final int TRANSACTION_MAX_GAS = 15_000_000;
 
-    @Contract(contract = "ChildCallDataSizeValidationContract", creationGas = 2_000_000L)
+    @Contract(contract = "ChildCallDataSizeCheck", creationGas = 2_000_000L)
     static SpecContract contract;
 
     @BeforeAll
