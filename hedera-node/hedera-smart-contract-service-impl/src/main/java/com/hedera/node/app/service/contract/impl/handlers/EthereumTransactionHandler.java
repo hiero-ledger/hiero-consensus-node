@@ -33,6 +33,7 @@ import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -181,19 +182,22 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             final var newNonce = outcome.newSenderNonceOrThrow();
             ethStreamBuilder.newSenderNonce(newNonce);
         }
+        final ContractOperationStreamBuilder operationStreamBuilder;
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
             outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
+            operationStreamBuilder = streamBuilder;
         } else {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
             outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
+            operationStreamBuilder = streamBuilder;
         }
         final var rollbackHandler = new EthereumTransactionRollbackHandler(
                 outcome, component.hederaOperations().gasChargingEvents());
         context.dispatchMetadata()
                 .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
                 .ifPresent(consumer -> consumer.accept(rollbackHandler));
-        throwIfUnsuccessfulCall(outcome, rollbackHandler);
+        throwIfUnsuccessfulCall(outcome, rollbackHandler, operationStreamBuilder, context);
     }
 
     /**

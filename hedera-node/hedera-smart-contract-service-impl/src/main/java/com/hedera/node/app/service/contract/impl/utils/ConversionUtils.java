@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
@@ -34,15 +35,17 @@ import com.hedera.hapi.streams.StorageChange;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -690,22 +693,54 @@ public class ConversionUtils {
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
-     * @param hederaOperations the Hedera operations
+     * @param rollbackHandler the Hedera rollback handler
+     * @param streamBuilder the stream builder
+     * @param context the handle context
      */
     public static void throwIfUnsuccessfulCall(
-            @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
+            @NonNull final CallOutcome outcome,
+            @NonNull final EthereumTransactionRollbackHandler rollbackHandler,
+            @NonNull final ContractOperationStreamBuilder streamBuilder,
+            @NonNull final HandleContext context) {
         requireNonNull(outcome);
-        requireNonNull(hederaOperations);
-        throwIfUnsuccessfulCall(
-                outcome, new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents()));
-    }
-
-    public static void throwIfUnsuccessfulCall(
-            @NonNull final CallOutcome outcome, @NonNull final EthereumTransactionRollbackHandler rollbackHandler) {
-        requireNonNull(outcome);
+        requireNonNull(rollbackHandler);
+        requireNonNull(streamBuilder);
+        requireNonNull(context);
+        if (hasExceededTraceDataSizeLimit(streamBuilder, context)) {
+            throw new HandleException(INSUFFICIENT_GAS, rollbackHandler);
+        }
         if (outcome.status() != SUCCESS) {
             throw new HandleException(outcome.status(), rollbackHandler);
         }
+    }
+
+    private static boolean hasExceededTraceDataSizeLimit(
+            @NonNull final ContractOperationStreamBuilder streamBuilder, @NonNull final HandleContext context) {
+        if (streamBuilder.hasTraceDataSizeLimitExceeded()) {
+            return true;
+        }
+        final var totalContractBytecodeSize = totalEstimatedContractBytecodeSize(streamBuilder, context);
+        return totalContractBytecodeSize > 0
+                && !streamBuilder.ensureTraceDataSizeLimitWithAdditionalBytes(totalContractBytecodeSize);
+    }
+
+    private static long totalEstimatedContractBytecodeSize(
+            @NonNull final ContractOperationStreamBuilder baseBuilder, @NonNull final HandleContext context) {
+        final long[] total = {baseBuilder.estimatedContractBytecodeSize()};
+        context.savepointStack().forEachNonBaseBuilder(StreamBuilder.class, builder -> {
+            if (builder instanceof ContractOperationStreamBuilder contractBuilder) {
+                total[0] = saturatedAdd(total[0], contractBuilder.estimatedContractBytecodeSize());
+            }
+        });
+        return total[0];
+    }
+
+    private static long saturatedAdd(final long current, final long additional) {
+        if (current == Long.MAX_VALUE || additional == Long.MAX_VALUE || additional < 0) {
+            return Long.MAX_VALUE;
+        }
+        final var total = current + additional;
+        return total < 0 ? Long.MAX_VALUE : total;
     }
 
     /**
