@@ -32,6 +32,13 @@ public enum EntryType {
     SYMPTOM_CATALOG,
     /** A tunable-catalog document. */
     TUNABLE_CATALOG,
-    /** README/FORMAT/LAYOUT scaffolding or anything else — not a drift-checked entry. */
+    /**
+     * A {@code README.md} index file. Its rows are a sanctioned duplication with a sync obligation
+     * (entry links, catalog IDs, statuses), so its links and IDs are drift-checked at Tier 0 like any
+     * entry's. {@code FORMAT}/{@code LAYOUT}/{@code CLAUDE} stay unscanned — they show placeholder
+     * examples by design.
+     */
+    INDEX,
+    /** FORMAT/LAYOUT/CLAUDE scaffolding or anything else — not a drift-checked entry. */
     OTHER
 }

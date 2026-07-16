@@ -78,8 +78,14 @@ public record NodeIsolationExperiment(
         network.isolate(targetNode);
 
         return List.of(new Step(now.plus(duration), () -> {
-            log.info("Ending node isolation experiment for node {}.", targetNode.selfId());
-            network.rejoin(targetNode);
+            if (network.isIsolated(targetNode)) {
+                log.info("Ending node isolation experiment for node {}.", targetNode.selfId());
+                network.rejoin(targetNode);
+            } else {
+                log.info(
+                        "Node {} is no longer isolated (reconnected by another experiment); nothing to undo.",
+                        targetNode.selfId());
+            }
         }));
     }
 }

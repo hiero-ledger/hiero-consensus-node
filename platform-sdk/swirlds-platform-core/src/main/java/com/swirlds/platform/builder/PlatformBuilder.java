@@ -359,7 +359,7 @@ public final class PlatformBuilder {
                     buildingBlocks.fallenBehindMonitor());
             return platform;
         } finally {
-            // TODO figure out if this can be moved into Platform.start()
+            // FutureWork figure out if this can be moved into Platform.start()
             getMetricsProvider().start();
         }
     }

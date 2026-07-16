@@ -130,6 +130,35 @@ public class NetworkBehavior {
         connections = newConnections;
     }
 
+    /**
+     * Resets every proxy that involves the given node, reaping the stale, half-dead TCP links a hard-killed node leaves
+     * behind. Each such proxy is briefly disabled &ndash; which makes Toxiproxy close all of its currently-open links and
+     * so unblocks any toxic goroutines that were wedged on a backpressured, now-dead link &ndash; and then re-enabled, but
+     * only if the connection's intended state is still {@code connected}. A partitioned or otherwise disconnected
+     * connection is left disabled.
+     *
+     * @param nodeId the node whose proxies should be reset
+     */
+    public void resetProxiesFor(@NonNull final NodeId nodeId) {
+        for (final Map.Entry<ConnectionKey, Proxy> entry : proxies.entrySet()) {
+            final ConnectionKey connectionKey = entry.getKey();
+            if (!connectionKey.sender().equals(nodeId)
+                    && !connectionKey.receiver().equals(nodeId)) {
+                continue;
+            }
+            log.debug(
+                    "Resetting proxy between sender {} and receiver {} after node {} was killed",
+                    connectionKey.sender(),
+                    connectionKey.receiver(),
+                    nodeId);
+            Proxy proxy = toxiproxyClient.updateProxy(entry.getValue().withEnabled(false));
+            if (connections.getOrDefault(connectionKey, DISCONNECTED).connected()) {
+                proxy = toxiproxyClient.updateProxy(proxy.withEnabled(true));
+            }
+            entry.setValue(proxy);
+        }
+    }
+
     private void connect(@NonNull final ConnectionKey connectionKey) {
         log.debug("Connecting sender {} and receiver {}", connectionKey.sender(), connectionKey.receiver());
         final Proxy proxy = proxies.get(connectionKey);

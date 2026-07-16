@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -103,19 +104,24 @@ public record NetworkPartitionExperiment(
                     maxPartitions);
             return List.of();
         }
-        final List<Node> nodes;
+        final Collection<Node> nodes;
         if (network.networkPartitions().isEmpty()) {
             nodes = network.nodes();
         } else {
             // Select the largest existing partition to split
-            nodes = new ArrayList<>(network.networkPartitions().stream()
+            nodes = network.networkPartitions().stream()
                     .map(Partition::nodes)
                     .max(Comparator.comparing(Set::size))
-                    .orElseThrow());
+                    .orElseThrow();
+        }
+        if (nodes.size() < 2) {
+            log.info("No partition with at least two nodes available to split; skipping network partition experiment.");
+            return List.of();
         }
         final double partitionFraction =
                 minPartitionFraction + (randotron.nextDouble() * (maxPartitionFraction - minPartitionFraction));
-        final int partitionSize = (int) Math.ceil(nodes.size() * partitionFraction);
+        final int partitionSize =
+                Math.clamp((int) Math.round((nodes.size() - 1) * partitionFraction), 1, nodes.size() - 1);
         final List<Node> shuffledNodes = new ArrayList<>(nodes);
         Collections.shuffle(shuffledNodes, randotron);
         final List<Node> partitionNodes = shuffledNodes.subList(0, partitionSize);

@@ -181,7 +181,9 @@ public class ConsensusNodeManager {
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
-        platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+        try (final ReservedSignedState ignored = initialState) {
+            platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+        }
         // Future work - capture the reconnect module, add a start() method to it, and call it later
         factory.createReconnectModule(
                 platform,

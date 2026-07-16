@@ -46,6 +46,14 @@ public class ProcessUtils {
     private static final int FIRST_AGENT_PORT = 5005;
     private static final long NODE_ID_TO_SUSPEND = -1;
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
+    /**
+     * Basename of the per-node, on-disk swap file backing the native WRAPS prover's memory-mapped
+     * allocator. Anchored under each node's (real-disk) working directory so it stays unique per node,
+     * and kept at the working-dir root with a non-log, non-{@code output/} name so CI log/artifact
+     * uploads never sweep this large, sparse file.
+     */
+    private static final String WRAPS_SWAP_FILE_NAME = "wraps-alloc-swap.bin";
+
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
     public static final String BLOCK_STREAMS_DIR = "blockStreams";
@@ -146,7 +154,26 @@ public class ProcessUtils {
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
         // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz,
         // e.g. "/Users/hincadenza/misc/wraps-v1.0.0", to get the WRAPS library ready to produce proofs
-        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", ""));
+        final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", "");
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", wrapsArtifactsPath);
+        // When WRAPS proving is active, hand the native prover a per-node, on-disk swap file. Its global
+        // allocator diverts every allocation >= 1 KiB into this memory-mapped file instead of anonymous
+        // RAM, holding a proving node's resident set to a few GiB rather than tens of GiB (without it,
+        // concurrent provers exhaust the runner's memory and the container is OOM-killed). The path:
+        //   * MUST be unique per node -- the library opens it with truncate + set_len, so a shared path
+        //     would corrupt every node that maps it; the node working directory is unique per node.
+        //   * MUST live on real disk, not tmpfs -- the node working directory does.
+        //   * is sized sparsely by the library, which silently falls back to RAM if the file cannot be
+        //     created/mapped (e.g. insufficient disk), so this can never turn into a hard failure.
+        // We set it explicitly (overriding any inherited value) so the per-node guarantee always holds,
+        // and clear any inherited value for non-WRAPS nodes so a stray shared path can never leak in.
+        if (!wrapsArtifactsPath.isBlank()) {
+            final var swapFile =
+                    metadata.workingDirOrThrow().resolve(WRAPS_SWAP_FILE_NAME).toAbsolutePath();
+            environment.put("TSS_LIB_WRAPS_SWAP_FILE", swapFile.toString());
+        } else {
+            environment.remove("TSS_LIB_WRAPS_SWAP_FILE");
+        }
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts
