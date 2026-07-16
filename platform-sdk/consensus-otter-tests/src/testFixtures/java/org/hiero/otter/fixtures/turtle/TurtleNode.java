@@ -331,8 +331,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
 
             try (final ReservedSignedState ignoredInitialState = initialState) {
-                PlatformBuilder.initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
                 platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
+                PlatformBuilder.initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
             }
             getMetricsProvider().start();
             platformStatus = PlatformStatus.STARTING_UP;

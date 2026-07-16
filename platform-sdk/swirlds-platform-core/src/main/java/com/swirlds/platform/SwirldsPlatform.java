@@ -8,19 +8,14 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -28,30 +23,17 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
-import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
-import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.persistence.SignedStateFilePath;
-import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
@@ -143,7 +125,6 @@ public class SwirldsPlatform implements Platform {
         //////////////////
 
         initializeState(initialState, inputs.consensusStateEventHandler());
-
 
         final boolean startedFromGenesis = initialState.isGenesisState();
 

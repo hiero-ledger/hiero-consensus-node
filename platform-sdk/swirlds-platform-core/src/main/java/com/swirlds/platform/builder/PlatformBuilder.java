@@ -5,7 +5,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static java.util.Objects.requireNonNullElse;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
@@ -28,7 +27,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -367,8 +365,7 @@ public final class PlatformBuilder {
 
         PlatformWiring.wire(inputs, buildingBlocks);
 
-        final SwirldsPlatform platform =
-                new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
+        final SwirldsPlatform platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
 
         initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
 
@@ -408,7 +405,8 @@ public final class PlatformBuilder {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
         }
 
-        final Hash legacyRunningEventHash = requireNonNullElse(legacyRunningEventHashOf(signedState.getState()), Cryptography.NULL_HASH);
+        final Hash legacyRunningEventHash =
+                requireNonNullElse(legacyRunningEventHashOf(signedState.getState()), Cryptography.NULL_HASH);
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
         buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
@@ -417,8 +415,8 @@ public final class PlatformBuilder {
         final String actualMainClassName =
                 inputs.configuration().getConfigData(StateConfig.class).getMainClassName(inputs.appName());
 
-        final SignedStateFilePath statePath =
-                new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, inputs.selfId(), inputs.swirldName());
+        final SignedStateFilePath statePath = new SignedStateFilePath(
+                inputs.fileSystemManager(), actualMainClassName, inputs.selfId(), inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
@@ -446,9 +444,7 @@ public final class PlatformBuilder {
                     inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
             platformCoordinator.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks
-                    .issDetectionModule()
-                    .overrideIssDetectorState(signedState.reserve("initialize issDetector"));
+            buildingBlocks.issDetectionModule().overrideIssDetectorState(signedState.reserve("initialize issDetector"));
         }
     }
 }

@@ -16,10 +16,12 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -178,8 +180,10 @@ public class ConsensusNodeManager {
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
+        final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
         try (final ReservedSignedState ignored = initialState) {
-            platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+            platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
+            PlatformBuilder.initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
         }
     }
 
