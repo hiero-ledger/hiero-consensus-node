@@ -212,7 +212,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                     if (optionalDelegationSig.isPresent()) {
                         EthTxSigs delegationSig = optionalDelegationSig.get();
                         if (Arrays.equals(txSig.address(), delegationSig.address())
-                                && expectedNonce == delegation.nonce()) {
+                                && expectedNonce == delegation.nonce()
+                                && Arrays.equals(ethTxData.chainId(), delegation.chainId())) {
                             expectedNonce++;
                         }
                     }

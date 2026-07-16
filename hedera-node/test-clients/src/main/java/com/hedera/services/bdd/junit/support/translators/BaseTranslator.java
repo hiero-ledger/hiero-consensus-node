@@ -536,6 +536,7 @@ public class BaseTranslator {
                     .filter(e -> ContractActionType.CREATE.equals(e.callType()))
                     .filter(ContractAction::hasRecipientContract)
                     .map(ContractAction::recipientContractOrThrow)
+                    .sorted(CONTRACT_ID_COMPARATOR)
                     .toList();
         }
         resultBuilder.createdContractIDs(createdIds);
