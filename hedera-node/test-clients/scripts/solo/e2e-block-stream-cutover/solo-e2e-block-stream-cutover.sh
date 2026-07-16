@@ -360,6 +360,12 @@ MIRROR_GRPC_LOCAL_PORT="${MIRROR_GRPC_LOCAL_PORT:-5600}"
 MIRROR_RESTJAVA_LOCAL_PORT="${MIRROR_RESTJAVA_LOCAL_PORT:-8084}"
 MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
 TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
+# Per-test mocha timeout (ms) rewritten into a freshly cloned TCK. The suite hardcodes
+# this.timeout(30000) in every file, which overrides any mocha --timeout flag; under the parallel
+# suite's load the mirror's fungible token-relationship projection can land just after 30s, so a
+# supply-verification poll times out even though the data is correct and arrives shortly after.
+# Raise the ceiling so those tests wait long enough. Not applied to a user-provided TCK_REPO_PATH.
+TCK_PER_TEST_TIMEOUT_MS="${TCK_PER_TEST_TIMEOUT_MS:-300000}"
 TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
 # ENABLE_TCK_TESTS is deliberately not defaulted here: the START_STEP block below needs to
 # distinguish "unset" (auto-implied by START_STEP=13) from an explicit false.
@@ -3831,6 +3837,24 @@ clone_repo_at_tag() {
   fi
 }
 
+# Rewrites the TCK's hardcoded per-test `this.timeout(30000)` to TCK_PER_TEST_TIMEOUT_MS across a
+# freshly cloned checkout. Mocha honors the in-suite this.timeout() over any --timeout flag, so this
+# source rewrite is the only way to raise it. Best-effort: a no-op if nothing matches.
+retime_tck_per_test_timeout() {
+  local dir="$1"
+  [[ -n "${TCK_PER_TEST_TIMEOUT_MS}" && "${TCK_PER_TEST_TIMEOUT_MS}" =~ ^[0-9]+$ ]] || return 0
+  [[ "${TCK_PER_TEST_TIMEOUT_MS}" == "30000" ]] && return 0
+  local count
+  count="$(grep -rl 'this\.timeout(30000)' "${dir}/src/tests" 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "${count}" == "0" ]] && return 0
+  # BSD/GNU-portable in-place edit via a temp file per match.
+  grep -rl 'this\.timeout(30000)' "${dir}/src/tests" 2>/dev/null | while IFS= read -r f; do
+    sed "s/this\.timeout(30000)/this.timeout(${TCK_PER_TEST_TIMEOUT_MS})/g" "${f}" > "${f}.retimed" \
+      && mv "${f}.retimed" "${f}"
+  done
+  echo "Raised TCK per-test timeout to ${TCK_PER_TEST_TIMEOUT_MS}ms in ${count} test file(s)"
+}
+
 # Resolves TCK_REPO_DIR / JS_SDK_REPO_DIR: reuse the *_REPO_PATH checkouts as-is when given,
 # otherwise clone the *_VERSION tags (default: the XTS pins from .citr-env) into WORK_DIR.
 prepare_tck_repos() {
@@ -3846,6 +3870,7 @@ prepare_tck_repos() {
   else
     clone_repo_at_tag "https://github.com/hiero-ledger/hiero-sdk-tck.git" "${TCK_CLONE_DIR}" "${TCK_VERSION}" || return 1
     TCK_REPO_DIR="${TCK_CLONE_DIR}"
+    retime_tck_per_test_timeout "${TCK_REPO_DIR}"
   fi
 
   if [[ -n "${JS_SDK_REPO_PATH}" ]]; then
