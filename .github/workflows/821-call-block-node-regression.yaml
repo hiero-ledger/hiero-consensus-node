@@ -83,7 +83,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@e3702830d1274012a017768dfff33844be90f17f # v1.1.2
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -482,6 +482,16 @@ jobs:
           echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
           ls -lR "$LOG_FOLDER"
 
+          # Strip the multi-GB WRAPS proving key from solo's per-node log-config
+          # bundles before upload: this panel runs with WRAPS enabled
+          # (TSS_LIB_WRAPS_ARTIFACTS_PATH is set), so solo packs data/keys/wraps*
+          # (the ~4 GB/node proving-key archive) into each *-log-config.zip,
+          # bloating the "cn-logs" artifact to ~10 GB. Drop it; keep the logs.
+          for z in "${LOG_FOLDER}"/*-log-config.zip; do
+            [[ -f "${z}" ]] || continue
+            zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+          done
+
       - name: Upload BN and MN Logs
         if: always()
         id: update_bn_mn_logs
@@ -543,7 +553,7 @@ jobs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
