@@ -63,7 +63,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                                 - Witnesses are colored circles, non-witnesses are black/gray\s
                                 - Dark circles are part of the consensus, light are not\s
                                 - Judges are blue\s
-                                - Non-famous witnesses are yellow\s
+                                - Non-judge witnesses are yellow\s
                                 - Famous witnesses are green\s
                                 - Undecided witnesses are red\s
                                 - The selected event is magenta with green border\s
@@ -80,6 +80,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelNGenCheckbox.setState(true);
         labelRoundCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
                 ? "Labels: Voting round" : "Labels: Round created");
+        labelRoundCheckbox.setState(true);
         labelVoteCheckbox = new Checkbox("Labels: Vote");
         labelEventHashCheckbox = new Checkbox("Labels: Event Hash (h)");
         labelRoundRecCheckbox = new Checkbox("Labels: Round received (consensus)");
@@ -187,8 +188,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n                           gen  " + eventInfo.getGen();
                 str += "\n                       lastSee  " + eventInfosToString(eventInfo.getLastSee());
                 str += "\n                  stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
-                str += "\n             firstSelfWitnessS  " + eventID(eventInfo.getFirstSelfWitnessS());
                 str += "\n                   votingRound  " + eventInfo.getVotingRound();
+                str += "\n             firstSelfWitnessS  " + eventID(eventInfo.getFirstSelfWitnessS());
                 str += "\n                 firstWitnessS  " + eventID(eventInfo.getFirstWitnessS());
                 str += "\n                 stronglySeeS1  " + eventInfosToString(eventInfo.getStronglySeeS1());
                 str += "\n                         voteE  " + eventInfosToString(eventInfo.getVoteE());

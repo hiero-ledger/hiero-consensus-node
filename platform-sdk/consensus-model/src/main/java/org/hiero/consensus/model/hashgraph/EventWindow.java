@@ -42,6 +42,7 @@ public record EventWindow(
         }
 
         if (ancientThreshold < ROUND_FIRST) {
+
             throw new IllegalArgumentException(
                     "the minimum round non-ancient cannot be lower than the first round of consensus.");
         }

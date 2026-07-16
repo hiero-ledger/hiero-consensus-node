@@ -274,6 +274,10 @@ public class HashgraphPicture extends JPanel {
 
         String s = "";
 
+        if (options.writeNGen()) {
+            s += " " + event.getNGen();
+        }
+
         if (options.writeRoundCreated()) {
             s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
                     ? event.getEventInfo().getVotingRound()
@@ -323,9 +327,6 @@ public class HashgraphPicture extends JPanel {
             if (t != null) {
                 s += " " + HashgraphGuiConstants.FORMATTER.format(t);
             }
-        }
-        if (options.writeNGen()) {
-            s += " " + event.getNGen();
         }
 
         if (options.writeBirthRound()) {
