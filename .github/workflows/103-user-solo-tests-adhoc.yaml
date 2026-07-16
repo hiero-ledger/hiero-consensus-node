@@ -113,7 +113,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -268,6 +268,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload WRB Failure Artifacts
@@ -305,7 +312,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -473,13 +480,16 @@ jobs:
               > "${OUT_DIR}/${mn_dep}.log" 2>&1
           done
 
-          # Exclude the multi-GB WRAPS proving-key bundles (solo's per-node *-log-config.zip)
-          # from the artifact: copy only files under 100MB and record what was skipped.
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
-            find "${HOME}/.solo/logs" -type f -size +100M -exec ls -lh {} \; \
-              > "${OUT_DIR}/solo-logs/SKIPPED-large-files.txt" 2>/dev/null || true
-            (cd "${HOME}/.solo/logs" && find . -type f -size -100M -exec cp --parents -t "${OUT_DIR}/solo-logs" {} +) || true
+            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload Cutover Failure Artifacts
@@ -512,7 +522,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -620,6 +630,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload 075-to-076 TSS Failure Artifacts
@@ -653,7 +670,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -756,10 +773,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
-            # Exclude the WRAPS proving key from the logs artifact: solo's per-node log-config
-            # bundles carry the key (~4 GB/node), and the logs they contain are already
-            # captured above via kubectl.
-            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' -delete || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload 076-to-077 Cutover Failure Artifacts
@@ -793,7 +813,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -887,7 +907,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -1035,6 +1055,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload WRB Streaming Failure Artifacts

@@ -12,11 +12,9 @@ import org.hiero.consensus.pces.PcesModule;
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
-    /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.components.common.output;
-    exports com.swirlds.platform.components.state.output;
     exports com.swirlds.platform.components;
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.config.legacy;
@@ -43,7 +41,6 @@ module com.swirlds.platform.core {
     /* Targeted Exports to External Libraries */
     exports com.swirlds.platform.internal to
             org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
     exports com.swirlds.platform.uptime to

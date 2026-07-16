@@ -244,7 +244,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         transfers.add(newTransfer);
     }
 
-    // Fail the claim on overflow instead of wrapping a receiver credit into a debit.
+    // Fail the claim when the sum is out of range instead of wrapping a receiver credit into a debit.
     private static long safeAdd(final long a, final long b) {
         try {
             return Math.addExact(a, b);

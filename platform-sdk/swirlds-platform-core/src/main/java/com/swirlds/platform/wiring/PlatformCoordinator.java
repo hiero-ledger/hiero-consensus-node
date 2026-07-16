@@ -136,20 +136,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * Start the wiring framework.
-     */
-    public void start() {
-        components.model().start();
-    }
-
-    /**
-     * Stop the wiring framework.
-     */
-    public void stop() {
-        components.model().stop();
-    }
-
-    /**
      * @see StatusStateMachine#submitStatusAction
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
