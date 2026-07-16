@@ -42,7 +42,7 @@ public class TssCutoverTest implements LifecycleTest {
     private static final String GENESIS_WRAPS_PROOF_STARTED = "Constructing genesis WRAPS proof";
     private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(25);
+    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(20);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
@@ -78,7 +78,10 @@ public class TssCutoverTest implements LifecycleTest {
                                 .loggingOff(),
                         prepareFakeUpgrade(),
                         upgradeToNextConfigVersion(Map.of(
-                                "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true")),
+                                "tss.hintsEnabled", "true",
+                                "tss.historyEnabled", "true",
+                                "tss.wrapsEnabled", "true",
+                                "tss.forceMockSignatures", "false")),
                         withExternalizedLedgerIdFromHgcaaLog(
                                 byNodeId(0),
                                 LEDGER_ID_TIMEOUT,
