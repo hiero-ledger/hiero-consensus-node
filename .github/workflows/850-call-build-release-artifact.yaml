@@ -126,7 +126,7 @@ jobs:
       prerelease: ${{ steps.effective-version.outputs.prerelease }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           setup-semver: "true"
 
@@ -397,7 +397,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           checkout: "true"
           checkout-ref: "${{ needs.validate.outputs.commit-id }}"
@@ -582,7 +582,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           checkout: "true"
           checkout-ref: "${{ needs.validate.outputs.commit-id }}"
@@ -698,7 +698,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           checkout: "true"
           checkout-ref: "${{ needs.validate.outputs.commit-id }}"
