@@ -242,22 +242,11 @@ jobs:
     needs:
       - validate
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@v1.3.0 # TODO: pin to the v1.3.0 release commit SHA once it is cut
         with:
           egress-policy: audit
-
-      - name: Install Deterministic Zip Tooling
-        run: |
-          echo "::group::Download Binary"
-          sudo curl -L -o /usr/local/bin/deterministic-zip https://github.com/timo-reymann/deterministic-zip/releases/download/1.2.0/deterministic-zip_linux-amd64
-          echo "::endgroup::"
-          echo "::group::Change Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/deterministic-zip
-          echo "::endgroup::"
-          echo "::group::Show Binary Version Info"
-          deterministic-zip --version
-          echo "::endgroup::"
+          setup-deterministic-zip: "true"
 
       - name: Install JSON Tools
         run: |
