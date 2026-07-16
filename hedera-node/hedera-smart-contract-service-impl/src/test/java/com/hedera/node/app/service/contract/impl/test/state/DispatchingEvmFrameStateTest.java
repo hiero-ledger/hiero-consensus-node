@@ -555,7 +555,7 @@ class DispatchingEvmFrameStateTest {
     @Test
     void transferDelegationUsesExpectedVerifierForNonDelegate() {
         final var captor = ArgumentCaptor.forClass(VerificationStrategy.class);
-        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(1_000L));
         givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
         given(nativeOperations.transferWithReceiverSigCheck(
                         eq(123L), eq(A_ACCOUNT_ID), eq(B_ACCOUNT_ID), captor.capture()))
@@ -571,7 +571,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void transferDelegationReportsInvalidSignature() {
-        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(1_000L));
         givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
         given(nativeOperations.transferWithReceiverSigCheck(eq(123L), eq(A_ACCOUNT_ID), eq(B_ACCOUNT_ID), any()))
                 .willReturn(INVALID_SIGNATURE);
@@ -583,7 +583,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void transferDelegationThrowsOnApparentlyImpossibleFailureMode() {
-        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true));
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(1_000L));
         givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
         given(nativeOperations.transferWithReceiverSigCheck(eq(123L), eq(A_ACCOUNT_ID), eq(B_ACCOUNT_ID), any()))
                 .willReturn(INSUFFICIENT_ACCOUNT_BALANCE);
@@ -591,6 +591,20 @@ class DispatchingEvmFrameStateTest {
         assertThrows(
                 IllegalStateException.class,
                 () -> subject.tryTransfer(LONG_ZERO_ADDRESS, BENEFICIARY_ADDRESS, 123L, false));
+    }
+
+    @Test
+    void transferHaltsWhenSenderCannotCoverAmount() {
+        // Sender balance (100) is below the transfer amount (123): the transfer must halt cleanly
+        // rather than let TokenServiceApiImpl.transferFromTo throw IllegalArgumentException.
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).smartContract(true).tinybarBalance(100L));
+        givenWellKnownAccount(B_ACCOUNT_ID, contractWith(B_ACCOUNT_ID));
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        // If the balance guard did not short-circuit, the unstubbed transferWithReceiverSigCheck
+        // would drive the else-branch and throw; returning INSUFFICIENT_BALANCE proves the guard ran.
+        final var reasonToHalt = subject.tryTransfer(LONG_ZERO_ADDRESS, BENEFICIARY_ADDRESS, 123L, false);
+        assertTrue(reasonToHalt.isPresent());
+        assertEquals(CustomExceptionalHaltReason.INSUFFICIENT_BALANCE, reasonToHalt.get());
     }
 
     @Test
