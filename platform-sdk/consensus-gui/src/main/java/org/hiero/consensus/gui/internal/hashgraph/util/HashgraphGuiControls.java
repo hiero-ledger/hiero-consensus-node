@@ -39,6 +39,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     /** the consensus time stamp for the event */
     private final Checkbox labelConsTimestampCheckbox;
     /** the Ngen number for the event */
+    private final Checkbox labelEventIDCheckbox;
+    /** the Ngen number for the event */
     private final Checkbox labelNGenCheckbox;
     /** the birth round number for the event */
     private final Checkbox labelBirthroundCheckbox;
@@ -75,9 +77,9 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         freezeCheckbox.addItemListener(freezeListener);
         simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not");
         simpleColorsCheckbox.setState(true);
-        labelNGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                ? "Labels: EventID (nGen)" : "Labels: NGen (non-deterministic generation)");
-        labelNGenCheckbox.setState(true);
+        labelEventIDCheckbox = new Checkbox("Labels: EventID (nGen)");
+        labelEventIDCheckbox.setState(true);
+        labelNGenCheckbox = new Checkbox("Labels: NGen (non-deterministic generation)");
         labelRoundCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
                 ? "Labels: Voting round" : "Labels: Round created");
         labelRoundCheckbox.setState(true);
@@ -119,6 +121,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         comps = new Component[] {
             freezeCheckbox,
             simpleColorsCheckbox,
+            labelEventIDCheckbox,
             labelNGenCheckbox,
             labelRoundCheckbox,
             labelVoteCheckbox,
@@ -334,6 +337,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean writeConsensusTimeStamp() {
         return labelConsTimestampCheckbox.getState();
+    }
+
+    @Override
+    public boolean writeEventID() {
+        return labelEventIDCheckbox.getState();
     }
 
     @Override

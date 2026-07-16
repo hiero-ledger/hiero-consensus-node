@@ -274,6 +274,10 @@ public class HashgraphPicture extends JPanel {
 
         String s = "";
 
+        if (options.writeEventID()) {
+            s += " " + event.getEventInfo().getEventID();
+        }
+
         if (options.writeNGen()) {
             s += " " + event.getNGen();
         }

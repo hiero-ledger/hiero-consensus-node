@@ -41,6 +41,11 @@ public interface HashgraphPictureOptions {
     boolean writeConsensusTimeStamp();
 
     /**
+     * @return should the event ID be written for every event
+     */
+    boolean writeEventID();
+
+    /**
      * @return should the non-deterministic generation be written for every event
      */
     boolean writeNGen();

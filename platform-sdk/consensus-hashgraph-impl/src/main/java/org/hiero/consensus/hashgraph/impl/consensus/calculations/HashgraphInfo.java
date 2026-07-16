@@ -70,6 +70,7 @@ public final class HashgraphInfo {
             new RoundInfoPrev(1, false, new EventInfo[0], false, 1, 0, 0);
 
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
+    private long lastEventID = 0; //the most recent unique ID generated for an event by generateEventID()
     private boolean newRound = true; // true iff update() has never been called for the pending round
     private boolean lastUpdateUsedCoin; // true iff the last round to reach consensus used a coin round
     private long[] benchmarks = new long[NUM_BENCHMARKS]; // total nanoseconds spent in various code sections
@@ -108,6 +109,11 @@ public final class HashgraphInfo {
     private static final int BENCHMARK_LOOP8 = 10; // numNodes numNodes (in vote (final loop))
     public static final int NUM_BENCHMARKS = 1 + BENCHMARK_LOOP8; // number of elements in long[] getBenchmarks()
 
+    /** generates a new unique ID for an event each time it is called */
+    public long generateEventID() {
+        return ++lastEventID;
+    }
+
     /** true iff the last round to reach consensus used a coin round */
     public boolean isLastUpdateUsedCoin() {
         return lastUpdateUsedCoin;
@@ -134,6 +140,7 @@ public final class HashgraphInfo {
     }
 
     // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
+    public long getLastEventID() {return lastEventID;}
 
     public long getPendingRound() {
         return pendingRound;
