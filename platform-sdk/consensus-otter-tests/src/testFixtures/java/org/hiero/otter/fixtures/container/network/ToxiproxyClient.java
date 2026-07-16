@@ -20,7 +20,20 @@ import org.hiero.otter.fixtures.exceptions.NetworkControlUnavailableException;
 
 /**
  * A client for interacting with the Toxiproxy control server REST API.
- * This client allows creating, updating, and deleting proxies to simulate network conditions.
+ * This client allows creating and updating proxies to simulate network conditions.
+ *
+ * <p>Toxiproxy wraps its whole REST API in Go's {@code http.TimeoutHandler} with a 25-second limit and returns an empty
+ * {@code 503} when a request does not finish in time. This happens when a toxic update gets stuck interrupting a toxic
+ * goroutine that is wedged on a backpressured link: the update holds the proxy's {@code ToxicCollection} lock, and every
+ * later toxic- or proxy-update on that proxy then blocks on it too. The wedge cannot be cleared in place at all &ndash;
+ * even deleting the proxy can hang and, because that runs under a collection-wide lock, freeze the whole control plane.
+ * Retrying therefore does not help (each attempt simply wedges for another 25 seconds), so a {@code 5xx} is surfaced
+ * immediately as a {@link NetworkControlUnavailableException}: the caller treats that proxy as temporarily unmodifiable
+ * and skips the step, and the wedge is only truly cleared by bouncing the Toxiproxy process (done once at restore). A
+ * genuinely transient {@link IOException} (for example the control server briefly unreachable) is retried with
+ * exponential backoff, and a {@code 4xx} response signals a fixture logic bug and fails fast. The per-request timeout
+ * sits deliberately <em>above</em> Toxiproxy's internal 25-second limit so a wedge surfaces as its {@code 503} rather
+ * than as a client-side timeout that would be mistaken for a transient {@link IOException}.
  */
 public class ToxiproxyClient {
 
@@ -35,9 +48,6 @@ public class ToxiproxyClient {
 
     /** HTTP status code returned by Toxiproxy when a proxy or toxin with the same name already exists. */
     private static final int HTTP_CONFLICT = 409;
-
-    /** HTTP status code returned by Toxiproxy when the referenced proxy or toxin does not exist. */
-    private static final int HTTP_NOT_FOUND = 404;
 
     /** Timeout for establishing a TCP connection to the Toxiproxy control server. */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10L);
@@ -100,29 +110,6 @@ public class ToxiproxyClient {
     public Proxy updateProxy(@NonNull final Proxy proxy) {
         final URI uri = new UriBuilder(baseUri).path(proxy.name()).build();
         return readProxyFromResponse(send(postRequest(uri, proxy), EarlierSuccess.NOT_ACCEPTED));
-    }
-
-    /**
-     * Deletes the proxy with the specified name.
-     *
-     * <p>Deleting a proxy (Toxiproxy {@code RemoveProxy}) stops it and closes all of its open connections. Unlike a
-     * toxic or proxy <em>update</em>, it does not wait on the per-link toxic goroutines, so it returns promptly and
-     * unblocks any goroutine wedged on a backpressured link &ndash; it is the only control-plane operation that escapes
-     * the wedge described in the class documentation.
-     *
-     * <p>If the request comes back reporting the proxy is already gone ({@code 404}) <em>after</em> at least one retry,
-     * an earlier attempt actually succeeded on the server but its response was lost; this is treated as success.
-     *
-     * @param proxy the proxy to delete
-     */
-    public void deleteProxy(@NonNull final Proxy proxy) {
-        final URI uri = new UriBuilder(baseUri).path(proxy.name()).build();
-        final HttpRequest request = HttpRequest.newBuilder()
-                .uri(uri)
-                .timeout(REQUEST_TIMEOUT)
-                .DELETE()
-                .build();
-        send(request, EarlierSuccess.ACCEPTED);
     }
 
     /**
@@ -199,10 +186,9 @@ public class ToxiproxyClient {
      * {@code 4xx} response signals a fixture logic bug and fails fast.
      *
      * <p>When {@code earlierSuccess} is {@link EarlierSuccess#ACCEPTED} and a retried request comes back reporting the
-     * resource already reached its desired end state (a create already {@code 409}-exists, or a delete already
-     * {@code 404}-gone), an earlier attempt succeeded on the server but its response was lost; that response is returned
-     * so the caller can treat it as an idempotent success. The same status on the very first attempt (nothing was
-     * retried) still fails, because then the resource genuinely pre-existed or was genuinely missing.
+     * resource already exists ({@code 409}), an earlier attempt succeeded on the server but its response was lost; that
+     * response is returned so the caller can treat it as an idempotent success. A {@code 409} on the very first attempt
+     * (nothing was retried) still fails, because then the resource genuinely pre-existed.
      *
      * @param request the request to send
      * @param earlierSuccess whether a repeat reporting the work was already done should be accepted as success
@@ -222,12 +208,9 @@ public class ToxiproxyClient {
                 if (status >= 200 && status < 300) {
                     return response;
                 }
-                if (earlierSuccess == EarlierSuccess.ACCEPTED
-                        && (status == HTTP_CONFLICT || status == HTTP_NOT_FOUND)
-                        && attempt > 1) {
-                    // An earlier attempt already reached the desired end state on the server (the resource exists for a
-                    // create, or is gone for a delete) but its response was lost. Return the already-done response so
-                    // the caller can treat it as an idempotent success.
+                if (earlierSuccess == EarlierSuccess.ACCEPTED && status == HTTP_CONFLICT && attempt > 1) {
+                    // An earlier attempt succeeded on the server but its response was lost. Return the already-done
+                    // response so the caller can treat it as an idempotent success.
                     return response;
                 }
                 if (status < 500) {
@@ -236,9 +219,9 @@ public class ToxiproxyClient {
                             "Failed to process request with error code %d: %s".formatted(status, request));
                 }
                 // A 5xx (Toxiproxy's 25-second TimeoutHandler firing) means this proxy's control plane is wedged: a
-                // toxic update is stuck on a backpressured link and holds the proxy's ToxicCollection lock. The
-                // caller recovers by recreating the proxy (delete + create), which is the only operation that
-                // escapes the wedge.
+                // toxic update is stuck on a backpressured link and holds the proxy's ToxicCollection lock. Retrying
+                // only re-wedges for another 25 seconds, so surface it immediately; the caller skips the step, and the
+                // wedge is cleared only by bouncing the Toxiproxy process at restore.
                 throw new NetworkControlUnavailableException(
                         "Toxiproxy returned status %d (control plane wedged): %s".formatted(status, request));
             } catch (final IOException e) {
@@ -293,10 +276,10 @@ public class ToxiproxyClient {
     /**
      * Whether a repeat of a request that comes back reporting the work was already done should be accepted. This
      * happens when an earlier attempt succeeded on the server but its response was lost before reaching us, so the
-     * retry finds the resource already present (for a create) or already gone (for a delete).
+     * retry finds the resource already present.
      */
     private enum EarlierSuccess {
-        /** Accept it: the earlier, winning attempt was ours. Used for idempotent create- and delete-style requests. */
+        /** Accept it: the earlier, winning attempt was ours. Used for idempotent, create-style requests. */
         ACCEPTED,
         /** Do not accept it: treat every non-{@code 2xx} response as a failure. */
         NOT_ACCEPTED

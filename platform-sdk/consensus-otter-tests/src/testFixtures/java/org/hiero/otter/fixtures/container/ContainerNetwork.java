@@ -115,14 +115,12 @@ public class ContainerNetwork extends AbstractNetwork {
 
     /**
      * {@inheritDoc}
-     *
-     * <p>Restoring connectivity recreates every proxy from scratch rather than updating toxics in place, so the network
-     * is guaranteed to come back clean even if a proxy's control plane was left wedged during chaos.
      */
     @Override
     protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
         if (networkBehavior != null) {
-            networkBehavior.recreateAllProxies(connections);
+            toxiproxyContainer.restart();
+            networkBehavior.reconnect(toxiproxyContainer.getHost(), toxiproxyContainer.getControlPort(), connections);
         }
     }
 
