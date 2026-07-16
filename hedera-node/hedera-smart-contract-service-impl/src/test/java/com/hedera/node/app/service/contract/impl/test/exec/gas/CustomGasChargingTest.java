@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -109,6 +110,20 @@ class CustomGasChargingTest {
         givenWellKnownIntrinsicGasCost();
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         verifyNoInteractions(worldUpdater);
+        assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
+    }
+
+    @Test
+    void freeFeesEthCallDoesNotIncrementNonce() {
+        // TransactionProcessor is the single place that increments nonce for Ethereum txs;
+        // CustomGasCharging must not also increment it when fees are free.
+        final var context = new HederaEvmContext(
+                NETWORK_GAS_PRICE, false, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
+        givenWellKnownIntrinsicGasCost();
+        final var chargingResult =
+                subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownRelayedHapiCall(0));
+        verifyNoInteractions(worldUpdater);
+        verify(sender, never()).incrementNonce();
         assertEquals(TestHelpers.INTRINSIC_GAS, chargingResult.intrinsicGas());
     }
 

@@ -130,7 +130,6 @@ public class CustomGasCharging {
         if (transaction.isEthereumTransaction()) {
             requireNonNull(relayer);
             if (!context.shouldChargeGasFees()) {
-                sender.incrementNonce();
                 return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
             }
             final var allowanceUsed = chargeWithRelayer(sender, relayer, context, worldUpdater, transaction);
