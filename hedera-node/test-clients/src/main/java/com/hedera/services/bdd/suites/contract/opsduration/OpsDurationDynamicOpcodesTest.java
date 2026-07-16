@@ -67,11 +67,6 @@ public class OpsDurationDynamicOpcodesTest {
 
     private static CallContractOperation call(
             final String name, final BigInteger length, final ResponseCodeEnum status) {
-        return contract.call(name, length).gas(15_000_000).andAssert(e -> {
-            e.hasKnownStatus(status);
-            //                    e.exposingGasTo((code, gas) -> {
-            //                        System.out.println("!!!!!!!!!!! name:" + name + " gas:" + gas + " code:" + code);
-            //                    });
-        });
+        return contract.call(name, length).gas(15_000_000).andAssert(e -> e.hasKnownStatus(status));
     }
 }
