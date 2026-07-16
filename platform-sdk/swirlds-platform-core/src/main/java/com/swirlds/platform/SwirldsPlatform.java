@@ -22,10 +22,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.DefaultAppNotifier;
-import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
@@ -160,11 +156,6 @@ public class SwirldsPlatform implements Platform {
         if (!initialState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
         }
-
-        final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
-        final AppNotifier appNotifier = new DefaultAppNotifier(buildingBlocks.notificationEngine());
-
-        buildingBlocks.platformComponents().bind(inputs, eventWindowManager, appNotifier);
 
         final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
                 ? Cryptography.NULL_HASH
