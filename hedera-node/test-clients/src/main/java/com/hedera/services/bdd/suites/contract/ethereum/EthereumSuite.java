@@ -1399,7 +1399,7 @@ public class EthereumSuite {
                                 new byte[32])));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> ethereumTransactionRespectsMaxGasPerTransaction() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

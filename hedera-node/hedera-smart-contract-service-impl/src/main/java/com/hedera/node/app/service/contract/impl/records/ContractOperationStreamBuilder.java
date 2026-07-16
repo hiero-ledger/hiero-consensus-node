@@ -91,11 +91,17 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         requireNonNull(outcome);
         requireNonNull(context);
         requireNonNull(idFactory);
+        if (hasTraceDataSizeLimitExceeded()) {
+            return this;
+        }
         if (outcome.actions() != null) {
             // (FUTURE) Remove after switching to block stream
             addContractActions(new ContractActions(outcome.actions()), false);
             // No-op for the RecordStreamBuilder
             addActions(outcome.actions());
+            if (hasTraceDataSizeLimitExceeded()) {
+                return this;
+            }
         }
         if (outcome.hasTxStorageUsage()) {
             final var txStorageUsage = outcome.txStorageUsageOrThrow();
@@ -110,6 +116,9 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
             final boolean traceExplicitWrites = !txStorageUsage.hasChangedKeys();
             if (streamMode != RECORDS) {
                 addContractSlotUsages(requireNonNull(asPbjSlotUsages(storageAccesses, traceExplicitWrites)));
+            }
+            if (hasTraceDataSizeLimitExceeded()) {
+                return this;
             }
             if (!traceExplicitWrites) {
                 final var changedKeys = txStorageUsage.changedKeysOrThrow();
@@ -221,4 +230,27 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      */
     @NonNull
     ContractOperationStreamBuilder createdContractIds(@NonNull List<ContractID> contractIds);
+
+    /**
+     * Returns whether this builder has exceeded the configured serialized contract trace data size limit.
+     *
+     * @return whether the limit has been exceeded
+     */
+    boolean hasTraceDataSizeLimitExceeded();
+
+    /**
+     * Returns the estimated serialized size of any contract bytecode sidecars, or their block-stream equivalent.
+     *
+     * @return estimated serialized contract bytecode bytes
+     */
+    long estimatedContractBytecodeSize();
+
+    /**
+     * Ensures this builder's current trace data estimate plus the given additional bytes is within the configured
+     * trace data size limit.
+     *
+     * @param additionalBytes the additional serialized bytes to consider
+     * @return whether the combined estimate is within the configured limit
+     */
+    boolean ensureTraceDataSizeLimitWithAdditionalBytes(final long additionalBytes);
 }
