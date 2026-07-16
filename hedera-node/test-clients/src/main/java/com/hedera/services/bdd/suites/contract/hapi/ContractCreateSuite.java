@@ -243,6 +243,21 @@ public class ContractCreateSuite {
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
+    // Regression for #26402: an initial balance exceeding the payer's balance used to reach the EVM
+    // value-transfer invariant and throw IllegalArgumentException, which was caught as FAIL_INVALID and
+    // logged as a "Possibly CATASTROPHIC failure". It now fails cleanly with INSUFFICIENT_PAYER_BALANCE.
+    @HapiTest
+    final Stream<DynamicTest> contractCreateWithInitialBalanceOverPayerBalanceFailsCleanly() {
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .balance(Long.MAX_VALUE)
+                        .refusingEthConversion()
+                        .via("overBalanceCreate")
+                        .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE),
+                getTxnRecord("overBalanceCreate").logged());
+    }
+
     @HapiTest
     final Stream<DynamicTest> disallowCreationsOfEmptyInitCode() {
         final var contract = "EmptyContract";

@@ -29,6 +29,7 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
     NOT_SUPPORTED("Not supported."),
     CONTRACT_ENTITY_LIMIT_REACHED("Contract entity limit reached."),
     INVALID_FEE_SUBMITTED("Invalid fee submitted for an EVM call."),
+    INSUFFICIENT_BALANCE("Insufficient balance for value transfer"),
     INSUFFICIENT_CHILD_RECORDS("Result cannot be externalized due to insufficient child records");
 
     private final String description;
@@ -55,6 +56,7 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
         map.put(INVALID_CONTRACT_ID, ResponseCodeEnum.INVALID_CONTRACT_ID);
         map.put(INVALID_FEE_SUBMITTED, ResponseCodeEnum.INVALID_FEE_SUBMITTED);
         map.put(INSUFFICIENT_GAS, ResponseCodeEnum.INSUFFICIENT_GAS);
+        map.put(INSUFFICIENT_BALANCE, ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
         map.put(ILLEGAL_STATE_CHANGE, ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION);
         HALT_REASON_TO_STATUS = Collections.unmodifiableMap(map);
     }
