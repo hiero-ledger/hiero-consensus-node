@@ -265,7 +265,7 @@ public class ConsensusLayerFactory {
                 statusMonitorModule);
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         initializePcesModule(
-                pcesModule, platformCoordinator, latestImmutableStateNexus, statusMonitorModule, eventPipelineTracker);
+                pcesModule, platformCoordinator, latestImmutableStateNexus, statusMonitorModule, issDetectionModule, eventPipelineTracker);
 
         doStaticSetup(configuration);
 
@@ -491,6 +491,7 @@ public class ConsensusLayerFactory {
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final IssDetectionModule issDetectionModule,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
         final Supplier<PcesReplayProgress> replayProgressSupplier =
                 createPcesReplayProgressSupplier(latestImmutableStateNexus);
@@ -507,7 +508,7 @@ public class ConsensusLayerFactory {
                 replayProgressSupplier,
                 statusMonitorModule::submitStatusAction,
                 statusMonitorModule::flush,
-                platformCoordinator::signalEndOfPcesReplay,
+                issDetectionModule::signalEndOfPcesReplay,
                 eventPipelineTracker);
     }
 
