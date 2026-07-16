@@ -1203,6 +1203,55 @@ class TipsetEventCreatorTests {
     }
 
     /**
+     * When the event creator learns of a self event, it only adopts it as the latest self event if the event is
+     * actually higher in the hashgraph. Height is measured by nGen, not by sequence number: a sequence number is
+     * assigned in the order events are received and says nothing about a self event's position in the graph. This test
+     * registers a self event with a high nGen, then a second self event that is received later - and therefore has a
+     * higher, auto-assigned sequence number - but a lower nGen. The creator must keep the higher-nGen event as its self
+     * parent and ignore the later, lower-nGen one. Under the previous sequence-number comparison the later event would
+     * have wrongly replaced it.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Latest self event is chosen by nGen, not sequence number")
+    void lastSelfEventChosenByNGenNotSequenceNumber(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        // Register a self event with a high nGen. With no prior self event, it becomes the latest self event.
+        final PlatformEvent highNGenEvent = createTestEventWithParent(random, selfId, 10, ROUND_FIRST);
+        eventCreator.registerEvent(highNGenEvent);
+
+        // Register a self event created later - and therefore with a higher, auto-assigned sequence number - but with a
+        // lower nGen. Because it is lower in the graph, it must not replace the higher-nGen event.
+        final PlatformEvent lowNGenEvent = createTestEventWithParent(random, selfId, 5, ROUND_FIRST);
+        assertTrue(
+                lowNGenEvent.getSequenceNumber() > highNGenEvent.getSequenceNumber(),
+                "the later event must have a higher sequence number for this test to be meaningful");
+        eventCreator.registerEvent(lowNGenEvent);
+
+        // The new event must build on the higher-nGen self event, not the later, lower-nGen one.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(highNGenEvent.getDescriptor(), newEvent.getSelfParent());
+    }
+
+    /**
      * This test verifies that the event creator assigns the coin value correctly for a new event.
      *
      * @param random {@link RandomUtils#getRandomPrintSeed()}
