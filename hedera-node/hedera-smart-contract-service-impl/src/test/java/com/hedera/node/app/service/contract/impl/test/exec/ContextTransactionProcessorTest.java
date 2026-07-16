@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_OversizeException;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.*;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
@@ -35,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
+import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -102,6 +105,9 @@ class ContextTransactionProcessorTest {
 
     @Mock
     private ContractMetrics contractMetrics;
+
+    @Mock
+    private ContractOperationStreamBuilder streamBuilder;
 
     @Test
     void callsComponentInfraAsExpectedForValidEthTx() {
@@ -548,6 +554,80 @@ class ContextTransactionProcessorTest {
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
         verify(rootProxyWorldUpdater).commit();
         assertEquals(CONSENSUS_GAS_EXHAUSTED, outcome.status());
+    }
+
+    @Test
+    void addsInitcodeSidecarWhenFailedCreationAndStreamModeNotBlocks() {
+        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
+        final var subject = new ContextTransactionProcessor(
+                null,
+                context,
+                contractsConfig,
+                CONFIGURATION,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        givenBodyWithTxnIdWillReturnHEVM();
+        given(processor.processTransaction(
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        OpsDurationCounter.disabled()))
+                .willReturn(HALT_RESULT);
+        given(hederaEvmContext.streamBuilder()).willReturn(streamBuilder);
+
+        subject.call();
+
+        final var expectedBytecode =
+                ContractBytecode.newBuilder().initcode(HEVM_CREATION.payload()).build();
+        verify(streamBuilder).addContractBytecode(expectedBytecode, false);
+    }
+
+    @Test
+    void skipsInitcodeSidecarWhenStreamModeIsBlocks() {
+        final var blocksConfig = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+        final var contractsConfig = blocksConfig.getConfigData(ContractsConfig.class);
+        final var subject = new ContextTransactionProcessor(
+                null,
+                context,
+                contractsConfig,
+                blocksConfig,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        givenBodyWithTxnIdWillReturnHEVM();
+        given(processor.processTransaction(
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        blocksConfig,
+                        OpsDurationCounter.disabled()))
+                .willReturn(HALT_RESULT);
+
+        subject.call();
+
+        verify(hederaEvmContext, never()).streamBuilder();
     }
 
     void givenSenderAccount() {
