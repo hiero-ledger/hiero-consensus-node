@@ -292,6 +292,9 @@ BLOCK_NODE_RELEASE_TAG="${BLOCK_NODE_RELEASE_TAG:-}"
 BLOCK_NODE_IMAGE_TAG="${BLOCK_NODE_IMAGE_TAG:-}"
 BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
+# Per-node budget for the CN to self-download + extract the ~2 GB WRAPS proving key and build
+# its first proof.
+WRAPS_VERIFY_TIMEOUT_SECS="${WRAPS_VERIFY_TIMEOUT_SECS:-600}"
 # BLOCK_NODE_CUTOVER_START_BLOCK is rendered into the BN pod as both
 # BLOCK_NODE_EARLIEST_MANAGED_BLOCK (NodeConfig.earliestManagedBlock) and
 # BACKFILL_START_BLOCK (BackfillConfiguration.startBlock). Together they tell
@@ -2066,7 +2069,7 @@ run_076_upgrade() {
   node "${NODE_SCRIPT}"
 
   echo "--- Step 10 check 4/4: verify WRAPS runtime + proof construction on every consensus node ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
 
   report_wraps_download_times
   echo "--- Step 10 all checks passed ---"
@@ -2140,7 +2143,7 @@ run_077_upgrade() {
   node "${NODE_SCRIPT}"
 
   echo "--- Step 11 check 4/4: verify WRAPS runtime + real (non-mock) proof construction ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
   echo "--- Step 11 all checks passed ---"
 }
 
@@ -4175,9 +4178,10 @@ if should_run_step 1; then
       kind create cluster -n "${SOLO_CLUSTER_NAME}"
   fi
 
+  # Clear any leftover deployment from a prior aborted run BEFORE connect.
+  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
     solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
-  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   run_step "Attaching cluster to deployment" \
