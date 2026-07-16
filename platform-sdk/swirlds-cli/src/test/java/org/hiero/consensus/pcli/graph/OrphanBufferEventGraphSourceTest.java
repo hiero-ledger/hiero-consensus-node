@@ -9,12 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
-import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -35,7 +34,7 @@ class OrphanBufferEventGraphSourceTest {
 
     @BeforeEach
     void setUp() {
-        context = PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+        context = PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final Roster roster =
                 RandomRosterBuilder.create(new Random(SEED)).withSize(NUM_NODES).build();
@@ -79,11 +78,11 @@ class OrphanBufferEventGraphSourceTest {
         orphanBufferSource.forEachRemaining(allEvents::add);
         assertNotNull(allEvents);
 
-        // All orphanBuffer events should have sequence number computed (>= 0)
+        // All orphanBuffer events should have ngen computed (>= 0)
         for (final PlatformEvent event : allEvents) {
             assertTrue(
-                    event.getSequenceNumber() >= EventConstants.FIRST_SEQUENCE_NUMBER,
-                    "orphanBuffer events should have sequence number computed");
+                    event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
+                    "orphanBuffer events should have ngen computed");
         }
     }
 

@@ -27,6 +27,12 @@ message PingResponse {
   bool alive = 1;
 }
 
+// Response carrying a JVM thread dump of the consensus node process.
+message ThreadDumpResponse {
+  // The thread dump text, or a short explanatory message if a dump could not be captured.
+  string thread_dump = 1;
+}
+
 // Service definition for controlling the lifecycle of the consensus node.
 service ContainerControlService {
   // RPC to initialize the container with the node ID.
@@ -37,4 +43,7 @@ service ContainerControlService {
 
   // RPC to check if the consensus node process is alive
   rpc NodePing(google.protobuf.Empty) returns (PingResponse);
+
+  // RPC to capture a JVM thread dump of the consensus node process for diagnostics. Best-effort: never fails.
+  rpc DumpThreads(google.protobuf.Empty) returns (ThreadDumpResponse);
 }

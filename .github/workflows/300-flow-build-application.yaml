@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
@@ -115,7 +115,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
@@ -292,7 +292,7 @@ jobs:
       #   canceled            -> citr-operations (summary) + citr-failures (summary)
       - name: Notify test failure detailed (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -301,7 +301,7 @@ jobs:
 
       - name: Notify environment failure summary (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'environment' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -310,7 +310,7 @@ jobs:
 
       - name: Notify environment failure detailed (citr-failures)
         if: ${{ steps.report-category.outputs.category == 'environment' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -319,7 +319,7 @@ jobs:
 
       - name: Notify cancelled summary (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -328,7 +328,7 @@ jobs:
 
       - name: Notify cancelled summary (citr-failures)
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
