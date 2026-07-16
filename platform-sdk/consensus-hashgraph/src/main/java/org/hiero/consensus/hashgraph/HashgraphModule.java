@@ -98,14 +98,11 @@ public interface HashgraphModule {
     InputWire<PlatformStatus> platformStatusInputWire();
 
     /**
-     * Updates the internal state of the module to align with the given consensus snapshot. This happens at
-     * restart/reconnect boundaries.
+     * Inject a new consensus snapshot. This will happen at restart and reconnect boundaries.
      *
-     * @return the consensus snapshot input wire
+     * @param consensusSnapshot the new consensus snapshot
      */
-    @InputWireLabel("consensus snapshot")
-    @NonNull
-    InputWire<ConsensusSnapshot> consensusSnapshotInputWire();
+    void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot);
 
     /**
      * Begin squelching input. While squelching is active, no new tasks will be added on any input wires.

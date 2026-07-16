@@ -17,6 +17,8 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Queue;
@@ -42,6 +44,7 @@ import org.hiero.consensus.state.sentinel.DefaultSignedStateSentinel;
 import org.hiero.consensus.state.sentinel.SignedStateSentinel;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.state.signing.DefaultStateSignatureCollector;
@@ -98,7 +101,7 @@ public class StateModule {
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController) {
 
@@ -232,18 +235,6 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for hashed states for further processing
-     * (used during initialization and reconnect).
-     *
-     * @return the input wire for hashed states
-     */
-    @InputWireLabel("hashed states")
-    @NonNull
-    public InputWire<ReservedSignedState> hashedStatesInputWire() {
-        return stateDispatcher.getInputWire();
-    }
-
-    /**
      * Get the input wire for registering states in the garbage collector
      *
      * @return the input wire for registering states
@@ -340,6 +331,15 @@ public class StateModule {
     }
 
     /**
+     * Get the input wire for clearing the state module.
+     *
+     * @return the input wire for clearing the state module.
+     */
+    public InputWire<NoInput> clearInputWire() {
+        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
+    }
+
+    /**
      * Flush the {@code StateModule}.
      */
     public void flush() {
@@ -348,11 +348,16 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for clearing the state management component.
+     * Forward a state to the hash logger.
      *
-     * @return the input wire for clearing the state management component.
+     * @param signedState the state to forward
      */
-    public InputWire<NoInput> clearInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
+    public void sendState(@NonNull final SignedState signedState) {
+        final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
+
+        final boolean offerResult = stateDispatcher.getInputWire().offer(stateReservedForHasher);
+        if (!offerResult) {
+            stateReservedForHasher.close();
+        }
     }
 }
