@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl;
 
-import static com.swirlds.platform.test.fixtures.ExceptionAssertions.CAUSE;
-import static com.swirlds.platform.test.fixtures.ExceptionAssertions.CAUSE_MESSAGE;
-import static com.swirlds.platform.test.fixtures.ExceptionAssertions.MESSAGE;
-import static com.swirlds.platform.test.fixtures.ExceptionAssertions.assertExceptionContains;
-import static com.swirlds.platform.test.fixtures.ExceptionAssertions.assertExceptionSame;
+import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.CAUSE;
+import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.CAUSE_MESSAGE;
+import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.MESSAGE;
+import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.assertExceptionContains;
+import static org.hiero.base.utility.test.fixtures.assertions.ExceptionAssertions.assertExceptionSame;
 
 import java.time.Duration;
 import java.util.List;
