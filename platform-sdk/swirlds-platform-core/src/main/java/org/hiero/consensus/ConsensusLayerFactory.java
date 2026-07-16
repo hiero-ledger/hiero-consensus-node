@@ -265,7 +265,12 @@ public class ConsensusLayerFactory {
                 statusMonitorModule);
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
         initializePcesModule(
-                pcesModule, platformCoordinator, latestImmutableStateNexus, statusMonitorModule, issDetectionModule, eventPipelineTracker);
+                pcesModule,
+                platformCoordinator,
+                latestImmutableStateNexus,
+                statusMonitorModule,
+                issDetectionModule,
+                eventPipelineTracker);
 
         doStaticSetup(configuration);
 
