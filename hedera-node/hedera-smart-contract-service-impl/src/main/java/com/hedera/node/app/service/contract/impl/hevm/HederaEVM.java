@@ -8,14 +8,10 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -103,8 +99,6 @@ public class HederaEVM extends HEVM {
         enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
     }
 
-    private static Set<Integer> OPCODES = Set.of(32, 55, 57, 60, 62, 160, 161, 162, 163, 164, 240, 245, 243, 253);
-
     @Override
     @SuppressWarnings({"java:S3776", "java:S1479"})
     public void runToHalt(MessageFrame frame, OperationTracer tracing) {
@@ -186,43 +180,43 @@ public class HederaEVM extends HEVM {
                     case 87 -> JumpiOperation.staticOperation(frame);
                     case 91 -> JumpDestOperation.JUMPDEST_SUCCESS;
                     case 95 ->
-                            this.enableShanghai ? Push0Operation.staticOperation(frame) : InvalidOperation.INVALID_RESULT;
+                        this.enableShanghai ? Push0Operation.staticOperation(frame) : InvalidOperation.INVALID_RESULT;
                     case 96,
-                         97,
-                         98,
-                         99,
-                         100,
-                         101,
-                         102,
-                         103,
-                         104,
-                         105,
-                         106,
-                         107,
-                         108,
-                         109,
-                         110,
-                         111,
-                         112,
-                         113,
-                         114,
-                         115,
-                         116,
-                         117,
-                         118,
-                         119,
-                         120,
-                         121,
-                         122,
-                         123,
-                         124,
-                         125,
-                         126,
-                         127 -> PushOperation.staticOperation(frame, code, pc, opcode - 95);
+                            97,
+                            98,
+                            99,
+                            100,
+                            101,
+                            102,
+                            103,
+                            104,
+                            105,
+                            106,
+                            107,
+                            108,
+                            109,
+                            110,
+                            111,
+                            112,
+                            113,
+                            114,
+                            115,
+                            116,
+                            117,
+                            118,
+                            119,
+                            120,
+                            121,
+                            122,
+                            123,
+                            124,
+                            125,
+                            126,
+                            127 -> PushOperation.staticOperation(frame, code, pc, opcode - 95);
                     case 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 ->
-                            DupOperation.staticOperation(frame, opcode - 127);
+                        DupOperation.staticOperation(frame, opcode - 127);
                     case 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159 ->
-                            SwapOperation.staticOperation(frame, opcode - 143);
+                        SwapOperation.staticOperation(frame, opcode - 143);
                     default -> {
                         frame.setCurrentOperation(currentOperation);
                         yield currentOperation.execute(frame, this);
@@ -254,9 +248,6 @@ public class HederaEVM extends HEVM {
                             ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
                             : opCodeCost;
                     opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
-                    if (OPCODES.contains(opcode)) {
-                        System.out.printf("!!!!!!!!!!!!!! opcode:%s opCodeCost:%s gasCost:%s opsByGas:%s\n", opcode, opCodeCost, result.getGasCost(), result.getGasCost() * opsDurationMultiplier / opsDurationDenominator);
-                    }
                 }
             }
 
@@ -291,15 +282,7 @@ public class HederaEVM extends HEVM {
     // spotless:off
     private void preTrace(MessageFrame frame, int pc, int op) {
         if (_trace != null)
-            _trace.p("0x")
-                    .hex2(pc)
-                    .p(" ")
-                    .p(BonnevilleEVM.OPNAME(op))
-                    .p(" ")
-                    .hex4((int) frame.getRemainingGas())
-                    .p(" ")
-                    .hex2(frame.stackSize())
-                    .p(" -> ");
+            _trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
     }
 
     private void postTrace(MessageFrame frame) {
@@ -316,12 +299,12 @@ public class HederaEVM extends HEVM {
 
     private static String contractStr(int opcode) {
         return
-                opcode == 0xF0 ? "CREATE" :
-                        opcode == 0xF1 ? "CUSTCALL" :
-                        opcode == 0xF4 ? "DELEGATE" :
-                        opcode == 0xF5 ? "CREATE2" :
-                        opcode == 0xFA ? "STATIC" :
-                        null;
+            opcode == 0xF0 ? "CREATE"   :
+            opcode == 0xF1 ? "CUSTCALL" :
+            opcode == 0xF4 ? "DELEGATE" :
+            opcode == 0xF5 ? "CREATE2"  :
+            opcode == 0xFA ? "STATIC"   :
+            null;
     }
     // spotless:on
 }

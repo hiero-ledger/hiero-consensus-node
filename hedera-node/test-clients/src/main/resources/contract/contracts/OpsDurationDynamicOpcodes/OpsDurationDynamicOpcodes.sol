@@ -43,14 +43,12 @@ contract OpsDurationDynamicOpcodes {
     /**
      * @notice Copies `length` bytes from calldata into memory using CALLDATACOPY.
      * @param length Number of bytes to copy (capped to actual calldata size).
-     * @return result A hash of the copied region so the compiler cannot optimise it away.
      */
-    function benchCalldatacopy(uint256 length) external pure returns (bytes32 result) {
+    function benchCalldatacopy(uint256 length) external pure {
         assembly {
             let ptr := mload(0x40)
             mstore(0x40, add(ptr, length))
             calldatacopy(ptr, 0, length)
-            result := keccak256(ptr, length)
         }
     }
 
@@ -61,14 +59,12 @@ contract OpsDurationDynamicOpcodes {
     /**
      * @notice Copies `length` bytes of this contract's own bytecode into memory.
      * @param length Number of bytes to copy.
-     * @return result A hash of the copied region.
      */
-    function benchCodecopy(uint256 length) external pure returns (bytes32 result) {
+    function benchCodecopy(uint256 length) external pure {
         assembly {
             let ptr := mload(0x40)
             mstore(0x40, add(ptr, length))
             codecopy(ptr, 0, length)
-            result := keccak256(ptr, length)
         }
     }
 
@@ -79,14 +75,12 @@ contract OpsDurationDynamicOpcodes {
     /**
      * @notice Copies `length` bytes from this contract's own bytecode via EXTCODECOPY.
      * @param length Number of bytes to copy.
-     * @return result A hash of the copied region.
     */
-    function benchExtcodecopy(uint256 length) external view returns (bytes32 result) {
+    function benchExtcodecopy(uint256 length) external view {
         assembly {
             let ptr := mload(0x40)
             mstore(0x40, add(ptr, length))
             extcodecopy(address(), ptr, 0, length)
-            result := keccak256(ptr, length)
         }
     }
 
@@ -95,24 +89,31 @@ contract OpsDurationDynamicOpcodes {
     // -----------------------------------------------------------------------
 
     /**
-     * @notice Makes an external call to produce return data, then copies `length`
-     *         bytes of it via RETURNDATACOPY.
-     * @param length Number of bytes to copy from the return buffer.
-     * @return result A hash of the copied region.
+     * @notice Returns exactly `length` zero bytes — used to populate the return buffer
+     *         for RETURNDATACOPY benchmarking.
+     * @param length Number of bytes to return.
      */
-    function benchReturndatacopy(uint256 length) external view returns (bytes32 result) {
-        // Call ourselves with benchKeccak256(length) to populate the return buffer
-        bytes memory callData = abi.encodeWithSelector(this.benchKeccak256.selector, length);
+    function _returnNBytes(uint256 length) external pure {
+        assembly {
+            let ptr := mload(0x40)
+            mstore(0x40, add(ptr, length))
+            return (ptr, length)
+        }
+    }
+
+    /**
+     * @notice Makes an external call that returns `length` bytes, then copies all of it
+     *         via RETURNDATACOPY — gas scales with length.
+     * @param length Number of bytes to copy from the return buffer.
+     */
+    function benchReturndatacopy(uint256 length) external view {
+        bytes memory callData = abi.encodeWithSelector(this._returnNBytes.selector, length);
         assembly {
             let success := staticcall(gas(), address(), add(callData, 0x20), mload(callData), 0, 0)
+            // returndatasize() is now exactly `length`
             let ptr := mload(0x40)
-            let copyLen := length
-            if gt(copyLen, returndatasize()) {
-                copyLen := returndatasize()
-            }
-            mstore(0x40, add(ptr, copyLen))
-            returndatacopy(ptr, 0, copyLen)
-            result := keccak256(ptr, copyLen)
+            mstore(0x40, add(ptr, length))
+            returndatacopy(ptr, 0, length)
         }
     }
 
@@ -253,7 +254,7 @@ contract OpsDurationDynamicOpcodes {
         assembly {
             let ptr := mload(0x40)
             mstore(0x40, add(ptr, length))
-            return(ptr, length)
+            return (ptr, length)
         }
     }
 
