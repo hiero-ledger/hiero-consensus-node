@@ -1467,6 +1467,10 @@ public class BlockStreamBuilder
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
         runningHashVersion = 0L;
+        if (evmTransactionResult != null) {
+            logs = null;
+            createdContractIds = null;
+        }
     }
 
     @NonNull

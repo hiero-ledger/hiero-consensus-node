@@ -40,6 +40,7 @@ public final class WorklistRenderer {
                     .append(e.entryKey())
                     .append(" | ")
                     .append(e.status().name().toLowerCase(Locale.ROOT))
+                    .append(e.note() == null ? "" : " (" + e.note() + ")")
                     .append(" | ")
                     .append(e.lastReviewed() == null ? "—" : e.lastReviewed())
                     .append(" | ")
@@ -76,6 +77,8 @@ public final class WorklistRenderer {
             m.put("entryPath", e.entryPath());
             m.put("lastReviewed", e.lastReviewed());
             m.put("status", e.status().name().toLowerCase(Locale.ROOT));
+            m.put("note", e.note());
+            m.put("anchoredSourceCount", e.anchoredSourceCount());
             m.put("changedPaths", new ArrayList<Object>(e.changedPaths()));
             items.add(m);
         }

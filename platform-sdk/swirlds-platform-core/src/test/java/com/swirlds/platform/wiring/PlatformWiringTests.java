@@ -176,8 +176,8 @@ class PlatformWiringTests {
         notifierWiring.bind(mock(AppNotifier.class));
         platformMonitorWiring.bind(mock(PlatformMonitor.class));
 
-        coordinator.start();
+        model.start();
         assertFalse(model.checkForUnboundInputWires());
-        coordinator.stop();
+        model.stop();
     }
 }

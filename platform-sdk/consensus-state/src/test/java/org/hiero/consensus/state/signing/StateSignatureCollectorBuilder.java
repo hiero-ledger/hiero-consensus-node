@@ -2,8 +2,6 @@
 package org.hiero.consensus.state.signing;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
-import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

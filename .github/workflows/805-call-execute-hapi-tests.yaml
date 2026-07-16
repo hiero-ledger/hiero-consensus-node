@@ -119,7 +119,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -211,6 +211,10 @@ jobs:
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
+            hedera-node/yahcli/build/**/*.blk.gz
+            hedera-node/yahcli/build/**/*.rcd.gz
+            hedera-node/yahcli/build/**/*.pb
+            hedera-node/yahcli/build/**/*.pces
             hedera-node/yahcli/build/reports/tests/testSubprocess/**
             hedera-node/yahcli/build/hapi-test/**/output/**
             hedera-node/yahcli/build/hapi-test/**/*.log
@@ -237,7 +241,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -341,7 +345,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -443,7 +447,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -545,7 +549,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -646,7 +650,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -730,7 +734,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -812,7 +816,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -913,7 +917,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -995,14 +999,14 @@ jobs:
     # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
     # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
     runs-on: hl-cn-hapi-wraps-lin-lg
-    # Genesis + incremental WRAPS proof construction is slow by design; each of the
-    # three subtasks also spins up its own 4-node subprocess network
+    # Genesis + incremental WRAPS proof construction is slow by design; each subtask
+    # also spins up its own subprocess network
     timeout-minutes: 120
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -1023,24 +1027,9 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
-        run: |
-          status=0
-          run_subtask() {
-            local t=$1
-            echo "::group::${t}"
-            if ${GRADLE_EXEC} "${t}" --no-daemon; then
-              echo "::endgroup::"
-              return 0
-            fi
-            echo "::endgroup::"
-            status=1
-            echo "::error::${t} failed"
-            echo "❌ ${t} FAILED — expand group above for details"
-          }
-          run_subtask hapiTestWraps
-          run_subtask hapiTestCutover
-          run_subtask hapiTestWrapsDownload
-          exit "${status}"
+          # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
+          HAPI_TEST_NODE_POOL_MIB: "12288"
+        run: ${GRADLE_EXEC} hapiTestWraps --no-daemon
 
       - name: Publish HAPI Test (Wraps) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
@@ -1098,6 +1087,115 @@ jobs:
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
 
+  hapi-tests-cutover:
+    name: "HAPI Tests (Cutover & Wraps Download)"
+    if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
+    # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
+    # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
+    runs-on: hl-cn-hapi-wraps-lin-lg
+    # The upgrade boundary that enables TSS constructs a genesis WRAPS proof
+    timeout-minutes: 60
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: HAPI Testing (Cutover & Wraps Download)
+        id: gradle-hapi-cutover
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+          TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
+          # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
+          HAPI_TEST_NODE_POOL_MIB: "12288"
+        run: |
+          status=0
+          run_subtask() {
+            local t=$1
+            echo "::group::${t}"
+            if ${GRADLE_EXEC} "${t}" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::${t} failed"
+            echo "❌ ${t} FAILED — expand group above for details"
+          }
+          run_subtask hapiTestCutover
+          run_subtask hapiTestWrapsDownload
+          exit "${status}"
+
+      - name: Publish HAPI Test (Cutover) Reports
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        with:
+          check_name: "Node: HAPI Test (Cutover) Results"
+          json_thousands_separator: ","
+          junit_files: |
+            **/test-clients/build/test-results/**/TEST-*.xml
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Cutover) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: HAPI Test (Cutover) Reports
+          path: |
+            **/test-clients/build/test-results/**/TEST-*.xml
+          retention-days: 7
+
+      - name: Upload HAPI Test (Cutover) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-cutover.conclusion == 'failure' }}
+        with:
+          name: HAPI Test (Cutover) Network Logs
+          path: |
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Cutover) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && steps.gradle-hapi-cutover.conclusion == 'failure' }}
+        with:
+          name: HAPI Test (Cutover) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
+            hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-cutover.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-cutover.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-cutover.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
@@ -1112,13 +1210,14 @@ jobs:
       - hapi-tests-bn-comms
       - hapi-tests-state-throttling
       - hapi-tests-wraps
+      - hapi-tests-cutover
     if: ${{ always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -1137,6 +1236,7 @@ jobs:
             ${{ needs.hapi-tests-bn-comms.result }}
             ${{ needs.hapi-tests-state-throttling.result }}
             ${{ needs.hapi-tests-wraps.result }}
+            ${{ needs.hapi-tests-cutover.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-misc-records-crypto-and-serial.outputs.failure-mode || 'none' }}
@@ -1148,6 +1248,7 @@ jobs:
             ${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}
             ${{ needs.hapi-tests-wraps.outputs.failure-mode || 'none' }}
+            ${{ needs.hapi-tests-cutover.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             hapi-tests-misc
             hapi-tests-misc-records-crypto-and-serial
@@ -1159,4 +1260,5 @@ jobs:
             hapi-tests-bn-comms
             hapi-tests-state-throttling
             hapi-tests-wraps
+            hapi-tests-cutover
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
