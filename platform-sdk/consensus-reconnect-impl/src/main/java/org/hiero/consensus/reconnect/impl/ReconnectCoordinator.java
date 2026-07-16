@@ -51,7 +51,7 @@ public class ReconnectCoordinator {
      * @see StatusStateMachine#submitStatusAction
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        platformCoordinator.submitStatusAction(action);
+        components.statusMonitorModule().submitStatusAction(action);
     }
 
     /**
@@ -66,7 +66,7 @@ public class ReconnectCoordinator {
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        components.platformMonitorWiring().flush();
+        components.statusMonitorModule().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when

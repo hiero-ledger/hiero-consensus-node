@@ -14,6 +14,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -397,5 +398,21 @@ public class ConsensusNoOpModules {
                 selfId,
                 fallenBehindMonitor);
         return reconnectModule;
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link StatusMonitorModule}.
+     *
+     * @param model the {@link WiringModel}
+     * @param configuration the {@link Configuration}
+     * @return the no-op {@link StatusMonitorModule}
+     */
+    public static StatusMonitorModule createNoOpStatusMonitorModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+
+        return new StatusMonitorModule(model, configuration, metrics, time, selfId);
     }
 }

@@ -350,7 +350,7 @@ public final class PlatformBuilder {
             final SwirldsPlatform platform =
                     new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
             // Future work - capture the reconnect module, add a start() method to it, and call it later
-            factory.createReconnectModule(
+            factory.setupReconnectModule(
                     platform,
                     factoryOutput.platformCoordinator(),
                     buildingBlocks.platformComponents(),
