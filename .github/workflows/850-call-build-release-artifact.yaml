@@ -243,7 +243,7 @@ jobs:
       - validate
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@v1.3.0 # TODO: pin to the v1.3.0 release commit SHA once it is cut
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           egress-policy: audit
           setup-deterministic-zip: "true"
