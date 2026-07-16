@@ -9,12 +9,14 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
+import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * A test that runs chaos experiments on a network of nodes.
  */
 class ChaosTest {
 
+    @RepeatedTest(5)
     @OtterTest(requires = Capability.RECONNECT)
     void chaosTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
