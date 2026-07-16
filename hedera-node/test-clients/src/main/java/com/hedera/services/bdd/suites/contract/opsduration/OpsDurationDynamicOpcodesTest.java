@@ -17,12 +17,10 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.CallContractOperation;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -31,8 +29,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class OpsDurationDynamicOpcodesTest {
 
-    record TestInput(String name, BigInteger length, ResponseCodeEnum status) {
-    }
+    record TestInput(String name, BigInteger length, ResponseCodeEnum status) {}
 
     private static final TestInput[] OPS_DURATION_BENCHMARK_DYNAMIC_FUNCTIONS = {
         new TestInput("benchKeccak256", BigInteger.valueOf(1048576), SUCCESS),
@@ -46,7 +43,7 @@ public class OpsDurationDynamicOpcodesTest {
         new TestInput("benchLog3", BigInteger.valueOf(1048576), SUCCESS),
         new TestInput("benchLog4", BigInteger.valueOf(1048576), SUCCESS),
         new TestInput("benchCreate", BigInteger.valueOf(1048576), SUCCESS),
-            new TestInput("benchCreate2", BigInteger.valueOf(1048576), SUCCESS),
+        new TestInput("benchCreate2", BigInteger.valueOf(1048576), SUCCESS),
         new TestInput("benchReturn", BigInteger.valueOf(1048576), SUCCESS),
         new TestInput("benchRevert", BigInteger.valueOf(1048576), CONTRACT_REVERT_EXECUTED)
     };
@@ -57,8 +54,7 @@ public class OpsDurationDynamicOpcodesTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // config override for benchCreate and benchCreate2 tests to allow bigger create init code
-        testLifecycle.overrideInClass(Map.of(
-                "contracts.maxInitcodeSize", "1048576"));
+        testLifecycle.overrideInClass(Map.of("contracts.maxInitcodeSize", "1048576"));
     }
 
     @LeakyHapiTest
