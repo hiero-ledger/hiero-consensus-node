@@ -128,12 +128,6 @@ on:
       gradle-cache-password:
         description: "Gradle Cache Password"
         required: false
-      grafana-agent-username:
-        description: "Grafana Agent Username"
-        required: false
-      grafana-agent-password:
-        description: "Grafana Agent Password"
-        required: false
       jrs-ssh-user-name:
         description: "JRS SSH User Name"
         required: false
@@ -319,8 +313,6 @@ jobs:
       slack-api-token: ${{ secrets.slack-api-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
