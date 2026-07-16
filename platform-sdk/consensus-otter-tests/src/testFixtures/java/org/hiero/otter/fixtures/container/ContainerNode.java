@@ -66,6 +66,7 @@ import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyncPoint;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
+import org.hiero.otter.fixtures.container.proto.ThreadDumpResponse;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.container.utils.ContainerConstants;
@@ -414,6 +415,26 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         }
         return response.getAlive();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The dump is produced by the container's control process attaching to the (separate) consensus node process,
+     * so it can capture a node whose own threads are wedged. Best-effort: returns a short explanatory message instead
+     * of throwing if the dump cannot be captured.
+     */
+    @Override
+    @NonNull
+    public String dumpThreads() {
+        try {
+            final ThreadDumpResponse response = containerControlBlockingStub
+                    .withDeadlineAfter(Duration.ofSeconds(40))
+                    .dumpThreads(Empty.newBuilder().build());
+            return response.getThreadDump();
+        } catch (final StatusRuntimeException e) {
+            return "(thread dump RPC failed for node " + selfId + ": " + e.getStatus() + ")";
+        }
     }
 
     /**

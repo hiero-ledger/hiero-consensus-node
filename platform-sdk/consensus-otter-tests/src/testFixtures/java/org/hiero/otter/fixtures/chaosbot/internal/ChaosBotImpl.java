@@ -24,6 +24,7 @@ import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 import org.hiero.otter.fixtures.chaosbot.Experiment;
 import org.hiero.otter.fixtures.chaosbot.Experiment.Step;
 import org.hiero.otter.fixtures.exceptions.NetworkControlUnavailableException;
+import org.hiero.otter.fixtures.exceptions.TimeoutException;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
@@ -140,24 +141,68 @@ public class ChaosBotImpl implements ChaosBot {
                 }
             }
 
-            // Wait until all nodes are active again.
-            timeManager.waitForCondition(
-                    network::allNodesAreActive,
-                    Duration.ofMinutes(5L),
-                    "Not all nodes became active again after chaos bot finished");
-
-            // Check that all nodes make progress
-            for (final Node node : network.nodes()) {
-                final SingleNodeConsensusResult consensusResult = node.newConsensusResult();
-                final long currentRound = consensusResult.lastRoundNum();
+            // Wait until all nodes are active again
+            try {
                 timeManager.waitForCondition(
-                        () -> consensusResult.lastRoundNum() > currentRound,
-                        Duration.ofSeconds(30L),
-                        "Node " + node.selfId() + " did not make progress after chaos bot finished");
+                        network::allNodesAreActive,
+                        Duration.ofMinutes(5L),
+                        "Not all nodes became active again after chaos bot finished");
+
+                // Check that all nodes make progress
+                for (final Node node : network.nodes()) {
+                    final SingleNodeConsensusResult consensusResult = node.newConsensusResult();
+                    final long currentRound = consensusResult.lastRoundNum();
+                    timeManager.waitForCondition(
+                            () -> consensusResult.lastRoundNum() > currentRound,
+                            Duration.ofSeconds(30L),
+                            "Node " + node.selfId() + " did not make progress after chaos bot finished");
+                }
+            } catch (final TimeoutException e) {
+                dumpStuckNodes(network);
+                throw e;
             }
         } finally {
             RUNNING.set(false);
         }
+    }
+
+    /**
+     * Logs a JVM thread dump of every node that has not reached {@code ACTIVE}, to help diagnose why a node failed to
+     * recover after chaos. If all nodes report {@code ACTIVE} (for example, a node was active but not making progress),
+     * every node is dumped instead. This is diagnostic only and never changes the outcome of the test.
+     *
+     * @param network the network whose nodes should be inspected
+     */
+    private static void dumpStuckNodes(@NonNull final Network network) {
+        boolean anyNonActive = false;
+        for (final Node node : network.nodes()) {
+            if (!node.isActive()) {
+                anyNonActive = true;
+                logThreadDump(node);
+            }
+        }
+        if (!anyNonActive) {
+            log.error("All nodes report ACTIVE, yet recovery still failed; dumping every node.");
+            for (final Node node : network.nodes()) {
+                logThreadDump(node);
+            }
+        }
+    }
+
+    /**
+     * Captures and logs a JVM thread dump of a single node.
+     *
+     * @param node the node to dump
+     */
+    private static void logThreadDump(@NonNull final Node node) {
+        log.error(
+                "Recovery diagnostic — node {} did not recover (status {}):\n"
+                        + "===== THREAD DUMP node {} =====\n{}\n===== END THREAD DUMP node {} =====",
+                node.selfId(),
+                node.platformStatus(),
+                node.selfId(),
+                node.dumpThreads(),
+                node.selfId());
     }
 
     /*
