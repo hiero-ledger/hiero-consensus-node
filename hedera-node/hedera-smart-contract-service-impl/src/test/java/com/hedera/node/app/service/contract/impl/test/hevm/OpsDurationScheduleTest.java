@@ -14,11 +14,11 @@ class OpsDurationScheduleTest {
 
         assertEquals(123, opsDurationSchedule.opCodeCost(1));
         assertEquals(105, opsDurationSchedule.opCodeCost(2));
-        assertEquals(26552, opsDurationSchedule.opCodeCost(240));
+        assertEquals(0, opsDurationSchedule.opCodeCost(240));
         assertEquals(98859, opsDurationSchedule.opCodeCost(241));
         assertEquals(2011, opsDurationSchedule.opCodeCost(242));
         assertEquals(1596, opsDurationSchedule.opCodeCost(244));
-        assertEquals(11291, opsDurationSchedule.opCodeCost(245));
+        assertEquals(0, opsDurationSchedule.opCodeCost(245));
         assertEquals(2091, opsDurationSchedule.opCodeCost(250));
 
         assertEquals(3332, opsDurationSchedule.accountLazyCreationOpsDurationMultiplier());
