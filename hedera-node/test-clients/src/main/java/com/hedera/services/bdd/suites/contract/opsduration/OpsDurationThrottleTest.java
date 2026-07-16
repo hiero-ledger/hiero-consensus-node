@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.*;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -41,9 +42,13 @@ public class OpsDurationThrottleTest {
     private static final long DEFAULT_OPS_DURATION_CAPACITY = 10_000_000;
 
     public static SpecOperation enableDefaultOpsDurationThrottleNoRefill() {
+        return enableDefaultOpsDurationThrottleNoRefill(DEFAULT_OPS_DURATION_CAPACITY);
+    }
+
+    public static SpecOperation enableDefaultOpsDurationThrottleNoRefill(long opsDurationCapacity) {
         return overridingAllOf(Map.of(
                 THROTTLE_THROTTLE_BY_OPS_DURATION, Boolean.toString(true),
-                OPS_DURATION_THROTTLE_CAPACITY, Long.toString(DEFAULT_OPS_DURATION_CAPACITY),
+                OPS_DURATION_THROTTLE_CAPACITY, Long.toString(opsDurationCapacity),
                 OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND, Long.toString(0)));
     }
 
@@ -59,7 +64,7 @@ public class OpsDurationThrottleTest {
                 restoreDefault(OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(1)
     @DisplayName("ops duration throttle can overfill but does not exceed a reasonable threshold")
     public Stream<DynamicTest> overfillOpsDuration() {
@@ -87,7 +92,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(2)
     @DisplayName("call function to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedOpsDuration() {
@@ -107,7 +112,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(3)
     @DisplayName("call system contract to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedDurationThrottleWithSystemContract() {
@@ -157,7 +162,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(4)
     @DisplayName("call system contract that won't exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedDurationThrottleWithSystemContract() {
@@ -204,7 +209,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(5)
     @DisplayName("call create opcode to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCode() {
@@ -232,7 +237,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(6)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedThrottleWithOpCode() {
@@ -257,7 +262,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(7)
     @DisplayName("call create opcode with expected revert to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCodeReverts() {
@@ -285,7 +290,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(8)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedThrottleWithOpCodeReverts() {
@@ -311,7 +316,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(9)
     @DisplayName("call create opcode with expected halt to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCodeHalts() {
@@ -339,7 +344,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(10)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedThrottleWithOpCodeHalts() {
@@ -365,7 +370,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(11)
     @DisplayName("call nested function to exceed ops duration throttle")
     public Stream<DynamicTest> nestedExceedOpsDuration() {
@@ -394,7 +399,7 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest
     @Order(11)
     @DisplayName("account creation consumes ops duration")
     public Stream<DynamicTest> accountCreationConsumesOpsDuration() {

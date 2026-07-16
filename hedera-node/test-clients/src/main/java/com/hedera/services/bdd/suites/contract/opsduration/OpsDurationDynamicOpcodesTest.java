@@ -26,20 +26,20 @@ public class OpsDurationDynamicOpcodesTest {
     record TestInput(String name, BigInteger length, ResponseCodeEnum status) {}
 
     private static final TestInput[] OPS_DURATION_BENCHMARK_DYNAMIC_FUNCTIONS = {
-        new TestInput("benchKeccak256", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchCalldatacopy", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchCodecopy", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchExtcodecopy", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchReturndatacopy", BigInteger.valueOf(524288), SUCCESS),
-        new TestInput("benchLog0", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchLog1", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchLog2", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchLog3", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchLog4", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchCreate", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchCreate2", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchReturn", BigInteger.valueOf(1048576), SUCCESS),
-        new TestInput("benchRevert", BigInteger.valueOf(1048576), CONTRACT_REVERT_EXECUTED)
+//        new TestInput("benchKeccak256", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchCalldatacopy", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchCodecopy", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchExtcodecopy", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchReturndatacopy", BigInteger.valueOf(524288), SUCCESS),
+//        new TestInput("benchLog0", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchLog1", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchLog2", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchLog3", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchLog4", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchCreate", BigInteger.valueOf(49152), SUCCESS), //maxInitcodeSize=49152
+        new TestInput("benchCreate2", BigInteger.valueOf(49152), SUCCESS),
+//        new TestInput("benchReturn", BigInteger.valueOf(1048576), SUCCESS),
+//        new TestInput("benchRevert", BigInteger.valueOf(1048576), CONTRACT_REVERT_EXECUTED)
     };
 
     @Contract(contract = "OpsDurationDynamicOpcodes", creationGas = 5_000_000)

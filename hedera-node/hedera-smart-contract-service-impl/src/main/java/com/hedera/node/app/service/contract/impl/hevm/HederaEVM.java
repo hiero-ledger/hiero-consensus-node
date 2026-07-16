@@ -248,6 +248,9 @@ public class HederaEVM extends HEVM {
                             ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
                             : opCodeCost;
                     opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
+                    if (opcode == 240 || opcode == 245) {
+                        System.out.println("!!!!!!!!!!!! opcode: " + opcode + " opsDurationUnitsCost: " + opsDurationUnitsCost);
+                    }
                 }
             }
 
