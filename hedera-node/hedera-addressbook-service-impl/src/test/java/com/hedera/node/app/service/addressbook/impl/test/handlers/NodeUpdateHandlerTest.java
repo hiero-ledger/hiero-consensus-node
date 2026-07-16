@@ -65,7 +65,10 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateExpiredException;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeAll;
@@ -100,6 +103,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     private final AccountID newAccountId = idFactory.newAccountId(53);
     private TransactionBody txn;
     private NodeUpdateHandler subject;
+    private static final Instant VALID_CERT_TIME = Instant.parse("2010-01-01T00:00:00Z");
     private static List<X509Certificate> certList;
 
     @BeforeAll
@@ -175,8 +179,39 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    @DisplayName("pureChecks fail when gossipCaCertificate cannot be parsed")
+    void pureChecksFailsWhenGossipCaCertificateCannotBeParsed() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1)
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
+    }
+
+    @Test
+    void pureChecksDoesNotValidateGossipCaCertificateExpiration() throws CertificateEncodingException {
+        final var cert = certList.getFirst();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1)
+                .withGossipCaCertificate(Bytes.wrap(cert.getEncoded()))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var afterCertificateExpiry =
+                Date.from(cert.getNotAfter().toInstant().plusSeconds(1));
+        assertThrows(CertificateExpiredException.class, () -> cert.checkValidity(afterCertificateExpiry));
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
     void nodeIdMustInState() {
-        txn = new NodeUpdateBuilder().withNodeId(2L).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(2L)
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .build();
         given(handleContext.body()).willReturn(txn);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
@@ -188,6 +223,33 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenGossipCaCertificateExpiredAtConsensusTime() throws CertificateEncodingException {
+        final var cert = certList.getFirst();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withGossipCaCertificate(Bytes.wrap(cert.getEncoded()))
+                .build();
+        setupMinimalHandle();
+        given(handleContext.consensusNow())
+                .willReturn(cert.getNotAfter().toInstant().plusSeconds(1));
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenGossipCaCertificateIsInvalid() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .build();
+        setupMinimalHandle();
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
     }
 
     @Test
@@ -1036,6 +1098,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     private void setupMinimalHandle() {
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .getOrCreateConfig();
