@@ -84,9 +84,10 @@ The Gradle tasks are curated run configurations. For example,
 Use the JMH JAR include patterns, or adjust the Gradle task configuration, to
 run `CryptoBench.transferSerial` or `CryptoBench.transferParallel`.
 
-These tasks keep normal JMH forking enabled and pass `-Xmx16g` to the forked
-benchmark JVM. Their JMH result files are written under this module's
-`build/results/jmh` directory.
+These tasks keep normal JMH forking enabled. The crypto and virtual-map tasks pass
+`-Xmx16g`; `jmhReconnect` uses the calibrated heap documented in
+[docs/ReconnectBench.md](docs/ReconnectBench.md). Their JMH result files are
+written under this module's `build/results/jmh` directory.
 
 ## Run from an IDE
 
@@ -118,8 +119,10 @@ worker process.
 Build the JMH uber JAR from the repository root:
 
 ```shell
-./gradlew :swirlds-benchmarks:jmhJar
+./gradlew :swirlds-benchmarks:jmhJarWithMergedServiceFiles
 ```
+
+Use the merged-services artifact so configuration extensions remain discoverable inside the uber JAR.
 
 Then run it from this module directory so `settings.txt` and relative output
 paths are resolved correctly. Pass a JMH include pattern to choose the
@@ -127,10 +130,10 @@ benchmark:
 
 ```shell
 cd platform-sdk/swirlds-benchmarks
-java -jar build/libs/*-jmh.jar CryptoBench.transferSerial
-java -jar build/libs/*-jmh.jar CryptoBench.transferParallel
-java -jar build/libs/*-jmh.jar VirtualMapReadBench.read
-java -jar build/libs/*-jmh.jar ReconnectBench
+java -jar build/libs/*-jmh-merged.jar CryptoBench.transferSerial
+java -jar build/libs/*-jmh-merged.jar CryptoBench.transferParallel
+java -jar build/libs/*-jmh-merged.jar VirtualMapReadBench.read
+java -jar build/libs/*-jmh-merged.jar ReconnectBench
 ```
 
 The JMH JAR uses JMH CLI behavior. By default this is closer to the Gradle

@@ -11,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -74,7 +75,7 @@ public class MerkleBenchmarkUtils {
                 workGroup.join();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw new MerkleSynchronizationException("Reconnect benchmark was interrupted", e);
             }
 
             // Live-W readout: what the kernel actually granted per pacing window (autotuning included).
@@ -94,6 +95,7 @@ public class MerkleBenchmarkUtils {
             teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Teacher synchronization was interrupted", ex);
         }
     }
 
@@ -107,6 +109,7 @@ public class MerkleBenchmarkUtils {
                     startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Learner synchronization was interrupted", e);
         }
     }
 }

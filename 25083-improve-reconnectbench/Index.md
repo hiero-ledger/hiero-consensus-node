@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-07-08
+Last updated: 2026-07-15
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 
@@ -9,8 +9,7 @@ Last updated: 2026-07-08
 ## Root-Level Task State
 
 - [Current Status And Next Steps](current-status-and-next-steps.md) - Temporary task-state note kept outside the durable documentation buckets.
-- [ReconnectBench Current Work](future-work/current-work.md) - Concise task list for current ReconnectBench cleanup and main-readiness work.
-- [ReconnectBench Future Follow-Ups](future-work/future-follow-ups.md) - Deferred follow-up issues and items explicitly not worth re-opening without new evidence.
+- [ReconnectBench GitHub Issues](future-work/tasks.md) - Consolidated GitHub issue tasks for remaining ReconnectBench work.
 
 ## Design And Implementation
 

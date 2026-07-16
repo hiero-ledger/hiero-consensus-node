@@ -37,7 +37,6 @@ jmhModuleInfo {
     requires("com.swirlds.merkledb")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
-    requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
@@ -57,6 +56,7 @@ testModuleInfo {
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.metrics.api")
+    requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.consensus.gossip")
     requires("org.hiero.consensus.gossip.impl")
     requires("org.junit.jupiter.api")
@@ -72,14 +72,19 @@ fun jmhParamProperty(name: String, defaultValue: String) =
 fun JMHTask.configureReconnectJvmArgs() {
     val gcLog = layout.buildDirectory.file("reconnectbench-gc.log").get().asFile
     gcLog.parentFile.mkdirs()
-    jvmArgs.set(
-        listOf(
+    val minHeap = providers.gradleProperty("reconnectMinHeap").orElse("24g").get()
+    val maxHeap = providers.gradleProperty("reconnectMaxHeap").orElse("24g").get()
+    val jvmArguments =
+        mutableListOf(
             gossipConnectivityExport,
-            "-Xms2g",
-            "-Xmx8g",
+            "-Xms$minHeap",
+            "-Xmx$maxHeap",
             "-Xlog:gc*:file=${gcLog.absolutePath}:time,uptime,level,tags",
         )
-    )
+    if (providers.gradleProperty("reconnectAlwaysPreTouch").orElse("true").get().toBoolean()) {
+        jvmArguments.add("-XX:+AlwaysPreTouch")
+    }
+    jvmArgs.set(jvmArguments)
 }
 
 fun JMHTask.configureReconnectParameters() {
@@ -96,7 +101,7 @@ fun JMHTask.configureReconnectParameters() {
     benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
     benchmarkParameters.put(
         "teacherAddProbability",
-        jmhParamProperty("teacherAddProbability", "0.1"),
+        jmhParamProperty("teacherAddProbability", "0.09"),
     )
     benchmarkParameters.put(
         "teacherRemoveProbability",
@@ -104,10 +109,10 @@ fun JMHTask.configureReconnectParameters() {
     )
     benchmarkParameters.put(
         "teacherModifyProbability",
-        jmhParamProperty("teacherModifyProbability", "0.3"),
+        jmhParamProperty("teacherModifyProbability", "0.40"),
     )
-    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "10"))
-    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100"))
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "7500"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
     benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
     benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
     benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
@@ -141,6 +146,7 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
+// Defaults match the large-state cluster-calibration profile documented in docs/ReconnectBench.md.
 tasks.register<JMHTask>("jmhReconnect") {
     configureReconnectJvmArgs()
     configureReconnectParameters()

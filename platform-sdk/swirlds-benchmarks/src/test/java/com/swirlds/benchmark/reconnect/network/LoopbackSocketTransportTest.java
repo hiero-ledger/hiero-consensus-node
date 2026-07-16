@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -36,6 +37,25 @@ class LoopbackSocketTransportTest {
     private static SocketNetworkConfig realisticConfig(
             final long latencyMicroseconds, final long bandwidthMegabitsPerSecond) {
         return SocketNetworkConfig.resolve(NetworkProfile.REALISTIC, latencyMicroseconds, bandwidthMegabitsPerSecond);
+    }
+
+    @Test
+    void matchesVirtualMapPairedStreamsDirectionContract() throws Exception {
+        try (PairedStreams streams = new PairedStreams()) {
+            assertBidirectionalStreamContract(
+                    streams.getTeacherInput(),
+                    streams.getTeacherOutput(),
+                    streams.getLearnerInput(),
+                    streams.getLearnerOutput());
+        }
+
+        try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration())) {
+            assertBidirectionalStreamContract(
+                    transport.getTeacherInput(),
+                    transport.getTeacherOutput(),
+                    transport.getLearnerInput(),
+                    transport.getLearnerOutput());
+        }
     }
 
     @Test
@@ -214,5 +234,20 @@ class LoopbackSocketTransportTest {
                 new LoopbackSocketTransport(realisticConfig(1_000, 1_000), configuration())) {
             assertTrue(transport.pacingSummary().isPresent(), "REALISTIC profile must expose pacing readouts");
         }
+    }
+
+    private static void assertBidirectionalStreamContract(
+            final DataInputStream teacherInput,
+            final DataOutputStream teacherOutput,
+            final DataInputStream learnerInput,
+            final DataOutputStream learnerOutput)
+            throws IOException {
+        teacherOutput.writeInt(1234);
+        teacherOutput.flush();
+        assertEquals(1234, learnerInput.readInt());
+
+        learnerOutput.writeLong(5678L);
+        learnerOutput.flush();
+        assertEquals(5678L, teacherInput.readLong());
     }
 }

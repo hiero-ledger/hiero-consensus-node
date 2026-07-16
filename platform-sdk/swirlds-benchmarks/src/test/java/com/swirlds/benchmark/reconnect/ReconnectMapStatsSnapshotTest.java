@@ -2,52 +2,68 @@
 package com.swirlds.benchmark.reconnect;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
+import com.swirlds.metrics.api.MetricType;
 import com.swirlds.metrics.api.Metrics;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ReconnectMapStatsSnapshotTest {
 
     @Test
-    void snapshotsGaugeValuesFromReconnectMapMetricsNames() {
+    void snapshotsTheCurrentReconnectMetricSetWithoutRetiredCounters() {
         final ReconnectMapStatsSnapshot stats = ReconnectMapStatsSnapshot.from(new MapBackedMetrics(Map.of(
                 "transfersFromTeacherTotal", 11L,
                 "transfersFromLearnerTotal", 12L,
                 "internalHashesTotal", 13L,
                 "internalCleanHashesTotal", 14L,
-                "internalDataTotal", 15L,
-                "internalCleanDataTotal", 16L,
-                "leafHashesTotal", 17L,
-                "leafCleanHashesTotal", 18L,
-                "leafDataTotal", 19L,
-                "leafCleanDataTotal", 20L)));
+                "leafDataTotal", 15L,
+                "leafCleanDataTotal", 16L)));
 
-        assertEquals(11L, stats.transfersFromTeacher());
-        assertEquals(12L, stats.transfersFromLearner());
-        assertEquals(13L, stats.internalHashes());
-        assertEquals(14L, stats.internalCleanHashes());
-        assertEquals(15L, stats.internalData());
-        assertEquals(16L, stats.internalCleanData());
-        assertEquals(17L, stats.leafHashes());
-        assertEquals(18L, stats.leafCleanHashes());
-        assertEquals(19L, stats.leafData());
-        assertEquals(20L, stats.leafCleanData());
+        assertEquals(
+                Map.of(
+                        "transfersFromTeacherTotal", 11L,
+                        "transfersFromLearnerTotal", 12L,
+                        "internalHashesTotal", 13L,
+                        "internalCleanHashesTotal", 14L,
+                        "leafDataTotal", 15L,
+                        "leafCleanDataTotal", 16L),
+                stats.values());
+    }
+
+    @Test
+    void snapshotsEveryRegisteredNumericReconnectMetric() {
+        final ReconnectMapStatsSnapshot stats = ReconnectMapStatsSnapshot.from(new MapBackedMetrics(Map.of(
+                "transfersFromTeacherTotal", 11L,
+                "transfersFromLearnerTotal", 12L,
+                "internalHashesTotal", 13L,
+                "internalCleanHashesTotal", 14L,
+                "leafDataTotal", 15L,
+                "leafCleanDataTotal", 16L,
+                "futureReconnectCounter", 17L)));
+
+        assertEquals(17L, stats.values().get("futureReconnectCounter"));
     }
 
     @Test
     void formatsAllCountersForBenchmarkLogs() {
-        final ReconnectMapStatsSnapshot stats =
-                new ReconnectMapStatsSnapshot(11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L);
+        final ReconnectMapStatsSnapshot stats = new ReconnectMapStatsSnapshot(Map.of("zCounter", 2L, "aCounter", 1L));
 
-        assertEquals(
-                "ReconnectMapStatsSnapshot: transfersFromTeacher=11; transfersFromLearner=12; "
-                        + "internalHashes=13; internalCleanHashes=14; internalData=15; internalCleanData=16; "
-                        + "leafHashes=17; leafCleanHashes=18; leafData=19; leafCleanData=20",
-                stats.format());
+        assertEquals("ReconnectMapStatsSnapshot: aCounter=1; zCounter=2", stats.format());
+    }
+
+    @Test
+    void rejectsNonNumericReconnectMetrics() {
+        final IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> ReconnectMapStatsSnapshot.from(new MapBackedMetrics(Map.of("unexpectedText", "not numeric"))));
+
+        assertEquals("Non-numeric reconnect metric reconnect_vmap.unexpectedText", exception.getMessage());
     }
 
     private record MapBackedMetrics(Map<String, Object> values) implements Metrics {
@@ -60,17 +76,22 @@ class ReconnectMapStatsSnapshotTest {
 
         @Override
         public Metric getMetric(final String category, final String name) {
-            return null;
+            final Object value = values.get(name);
+            return "reconnect_vmap".equals(category) && value != null ? new TestMetric(name, value) : null;
         }
 
         @Override
         public Collection<Metric> findMetricsByCategory(final String category) {
-            return java.util.List.of();
+            return "reconnect_vmap".equals(category)
+                    ? values.entrySet().stream()
+                            .map(entry -> (Metric) new TestMetric(entry.getKey(), entry.getValue()))
+                            .toList()
+                    : java.util.List.of();
         }
 
         @Override
         public Collection<Metric> getAll() {
-            return java.util.List.of();
+            return findMetricsByCategory("reconnect_vmap");
         }
 
         @Override
@@ -105,6 +126,59 @@ class ReconnectMapStatsSnapshotTest {
 
         @Override
         public void start() {
+            // Not needed by this test.
+        }
+    }
+
+    private record TestMetric(String name, Object value) implements Metric {
+
+        @Override
+        public String getCategory() {
+            return "reconnect_vmap";
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getDescription() {
+            return "test metric";
+        }
+
+        @Override
+        public MetricType getMetricType() {
+            return MetricType.GAUGE;
+        }
+
+        @Override
+        public DataType getDataType() {
+            return value instanceof Number ? DataType.INT : DataType.STRING;
+        }
+
+        @Override
+        public String getUnit() {
+            return "";
+        }
+
+        @Override
+        public String getFormat() {
+            return "%s";
+        }
+
+        @Override
+        public EnumSet<ValueType> getValueTypes() {
+            return EnumSet.of(ValueType.VALUE);
+        }
+
+        @Override
+        public Object get(final ValueType valueType) {
+            return value;
+        }
+
+        @Override
+        public void reset() {
             // Not needed by this test.
         }
     }

@@ -28,7 +28,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @BenchmarkMode(Mode.SingleShotTime)
 @Fork(value = 1)
 @Warmup(iterations = 0)
-@Measurement(iterations = 3)
+@Measurement(iterations = 1)
 public class ReconnectBench extends VirtualMapBaseBench {
 
     /** A random seed for the StateBuilder. */
@@ -36,27 +36,30 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public long randomSeed;
 
     /** The probability of the teacher map having an extra node. */
-    @Param({"0.05"})
+    @Param({"0.09"})
     public double teacherAddProbability;
 
     /** The probability of the teacher map having removed a node, while the learner still having it. */
-    @Param({"0.05"})
+    @Param({"0.0"})
     public double teacherRemoveProbability;
 
     /**
      * The probability of the teacher map having a value under a key that differs from the value under the same key in
      * the learner map.
      */
-    @Param({"0.05"})
+    @Param({"0.40"})
     public double teacherModifyProbability;
 
+    /** Selects whether socket read shaping is applied ({@code REALISTIC}) or disabled ({@code LOOPBACK}). */
     @Param({"REALISTIC"})
     public NetworkProfile networkProfile;
 
-    @Param({"500"})
+    /** One-way latency in microseconds, applied when the {@code REALISTIC} profile is selected. */
+    @Param({"270"})
     public long networkLatencyMicroseconds;
 
-    @Param({"1000"})
+    /** Per-direction bandwidth in decimal megabits per second under the {@code REALISTIC} profile. */
+    @Param({"200"})
     public long networkBandwidthMegabitsPerSecond;
 
     private static final String TEACHER_MAP_NAME = "teacher";
@@ -194,6 +197,14 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 networkProfile, networkLatencyMicroseconds, networkBandwidthMegabitsPerSecond);
         final String reconnectMode =
                 configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
+        logger.info(
+                "ReconnectBench state: learnerSize={}, teacherSize={}, randomSeed={}, teacherAddProbability={}, teacherRemoveProbability={}, teacherModifyProbability={}",
+                learnerMap.size(),
+                teacherMap.size(),
+                randomSeed,
+                teacherAddProbability,
+                teacherRemoveProbability,
+                teacherModifyProbability);
         logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
                 "ReconnectBench socket network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}",
