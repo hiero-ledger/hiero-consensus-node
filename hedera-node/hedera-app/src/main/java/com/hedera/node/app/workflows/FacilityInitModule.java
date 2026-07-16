@@ -251,7 +251,7 @@ public interface FacilityInitModule {
         final var fileNum = filesConfig.exchangeRates();
         final var file = requireNonNull(
                 getFileFromStorage(state, configProvider, fileNum),
-                "The initialized state had no exchange rates file 0.0." + fileNum);
+                "The initialized state had no exchange rates file " + fileNum);
         final var midnightRates = requireNonNull(
                 state.getReadableStates(FeeService.NAME)
                         .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
@@ -260,7 +260,7 @@ public interface FacilityInitModule {
         exchangeRateManager.init(state, file.contents(), midnightRates);
     }
 
-    private static void initializeFeeManager(
+    static void initializeFeeManager(
             @NonNull final State state,
             @NonNull final FileServiceImpl fileService,
             @NonNull final ConfigProvider configProvider,
@@ -285,7 +285,7 @@ public interface FacilityInitModule {
         final Bytes simpleFeesContents;
         if (simpleFeesFile == null) {
             log.warn(
-                    "The initialized state had no simple fee schedule file 0.0.{}, using bootstrap genesis schedules",
+                    "The initialized state had no simple fee schedule file {}, using bootstrap genesis schedules",
                     simpleFeesFileNum);
             simpleFeesContents = fileService.fileSchema().genesisSimpleFeesSchedules(configProvider.getConfiguration());
         } else {
@@ -294,8 +294,8 @@ public interface FacilityInitModule {
 
         final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
         if (simpleStatus != SUCCESS) {
-            log.error(
-                    "State file 0.0.{} did not contain parseable simple fee schedules ({})", simpleFeesFileNum, status);
+            throw new IllegalStateException("State file " + simpleFeesFileNum
+                    + " did not contain parseable simple fee schedules: " + simpleStatus);
         }
     }
 
