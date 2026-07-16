@@ -1,6 +1,6 @@
 # Local ReconnectBench Calibration Notes
 
-Updated: `2026-07-08`
+Updated: `2026-07-16`
 
 Purpose: preserve local `ReconnectBench` calibration and validation notes, grouped by run date.
 
@@ -23,6 +23,8 @@ Later run notes kept as separate files in this directory:
 - [`2026-07-08-read-pacing-smoke-matrix.md`](2026-07-08-read-pacing-smoke-matrix.md): first post-implementation smoke matrix
   (buffer config x control/binding leg) validating that `SocketFactory` buffer changes now move reconnect wall-clock in the
   binding regime and correctly show no effect at the calibrated control point.
+- [`2026-07-16-read-pacing-10m-matrix.md`](2026-07-16-read-pacing-10m-matrix.md): fresh internally paired 10M-state repeat
+  of the read-pacing matrix; reproduces the pinned-small binding signal, with unset converging to 1 MiB after autotuning.
 
 ## 2026-05-04
 

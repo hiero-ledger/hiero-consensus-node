@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 
@@ -32,3 +32,4 @@ Last updated: 2026-07-15
 - [Local ReconnectBench Calibration Notes](evidence-and-calibration/local-reconnectbench-calibration-notes/local-reconnectbench-calibration-notes.md) - Date-grouped local ReconnectBench calibration and validation notes, including averaged cluster-profile diagnostics.
 - [Cluster-Evidence Local ReconnectBench Calibration Runs](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-06-26-cluster-evidence-profile-run.md) - Local run log generated from the accepted May 29 cluster evidence profile, with fixed state parameters plus appendable traversal/network result tables.
 - [2026-07-08 Socket Buffer Probe](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-08-socket-buffer-probe.md) - Standalone macOS probe (source + raw output) measuring effective loopback socket windows, sender-block points, and getsockopt-visible autotuning for the SocketFactory buffer configs; evidence base for the read-pacing design.
+- [2026-07-16 Read-Pacing 10M Matrix](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-read-pacing-10m-matrix.md) - Fresh internally paired 10M-state repeat of the socket-buffer/read-pacing matrix, including pacing diagnostics and comparison with the July 8 matrix shape.
