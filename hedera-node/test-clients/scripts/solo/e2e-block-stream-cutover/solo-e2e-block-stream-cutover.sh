@@ -254,6 +254,14 @@ ENABLE_MONITORING="${ENABLE_MONITORING:-false}"
 # This directory is .gitignored so all run-time output stays in one place.
 GENERATED_DIR="${GENERATED_DIR:-${SCRIPT_DIR}/generated}"
 
+# Block-pipeline trace sampler (Step 13 only, best-effort): every interval, records the Block
+# Node's available range vs the block the mirror REST has ingested, so CI artifacts show over
+# time whether a block reached the BN but not yet the mirror (ingestion lag vs a real gap).
+# Written under GENERATED_DIR so it is collected by the failure artifact.
+ENABLE_BLOCK_TRACE="${ENABLE_BLOCK_TRACE:-true}"
+BLOCK_TRACE_INTERVAL_SECS="${BLOCK_TRACE_INTERVAL_SECS:-15}"
+BLOCK_TRACE_LOG="${BLOCK_TRACE_LOG:-${GENERATED_DIR}/block-trace.log}"
+
 # Downloaded record stream objects from Solo MinIO (Step 5).
 RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${GENERATED_DIR}/recordStreams}"
 # Block Node wrap tool output for the initial wrap (Step 5).
@@ -425,6 +433,8 @@ PORT_FORWARD_WATCHDOG_PID=""
 MIRROR_GRPC_PORT_FORWARD_PID=""
 MIRROR_RESTJAVA_PORT_FORWARD_PID=""
 TCK_SDK_SERVER_PID=""
+BLOCK_TRACE_SAMPLER_PID=""
+BLOCK_TRACE_PF_PID=""
 ACTIVE_GRAFANA_SERVICE_NAME="${GRAFANA_SERVICE_NAME}"
 ACTIVE_INGRESS_NAMESPACE="${SOLO_NAMESPACE}"
 ACTIVE_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME}"
@@ -540,6 +550,12 @@ cleanup() {
   fi
   if [[ -n "${EXPLORER_INGRESS_PORT_FORWARD_PID}" ]]; then
     kill "${EXPLORER_INGRESS_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${BLOCK_TRACE_SAMPLER_PID}" ]]; then
+    kill "${BLOCK_TRACE_SAMPLER_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${BLOCK_TRACE_PF_PID}" ]]; then
+    kill "${BLOCK_TRACE_PF_PID}" >/dev/null 2>&1 || true
   fi
   if [[ -n "${PORT_FORWARD_WATCHDOG_PID}" ]]; then
     kill "${PORT_FORWARD_WATCHDOG_PID}" >/dev/null 2>&1 || true
@@ -3597,6 +3613,60 @@ verify_block_node_has_blocks() {
   return 1
 }
 
+# One line of the block-pipeline trace: the Block Node's available range vs the newest block the
+# mirror REST has ingested. Best-effort — any probe failure prints '?'. Uses the sampler's own BN
+# port-forward (BLOCK_NODE_GRPC_LOCAL_PORT) and the already-running mirror REST forward.
+sample_block_trace_once() {
+  local proto_api_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/src/main/proto"
+  local proto_services_root="${BLOCK_NODE_REPO_PATH}/protobuf-sources/block-node-protobuf"
+  local proto_file="block-node/api/node_service.proto"
+  local port="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
+  local raw bn_first="?" bn_last="?" mn_rest="?" lag="?"
+  raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_services_root}" \
+          -proto "${proto_file}" -d '{}' "127.0.0.1:${port}" \
+          org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null || true)"
+  bn_first="$(echo "${raw}" | jq -r '.firstAvailableBlock // "?"' 2>/dev/null || echo '?')"
+  bn_last="$(echo "${raw}" | jq -r '.lastAvailableBlock // "?"' 2>/dev/null || echo '?')"
+  mn_rest="$(curl -s "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1&order=desc" 2>/dev/null \
+              | jq -r '.blocks[0].number // "?"' 2>/dev/null || echo '?')"
+  [[ "${bn_last}" =~ ^[0-9]+$ && "${mn_rest}" =~ ^[0-9]+$ ]] && lag=$(( bn_last - mn_rest ))
+  printf '%s bn=[%s..%s] mn_rest=%s lag=%s\n' \
+    "$(date -u +%H:%M:%S)" "${bn_first}" "${bn_last}" "${mn_rest}" "${lag}"
+}
+
+# Starts a background sampler that appends sample_block_trace_once output to BLOCK_TRACE_LOG on an
+# interval. Owns a dedicated BN port-forward for the sampler's grpcurl. Fully best-effort: a missing
+# grpcurl/jq or any error is swallowed so the trace can never affect the TCK run. Stopped by
+# stop_block_trace_sampler and by cleanup().
+start_block_trace_sampler() {
+  [[ "${ENABLE_BLOCK_TRACE}" == "true" ]] || return 0
+  if ! command -v grpcurl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+    echo "block-trace: grpcurl/jq unavailable; skipping pipeline trace" >&2
+    return 0
+  fi
+  mkdir -p "$(dirname "${BLOCK_TRACE_LOG}")" 2>/dev/null || true
+  local port="${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"
+  kill_processes_on_local_port "${port}" >/dev/null 2>&1 || true
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/block-node-${BLOCK_NODE_ID}" "${port}:40840" \
+    >/dev/null 2>&1 < /dev/null &
+  BLOCK_TRACE_PF_PID=$!
+  disown "${BLOCK_TRACE_PF_PID}" 2>/dev/null || true
+  {
+    echo "# block-pipeline trace | bn=[firstAvailable..lastAvailable on Block Node]  mn_rest=newest block in mirror REST  lag=bn_last-mn_rest"
+    while true; do sample_block_trace_once; sleep "${BLOCK_TRACE_INTERVAL_SECS}"; done
+  } >> "${BLOCK_TRACE_LOG}" 2>&1 &
+  BLOCK_TRACE_SAMPLER_PID=$!
+  disown "${BLOCK_TRACE_SAMPLER_PID}" 2>/dev/null || true
+  echo "Started block-pipeline trace sampler (pid=${BLOCK_TRACE_SAMPLER_PID}, every ${BLOCK_TRACE_INTERVAL_SECS}s -> ${BLOCK_TRACE_LOG})"
+}
+
+stop_block_trace_sampler() {
+  [[ -n "${BLOCK_TRACE_SAMPLER_PID}" ]] && kill "${BLOCK_TRACE_SAMPLER_PID}" >/dev/null 2>&1 || true
+  [[ -n "${BLOCK_TRACE_PF_PID}" ]] && kill "${BLOCK_TRACE_PF_PID}" >/dev/null 2>&1 || true
+  BLOCK_TRACE_SAMPLER_PID=""
+  BLOCK_TRACE_PF_PID=""
+}
+
 # After seeding rolls the BN, wait for it to resume ingesting the live stream before the 0.77 upgrade
 # restarts the CN (which RESETS the CN's in-memory block buffer to the post-restart tip). Otherwise
 # the blocks produced during the roll are orphaned: the BN's wanted block falls below the reset CN
@@ -4442,8 +4512,10 @@ if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
   ensure_tck_port_forwards
   fund_tck_operator_account
 
+  start_block_trace_sampler
   tck_rc=0
   run_tck_tests || tck_rc=$?
+  stop_block_trace_sampler
   # Full-suite mode exports here; subset mode already exported per file inside run_tck_tests.
   if [[ -z "${TCK_TEST_FILES}" ]]; then
     export_tck_report || true
