@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -224,6 +225,7 @@ class V0760BlockRecordSchemaTest {
                         .votingComplete(false)
                         .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
                         .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
                         .build());
     }
 
@@ -245,6 +247,38 @@ class V0760BlockRecordSchemaTest {
                         .votingComplete(false)
                         .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
                         .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
+                        .build());
+    }
+
+    @Test
+    void restartClearsStaleWrappedHashQueueOnNewJumpstartCycle() {
+        givenRestartPreconditions();
+        givenCutoverDisabled();
+        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
+        given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
+        final var staleHash = MigrationWrappedHashes.newBuilder()
+                .blockNumber(39952)
+                .consensusTimestampHash(Bytes.fromHex("aa".repeat(48)))
+                .outputItemsTreeRootHash(Bytes.fromHex("bb".repeat(48)))
+                .build();
+        given(blockInfoState.get())
+                .willReturn(baseBlockInfo()
+                        .copyBuilder()
+                        .migrationWrappedHashes(List.of(staleHash))
+                        .build());
+
+        subject.restart(ctx);
+
+        verify(blockInfoState)
+                .put(baseBlockInfo()
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
+                        .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
                         .build());
     }
 
