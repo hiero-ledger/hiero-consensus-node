@@ -11,7 +11,6 @@ import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.monitor.internal.StatusMonitorWiringConfig;
 import com.swirlds.platform.uptime.UptimeConfig;
 import java.util.Arrays;
 import java.util.Set;
@@ -46,7 +45,6 @@ class PlatformConfigurationExtensionTests {
                         ModulesConfig.class,
                         OSHealthCheckConfig.class,
                         PlatformMetricsConfig.class,
-                        StatusMonitorWiringConfig.class,
                         UptimeConfig.class,
                         WiringConfig.class,
                         InternalLoggingConfig.class));

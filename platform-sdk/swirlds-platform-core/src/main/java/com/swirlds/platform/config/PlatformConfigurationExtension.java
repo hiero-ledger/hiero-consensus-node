@@ -9,7 +9,6 @@ import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.monitor.internal.StatusMonitorWiringConfig;
 import com.swirlds.platform.uptime.UptimeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -33,7 +32,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 ModulesConfig.class,
                 OSHealthCheckConfig.class,
                 PlatformMetricsConfig.class,
-                StatusMonitorWiringConfig.class,
                 UptimeConfig.class,
                 WiringConfig.class,
                 InternalLoggingConfig.class);
