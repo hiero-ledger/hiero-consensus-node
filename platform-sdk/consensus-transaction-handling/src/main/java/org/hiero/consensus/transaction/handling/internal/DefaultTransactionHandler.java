@@ -34,7 +34,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -95,7 +94,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Enables submitting platform status actions.
      */
-    private final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference;
+    private final StatusActionSubmitter statusActionSubmitter;
 
     private final SemanticVersion softwareVersion;
 
@@ -141,7 +140,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param configuration the configuration data
      * @param metrics the metrics system
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param statusActionSubmitterReference enables submitting of platform status actions
+     * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion the current version of the software
      */
     public DefaultTransactionHandler(
@@ -149,7 +148,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
+            @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final NodeId selfId,
@@ -157,7 +156,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
-        this.statusActionSubmitterReference = requireNonNull(statusActionSubmitterReference);
+        this.statusActionSubmitter = requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionCallbacks = requireNonNull(transactionCallbacks);
         this.selfId = requireNonNull(selfId);
@@ -217,9 +216,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
-            statusActionSubmitterReference
-                    .get()
-                    .submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
+            statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
                     STARTUP.getMarker(),

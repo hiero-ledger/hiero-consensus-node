@@ -63,14 +63,18 @@ jobs:
 
       - name: Extract the Input Version
         id: extract-version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_VERSION: ${{ inputs.release-version }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           VERSION=""
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
             echo "Using version from workflow input."
-            VERSION="${{ inputs.release-version }}"
+            VERSION="${RELEASE_VERSION}"
           else
             echo "Using version from git ref."
-            VERSION="${{ github.ref_name }}"
+            VERSION="${REF_NAME}"
           fi
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
@@ -123,7 +127,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || github.sha }}"
@@ -168,7 +172,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || github.sha }}"
@@ -190,7 +194,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || github.sha }}"
