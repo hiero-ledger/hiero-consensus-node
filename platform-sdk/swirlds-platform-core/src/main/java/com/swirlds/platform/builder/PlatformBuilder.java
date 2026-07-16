@@ -4,8 +4,14 @@ package com.swirlds.platform.builder;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
@@ -14,16 +20,21 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
@@ -31,10 +42,18 @@ import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -344,23 +363,92 @@ public final class PlatformBuilder {
         final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
         final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+        final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
+
         PlatformWiring.wire(inputs, buildingBlocks);
 
-        try (final ReservedSignedState ignored = inputs.initialState()) {
-            final SwirldsPlatform platform =
-                    new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
-            // Future work - capture the reconnect module, add a start() method to it, and call it later
-            factory.createReconnectModule(
-                    platform,
-                    factoryOutput.platformCoordinator(),
-                    buildingBlocks.platformComponents(),
-                    buildingBlocks.savedStateController(),
-                    buildingBlocks.reservedSignedStateResultPromise(),
-                    buildingBlocks.fallenBehindMonitor());
-            return platform;
-        } finally {
-            // FutureWork figure out if this can be moved into Platform.start()
-            getMetricsProvider().start();
+        final SwirldsPlatform platform =
+                new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
+
+        initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
+
+        // Future work - capture the reconnect module, add a start() method to it, and call it later
+        factory.createReconnectModule(
+                platform,
+                platformCoordinator,
+                buildingBlocks.platformComponents(),
+                buildingBlocks.savedStateController(),
+                buildingBlocks.reservedSignedStateResultPromise(),
+                buildingBlocks.fallenBehindMonitor());
+
+        initialState.close();
+
+        // FutureWork figure out if this can be moved into Platform.start()
+        getMetricsProvider().start();
+
+        return platform;
+    }
+
+    public static void initializeModulesWithInitialState(
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
+            @NonNull final PlatformCoordinator platformCoordinator) {
+        final SignedState signedState = inputs.initialState().get();
+
+        // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
+        // - For genesis: the manager creates a genesis state eagerly in its constructor.
+        // - For restart: loadSnapshot() initializes the manager when loading from disk.
+        // - For reconnect: initWithState() re-initializes the manager at runtime.
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = inputs.stateLifecycleManager();
+        // Startup initialization may hash/freeze the state referenced by the initial SignedState.
+        // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
+        stateLifecycleManager.copyMutableState();
+        // Genesis state must stay empty until changes can be externalized in the block stream
+        if (!signedState.isGenesisState()) {
+            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
+        }
+
+        final Hash legacyRunningEventHash = requireNonNullElse(legacyRunningEventHashOf(signedState.getState()), Cryptography.NULL_HASH);
+        final RunningEventHashOverride runningEventHashOverride =
+                new RunningEventHashOverride(legacyRunningEventHash, false);
+        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
+
+        // Load the minimum birth round into the pre-consensus event writer
+        final String actualMainClassName =
+                inputs.configuration().getConfigData(StateConfig.class).getMainClassName(inputs.appName());
+
+        final SignedStateFilePath statePath =
+                new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, inputs.selfId(), inputs.swirldName());
+        final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
+        if (!savedStates.isEmpty()) {
+            // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
+            final long minimumBirthRoundNonAncientForOldestState =
+                    savedStates.getLast().metadata().minimumBirthRoundNonAncient();
+            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumBirthRoundNonAncientForOldestState);
+        }
+
+        final boolean startedFromGenesis = signedState.isGenesisState();
+
+        if (startedFromGenesis) {
+            platformCoordinator.updateEventWindow(EventWindow.getGenesisEventWindow());
+        } else {
+            buildingBlocks.stateModule().sendState(signedState);
+
+            buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
+
+            final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(signedState.getState()));
+            buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
+
+            // We only load non-ancient events during start up, so the initial expired threshold will be
+            // equal to the ancient threshold when the system first starts. Over time as we get more events,
+            // the expired threshold will continue to expand until it reaches its full size.
+            final int roundsNonAncient =
+                    inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
+            platformCoordinator.updateEventWindow(
+                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+            buildingBlocks
+                    .issDetectionModule()
+                    .overrideIssDetectorState(signedState.reserve("initialize issDetector"));
         }
     }
 }

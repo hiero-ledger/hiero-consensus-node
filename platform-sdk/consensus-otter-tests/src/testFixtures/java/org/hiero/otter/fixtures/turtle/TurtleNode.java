@@ -24,9 +24,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -326,8 +328,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
+            final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
+
             try (final ReservedSignedState ignoredInitialState = initialState) {
-                platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+                PlatformBuilder.initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
+                platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
             }
             getMetricsProvider().start();
             platformStatus = PlatformStatus.STARTING_UP;

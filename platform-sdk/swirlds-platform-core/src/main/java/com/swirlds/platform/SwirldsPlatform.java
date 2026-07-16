@@ -140,75 +140,19 @@ public class SwirldsPlatform implements Platform {
         keysAndCerts = inputs.keysAndCerts();
         savedStateController = buildingBlocks.savedStateController();
 
-        final Configuration configuration = inputs.configuration();
+        //////////////////
 
         initializeState(initialState, inputs.consensusStateEventHandler());
 
-        // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
-        // - For genesis: the manager creates a genesis state eagerly in its constructor.
-        // - For restart: loadSnapshot() initializes the manager when loading from disk.
-        // - For reconnect: initWithState() re-initializes the manager at runtime.
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = inputs.stateLifecycleManager();
-        // Startup initialization may hash/freeze the state referenced by the initial SignedState.
-        // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
-        stateLifecycleManager.copyMutableState();
-        // Genesis state must stay empty until changes can be externalized in the block stream
-        if (!initialState.isGenesisState()) {
-            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
-        }
-
-        final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
-                ? Cryptography.NULL_HASH
-                : legacyRunningEventHashOf((initialState.getState()));
-        final RunningEventHashOverride runningEventHashOverride =
-                new RunningEventHashOverride(legacyRunningEventHash, false);
-        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
-
-        // Load the minimum birth round into the pre-consensus event writer
-        final String actualMainClassName =
-                configuration.getConfigData(StateConfig.class).getMainClassName(inputs.appName());
-
-        final SignedStateFilePath statePath =
-                new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
-        final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
-        if (!savedStates.isEmpty()) {
-            // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
-            final long minimumBirthRoundNonAncientForOldestState =
-                    savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumBirthRoundNonAncientForOldestState);
-        }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
-
-        // TODO - this has moved to ConsensusLayerFactory, check if this actually works before removing this line
-        // buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial
-        // state"));
 
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
             startingRound = 0;
-            platformCoordinator.updateEventWindow(EventWindow.getGenesisEventWindow());
         } else {
             initialAncientThreshold = ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
-
-            buildingBlocks.stateModule().sendState(initialState);
-
-            savedStateController.registerSignedStateFromDisk(initialState);
-
-            final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(initialState.getState()));
-            buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
-
-            // We only load non-ancient events during start up, so the initial expired threshold will be
-            // equal to the ancient threshold when the system first starts. Over time as we get more events,
-            // the expired threshold will continue to expand until it reaches its full size.
-            final int roundsNonAncient =
-                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-            platformCoordinator.updateEventWindow(
-                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks
-                    .issDetectionModule()
-                    .overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 
         if (!initialState.isGenesisState()) {
@@ -241,7 +185,8 @@ public class SwirldsPlatform implements Platform {
         final State initialState = signedState.getState();
 
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
-        // of that state here. That copy should have caused the hash to be cleared.
+        // of that state here. That copy should have caused the hash to be cleared. The hash must be calculated
+        // after onStateInitialized(), so that it includes any changes to the state made in onStateInitialized().
 
         if (initialState.isHashed()) {
             throw new IllegalStateException("Expected initial state to be unhashed");
