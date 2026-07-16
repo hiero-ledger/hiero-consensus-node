@@ -30,7 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 public class MaxRoundCreatedTest {
 
-    private static final String RESOURCE_DIR = "com/swirlds/platform/consensus/maxRoundCreatedTest/";
+    private static final String RESOURCE_DIR = "org/hiero/consensus/hashgraph/maxRoundCreatedTest/";
     private static final String PCES_DIR = "preconsensusEvents";
     private static final String ROSTER_FILE = "roster.json";
 

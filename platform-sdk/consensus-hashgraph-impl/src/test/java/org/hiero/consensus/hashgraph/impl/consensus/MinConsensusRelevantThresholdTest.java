@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.pcli;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 public class MinConsensusRelevantThresholdTest {
 
-    private static final String RESOURCE_DIR = "org/hiero/consensus/pcli/minConsensusRelevantThresholdTest/";
+    private static final String RESOURCE_DIR = "org/hiero/consensus/hashgraph/minConsensusRelevantThresholdTest/";
     private static final String NODE_0_DIR = "node0";
     private static final String NODE_3_DIR = "node3";
     private static final String PCES_DIR = "preconsensusEvents";
@@ -67,6 +67,7 @@ public class MinConsensusRelevantThresholdTest {
                 consensusOutput_node0.getLatestRound(),
                 consensusOutput_node3.getLatestRound(),
                 "The PCES files for each node should results in the same number of rounds");
+        assertEquals(5, consensusOutput_node0.getLatestRound());
         for (int i = 0; i < consensusOutput_node0.getLatestRound(); i++) {
             RoundInternalEqualityValidation.INSTANCE.validate(
                     consensusOutput_node0.getConsensusRounds().get(i),
