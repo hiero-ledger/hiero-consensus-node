@@ -142,7 +142,7 @@ jobs:
 
       - name: Setup PNPM
         run: |
-          npm install -g pnpm
+          npm install -g pnpm@10.11.0
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
