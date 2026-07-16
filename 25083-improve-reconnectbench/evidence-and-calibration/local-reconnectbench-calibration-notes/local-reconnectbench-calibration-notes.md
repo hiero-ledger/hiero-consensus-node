@@ -25,6 +25,9 @@ Later run notes kept as separate files in this directory:
   binding regime and correctly show no effect at the calibrated control point.
 - [`2026-07-16-read-pacing-10m-matrix.md`](2026-07-16-read-pacing-10m-matrix.md): fresh internally paired 10M-state repeat
   of the read-pacing matrix; reproduces the pinned-small binding signal, with unset converging to 1 MiB after autotuning.
+- [`2026-07-16-compression-10m-comparison.md`](2026-07-16-compression-10m-comparison.md): counterbalanced three-run-per-mode
+  comparison of the production compressed and uncompressed sync-stream paths on the same 10M state at 270 us and
+  200 Mbit/s; compression reduced total wire bytes by 60.1% but increased median reconnect time by 71.8%.
 
 ## 2026-05-04
 

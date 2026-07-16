@@ -23,8 +23,14 @@ import org.junit.jupiter.api.Test;
 class LoopbackSocketTransportTest {
 
     private static Configuration configuration() {
+        return configuration(false);
+    }
+
+    private static Configuration configuration(final boolean gzipCompression) {
         return ConfigurationBuilder.create()
-                .withSource(new SimpleConfigSource("socket.tcpNoDelay", "true"))
+                .withSource(new SimpleConfigSource()
+                        .withValue("socket.tcpNoDelay", true)
+                        .withValue("socket.gzipCompression", gzipCompression))
                 .withConfigDataType(SocketConfig.class)
                 .withConfigDataType(GossipConfig.class)
                 .build();
@@ -75,6 +81,25 @@ class LoopbackSocketTransportTest {
             final NetworkTransferStats stats = transport.getTeacherToLearnerStats();
             assertEquals(8, stats.bytesWritten());
             assertEquals(8, stats.bytesRead());
+        }
+    }
+
+    @Test
+    void gzipCompressionUsesCompressedWireBytes() throws Exception {
+        final byte[] payload = new byte[64 * 1024];
+        try (LoopbackSocketTransport transport = new LoopbackSocketTransport(loopbackConfig(), configuration(true))) {
+            transport.getTeacherOutput().writeInt(payload.length);
+            transport.getTeacherOutput().write(payload);
+            transport.getTeacherOutput().flush();
+
+            assertEquals(payload.length, transport.getLearnerInput().readInt());
+            final byte[] received = new byte[payload.length];
+            transport.getLearnerInput().readFully(received);
+            assertArrayEquals(payload, received);
+
+            assertTrue(
+                    transport.getTeacherToLearnerStats().bytesWritten() < payload.length,
+                    "compressible payload should use fewer wire bytes than its uncompressed size");
         }
     }
 

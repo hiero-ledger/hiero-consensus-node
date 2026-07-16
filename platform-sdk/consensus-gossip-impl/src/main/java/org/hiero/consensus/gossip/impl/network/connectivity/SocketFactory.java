@@ -81,9 +81,9 @@ public interface SocketFactory {
         serverSocket.setReuseAddress(true);
 
         // FIXME: it's an experiment, remove it
-        final int reconnectBufferBytes = 1 << 20; // 1MiB
+//        final int reconnectBufferBytes = 1 << 20; // 1MiB
 //        final int reconnectBufferBytes = 32768;
-        serverSocket.setReceiveBufferSize(reconnectBufferBytes);
+//        serverSocket.setReceiveBufferSize(reconnectBufferBytes);
 
         logger.warn(SOCKET_EXCEPTIONS.getMarker(),
                 "[PRE BIND] Server socket receive buffer size: {}",
@@ -125,10 +125,10 @@ public interface SocketFactory {
             clientSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
 
-        final int reconnectBufferBytes = 1 << 20; // 1MiB
+//        final int reconnectBufferBytes = 1 << 20; // 1MiB
 //        final int reconnectBufferBytes = 32768;
-        clientSocket.setReceiveBufferSize(reconnectBufferBytes);
-        clientSocket.setSendBufferSize(reconnectBufferBytes);
+//        clientSocket.setReceiveBufferSize(reconnectBufferBytes);
+//        clientSocket.setSendBufferSize(reconnectBufferBytes);
 
         logger.warn(SOCKET_EXCEPTIONS.getMarker(),
                 "[PRE CONNECT] Client socket send buffer size: {}",

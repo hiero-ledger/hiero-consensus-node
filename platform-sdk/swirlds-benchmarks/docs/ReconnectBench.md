@@ -14,7 +14,9 @@ The `networkProfile` parameter selects how the loopback socket input streams beh
 - `LOOPBACK` uses the same loopback TCP transport without pacing. It is the raw local-socket floor.
 
 Both profiles create and configure their sockets through the production `SocketFactory` helper. ReconnectBench does
-not configure an independent in-flight byte limit; kernel socket buffers provide backpressure.
+not configure an independent in-flight byte limit; kernel socket buffers provide backpressure. The transport also
+constructs its Java streams through the production `SyncInputStream` and `SyncOutputStream` factories, so
+`socket.bufferSize` and `socket.gzipCompression` have the same effect as they do on consensus-node connections.
 
 ## Run with Gradle
 

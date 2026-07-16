@@ -19,6 +19,7 @@ Last updated: 2026-07-16
 - [Loopback Socket Transport Design](design-and-implementation/ReconnectBench-loopback-socket-transport-design.md) - Approved design for adding `NetworkTransport`-selected simulated vs `SocketFactory`-configured loopback socket transports.
 - [Loopback Socket Transport Implementation Plan](design-and-implementation/ReconnectBench-loopback-socket-transport-implementation-plan.md) - Step-by-step execution plan for the benchmark-only loopback TCP transport validation work.
 - [Socket-Buffer Read-Pacing Design (Option C)](design-and-implementation/ReconnectBench-socket-buffer-read-pacing-design.md) - Approved design moving `LOOPBACK_SOCKET + REALISTIC` shaping to a read-side pacer so real kernel socket buffers bind and `SocketFactory` buffer changes move reconnect wall-clock; supersedes the write-side shaping directives of the loopback transport design.
+- [Production Sync-Stream Reuse Implementation Plan](design-and-implementation/2026-07-16-reuse-production-sync-streams-implementation-plan.md) - Test-first implementation plan for making the socket transport honor production stream buffering, compression, and wire-byte counting.
 
 ## Evidence And Calibration
 
@@ -33,3 +34,4 @@ Last updated: 2026-07-16
 - [Cluster-Evidence Local ReconnectBench Calibration Runs](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-06-26-cluster-evidence-profile-run.md) - Local run log generated from the accepted May 29 cluster evidence profile, with fixed state parameters plus appendable traversal/network result tables.
 - [2026-07-08 Socket Buffer Probe](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-08-socket-buffer-probe.md) - Standalone macOS probe (source + raw output) measuring effective loopback socket windows, sender-block points, and getsockopt-visible autotuning for the SocketFactory buffer configs; evidence base for the read-pacing design.
 - [2026-07-16 Read-Pacing 10M Matrix](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-read-pacing-10m-matrix.md) - Fresh internally paired 10M-state repeat of the socket-buffer/read-pacing matrix, including pacing diagnostics and comparison with the July 8 matrix shape.
+- [2026-07-16 Compression 10M Comparison](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-compression-10m-comparison.md) - Counterbalanced production sync-stream comparison on the same 10M state; compression reduced total wire bytes by 60.1% but increased median reconnect time by 71.8% at 270 us and 200 Mbit/s.

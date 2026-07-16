@@ -11,6 +11,7 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip.shadowgraph to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.sync to
+            com.swirlds.benchmarks,
             org.hiero.consensus.gossip.impl.test.fixtures,
             org.hiero.consensus.reconnect.impl;
     exports org.hiero.consensus.gossip.impl.network to

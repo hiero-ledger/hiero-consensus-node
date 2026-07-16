@@ -41,6 +41,7 @@ jmhModuleInfo {
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.concurrent")
+    requires("org.hiero.consensus.gossip")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.utility")
@@ -53,12 +54,8 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
-    requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions")
-    requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap.test.fixtures")
-    requires("org.hiero.consensus.gossip")
-    requires("org.hiero.consensus.gossip.impl")
     requires("org.junit.jupiter.api")
 
     runtimeOnly("com.swirlds.config.impl")

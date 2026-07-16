@@ -28,14 +28,13 @@ import java.util.concurrent.locks.LockSupport;
  * flow. Results are therefore not directly comparable with latency models that impose a first-byte delay at the same
  * latency parameter.
  *
- * <p><b>Read coalescing dependency</b> (recorded decision 2): we rely on the
- * {@code BufferedInputStream -> CountingInputStream} chain above to coalesce reads. JDK-guaranteed part:
- * {@code BufferedInputStream} only ever issues array reads to the stream below it (both in {@code fill()} and in its
- * large-read bypass), and {@code CountingInputStream} preserves read arity, so the inherited no-arg {@link #read()} is
- * never invoked here. Workload-dependent part: chunk size is only ~the buffer size while messages stay smaller than
- * it; {@code readFully} requests of at least the buffer size bypass straight through to this pacer, which the
- * per-read window clamp bounds. If the {@code BufferedInputStream} is ever removed, this pacer must also gate the
- * single-byte {@code read()}.
+ * <p><b>Read coalescing dependency</b> (recorded decision 2): the production sync-input factory puts either a
+ * {@code BufferedInputStream} or an {@code InflaterInputStream} above its counting stream. Both JDK wrappers refill
+ * through array reads, and the production counting stream preserves read arity, so the inherited no-arg
+ * {@link #read()} is never invoked here. Workload-dependent part: for the uncompressed path, chunk size is only ~the
+ * buffer size while messages stay smaller than it; {@code readFully} requests of at least the buffer size bypass
+ * straight through to this pacer, which the per-read window clamp bounds. If the production wrappers are changed to
+ * issue single-byte reads, this pacer must also gate the single-byte {@code read()}.
  *
  * <p><b>Teardown</b> (recorded decision 3): before this pacer existed, closing the socket alone woke a blocked reader;
  * a reader parked here is in a Java sleep that a socket close does not interrupt. The park is bounded by
