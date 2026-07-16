@@ -127,4 +127,8 @@ public non-sealed class TransactionWrapper implements ConsensusTransaction {
     public Bytes getHash() {
         return Objects.requireNonNull(hash, "hash should not be null");
     }
+
+    public void clearConsensusTimestamp() {
+        this.consensusTimestamp = null;
+    }
 }

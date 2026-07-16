@@ -355,6 +355,14 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         this.consensusTimestamp = HapiUtils.asInstant(consensusData.consensusTimestamp());
     }
 
+    public void clearConsensusData() {
+        this.consensusData = NO_CONSENSUS;
+        this.consensusTimestamp = null;
+        for (int i = 0; i < metadata.getTransactions().size(); i++) {
+            metadata.getTransactions().get(i).clearConsensusTimestamp();
+        }
+    }
+
     /**
      * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus
      * time is set for this event.
