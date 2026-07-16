@@ -613,6 +613,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
      */
     @Override
+    @NonNull
     public String dumpThreads() {
         throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
     }

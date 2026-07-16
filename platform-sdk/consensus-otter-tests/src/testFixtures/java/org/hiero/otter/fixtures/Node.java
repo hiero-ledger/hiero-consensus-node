@@ -358,5 +358,6 @@ public interface Node {
      * @return the thread dump as text
      * @throws UnsupportedOperationException if thread dumps are not supported in this environment
      */
+    @NonNull
     String dumpThreads();
 }

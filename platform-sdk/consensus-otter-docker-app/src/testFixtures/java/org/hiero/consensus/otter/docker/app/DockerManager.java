@@ -11,7 +11,6 @@ import com.google.protobuf.Empty;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -280,22 +279,31 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static String captureThreadDump(final long pid) {
         final String jcmd =
                 Path.of(System.getProperty("java.home"), "bin", "jcmd").toString();
+        Path output = null;
         try {
+            output = Files.createTempFile("thread-dump-" + pid + "-", ".txt");
             final Process dump = new ProcessBuilder(jcmd, Long.toString(pid), "Thread.print", "-l")
                     .redirectErrorStream(true)
+                    .redirectOutput(output.toFile())
                     .start();
-            // Drain the pipe first (avoids a full-buffer deadlock), then wait for jcmd to exit.
-            final String output = new String(dump.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             if (!dump.waitFor(30, TimeUnit.SECONDS)) {
                 dump.destroyForcibly();
                 return "(thread dump timed out after 30s for pid " + pid + ")";
             }
-            return output;
+            return Files.readString(output);
         } catch (final IOException e) {
             return "(thread dump failed for pid " + pid + ": " + e + ")";
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             return "(thread dump interrupted for pid " + pid + ")";
+        } finally {
+            if (output != null) {
+                try {
+                    Files.deleteIfExists(output);
+                } catch (final IOException e) {
+                    log.warn("Failed to delete temporary thread dump file {}", output, e);
+                }
+            }
         }
     }
 }

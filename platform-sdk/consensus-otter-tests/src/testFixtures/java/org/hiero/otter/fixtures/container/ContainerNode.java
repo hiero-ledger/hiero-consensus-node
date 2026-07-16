@@ -425,6 +425,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * of throwing if the dump cannot be captured.
      */
     @Override
+    @NonNull
     public String dumpThreads() {
         try {
             final ThreadDumpResponse response = containerControlBlockingStub
