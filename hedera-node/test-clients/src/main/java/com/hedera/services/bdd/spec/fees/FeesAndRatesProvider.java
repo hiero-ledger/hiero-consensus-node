@@ -51,8 +51,8 @@ public class FeesAndRatesProvider {
 
     private static final int NUM_DOWNLOAD_ATTEMPTS = 10;
 
-    private static final BigDecimal USD_DIVISOR = BigDecimal.valueOf(100L);
-    private static final BigDecimal HBAR_DIVISOR = BigDecimal.valueOf(100_000_000L);
+    public static final BigDecimal USD_DIVISOR = BigDecimal.valueOf(100L);
+    public static final BigDecimal HBAR_DIVISOR = BigDecimal.valueOf(100_000_000L);
 
     private final TxnFactory txns;
     private final KeyFactory keys;
