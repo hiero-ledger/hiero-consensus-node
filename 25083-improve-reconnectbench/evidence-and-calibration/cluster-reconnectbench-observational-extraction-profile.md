@@ -141,6 +141,11 @@ Report per node and lifecycle phase:
 - missing phases;
 - unexpected values or exceptions.
 
+Before describing these values as configured or set by `SocketFactory`, inspect the producing commit. Distinguish an
+application `setReceiveBufferSize()` / `setSendBufferSize()` request from a lifecycle getter that only observes an
+OS/JVM-selected value. For server receive buffers, distinguish the listener's proposed value from the effective value
+on an accepted socket.
+
 Do not treat the absence of client lifecycle lines on a node as a failure without first checking whether the node
 initiated relevant client connections. The artifact logs, rather than the source branch or intended configuration, are
 the evidence for observed buffer values.
@@ -188,6 +193,25 @@ as `ambiguous`. Never claim sampler `send`, `pacing_rate`, or `delivery_rate` as
 
 Each derived statistic must state its bounded window and method and must carry precise verification handles for the
 source window and relevant extrema or representative observations.
+
+### Durable Report Granularity
+
+Analyze every fully covered, attributable reconnect window mechanically, but do not embed exhaustive one-row-per-window
+socket or socket-rate ledgers in the required Markdown outputs. The durable report must retain:
+
+- coverage count and exact missing-window set;
+- compact aggregate distributions or extrema that answer the reconnect question;
+- a small set of source-anchored representative or extreme windows;
+- field semantics and limitations needed to interpret the aggregates.
+
+For buffer analysis, explicitly map Java lifecycle getters to the closest `ss -tinm` fields: receive buffer to `rb`
+and send buffer to `tb`. Explain that `rb`/`tb` are kernel allocation caps at sample time, while `r`, `t`, `w`,
+`Recv-Q`, and `Send-Q` are allocation or queue usage rather than configured buffer sizes. Compare lifecycle and sampler
+values only after accounting for platform accounting conventions and the different observation times.
+
+Temporary per-window ledgers may be generated for calculation and independent verification, but they are working data,
+not required extraction artifacts. Preserve exact raw handles for every aggregate extremum and for each retained
+representative window.
 
 ## Reconnect Outcome Model
 
@@ -327,6 +351,10 @@ passive-network-socket-memory worker: post-anchor, window-bounded ss -tinm evide
 Use separate worker turns for these scopes so large sampler results do not contaminate the lifecycle-log context. Keep
 log/counter, stats CSV, workload/config, and state/divergence work isolated according to the existing strategy.
 
+The passive-network worker returns coverage, aggregates, interpretation, and a bounded representative/extreme sample.
+It must not return an exhaustive per-window Markdown table unless the lead requests temporary diagnostic material to
+resolve a verification failure.
+
 Only the lead agent writes final Markdown files. Extraction workers and the verifier must not edit them directly.
 
 ### Shared Worker Contract
@@ -457,6 +485,8 @@ Fresh verification must reproduce or spot-check:
 - state-size and workload observations;
 - sampler coverage boundaries and active-socket attribution;
 - SocketFactory phase pairing, values, and counts;
+- whether SocketFactory values are setters or getter-only observations in the producing commit;
+- the normalized comparison between lifecycle getter values and sampler `rb`/`tb` caps;
 - representative and extreme `ss -tinm` observations;
 - cumulative-counter deltas only where socket continuity supports them;
 - every outcome-layer status and the overall conclusion;

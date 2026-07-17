@@ -44,6 +44,7 @@
 
 | Evidence item | Status | Verified observation | Source |
 |---|---:|---|---|
+| Setter behavior | present | At the producing commit, `SocketFactory` does not set send or receive buffer sizes; it only logs Java getters around bind/connect. The observed values are OS/JVM-selected lifecycle snapshots. | [Socket-buffer comparison](reconnect-run.md#socket-buffer-comparison--lifecycle-getters-versus-live-kernel-caps) |
 | Server receive buffer | derived | Seven bind pairs, uniformly `32768 -> 32768`. | [SocketFactory Lifecycle Telemetry](reconnect-run.md#socketfactory-lifecycle-telemetry) |
 | Client buffers | derived | Completed connect pairs show send `32768 -> 43520` (`+10752`) and receive `32768 -> 32768`. | [SocketFactory Lifecycle Telemetry](reconnect-run.md#socketfactory-lifecycle-telemetry) |
 | Lifecycle pairing | derived | 461 PRE pairs, 361 POST pairs, 100 PRE-only pairs, zero POST-without-PRE cases; PRE-only cause remains ambiguous. | [SocketFactory Lifecycle Telemetry](reconnect-run.md#socketfactory-lifecycle-telemetry) |
@@ -54,7 +55,8 @@
 |---|---:|---|---|
 | Memory telemetry | derived | All seven samplers contain `skmem` fields consistent with `ss -tinm`; the literal command invocation is not preserved. | [Passive Sampler Coverage And Endpoint Mapping](reconnect-run.md#passive-sampler-coverage-and-endpoint-mapping) |
 | Both-endpoint coverage | derived | 315 of 342 receiver windows have full learner/active-teacher sampler spans; the last fully covered window is iteration 319. | [Passive Sampler Coverage And Endpoint Mapping](reconnect-run.md#passive-sampler-coverage-and-endpoint-mapping) |
-| Per-iteration reciprocal sockets | derived | All 315 fully covered windows have compact main and rate ledgers with reciprocal four-tuple, continuity, queue, `skmem`, RTT/window, retransmission, cumulative-counter, rate, field-availability, and source-window evidence. | [Focused Learner/Teacher ss -tinm Evidence](reconnect-run.md#focused-learnerteacher-ss--tinm-evidence) |
+| Buffer comparison | derived | The first learner `ss` caps normally equal twice the Java getters (`rb=65536` in 242/315 windows; `tb=87040` in 314/315), matching Linux accounting; other first samples already show growth. During transfer, learner maxima reach `rb=30,648,664` and `tb=6,162,432`, consistent with autotuning. | [Socket-buffer comparison](reconnect-run.md#socket-buffer-comparison--lifecycle-getters-versus-live-kernel-caps) |
+| Fully covered reciprocal sockets | derived | All 315 fully covered windows were analyzed mechanically. The durable report keeps aggregate results and three source-anchored windows rather than exhaustive per-window socket/rate tables. | [Focused Learner/Teacher ss -tinm Evidence](reconnect-run.md#focused-learnerteacher-ss--tinm-evidence) |
 | Detailed selected sockets | present | Iterations 1, 170, and 319 retain expanded bounded calculations and socket-rate context. | [Focused Learner/Teacher ss -tinm Evidence](reconnect-run.md#focused-learnerteacher-ss--tinm-evidence) |
 | Interpretation | ambiguous | Selected windows show transient queues, socket-memory growth, retransmissions, and `rwnd_limited` time, but final attempts lack learner coverage; the evidence does not establish a TCP cause. Rate fields are socket behavior, not capacity. | [Focused Learner/Teacher ss -tinm Evidence](reconnect-run.md#focused-learnerteacher-ss--tinm-evidence) |
 
@@ -71,4 +73,4 @@
 
 | Check | Status | Result | Source |
 |---|---:|---|---|
-| Fresh independent verification | present | Pass after adding receiver wall durations, complete per-iteration passive ledgers, exact passive locators/availability, explicit node naming, and canonical status splits. Final numeric evidence and `indeterminate_due_to_evidence_gap` passed recheck. | [verification-notes.md](verification-notes.md) |
+| Fresh independent verification | present | Pass after checking all 315 fully covered reciprocal windows mechanically, retaining exact selected/extreme locators, making node naming and status splits explicit, and rechecking the final numeric evidence and `indeterminate_due_to_evidence_gap`. | [verification-notes.md](verification-notes.md) |
