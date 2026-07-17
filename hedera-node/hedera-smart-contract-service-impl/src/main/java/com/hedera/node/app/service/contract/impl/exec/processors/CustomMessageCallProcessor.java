@@ -495,7 +495,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         frame.setExceptionalHaltReason(Optional.of(reason));
         if (forLazyCreation == ForLazyCreation.YES) {
             frame.decrementRemainingGas(frame.getRemainingGas());
-
             if (reason == INSUFFICIENT_CHILD_RECORDS) {
                 setPropagatedCallFailure(frame, RESULT_CANNOT_BE_EXTERNALIZED);
             }
