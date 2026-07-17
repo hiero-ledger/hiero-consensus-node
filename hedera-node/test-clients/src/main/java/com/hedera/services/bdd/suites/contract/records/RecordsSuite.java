@@ -18,7 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -97,7 +97,7 @@ public class RecordsSuite {
         final var txName = "clipCandidateLargeCalldata";
 
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(noContractActionSidecarFor(txName)),
+                streamMustIncludeNoFailuresFrom(noContractActionSidecarFor(txName)),
                 uploadInitCode(contract),
                 contractCreate(contract),
                 contractCall(contract, "loopLargeCalldata", BigInteger.valueOf(5), BigInteger.valueOf(131_072))
