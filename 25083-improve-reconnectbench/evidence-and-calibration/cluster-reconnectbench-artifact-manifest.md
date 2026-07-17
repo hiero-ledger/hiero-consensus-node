@@ -1,6 +1,6 @@
 # Cluster ReconnectBench Artifact Manifest
 
-Updated: `2026-07-01`
+Updated: `2026-07-17`
 
 ## Purpose
 
@@ -28,6 +28,7 @@ reference this manifest instead of duplicating raw artifact paths or concrete ru
 | `2026-06-29-cluster-calibration` | extracted | Follow-up traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/29-06-2026` | `extracted-cluster-evidence/2026-06-29-cluster-calibration/` |
 | `2026-06-30-cluster-calibration` | extracted | Follow-up high-state traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/30-06-2026` | `extracted-cluster-evidence/2026-06-30-cluster-calibration/` |
 | `2026-07-01-cluster-calibration` | extracted | Follow-up high-state traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/01-07-2026` | `extracted-cluster-evidence/2026-07-01-cluster-calibration/` |
+| `2026-07-16-1b-observational` | pending | Single-run, approximately one-billion-record observational reconnect extraction with SocketFactory and focused `ss -tinm` evidence. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/16-07-2026-1B` | `extracted-cluster-evidence/2026-07-16-1b-observational/` |
 
 ## 2026-05-29 Cluster Calibration
 
@@ -211,3 +212,34 @@ Use `runRoot` as the base path for top-level run artifacts, network sampler file
 | Batch summary | `extracted-cluster-evidence/2026-07-01-cluster-calibration/batch-summary.md` |
 | Verification notes | `extracted-cluster-evidence/2026-07-01-cluster-calibration/verification-notes.md` |
 | Global summary index | `extracted-cluster-evidence/global-summary.md` |
+
+## 2026-07-16 1B Observational Reconnect
+
+### Collection Context
+
+- This is one observational reconnect run, not a traversal-order comparison batch.
+- The intended state scale is approximately one billion VirtualMap records; extraction must report observed path-range
+  and stats evidence rather than treating the intended scale as observed fact.
+- `version_run.txt` is expected to contain `inputs.NLG_Accounts=300000000` and producing commit
+  `09f7ef40e031fc3e1a06db6f7db5e7dcfe9abc73`; extraction must verify both from the artifact.
+- The intended learner is `network-node1-0` / node `0`; extraction must verify the learner from reconnect lifecycle
+  logs.
+- SocketFactory pre/post bind/connect telemetry is expected from the producing branch; extraction must source observed
+  values from node logs.
+- Seven passive sampler files are expected to contain `ss -tinm` output; extraction must verify `skmem` presence and
+  exact reconnect-window coverage.
+- Calibration acceptance, traversal ordering, local parameter mapping, and historical comparison are not applicable.
+
+### Run Entry
+
+| Run ID | Purpose | `runRoot` | `podLogRoot` | Workflow log root | Expected learner | Output file | Status |
+|---|---|---|---|---|---|---|---:|
+| `reconnect-run` | Single-run large-state observational reconnect extraction | `.` | `podlog_solo-mdlt-n12` | `.` | `network-node1-0` / node `0` | `extracted-cluster-evidence/2026-07-16-1b-observational/reconnect-run.md` | pending |
+
+### Collection Outputs
+
+| Output | Path |
+|---|---|
+| Run extraction | `extracted-cluster-evidence/2026-07-16-1b-observational/reconnect-run.md` |
+| Verification notes | `extracted-cluster-evidence/2026-07-16-1b-observational/verification-notes.md` |
+| Extraction summary | `extracted-cluster-evidence/2026-07-16-1b-observational/extraction-summary.md` |
