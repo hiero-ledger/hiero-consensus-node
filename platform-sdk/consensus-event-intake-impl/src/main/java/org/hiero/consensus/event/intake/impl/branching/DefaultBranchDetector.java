@@ -65,7 +65,7 @@ public class DefaultBranchDetector implements BranchDetector {
         final EventDescriptorWrapper selfParent = event.getSelfParent();
 
         // If the last known event from this creator is ancient, we do not count it as a branch.
-        if (selfParent != null && currentEventWindow.isAncient(selfParent)) {
+        if (previousEvent != null && currentEventWindow.isAncient(previousEvent)) {
             return null;
         }
 

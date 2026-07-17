@@ -171,8 +171,7 @@ public class TipsetEventCreator implements EventCreator {
 
         if (selfEvent) {
             if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasSequenceNumber()
-                            && this.lastSelfEvent.getSequenceNumber() < event.getSequenceNumber())) {
+                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
                 // Normally we will ingest self events before we get to this point, but it's possible
                 // to learn of self events for the first time here if we are loading from a restart (via PCES)
                 // or reconnect (via gossip). In either of these cases, the self event passed to this method
