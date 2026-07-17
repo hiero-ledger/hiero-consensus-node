@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.sloth.fixtures.app.SlothStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -16,10 +17,12 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.InitialStateLoader;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -49,6 +52,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.app.SlothExecutionLayer;
@@ -178,8 +182,22 @@ public class ConsensusNodeManager {
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
+        final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
         try (final ReservedSignedState ignored = initialState) {
-            platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+            final SignedState initialSignedState = initialState.get();
+            final boolean startedFromGenesis = initialSignedState.isGenesisState();
+            if (startedFromGenesis) {
+                platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+            } else {
+                final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
+                platform = new SwirldsPlatform(
+                        inputs,
+                        platformCoordinator,
+                        buildingBlocks,
+                        initialAncientThreshold,
+                        initialSignedState.getRound());
+            }
+            InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
         }
     }
 
