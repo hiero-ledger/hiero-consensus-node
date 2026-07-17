@@ -981,6 +981,8 @@ public final class HashgraphInfo {
             }
 
             // function vote /------------------------------------------------------------------------------------
+            h.benchmarks[h.voteD == 2 ? HashgraphInfo.BENCHMARK_LOOP6 : HashgraphInfo.BENCHMARK_LOOP7]
+                    -= System.nanoTime();
             for (int m = 0; m < numNodes; m++) { // find which candidate created by m to vote for (or null for none)
                 long i = h.pendingRound + h.voteD; // first voting round
                 voteE[m] = null; // default if not overridden before the "continue"
@@ -995,7 +997,6 @@ public final class HashgraphInfo {
                     EventInfo firstVote;
                     if (h.voteD == 2) { // vote for any witness strongly seen by a witness that you strongly see.
                         firstVote = null;
-                        h.benchmarks[HashgraphInfo.BENCHMARK_LOOP6] -= System.nanoTime();
                         for (int mp = 0; mp < numNodes; mp++) {
                             EventInfo t = stronglySeeS1[mp];
                             if (t != null) {
@@ -1006,7 +1007,6 @@ public final class HashgraphInfo {
                                 }
                             }
                         }
-                        h.benchmarks[HashgraphInfo.BENCHMARK_LOOP6] += System.nanoTime();
                     } else { // voteD = 1. Vote for any witness you can see. (Or the branch seen first, if branching)
                         EventInfo z = lastSee[m];
                         if (z == null) {
@@ -1030,7 +1030,6 @@ public final class HashgraphInfo {
                     continue;
                 } else { // not the first round of voting. (end of firstVote, continuing vote)
                     // function topVote /-------------------------------------------------------------------------
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP7] -= System.nanoTime();
                     Arrays.fill(h.candStakeCollected, 0);
                     //collect all votes
                     for (int mp = 0; mp < numNodes; mp++) {
@@ -1048,7 +1047,6 @@ public final class HashgraphInfo {
                             bestIndex = index;
                         }
                     }
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP7] += System.nanoTime();
                     EventInfo v = h.candEventInfo[bestIndex];
                     boolean s = (bestStake > h.supermajorityThreshold);
                     // end of topVote, continuing vote
@@ -1066,7 +1064,7 @@ public final class HashgraphInfo {
                         voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
                         continue;
                     }
-                    int mp = coin;
+                    int mp = Math.floorMod(coin,numNodes + 1);
                     if ((mp == numNodes) || (h.pendingRound != birthRound)) { // coin==numNodes means vote for null
                         continue; // if the coin chose null then vote null. (Or if birth round isn't pending round)
                     }
@@ -1079,6 +1077,8 @@ public final class HashgraphInfo {
                     h.benchmarks[HashgraphInfo.BENCHMARK_LOOP7] += System.nanoTime();
                 }
             } // end vote
+            h.benchmarks[h.voteD == 2 ? HashgraphInfo.BENCHMARK_LOOP6 : HashgraphInfo.BENCHMARK_LOOP7]
+                    += System.nanoTime();
 
             // function roundDecided /----------------------------------------------------------------------------
             h.roundDecided = witness;

@@ -31,8 +31,9 @@ import org.hiero.consensus.round.EventWindowUtils;
  * This class is responsible for storing events utilized by the GUI.
  */
 public class GuiEventStorage {
-    /** true iff these GUI files should use the updated consensus code for dynamic address book */
-    // TODO make this false before merging the dynamic-address-book branch into main
+    /** true iff these GUI files should use the updated consensus code for dynamic address book
+     * TODO make this false before merging the dynamic-address-book branch into main
+     */
     public static final boolean USE_DYNAMIC_ADDRESS_BOOK_UPDATE = true;
 
     // A note on concurrency: although all input to this class is sequential and thread safe, access to this class

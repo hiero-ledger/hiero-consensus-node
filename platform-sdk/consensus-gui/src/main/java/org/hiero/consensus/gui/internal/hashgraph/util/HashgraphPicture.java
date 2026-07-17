@@ -136,8 +136,7 @@ public class HashgraphPicture extends JPanel {
             if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
                 String benchmarksString = "benchmarks:  ";
                 Rectangle2D rect;
-                long[] benchmarks =
-                        events.getFirst().getEventInfo().getHashgraph().getBenchmarks();
+                long[] benchmarks = events.getFirst().getEventInfo().getHashgraph().getBenchmarks();
                 benchmarksString += benchmarks[1] + " update() calls, ";
                 benchmarksString += (benchmarks[0] / benchmarks[1]) + " ns per update(), inner loops: ";
                 for (int i = 2; i < benchmarks.length; i++) {
