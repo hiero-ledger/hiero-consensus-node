@@ -956,6 +956,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     @Override
     public void close(final boolean keepData) throws IOException {
         if (!closed.getAndSet(true)) {
+            final long start = System.currentTimeMillis();
             try {
                 // Stop merging and shutdown the datasource compactor
                 compactionCoordinator.stopAndDisableBackgroundCompaction();
@@ -992,6 +993,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     if (!keepData) {
                         DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);
                     }
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.close, took {} ms",
+                            System.currentTimeMillis() - start);
                 }
             }
         }
@@ -1031,6 +1034,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // main snapshotting process in multiple-threads
             try {
                 // Flush cached hash chunks to the hash chunk store
+                final long hashCacheStart = System.currentTimeMillis();
                 if (getLastLeafPath() > 0) {
                     final long maxValidChunkId =
                             VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
@@ -1038,26 +1042,43 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
                     writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
                 }
+                logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write hashes, took {} ms",
+                        System.currentTimeMillis() - hashCacheStart);
                 final CountDownLatch countDownLatch = new CountDownLatch(6);
                 // write all data stores
                 runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
+                    final long start = System.currentTimeMillis();
                     idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write hash index, took {} ms",
+                            System.currentTimeMillis() - start);
                     return true;
                 });
                 runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
+                    final long start = System.currentTimeMillis();
                     pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write leaf index, took {} ms",
+                            System.currentTimeMillis() - start);
                     return true;
                 });
                 runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
+                    final long start = System.currentTimeMillis();
                     hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write hashes, took {} ms",
+                            System.currentTimeMillis() - start);
                     return true;
                 });
                 runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
+                    final long start = System.currentTimeMillis();
                     keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write HDHM, took {} ms",
+                            System.currentTimeMillis() - start);
                     return true;
                 });
                 runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
+                    final long start = System.currentTimeMillis();
                     keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write leaves, took {} ms",
+                            System.currentTimeMillis() - start);
                     return true;
                 });
                 runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
@@ -1079,6 +1100,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     "[{}] Snapshot all finished in {} seconds",
                     tableName,
                     (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+            logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource snapshot took {} ms",
+                    System.currentTimeMillis() - START);
         } finally {
             snapshotInProgress.set(false);
         }

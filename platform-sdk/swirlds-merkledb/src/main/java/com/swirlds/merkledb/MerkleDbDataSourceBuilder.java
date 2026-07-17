@@ -167,12 +167,15 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
             throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
+        final long start = System.currentTimeMillis();
         final String label = merkleDbDataSource.getTableName();
         if (snapshotDir == null) {
             snapshotDir = newTempDataSourceDir(label);
         }
         final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
         snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
+        logger.info(STARTUP.getMarker(), "++++++++ Snapshot data source, took {} ms",
+                System.currentTimeMillis() - start);
         return snapshotDir;
     }
 
