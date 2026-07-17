@@ -329,6 +329,123 @@ log/counter, stats CSV, workload/config, and state/divergence work isolated acco
 
 Only the lead agent writes final Markdown files. Extraction workers and the verifier must not edit them directly.
 
+### Shared Worker Contract
+
+The agentic extraction strategy owns generic sub-agent rules. Do not duplicate or weaken its topology, source-reference,
+evidence-status, bounded-context, or verification requirements in worker prompts.
+
+Every observational extraction worker receives:
+
+```text
+manifest collection ID and run ID
+absolute run root and pod-log root
+this observational profile
+the processing protocol, artifact atlas, and agentic extraction strategy
+only the anchors and prior evidence needed for that worker's scope
+```
+
+Every worker must:
+
+- stay inside the assigned run root for raw evidence;
+- use run-root-relative source references in returned evidence;
+- return concise Markdown fragments or structured findings to the lead agent;
+- assign a canonical evidence status to every requested item;
+- record exact search scope for missing evidence;
+- avoid editing final extraction files.
+
+### `socketfactory-lifecycle` Worker Contract
+
+This worker runs after manifest resolution. It does not require reconnect-window anchors.
+
+Inputs:
+
+```text
+run root and pod-log root
+node-log directory mapping
+producing commit from run context, if already observed
+SocketFactory lifecycle message patterns required by this profile
+```
+
+Required work:
+
+1. Inventory every expected node `swirlds.log` and record missing files.
+2. Locate pre/post bind and pre/post connect send/receive buffer messages.
+3. Group observations by node, lifecycle phase, value, and connection context when the log exposes one.
+4. Count occurrences and identify paired phases, pre/post differences, missing phases, and unexpected values.
+5. Search the bounded SocketFactory logger/marker scope for exceptions or lifecycle anomalies.
+
+Required output:
+
+```text
+node/log coverage table
+per-node lifecycle value-and-count table
+paired-phase and pre/post difference findings
+SocketFactory exception/anomaly findings
+missing or ambiguous evidence records
+narrow source references for every present value
+```
+
+This worker must not infer observed values from source code or intended configuration, extract reconnect timelines, or
+analyze passive sampler files.
+
+### `passive-network-socket-memory` Worker Contract
+
+This worker runs only after the lead supplies reconnect anchors and node/endpoint roles.
+
+Inputs:
+
+```text
+run root
+all-node sampler inventory
+learner node and endpoint mapping
+teacher node and endpoint mapping per iteration
+learner and matching teacher windows per iteration
+final learner finish, later ACTIVE timestamp, and post-recovery coverage target
+relevant settings/config endpoint evidence
+```
+
+Required work:
+
+1. Record sampler existence, capture boundaries, cadence, and coverage against every supplied window.
+2. Confirm pod/IP and socket four-tuple attribution before computing reconnect-window statistics.
+3. Analyze the learner/teacher reconnect socket on both endpoints for each covered iteration.
+4. Extract only the active-socket fields defined by this profile.
+5. Compute bounded statistics with an explicit method and verify extrema or representative observations against raw
+   sampler lines.
+6. Use nearby non-teacher or pre/post samples only as focused control context.
+7. Establish socket continuity before deriving cumulative-counter deltas.
+
+Required output:
+
+```text
+all-node sampler coverage and endpoint-attribution table
+per-iteration learner-endpoint evidence block
+per-iteration teacher-endpoint evidence block
+bounded statistic methods and source windows
+focused idle/control observations when available
+coverage, continuity, attribution, and field-availability gaps
+```
+
+This worker must not summarize entire sampler files, mine unrelated socket anomalies, treat sampler rate fields as link
+capacity, or substitute an unbounded file-wide scan for a missing reconnect window.
+
+### Lead Outcome And Verification Handoff
+
+Evidence workers do not choose the overall observational conclusion.
+
+After assembling and reconciling all evidence families, the lead agent must:
+
+1. create one sourced row for each of the four outcome layers;
+2. apply the outcome-label precedence from this profile;
+3. record the derived overall label with references to all four layer rows;
+4. assemble `reconnect-run.md` without introducing worker claims that lack valid evidence statuses or references;
+5. hand the assembled file, manifest entry, run root, governing docs, and extraction-method notes to a fresh verifier.
+
+The fresh verifier must return findings rather than edit files. In addition to the generic strategy checks, the verifier
+must test the SocketFactory phase/value counts, both-endpoint socket attribution, bounded sampler calculations, four
+outcome layers, and label precedence. The lead applies corrections, records them in `verification-notes.md`, and creates
+`extraction-summary.md` only after the per-run verification result is resolved.
+
 ## Verification Requirements
 
 Fresh verification must reproduce or spot-check:
