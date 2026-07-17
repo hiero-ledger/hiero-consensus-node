@@ -4,61 +4,35 @@ package com.swirlds.platform.builder;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
-import static java.util.Objects.requireNonNullElse;
-import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.SecureRandom;
-import java.util.List;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
 import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.gossip.GossipModule;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.persistence.SignedStateFilePath;
-import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -79,13 +53,12 @@ public final class PlatformBuilder {
     private final NodeId selfId;
     private final String swirldName;
     private Configuration configuration;
-    private GossipModule gossipModule;
     private long transactionOffsetNanos;
 
     /**
      * A RosterHistory that allows one to lookup a roster for a given round, or get the active/previous roster.
      */
-    private RosterHistory rosterHistory;
+    private final RosterHistory rosterHistory;
 
     /**
      * A consensusEventStreamName for DefaultConsensusEventStream. See javadoc and comments in
@@ -97,16 +70,6 @@ public final class PlatformBuilder {
      * This node's cryptographic keys.
      */
     private KeysAndCerts keysAndCerts;
-
-    /**
-     * The wiring model to use for this platform.
-     */
-    private WiringModel model;
-
-    /**
-     * The supplier of cryptographically secure random number generators.
-     */
-    private Supplier<SecureRandom> secureRandomSupplier;
     /**
      * The platform context for this platform.
      */
@@ -147,7 +110,7 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         return new PlatformBuilder(
                 appName,
                 swirldName,
@@ -182,7 +145,7 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
         this.appName = requireNonNull(appName);
         this.swirldName = requireNonNull(swirldName);
@@ -193,6 +156,8 @@ public final class PlatformBuilder {
         this.consensusEventStreamName = requireNonNull(consensusEventStreamName);
         this.rosterHistory = requireNonNull(rosterHistory);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
+
+        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", rosterHistory);
     }
 
     /**
@@ -227,6 +192,11 @@ public final class PlatformBuilder {
         return this;
     }
 
+    /**
+     * Provide the execution layer instance used by the consensus layer to interact with the execution layer.
+     * @param execution the execution layer instance
+     * @return this
+     */
     @NonNull
     public PlatformBuilder withExecutionLayer(@NonNull final ExecutionLayer execution) {
         throwIfAlreadyUsed();
@@ -262,31 +232,6 @@ public final class PlatformBuilder {
     }
 
     /**
-     * Provide the wiring model to use for this platform.
-     *
-     * @param model the wiring model to use
-     * @return this
-     */
-    public PlatformBuilder withModel(@NonNull final WiringModel model) {
-        throwIfAlreadyUsed();
-        this.model = requireNonNull(model);
-        return this;
-    }
-
-    /**
-     * Provide a supplier of cryptographically secure random number generators.
-     *
-     * @param secureRandomSupplier supplier of cryptographically secure random number generators
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withSecureRandomSupplier(@NonNull final Supplier<SecureRandom> secureRandomSupplier) {
-        throwIfAlreadyUsed();
-        this.secureRandomSupplier = requireNonNull(secureRandomSupplier);
-        return this;
-    }
-
-    /**
      * Provide the  platform context for this platform.
      *
      * @param platformContext the platform context
@@ -296,19 +241,6 @@ public final class PlatformBuilder {
     public PlatformBuilder withPlatformContext(@NonNull final PlatformContext platformContext) {
         throwIfAlreadyUsed();
         this.platformContext = requireNonNull(platformContext);
-        return this;
-    }
-
-    /**
-     * Provide the consensus event creator to use for this platform.
-     *
-     * @param gossipModule the consensus event creator
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withGossipModule(@NonNull final GossipModule gossipModule) {
-        throwIfAlreadyUsed();
-        this.gossipModule = requireNonNull(gossipModule);
         return this;
     }
 
@@ -363,9 +295,9 @@ public final class PlatformBuilder {
                 consensusEventStreamName,
                 transactionOffsetNanos,
                 staleEventConsumer,
-                model,
-                secureRandomSupplier == null ? null : secureRandomSupplier.get(),
-                gossipModule);
+                null,
+                null,
+                null);
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
         final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
@@ -382,7 +314,12 @@ public final class PlatformBuilder {
             platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
         } else {
             final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
-            platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
+            platform = new SwirldsPlatform(
+                    inputs,
+                    platformCoordinator,
+                    buildingBlocks,
+                    initialAncientThreshold,
+                    initialSignedState.getRound());
         }
 
         InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
@@ -396,6 +333,7 @@ public final class PlatformBuilder {
                 buildingBlocks.reservedSignedStateResultPromise(),
                 buildingBlocks.fallenBehindMonitor());
 
+        // Close the initial reservation made on this state, taken in {@link StartupStateUtils#loadInitialState}
         initialState.close();
 
         // FutureWork figure out if this can be moved into Platform.start()
@@ -403,6 +341,4 @@ public final class PlatformBuilder {
 
         return platform;
     }
-
-
 }

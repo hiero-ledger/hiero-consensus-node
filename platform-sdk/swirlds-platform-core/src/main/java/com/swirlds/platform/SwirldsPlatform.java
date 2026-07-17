@@ -3,26 +3,16 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,8 +23,6 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.state.SavedStateController;
-import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -105,8 +93,6 @@ public class SwirldsPlatform implements Platform {
         selfId = inputs.selfId();
 
         notificationEngine = buildingBlocks.notificationEngine();
-
-        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", inputs.rosterHistory());
         currentRoster = inputs.rosterHistory().getCurrentRoster();
 
         final Metrics metrics = inputs.metrics();
@@ -116,7 +102,6 @@ public class SwirldsPlatform implements Platform {
 
         keysAndCerts = inputs.keysAndCerts();
     }
-
 
     /**
      * {@inheritDoc}

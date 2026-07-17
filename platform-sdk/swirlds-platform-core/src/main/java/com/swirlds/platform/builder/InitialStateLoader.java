@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
@@ -39,10 +40,22 @@ import org.hiero.consensus.state.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.SignedState;
 
+/**
+ * A static utility class for loading the initial state into the consensus layer.
+ */
 public class InitialStateLoader {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Initializes all consensus layer modules with the initial state. This method is only for loading the initial state
+     * immediately after constructing the consensus layer, not for use after a reconnect.
+     *
+     * @param platform            the newly constructed platform
+     * @param inputs              consensus layer inputs from the execution layer
+     * @param buildingBlocks      the consensus layer building blocks
+     * @param platformCoordinator the platform coordinator
+     */
     public static void initializeModulesWithInitialState(
             @NonNull final Platform platform,
             @NonNull final ConsensusLayerInputs inputs,
@@ -109,11 +122,14 @@ public class InitialStateLoader {
     }
 
     /**
-     * Initialize the state.
+     * Initialize the state with the execution layer.
      *
+     * @param platform the platform
      * @param signedState the state to initialize
+     * @param consensusStateEventHandler the consensus state event handler
      */
-    private static void initializeState(@NonNull final Platform platform,
+    private static void initializeState(
+            @NonNull final Platform platform,
             @NonNull final SignedState signedState,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
 
@@ -133,12 +149,12 @@ public class InitialStateLoader {
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
         // of that state here. That copy should have caused the hash to be cleared. The hash must be calculated
         // after onStateInitialized(), so that it includes any changes to the state made in onStateInitialized().
-
         if (initialState.isHashed()) {
             throw new IllegalStateException("Expected initial state to be unhashed");
         }
 
-        consensusStateEventHandler.onStateInitialized(signedState.getState(), platform, trigger, previousSoftwareVersion);
+        consensusStateEventHandler.onStateInitialized(
+                signedState.getState(), platform, trigger, previousSoftwareVersion);
 
         // calculate hash
         abortAndThrowIfInterrupted(

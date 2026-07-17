@@ -18,7 +18,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.builder.InitialStateLoader;
-import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
@@ -191,7 +190,12 @@ public class ConsensusNodeManager {
                 platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
             } else {
                 final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
-                platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
+                platform = new SwirldsPlatform(
+                        inputs,
+                        platformCoordinator,
+                        buildingBlocks,
+                        initialAncientThreshold,
+                        initialSignedState.getRound());
             }
             InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
         }
