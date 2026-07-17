@@ -69,7 +69,10 @@ class RpcPeerHandlerTest {
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);
         this.fallenBehindManager = new FallenBehindMonitor(
-                RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
+                RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(),
+                configuration,
+                new NoOpMetrics(),
+                selfId);
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.syncProgressReporter = mock(Consumer.class);

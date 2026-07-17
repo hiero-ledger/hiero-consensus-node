@@ -66,6 +66,7 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   RUN_LOG_NAME: "run.tck-regression.log"
+  MIRROR_NODE_VERSION: "v0.156.0"
 
 jobs:
   # Execute TCK Regression Tests using specified version of hiero-consensus-node
@@ -175,15 +176,116 @@ jobs:
           echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
         working-directory: platform-sdk/sdk-server/tck
 
-      # Prepare Hiero Solo
-      - name: Prepare Hiero Solo
-        id: solo-action
-        timeout-minutes: 20
-        uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
+      # The network under test is deployed from THIS checkout's build artifacts (the ref being
+      # tested), not a released consensus-node image, so the panel regression-tests the code
+      # each PR actually changes. Deployment mirrors 821-call-block-node-regression.yaml.
+      - name: Get Version of Checkout CN Codebase
+        run: |
+          RAW_VERSION=$(cat version.txt)
+          echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_VERSION env var"
+          echo "CN_VERSION=${RAW_VERSION}" >> "${GITHUB_ENV}"
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
-          installMirrorNode: true
-          mirrorNodeVersion: v0.138.0
-          soloVersion: ${{ inputs.solo-version || 'latest' }}
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          cp -f "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          chmod +x "${RUNNER_TEMP}/helm"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Cluster setup (Kind + Solo)
+        run: |
+          set -eo pipefail
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          sleep 10
+          solo init
+          solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+          solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes 1
+          solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+
+      - name: Create CN application properties File
+        run: |
+          cat <<EOF > application.env
+          TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps
+          EOF
+
+          echo "=== application.env ==="
+          cat ./application.env
+
+          # application.properties only applies to CN >= 0.77; skip for 0.75 and 0.76
+          if [[ "${CN_VERSION}" != 0.75* && "${CN_VERSION}" != 0.76* ]]; then
+            cat <<EOF > application.properties
+            blockStream.streamWrappedRecordBlocks=false
+          EOF
+
+            echo "=== application.properties ==="
+            cat ./application.properties
+          fi
+
+      - name: Solo Nodes deployment (CN local build + MN)
+        timeout-minutes: 35
+        env:
+          # A fresh kind cluster pulls every container image; solo's default pod-Running gate
+          # (900 x 1s) can expire on slow pulls, so widen it.
+          PODS_RUNNING_MAX_ATTEMPTS: "2700"
+        run: |
+          set -eo pipefail
+          solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
+          SOLO_PROPS_ARG=""
+          [[ -f ./application.properties ]] && SOLO_PROPS_ARG="--application-properties ./application.properties"
+          # shellcheck disable=SC2086
+          solo consensus network deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" --pvcs true --application-env ./application.env ${SOLO_PROPS_ARG}
+          solo consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+          solo consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
+          solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --pinger --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --mirror-node-version "${MIRROR_NODE_VERSION}"
+
+      # The TCK client expects the network on fixed localhost ports (see the Start tck-client
+      # env). NOTE: /api/v1/network/nodes is served by the restjava service on mirror-node
+      # >= ~0.15x (the JS rest module dropped it), hence the dedicated 8084 forward; 5600 must
+      # target mirror-1-grpc (the mirror gRPC API), not the monitor.
+      - name: Solo Port forwards
+        run: |
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc 50211:non-tls-grpc-client-port &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest 5551:http &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-restjava 8084:http &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-grpc 5600:5600 &
+          sleep 5
+
+      - name: Wait for network readiness
+        run: |
+          set -eo pipefail
+          kubectl -n "${SOLO_NAMESPACE}" get pods
+          echo "Waiting for mirror REST to serve /api/v1/blocks (up to 5m)"
+          for i in {1..60}; do
+            if curl -sf "http://127.0.0.1:5551/api/v1/blocks?limit=1" >/dev/null; then
+              echo "Mirror REST ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Mirror REST did not become ready on 127.0.0.1:5551" >&2
+          kubectl -n "${SOLO_NAMESPACE}" get pods >&2
+          exit 1
 
       # Start the TCK client
       - name: Start tck-client
@@ -201,9 +303,9 @@ jobs:
         run: |
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1000000
           else
-            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1000000
           fi
           cp .env.custom_node .env
           npm run test
@@ -249,6 +351,12 @@ jobs:
         run: |
           echo ${{ steps.start-sdk-server.outputs.pid }}
           kill -9 ${{ steps.start-sdk-server.outputs.pid }}
+
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
       - name: Set Failure Mode Output
         id: set-failure-mode
@@ -305,7 +413,7 @@ jobs:
           egress-policy: audit
 
       - name: Report Status to CITR Detailed Test Results
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook

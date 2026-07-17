@@ -2,7 +2,9 @@
 type: decision
 id: ADR-008
 title: Replace nGen with a monotonic event sequence number and remove nGen
-topics: [event-intake, event-creation, hashgraph, gossip]
+topics: [event-intake, event-creator, hashgraph, gossip]
+historical:
+  - consensus-model/src/main/java/org/hiero/consensus/model/event/NonDeterministicGeneration.java
 related:
   invariants: []
   decisions: []
