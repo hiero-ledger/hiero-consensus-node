@@ -74,6 +74,7 @@ open module com.hedera.node.test.clients {
             SharedNetworkLauncherSessionListener;
 
     requires com.hedera.cryptography.hints;
+    requires com.hedera.cryptography.libsecp256k1;
     requires com.hedera.cryptography.wraps;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
@@ -125,7 +126,6 @@ open module com.hedera.node.test.clients {
     requires com.github.dockerjava.api;
     requires com.google.common;
     requires com.google.protobuf;
-    requires com.sun.jna;
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
@@ -146,7 +146,6 @@ open module com.hedera.node.test.clients {
     requires org.hyperledger.besu.datatypes;
     requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
-    requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;
     requires org.junit.jupiter.api;
     requires org.junit.platform.commons;
