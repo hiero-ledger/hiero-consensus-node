@@ -61,31 +61,35 @@ node is almost falling behind, the event window can advance past an event's
 parents while the event itself is still non-ancient, and that event's `nGen`
 **resets to 1**.
 
-### The reset hurts every ordering consumer, not just the tipset
+### The reset breaks per-creator ordering monotonicity
 
-The reset breaks the one property these consumers rely on — **per-creator
+The reset breaks the one property an *ordering* consumer relies on — **per-creator
 monotonicity**, that a later event from a creator compares strictly greater than
 that creator's earlier events. A creator's value may have climbed to, say, 50,
 and then a genuinely *later* event arrives carrying `nGen = 1`, moving the value
-**backward**. The fallout is broad:
+**backward**. Any consumer that uses `nGen` as an ordering key inherits this.
 
-- **Event creation (the tipset).** The advancement score and
+#24618 assessed four such consumers as exposed: event creation (the tipset), the
+consensus algorithm, sync, and `cGen`. That assessment held for two of them and
+was corrected for the other two:
+
+- **Event creation (the tipset) — genuinely exposed.** The advancement score and
   `ChildlessEventTracker` assume monotonic per-creator ordering. A slot dropping
   `50 → 1` registers as a regression, and the `existingEvent >= event` check in
   the childless tracker rejects the genuinely newer event — degrading event
   creation exactly when a node is trying to catch up.
-- **Consensus, sync, and cGen.** The same ordering assumption underlies the
-  consensus algorithm, the order in which sync sends events, and `cGen`
-  handling. Per #24618 these were all assessed as exposed to the reset. (This
-  ex-ante assessment held for sync but not for the consensus algorithm: migrating
-  it revealed that its consumers need graph *height*, not merely ordering, and the
-  reset is in fact benign for them — see [Limitations](#limitations).)
+- **Sync — genuinely exposed.** The send-list order is a topological ordering, so
+  the reset perturbs it the same way.
+- **Consensus and `cGen` — not exposed after all.** Migrating them showed neither
+  actually depends on the reset: the consensus-relevant threshold needs graph
+  *height* (not ordering), and `cGen` needs only a topological order of an
+  *already-agreed* consensus set (either key suffices). The reset is benign for
+  each, for different reasons — see [Limitations](#limitations).
 
 Note what is **not** the problem: `nGen` being non-unique (events at the same
 height share a value), or `nGen` folding in other-parents' heights. Neither
-breaks per-creator monotonic ordering. The reset is the issue — and it is a flaw
-in the `nGen` concept itself (a graph height derived from currently-tracked
-parents), so every consumer that uses `nGen` as an ordering key inherits it.
+breaks per-creator monotonic ordering. The reset is the issue — a flaw in the
+`nGen` concept itself, a graph height derived from currently-tracked parents.
 
 Separately, the name "sequence" was already taken: `EventImpl.sequence`,
 assigned by `Sequencer` in the order events are **added to consensus**, is used
