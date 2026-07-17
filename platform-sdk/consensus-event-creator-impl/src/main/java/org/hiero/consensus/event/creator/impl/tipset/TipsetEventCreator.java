@@ -175,7 +175,8 @@ public class TipsetEventCreator implements EventCreator {
                 // Normally we will ingest self events before we get to this point, but it's possible
                 // to learn of self events for the first time here if we are loading from a restart (via PCES)
                 // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have a sequence number value assigned by the orphan buffer.
+                // will have an nGen number value assigned by the orphan buffer. We use nGen and not sequence
+                // number because nGen tells us which is higher in the graph - sequence number does not.
                 lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
                 tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
