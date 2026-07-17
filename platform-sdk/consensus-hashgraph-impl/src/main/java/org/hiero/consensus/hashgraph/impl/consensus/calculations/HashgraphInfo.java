@@ -106,8 +106,7 @@ public final class HashgraphInfo {
     private static final int BENCHMARK_LOOP5 = 7; // numNodes numNodes (in stakeAgrees)
     private static final int BENCHMARK_LOOP6 = 8; // numNodes numNodes (in vote (when voteD==2))
     private static final int BENCHMARK_LOOP7 = 9; // numNodes numNodes (in vote (when voteD==1))
-    private static final int BENCHMARK_LOOP8 = 10; // numNodes numNodes (in vote (final loop))
-    public static final int NUM_BENCHMARKS = 1 + BENCHMARK_LOOP8; // number of elements in long[] getBenchmarks()
+    public static final int NUM_BENCHMARKS = 1 + BENCHMARK_LOOP7; // number of elements in long[] getBenchmarks()
 
     /** generates a new unique ID for an event each time it is called */
     public long generateEventID() {
@@ -647,14 +646,14 @@ public final class HashgraphInfo {
             HashgraphInfo.latestRoundInfoPrev = roundInfoPrev;
 
             // if this is a new round (or the first called on this hashgraph), calculate the HashgraphInfo fields
-            if (h.pendingRound != r.pendingRound) {
+            if (h.newRound) {
                 // If this is the first time update has ever been called on this hashgraph.
                 if (h.pendingRound == 0) {
                     h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
-                    h.newRound = false;
                 }
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
+                h.newRound = false;
 
                 // if the numbers of nodes changed this round (or it's the first time called), prep cand data structures
                 if (h.nodeIDs == null || h.nodeIDs.length != r.nodes.length) {
@@ -727,7 +726,7 @@ public final class HashgraphInfo {
                             ? 2
                             : 1;
                 }
-            } // end if first call for this round
+            } // end if first call for this round (newRound==true)
 
             // if this is the first time this event has been updated, or if this round has a changed address book,
             // then recalculate the index for the creator.
@@ -1012,19 +1011,19 @@ public final class HashgraphInfo {
                         } else {
                             EventInfo v = z.firstSelfWitnessS;
                             if (v.votingRound == votingRound - 1) {
+                                firstVote = v;
+                            } else {
                                 EventInfo y = v.selfParent;
                                 if (y != null && y.votingRound == votingRound - 1) {
                                     firstVote = y.firstSelfWitnessS;
                                 } else {
                                     firstVote = null;
                                 }
-                            } else {
-                                firstVote = null;
                             }
                         }
                     }
                     voteE[m] = firstVote;
-                    voteIndex[m] = (firstVote == null) ? m : firstVote.eventCandIndex;
+                    voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
                     continue;
                 } else { // not the first round of voting. (end of firstVote, continuing vote)
                     // function topVote /-------------------------------------------------------------------------
@@ -1055,11 +1054,13 @@ public final class HashgraphInfo {
                     if (!q) { // if not a coin round, vote whatever vote had the majority collected
                         voteE[m] = v;
                         voteB[m] = s;
+                        voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
                         continue;
                     }
                     h.lastUpdateUsedCoin = true; // this is a coin round
                     if (s) { // if a coin round and collect a supermajority, vote that way, but don't decide
                         voteE[m] = v;
+                        voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
                         continue;
                     }
                     int mp = coin;
@@ -1071,13 +1072,9 @@ public final class HashgraphInfo {
                         continue;
                     }
                     voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
+                    voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
                     h.benchmarks[HashgraphInfo.BENCHMARK_LOOP7] += System.nanoTime();
                 }
-                h.benchmarks[HashgraphInfo.BENCHMARK_LOOP8] -= System.nanoTime();
-                for (int mm = 0; mm < numNodes; mm++) {
-                    voteIndex[mm] = ((voteE[mm] == null) ? mm : voteE[mm].eventCandIndex);
-                }
-                h.benchmarks[HashgraphInfo.BENCHMARK_LOOP8] += System.nanoTime();
             } // end vote
 
             // function roundDecided /----------------------------------------------------------------------------
