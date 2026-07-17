@@ -7,6 +7,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -24,6 +25,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.InitialStateLoader;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -65,6 +67,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -331,8 +334,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
 
             try (final ReservedSignedState ignoredInitialState = initialState) {
-                platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks);
-                PlatformBuilder.initializeModulesWithInitialState(inputs, buildingBlocks, platformCoordinator);
+                final SignedState initialSignedState = initialState.get();
+                final boolean startedFromGenesis = initialSignedState.isGenesisState();
+
+                if (startedFromGenesis) {
+                    platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+                } else {
+                    final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
+                    platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
+                }
+                InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
             }
             getMetricsProvider().start();
             platformStatus = PlatformStatus.STARTING_UP;

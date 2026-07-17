@@ -42,7 +42,7 @@ import org.hiero.consensus.state.signed.SignedState;
  */
 public class SwirldsPlatform implements Platform {
 
-    private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * The unique ID of this node.
@@ -75,12 +75,6 @@ public class SwirldsPlatform implements Platform {
      */
     private final NotificationEngine notificationEngine;
 
-    /**
-     * Controls which states are saved to disk
-     */
-    private final SavedStateController savedStateController;
-
-    private final long pcesReplayLowerBound;
     private final PlatformCoordinator platformCoordinator;
 
     private final PlatformContext platformContext;
@@ -93,7 +87,9 @@ public class SwirldsPlatform implements Platform {
     public SwirldsPlatform(
             @NonNull final ConsensusLayerInputs inputs,
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
+            final long initialAncientThreshold,
+            final long startingRound) {
         this.inputs = requireNonNull(inputs);
         this.buildingBlocks = requireNonNull(buildingBlocks);
         this.platformContext = PlatformContext.create(
@@ -103,9 +99,8 @@ public class SwirldsPlatform implements Platform {
                 inputs.fileSystemManager(),
                 inputs.recycleBin());
         this.platformCoordinator = platformCoordinator;
-
-        // The reservation on this state is held by the caller of this constructor.
-        final SignedState initialState = inputs.initialState().get();
+        this.initialAncientThreshold = initialAncientThreshold;
+        this.startingRound = startingRound;
 
         selfId = inputs.selfId();
 
@@ -120,75 +115,8 @@ public class SwirldsPlatform implements Platform {
         RuntimeMetrics.setup(metrics);
 
         keysAndCerts = inputs.keysAndCerts();
-        savedStateController = buildingBlocks.savedStateController();
-
-        //////////////////
-
-        initializeState(initialState, inputs.consensusStateEventHandler());
-
-        final boolean startedFromGenesis = initialState.isGenesisState();
-
-        if (startedFromGenesis) {
-            initialAncientThreshold = 0;
-            startingRound = 0;
-        } else {
-            initialAncientThreshold = ancientThresholdOf(initialState.getState());
-            startingRound = initialState.getRound();
-        }
-
-        if (!initialState.isGenesisState()) {
-            pcesReplayLowerBound = initialAncientThreshold;
-        } else {
-            pcesReplayLowerBound = 0;
-        }
     }
 
-    /**
-     * Initialize the state.
-     *
-     * @param signedState the state to initialize
-     */
-    private void initializeState(
-            @NonNull final SignedState signedState,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
-
-        final SemanticVersion previousSoftwareVersion;
-        final InitTrigger trigger;
-
-        if (signedState.isGenesisState()) {
-            previousSoftwareVersion = null;
-            trigger = GENESIS;
-        } else {
-            previousSoftwareVersion = creationSoftwareVersionOf(signedState.getState());
-            trigger = RESTART;
-        }
-
-        final State initialState = signedState.getState();
-
-        // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
-        // of that state here. That copy should have caused the hash to be cleared. The hash must be calculated
-        // after onStateInitialized(), so that it includes any changes to the state made in onStateInitialized().
-
-        if (initialState.isHashed()) {
-            throw new IllegalStateException("Expected initial state to be unhashed");
-        }
-
-        consensusStateEventHandler.onStateInitialized(signedState.getState(), this, trigger, previousSoftwareVersion);
-
-        // calculate hash
-        abortAndThrowIfInterrupted(
-                initialState::getHash, // calculate hash
-                "interrupted while attempting to hash the state");
-
-        // If our hash changes as a result of the new address book then our old signatures may become invalid.
-        if (trigger != GENESIS) {
-            signedState.pruneInvalidSignatures();
-        }
-
-        logger.info(STARTUP.getMarker(), """
-                The platform is using the following initial state:
-                {}""", getInfoString(signedState.getState()));
-    }
 
     /**
      * {@inheritDoc}
@@ -210,7 +138,7 @@ public class SwirldsPlatform implements Platform {
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 
-        buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
+        buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
         buildingBlocks.gossipModule().start();
     }
 
