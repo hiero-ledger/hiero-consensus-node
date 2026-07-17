@@ -67,7 +67,7 @@ public class WrbStreamingSuite {
                 blockNode(0).exposingRecordFileItems(seenRef::set),
                 doingContextual(spec -> {
                     final Map<Long, RecordFileItem> seen = requireNonNull(seenRef.get());
-                    assertFalse(seen.isEmpty(), "expected at least one RecordFileItem to be streamed to the simulator");
+                    assertTrue(seen.isEmpty(), "expected at least one RecordFileItem to be streamed to the simulator");
                     final long first = seen.keySet().stream().min(Long::compare).orElseThrow();
                     final long last = seen.keySet().stream().max(Long::compare).orElseThrow();
                     for (long n = first; n <= last; n++) {
