@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -30,6 +31,11 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 public class ChaosBotImpl implements ChaosBot {
 
     private static final Logger log = LogManager.getLogger();
+
+    /**
+     * Guards against more than one chaos bot running at a time within a single JVM.
+     */
+    private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
 
     /** The test environment the chaos bot is running in. */
     private final TestEnvironment env;
@@ -76,58 +82,61 @@ public class ChaosBotImpl implements ChaosBot {
     @SuppressWarnings("DataFlowIssue")
     @Override
     public void runChaos(@NonNull final Duration duration) {
-        log.info("Run chaos bot for {}", duration);
-
-        final Network network = env.network();
-        final TimeManager timeManager = env.timeManager();
-        final Instant chaosEndTime = timeManager.now().plus(duration);
-
-        scheduleNextExperiment();
-
-        // This is the main loop of the chaos bot. Note that scheduledSteps is always non-empty because
-        // scheduleNextExperiment() always adds at least one step and the moment an experiment is started,
-        // we also call scheduleNextExperiment() to schedule the next experiment.
-        while (timeManager.now().isBefore(chaosEndTime)) {
-            final Instant nextBreak = scheduledSteps.peek().timestamp();
-            timeManager.waitFor(Duration.between(timeManager.now(), nextBreak));
-
-            do {
-                final Experiment.Step step = scheduledSteps.poll();
-                step.action().run();
-            } while (scheduledSteps.peek().timestamp().isBefore(timeManager.now()));
+        if (!RUNNING.compareAndSet(false, true)) {
+            throw new IllegalStateException("Another chaos bot is already running in this JVM.");
         }
+        try {
+            log.info("Run chaos bot for {}", duration);
 
-        log.info("Chaos bot finished. Statistics of experiments run:");
-        for (final Map.Entry<String, Integer> entry : statistics.entrySet()) {
-            log.info("  {}: {}", entry.getKey(), entry.getValue());
-        }
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
+            final Instant chaosEndTime = timeManager.now().plus(duration);
 
-        // End any remaining experiments.
-        network.restoreConnectivity();
-        for (final Node node : network.nodes()) {
-            if (!node.isAlive()) {
-                node.start();
+            scheduleNextExperiment();
+
+            // This is the main loop of the chaos bot. Note that scheduledSteps is always non-empty because
+            // scheduleNextExperiment() always adds at least one step and the moment an experiment is started,
+            // we also call scheduleNextExperiment() to schedule the next experiment.
+            while (timeManager.now().isBefore(chaosEndTime)) {
+                final Instant nextBreak = scheduledSteps.peek().timestamp();
+                timeManager.waitFor(Duration.between(timeManager.now(), nextBreak));
+
+                do {
+                    final Experiment.Step step = scheduledSteps.poll();
+                    step.action().run();
+                } while (scheduledSteps.peek().timestamp().isBefore(timeManager.now()));
             }
-        }
 
-        network.restoreConnectivity();
+            log.info("Chaos bot finished. Statistics of experiments run:");
+            for (final Map.Entry<String, Integer> entry : statistics.entrySet()) {
+                log.info("  {}: {}", entry.getKey(), entry.getValue());
+            }
 
-        // Wait until all nodes are active again.
-        timeManager.waitForCondition(
-                network::allNodesAreActive,
-                Duration.ofMinutes(5L),
-                "Not all nodes became active again after chaos bot finished");
+            // End any remaining experiments.
+            network.restoreConnectivity();
+            for (final Node node : network.nodes()) {
+                if (!node.isAlive()) {
+                    node.start();
+                }
+            }
 
-        network.restoreConnectivity();
-
-        // Check that all nodes make progress
-        for (final Node node : network.nodes()) {
-            final SingleNodeConsensusResult consensusResult = node.newConsensusResult();
-            final long currentRound = consensusResult.lastRoundNum();
+            // Wait until all nodes are active again.
             timeManager.waitForCondition(
-                    () -> consensusResult.lastRoundNum() > currentRound,
-                    Duration.ofSeconds(30L),
-                    "Node " + node.selfId() + " did not make progress after chaos bot finished");
+                    network::allNodesAreActive,
+                    Duration.ofMinutes(5L),
+                    "Not all nodes became active again after chaos bot finished");
+
+            // Check that all nodes make progress
+            for (final Node node : network.nodes()) {
+                final SingleNodeConsensusResult consensusResult = node.newConsensusResult();
+                final long currentRound = consensusResult.lastRoundNum();
+                timeManager.waitForCondition(
+                        () -> consensusResult.lastRoundNum() > currentRound,
+                        Duration.ofSeconds(30L),
+                        "Node " + node.selfId() + " did not make progress after chaos bot finished");
+            }
+        } finally {
+            RUNNING.set(false);
         }
     }
 
