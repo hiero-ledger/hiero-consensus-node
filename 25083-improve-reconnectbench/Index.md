@@ -20,6 +20,7 @@ Last updated: 2026-07-17
 - [Loopback Socket Transport Implementation Plan](design-and-implementation/ReconnectBench-loopback-socket-transport-implementation-plan.md) - Step-by-step execution plan for the benchmark-only loopback TCP transport validation work.
 - [Socket-Buffer Read-Pacing Design (Option C)](design-and-implementation/ReconnectBench-socket-buffer-read-pacing-design.md) - Approved design moving `LOOPBACK_SOCKET + REALISTIC` shaping to a read-side pacer so real kernel socket buffers bind and `SocketFactory` buffer changes move reconnect wall-clock; supersedes the write-side shaping directives of the loopback transport design.
 - [Production Sync-Stream Reuse Implementation Plan](design-and-implementation/2026-07-16-reuse-production-sync-streams-implementation-plan.md) - Test-first implementation plan for making the socket transport honor production stream buffering, compression, and wire-byte counting.
+- [1B Observational Reconnect Extraction Execution Plan](design-and-implementation/2026-07-17-1b-observational-extraction-execution-plan.md) - Phase-split execution plan for extracting the single large-state reconnect collection with layered recovery outcomes, standard reconnect evidence, SocketFactory telemetry, focused `ss -tinm` analysis, and fresh verification.
 
 ## Evidence And Calibration
 
