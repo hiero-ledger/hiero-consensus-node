@@ -252,7 +252,7 @@ public final class HashgraphInfo {
                 // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
                 x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
                 x.receivedTime[judgeIndex] = lowestTime;
-                x.searchMark = currMark;
+//                x.searchMark = currMark;
                 x.searchSelfAncestor = judgeSelfAncestor;
                 x.searchParent = -1; // descend through the first parent first (index 0)
                 if (x.searchCount == targetCount) {
@@ -270,6 +270,7 @@ public final class HashgraphInfo {
                                 || nextX.searchMark == currMark
                                 || nextX.isConsensus)) {
                     while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
+                        x.searchMark = currMark; // backtrack up from x to its child, so mark x as fully explored
                         x = x.searchChild; // backtrack up until an event is found with an unexplored parent
                         judgeSelfAncestor = (x != null) && x.searchSelfAncestor;
                     }
@@ -278,6 +279,9 @@ public final class HashgraphInfo {
                         judgeSelfAncestor = false;
                     }
                     nextX = (x == null) ? null : x.parentsSigned[x.searchParent];
+                }
+                if (nextX != null) {
+                    nextX.searchChild = x;
                 }
                 x = nextX; // move to the new event that was good (or null if done searching from this judge)
             }
