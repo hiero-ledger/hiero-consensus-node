@@ -402,13 +402,6 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         } else if (to instanceof TokenEvmAccount || to instanceof ScheduleEvmAccount) {
             return Optional.of(ILLEGAL_STATE_CHANGE);
         }
-        // A value transfer whose sender cannot cover the amount must fail as a clean EVM halt. The
-        // low-level transferFromTo throws IllegalArgumentException on insufficient balance, which
-        // would otherwise escape to the handle workflow as a "Possibly CATASTROPHIC failure" (e.g.
-        // a top-level ContractCreate whose initial value exceeds the sender's balance).
-        if (from.getBalance().toLong() < amount) {
-            return Optional.of(CustomExceptionalHaltReason.INSUFFICIENT_BALANCE);
-        }
         // Note we can still use top-level signatures to meet receiver signature requirements
         final var status = nativeOperations.transferWithReceiverSigCheck(
                 amount,
