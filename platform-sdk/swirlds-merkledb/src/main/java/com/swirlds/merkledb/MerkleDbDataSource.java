@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -269,6 +270,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean compactionEnabled,
             final boolean diskBasedIndices)
             throws IOException {
+        final long start = System.currentTimeMillis();
+        logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource init started");
         this.tableName = tableName;
         this.merkleDbConfig = config;
 
@@ -351,6 +354,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight) + 1;
 
         // Hash chunk disk location index (chunk ID to disk location)
+        final long hashChunkIndexStart = System.currentTimeMillis();
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationHashChunks = preferDiskBasedIndices
@@ -361,6 +365,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     ? new LongListDisk(hashIndexCapacity, merkleDbConfig, fileSystemManager)
                     : new LongListSegment(hashIndexCapacity, merkleDbConfig);
         }
+        logger.info(STARTUP.getMarker(), "++++++++ Hash chunk index is loaded, took {} ms",
+                System.currentTimeMillis() - hashChunkIndexStart);
 
         // Hash chunk store (hash chunks)
         if (Files.exists(dbPaths.hashStoreRamFile) || Files.isDirectory(dbPaths.hashStoreDiskDirectory)) {
@@ -413,6 +419,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         hashChunkCache = new ConcurrentHashMap<>(hashChunkCacheThreshold);
 
         // KV disk location index (path to disk location)
+        final long leafIndexStart = System.currentTimeMillis();
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
         if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
             pathToDiskLocationLeafNodes = preferDiskBasedIndices
@@ -423,6 +430,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
                     : new LongListSegment(kvIndexCapacity, config);
         }
+        logger.info(STARTUP.getMarker(), "++++++++ Leaf index is loaded, took {} ms",
+                System.currentTimeMillis() - leafIndexStart);
 
         // Leaves store (leaf nodes)
         final LoadedDataCallback leafRecordLoadedCallback;
@@ -455,6 +464,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 pathToDiskLocationLeafNodes);
 
         // Keys (keys to paths)
+        final long keyToPathStart = System.currentTimeMillis();
         keyToPath = new HalfDiskHashMap(
                 config,
                 fileSystemManager,
@@ -474,6 +484,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
             }
         }
+        logger.info(STARTUP.getMarker(), "++++++++ HDHM is loaded, took {} ms",
+                System.currentTimeMillis() - keyToPathStart);
 
         // Leaf records cache
         leafRecordCacheSize = merkleDbConfig.leafRecordCacheSize();
@@ -500,6 +512,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 storageDir,
                 this.initialCapacity,
                 this.hashChunkHeight);
+        logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource init finished, took {} ms",
+                System.currentTimeMillis() - start);
     }
 
     @NonNull
