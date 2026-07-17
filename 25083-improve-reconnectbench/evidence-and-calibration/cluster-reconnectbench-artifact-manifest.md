@@ -28,7 +28,7 @@ reference this manifest instead of duplicating raw artifact paths or concrete ru
 | `2026-06-29-cluster-calibration` | extracted | Follow-up traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/29-06-2026` | `extracted-cluster-evidence/2026-06-29-cluster-calibration/` |
 | `2026-06-30-cluster-calibration` | extracted | Follow-up high-state traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/30-06-2026` | `extracted-cluster-evidence/2026-06-30-cluster-calibration/` |
 | `2026-07-01-cluster-calibration` | extracted | Follow-up high-state traversal-order cluster calibration batch for ReconnectBench. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/01-07-2026` | `extracted-cluster-evidence/2026-07-01-cluster-calibration/` |
-| `2026-07-16-1b-observational` | pending | Single-run, approximately one-billion-record observational reconnect extraction with SocketFactory and focused `ss -tinm` evidence. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/16-07-2026-1B` | `extracted-cluster-evidence/2026-07-16-1b-observational/` |
+| `2026-07-16-1b-observational` | extracted | Single-run, approximately one-billion-record observational reconnect extraction with SocketFactory and focused `ss -tinm` evidence. | `/Users/thenswan/Work/LimeChain/playground/reconnect-cluster-runs/16-07-2026-1B` | `extracted-cluster-evidence/2026-07-16-1b-observational/` |
 
 ## 2026-05-29 Cluster Calibration
 
@@ -234,7 +234,7 @@ Use `runRoot` as the base path for top-level run artifacts, network sampler file
 
 | Run ID | Purpose | `runRoot` | `podLogRoot` | Workflow log root | Expected learner | Output file | Status |
 |---|---|---|---|---|---|---|---:|
-| `reconnect-run` | Single-run large-state observational reconnect extraction | `.` | `podlog_solo-mdlt-n12` | `.` | `network-node1-0` / node `0` | `extracted-cluster-evidence/2026-07-16-1b-observational/reconnect-run.md` | pending |
+| `reconnect-run` | Single-run large-state observational reconnect extraction | `.` | `podlog_solo-mdlt-n12` | `.` | `network-node1-0` / node `0` | `extracted-cluster-evidence/2026-07-16-1b-observational/reconnect-run.md` | extracted |
 
 ### Collection Outputs
 
