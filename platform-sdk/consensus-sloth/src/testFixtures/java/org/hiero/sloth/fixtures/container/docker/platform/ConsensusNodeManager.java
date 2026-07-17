@@ -178,7 +178,9 @@ public class ConsensusNodeManager {
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
-        platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+        try (final ReservedSignedState ignored = initialState) {
+            platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+        }
     }
 
     /**

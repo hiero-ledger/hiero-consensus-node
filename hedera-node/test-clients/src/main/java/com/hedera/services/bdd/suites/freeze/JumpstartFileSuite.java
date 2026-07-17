@@ -44,6 +44,7 @@ import com.hedera.services.bdd.spec.utilops.upgrade.VerifyCutoverBlockStreamOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -52,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
@@ -188,6 +190,38 @@ class JumpstartFileSuite implements LifecycleTest {
                         wrappedRecordHashes2.get(),
                         nodeComputedHash2.get(),
                         freezeBlockNum2.get())),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Migration root hash voting finalized after node\\d+ vote, >1/3 threshold reached",
+                        Duration.ofSeconds(30)),
+                // Verify cycle 2's voting handler did not replay stale queued hashes from cycle 1.
+                // All "Applied queued hash for block{N}" entries processed by cycle 2's voting handler
+                // must have block numbers > cycle 2's freeze block (F2). Stale entries from cycle 1's
+                // voting window would have block numbers < F2 and would fail this assertion.
+                sourcing(() -> doingContextual(spec -> {
+                    final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+                    final String log;
+                    try {
+                        log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    final int initIdx = log.lastIndexOf("Initialized wrapped record voting singleton with deadline=");
+                    assertTrue(initIdx >= 0, "Expected to find cycle 2 voting init in log");
+                    final var logAfterInit = log.substring(initIdx);
+                    final var appliedPattern = Pattern.compile("Applied queued hash for block(\\d+):");
+                    final var matcher = appliedPattern.matcher(logAfterInit);
+                    final long cycle2FreezeBlock = Long.parseLong(freezeBlockNum2.get());
+                    while (matcher.find()) {
+                        final long blockNum = Long.parseLong(matcher.group(1));
+                        assertTrue(
+                                blockNum > cycle2FreezeBlock,
+                                "Stale queued hash from prior jumpstart cycle detected: block "
+                                        + blockNum
+                                        + " <= cycle-2 freeze block "
+                                        + cycle2FreezeBlock);
+                    }
+                })),
                 // Distinct-by-construction: the second cycle used a different jumpstart block than the first.
                 doAdhoc(() -> assertNotEquals(
                         jumpstartConfig.get().blockNum(),

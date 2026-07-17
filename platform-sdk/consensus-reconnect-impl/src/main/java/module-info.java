@@ -28,6 +28,7 @@ module org.hiero.consensus.reconnect.impl {
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;

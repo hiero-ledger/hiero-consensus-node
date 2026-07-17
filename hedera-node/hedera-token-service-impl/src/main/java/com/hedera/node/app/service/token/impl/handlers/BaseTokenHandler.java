@@ -427,7 +427,7 @@ public class BaseTokenHandler {
         accountStore.put(copyAccount.numberPositiveBalances(numPositiveBalances).build());
     }
 
-    // Overflow-safe: a wrapped sum could pass the newBalance >= 0 guard.
+    // Reject out-of-range sums; a wrapped result could pass the newBalance >= 0 guard.
     protected static long addExactBalance(final long a, final long b) {
         try {
             return Math.addExact(a, b);

@@ -22,10 +22,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.DefaultAppNotifier;
-import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
@@ -161,19 +157,14 @@ public class SwirldsPlatform implements Platform {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
         }
 
-        final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
-        final AppNotifier appNotifier = new DefaultAppNotifier(buildingBlocks.notificationEngine());
-
-        buildingBlocks.platformComponents().bind(inputs, eventWindowManager, appNotifier);
-
         final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
                 ? Cryptography.NULL_HASH
                 : legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
-        platformCoordinator.updateRunningHash(runningEventHashOverride);
+        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
 
-        // Load the minimum generation into the pre-consensus event writer
+        // Load the minimum birth round into the pre-consensus event writer
         final String actualMainClassName =
                 configuration.getConfigData(StateConfig.class).getMainClassName(inputs.appName());
 
@@ -181,10 +172,10 @@ public class SwirldsPlatform implements Platform {
                 new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
-            // The minimum generation of non-ancient events for the oldest state snapshot on disk.
-            final long minimumGenerationNonAncientForOldestState =
+            // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
+            final long minimumBirthRoundNonAncientForOldestState =
                     savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
+            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumBirthRoundNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
@@ -201,12 +192,12 @@ public class SwirldsPlatform implements Platform {
             initialAncientThreshold = ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
-            platformCoordinator.sendStateToStateManagement(initialState);
+            buildingBlocks.stateModule().sendState(initialState);
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
             final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(initialState.getState()));
-            platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
+            buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
@@ -215,7 +206,9 @@ public class SwirldsPlatform implements Platform {
                     configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
             platformCoordinator.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
+            buildingBlocks
+                    .issDetectionModule()
+                    .overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 
         if (!initialState.isGenesisState()) {
@@ -289,17 +282,17 @@ public class SwirldsPlatform implements Platform {
 
         inputs.recycleBin().start();
         inputs.metrics().start();
-        platformCoordinator.start();
+        buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
-        platformCoordinator.startGossip();
+        buildingBlocks.gossipModule().start();
     }
 
     @Override
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
         inputs.recycleBin().stop();
-        platformCoordinator.stop();
+        buildingBlocks.wiringModel().stop();
         getMetricsProvider().removePlatformMetrics(selfId);
     }
 
