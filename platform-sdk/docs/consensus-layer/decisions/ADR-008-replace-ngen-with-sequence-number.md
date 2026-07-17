@@ -69,7 +69,8 @@ that creator's earlier events. A creator's value may have climbed to, say, 50,
 and then a genuinely *later* event arrives carrying `nGen = 1`, moving the value
 **backward**. Any consumer that uses `nGen` as an ordering key inherits this.
 
-#24618 assessed four such consumers as exposed: event creation (the tipset), the
+# 24618 assessed four such consumers as exposed: event creation (the tipset), the
+
 consensus algorithm, sync, and `cGen`. That assessment held for two of them and
 was corrected for the other two:
 
@@ -127,7 +128,6 @@ The split, by consumer:
   - the **`cGen`** topological sort (`LocalConsensusGeneration.assignCGen`), which
     needs only a valid topological order of a round's *already-agreed* consensus
     set — `nGen` or the sequence number both suffice, and it currently uses `nGen`.
-
 - **Assignment.** `PlatformEvent` carries a `sequenceNumber`, defaulting to
   `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
   `DefaultOrphanBuffer` holds a single `AtomicLong` and, in
@@ -153,15 +153,15 @@ The split, by consumer:
   then **reverted**, because keying a height-sensitive comparison on a
   release-order counter broke consensus (SCN-002) and event creation (SCN-003):
 
-  |                          Stage                           |                 Scope                  |      Tracking      |  State   |
-  |----------------------------------------------------------|----------------------------------------|--------------------|----------|
-  | Compute the sequence number in the orphan buffer         | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done     |
-  | Event creation / tipset advancement                      | `consensus-event-creator-impl`         | #24991             | done     |
-  | Sync send-list order                                     | `consensus-gossip-impl`                | #24843             | done     |
-  | Consensus-relevant threshold                             | `consensus-hashgraph-impl`             | #24844, #26319     | reverted |
-  | `cGen` topological sort                                  | `consensus-hashgraph-impl`             | #24883, #26319     | reverted |
-  | Event creator `lastSelfEvent`                            | `consensus-event-creator-impl`         | #26376             | reverted |
-  | Tools (GUI, CLI)                                         | `consensus-gui`, `swirlds-cli`         | #24885             | pending  |
+  |                      Stage                       |                 Scope                  |      Tracking      |  State   |
+  |--------------------------------------------------|----------------------------------------|--------------------|----------|
+  | Compute the sequence number in the orphan buffer | `consensus-utility`, `consensus-model` | #24841 (PR #24937) | done     |
+  | Event creation / tipset advancement              | `consensus-event-creator-impl`         | #24991             | done     |
+  | Sync send-list order                             | `consensus-gossip-impl`                | #24843             | done     |
+  | Consensus-relevant threshold                     | `consensus-hashgraph-impl`             | #24844, #26319     | reverted |
+  | `cGen` topological sort                          | `consensus-hashgraph-impl`             | #24883, #26319     | reverted |
+  | Event creator `lastSelfEvent`                    | `consensus-event-creator-impl`         | #26376             | reverted |
+  | Tools (GUI, CLI)                                 | `consensus-gui`, `swirlds-cli`         | #24885             | pending  |
 
   There is no `nGen`-removal stage: `nGen` is retained indefinitely for the
   height-sensitive consumers above.
@@ -237,10 +237,13 @@ value is correct.
   migration's premise — that every consumer needs only *local* ordering — did not
   hold for consumers that need graph height. Substituting the sequence number
   caused an ISS (SCN-002) and a branch (SCN-003); both were reverted (#26319,
-  #26376). `nGen` is retained indefinitely, so full removal is off the table.
+
+  # 26376). `nGen` is retained indefinitely, so full removal is off the table.
+
 - **Two ordering values coexist permanently.** `nGen` and `sequenceNumber` both
   remain in the codebase for good; a consumer that reads the wrong one, or
   compares the two, is a live hazard — no longer a transitional one.
+
 - **Some uses of `nGen` are not pure ordering.** The GUI uses `nGen` as actual
   graph **height** to lay out the hashgraph vertically (`PictureMetadata`,
   `HashgraphPicture`). A sequence number is monotonic but is not a height, so that

@@ -63,7 +63,9 @@ release-order counter, so a self-ancestor re-released after a buffer clear gets 
 *new, higher* number and would satisfy the strictly-greater guard, overwriting
 `lastSelfEvent` with an ancestor. Keying this check on the sequence number
 did exactly that and caused branching (SCN-003); it was reverted to nGen in
-#26376. See [ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md)
+
+# 26376. See [ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md)
+
 for the topological-order-vs-height distinction this rests on.
 
 ## Change risk
