@@ -475,6 +475,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
+        final long fullRehashStart = System.currentTimeMillis();
         final CompletableFuture<Hash> fullRehashFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),
                         cache::preloadHashChunk,
@@ -518,6 +519,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final long millisSpent = System.currentTimeMillis() - start;
             logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
             setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ Full leaf rehash is finished, took {} ms",
+                    System.currentTimeMillis() - fullRehashStart);
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
             throw new RuntimeException(message, e.getCause() != null ? e.getCause() : e);

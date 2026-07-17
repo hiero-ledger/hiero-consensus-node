@@ -176,7 +176,12 @@ public final class StartupStateUtils {
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
+        final long validationHashStart = System.currentTimeMillis();
         final Hash newHash = state.getHash();
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ Loaded state hash is calculated, took {} ms",
+                System.currentTimeMillis() - validationHashStart);
 
         final SemanticVersion loadedVersion = creationSoftwareVersionOf(state);
 
@@ -245,6 +250,7 @@ public final class StartupStateUtils {
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+        final long loadInitialStateStart = System.currentTimeMillis();
         final DeserializedSignedState deserializedState = loadStateFile(
                 recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
         try (final ReservedSignedState loadedState = deserializedState.reservedSignedState()) {
@@ -255,7 +261,12 @@ public final class StartupStateUtils {
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
                 // The loaded state may have immutable internal structures after hashing, so ask the
                 // StateLifecycleManager to create the mutable copy used for startup migrations.
+                final long mutableCopyStart = System.currentTimeMillis();
                 final VirtualMapState stateCopy = stateLifecycleManager.copyMutableState();
+                logger.info(
+                        STARTUP.getMarker(),
+                        "++++++++ Mutable copy of the loaded state is created, took {} ms",
+                        System.currentTimeMillis() - mutableCopyStart);
                 final SignedState signedStateCopy = new SignedState(
                         platformContext.getConfiguration(),
                         CryptoUtils::verifySignature,
@@ -266,14 +277,24 @@ public final class StartupStateUtils {
                         false);
                 signedStateCopy.setSigSet(loadedState.get().getSigSet());
                 final Hash originalHash = deserializedState.originalHash();
-                return new HashedReservedSignedState(
+                final HashedReservedSignedState restartInitialState = new HashedReservedSignedState(
                         signedStateCopy.reserve("loadInitialState: copied loaded state"), originalHash);
+                logger.info(
+                        STARTUP.getMarker(),
+                        "++++++++ Initial state is loaded, took {} ms",
+                        System.currentTimeMillis() - loadInitialStateStart);
+                return restartInitialState;
             }
         }
 
         // Genesis path: the manager already holds a genesis state created eagerly in its constructor.
         // However, we need to create a copy because the immutable state will be hashed
+        final long mutableCopyStart = System.currentTimeMillis();
         final VirtualMapState genesisState = stateLifecycleManager.copyMutableState();
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ Mutable copy of the genesis state is created, took {} ms",
+                System.currentTimeMillis() - mutableCopyStart);
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
                 CryptoUtils::verifySignature,
@@ -283,8 +304,13 @@ public final class StartupStateUtils {
                 false,
                 false);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
-        return new HashedReservedSignedState(
+        final HashedReservedSignedState genesisInitialState = new HashedReservedSignedState(
                 reservedSignedState,
                 stateLifecycleManager.getLatestImmutableState().getHash());
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ Initial state is loaded, took {} ms",
+                System.currentTimeMillis() - loadInitialStateStart);
+        return genesisInitialState;
     }
 }
