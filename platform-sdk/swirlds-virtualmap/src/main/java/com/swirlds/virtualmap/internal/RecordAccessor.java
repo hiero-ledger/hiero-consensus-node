@@ -5,11 +5,11 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -27,7 +27,7 @@ import org.hiero.base.crypto.Hash;
 @SuppressWarnings("rawtypes")
 public final class RecordAccessor {
 
-    private final VirtualMapMetadata metadata;
+    private final VirtualMap.Metadata metadata;
     private final int hashChunkHeight;
     private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
@@ -45,7 +45,7 @@ public final class RecordAccessor {
      * 		The data source. Can be null.
      */
     public RecordAccessor(
-            @NonNull final VirtualMapMetadata metadata,
+            @NonNull final VirtualMap.Metadata metadata,
             final int hashChunkHeight,
             @NonNull final VirtualNodeCache cache,
             @NonNull final VirtualDataSource dataSource) {
@@ -55,7 +55,7 @@ public final class RecordAccessor {
         this.dataSource = dataSource;
     }
 
-    public VirtualMapMetadata getMetadata() {
+    public VirtualMap.Metadata getMetadata() {
         return metadata;
     }
 
@@ -70,9 +70,7 @@ public final class RecordAccessor {
      * @return {@code true} if the path is within the leaf range
      */
     public boolean isLeaf(final long path) {
-        return (path >= metadata.getFirstLeafPath())
-                && (path <= metadata.getLastLeafPath())
-                && (metadata.getFirstLeafPath() > 0);
+        return metadata.isLeaf(path);
     }
 
     public Hash rootHash() {
@@ -130,27 +128,6 @@ public final class RecordAccessor {
     }
 
     /**
-     * Looks up a virtual hash chunk at the given chunk path.
-     */
-    public VirtualHashChunk findHashChunk(final long chunkPath) {
-        assert chunkPath >= 0;
-        if ((chunkPath < 0) || (chunkPath > metadata.getLastLeafPath())) {
-            return null;
-        }
-        final long chunkId = VirtualHashChunk.chunkPathToChunkId(chunkPath, hashChunkHeight);
-        VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
-        if (hashChunk != null) {
-            return hashChunk;
-        }
-        try {
-            hashChunk = dataSource.loadHashChunk(chunkId);
-            return hashChunk;
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to read node hash from data source by path", e);
-        }
-    }
-
-    /**
      * Locates and returns a leaf node based on the given key. If the leaf
      * node already exists in memory, then the same instance is returned each time.
      * If the node is not in memory, then a new instance is returned. To save
@@ -200,7 +177,7 @@ public final class RecordAccessor {
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
 
-        if (path < metadata.getFirstLeafPath() || path > metadata.getLastLeafPath()) {
+        if (!metadata.isLeaf(path)) {
             return null;
         }
 
