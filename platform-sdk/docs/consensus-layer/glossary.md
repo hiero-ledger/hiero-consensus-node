@@ -2,7 +2,7 @@
 type: glossary
 title: Glossary
 description: Canonical one-line definitions for vocabulary used across the consensus-layer KB, with disambiguation for overloaded terms (round, ancient, stale, falling behind).
-last_reviewed: 2026-06-30
+last_reviewed: 2026-07-17
 ---
 
 # Glossary
@@ -473,10 +473,15 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 A monotonic counter the *Orphan buffer* stamps on each event as it is released
 (`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between
-nodes. The canonical local ordering key — used for "higher in the hashgraph" comparisons by
-event creation, *Sync*, and the consensus algorithm (e.g. `consensusRelevantSeqNum`). Unlike
-*NGen* it never resets, even when an event's parents have gone ancient, and it is never used
-for cross-node agreement.
+nodes. Among events numbered since the buffer was last cleared (node start or a completed
+reconnect) it is a valid topological ordering (an ancestor has a smaller number), but a
+release-order counter, **not** a graph height: unlike *NGen* it never resets — `clear()` does
+not reset it either, so it persists across a reconnect — but a structurally-low event received
+late gets a high number, and across a reconnect a re-ingested event gets a new, higher number
+than its already-numbered descendant.
+Used where only a local topological order is needed — event creation's advancement scoring and
+*Sync* send order — never for cross-node agreement. Consumers that need height keep *NGen*
+(ADR-008, RUL-005).
 See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ### Shadowgraph
