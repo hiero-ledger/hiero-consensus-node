@@ -12,6 +12,7 @@ import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -152,6 +153,7 @@ public class TestIntake {
 
         // Ensure unsoldered wires are created.
         hasherWiring.getInputWire(EventHasher::hashEvent);
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
 
         // Make sure this unsoldered wire is properly built
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
@@ -180,7 +182,6 @@ public class TestIntake {
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
-
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
@@ -198,6 +199,7 @@ public class TestIntake {
 
     public void reset() {
         time.reset();
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear).put(NoInput.getInstance());
         loadSnapshot(GenesisSnapshotFactory.newGenesisSnapshot());
         output.clear();
     }

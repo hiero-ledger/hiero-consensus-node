@@ -16,8 +16,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -95,13 +96,12 @@ class UptimeTests {
         final Random random = getRandomPrintSeed();
 
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
+        final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -209,13 +209,12 @@ class UptimeTests {
         final Random random = getRandomPrintSeed();
 
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
+        final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
@@ -329,13 +328,12 @@ class UptimeTests {
         final Random random = getRandomPrintSeed();
 
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(3).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
+        final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis

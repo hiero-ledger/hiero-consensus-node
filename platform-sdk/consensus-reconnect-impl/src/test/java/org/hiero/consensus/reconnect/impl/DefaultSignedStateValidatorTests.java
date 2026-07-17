@@ -10,7 +10,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;

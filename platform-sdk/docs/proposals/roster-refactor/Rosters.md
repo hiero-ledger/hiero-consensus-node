@@ -153,7 +153,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.builder.PlatformBuilder`
   * `com.swirlds.platform.system.Platform`
   * `com.swirlds.platform.ReconnectStateLoader`
-  * `com.swirlds.platform.state.address.RosterMetrics`
+  * `org.hiero.consensus.roster.RosterMetrics`
   * `com.swirlds.platform.recovery.internal.EventStreamRoundIterator`
   * `com.swirlds.platform.recovery.internal.StreamedRound`
   * `com.swirlds.platform.uptime.UptimeTracker`
@@ -171,10 +171,10 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
 * DefaultSignedStateValidator support code
   * `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
-  * `com.swirlds.platform.state.signed.SignedStateValidator`
+  * `org.hiero.consensus.reconnect.impl.SignedStateValidator`
   * `org.hiero.consensus.state.signed.SignedState`
   * `com.swirlds.platform.state.signed.SignedStateInfo`
-  * `com.swirlds.platform.state.signed.SignedStateValidationData`
+  * `org.hiero.consensus.reconnect.impl.SignedStateValidationData`
   * `org.hiero.consensus.iss.detection.internal.IssMetrics`
 * ReconnectStateLoader support code
   * `com.swirlds.platform.ReconnectStateLoader`
