@@ -252,7 +252,6 @@ public final class HashgraphInfo {
                 // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
                 x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
                 x.receivedTime[judgeIndex] = lowestTime;
-//                x.searchMark = currMark;
                 x.searchSelfAncestor = judgeSelfAncestor;
                 x.searchParent = -1; // descend through the first parent first (index 0)
                 if (x.searchCount == targetCount) {
@@ -1190,9 +1189,9 @@ public final class HashgraphInfo {
                 judge.prevJudge = true;
             }
 
-            minJudgeBirthRound = 0;
+            minJudgeBirthRound = Long.MAX_VALUE;
             for (EventInfo judge : judges) {
-                minJudgeBirthRound = Math.max(minJudgeBirthRound, judge.birthRound);
+                minJudgeBirthRound = Math.min(minJudgeBirthRound, judge.birthRound);
             }
 
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();

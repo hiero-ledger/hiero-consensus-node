@@ -160,7 +160,7 @@ public class HashgraphPicture extends JPanel {
                 }
             }
 
-            // for each event, draw 2 downward lines to its parents
+            // for each event, draw downward lines to its parents
             for (final EventImpl event : events) {
                 drawLinksToParents(g, event);
             }
