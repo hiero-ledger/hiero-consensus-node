@@ -253,9 +253,7 @@ public class ContractCreateSuite {
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .balance(Long.MAX_VALUE)
                         .refusingEthConversion()
-                        .via("overBalanceCreate")
-                        .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE),
-                getTxnRecord("overBalanceCreate").logged());
+                        .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
