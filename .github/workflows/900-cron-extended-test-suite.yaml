@@ -534,9 +534,10 @@ jobs:
       - name: Determine Report Category
         id: report-category
         run: |
-          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.fetch-xts-candidate.result }}" == "success" && "${{ needs.fetch-xts-candidate.outputs.xts-proceed }}" != "true" ]]; then
+          if [[ "${{ needs.fetch-xts-candidate.result }}" == "success" && "${{ needs.fetch-xts-candidate.outputs.xts-proceed }}" != "true" ]]; then
+            echo "category=no-candidate" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
@@ -547,7 +548,7 @@ jobs:
           fi
 
       - name: Collect run logs in a log file
-        if: ${{ steps.report-category.outputs.category != 'cancelled' }}
+        if: ${{ steps.report-category.outputs.category != 'cancelled' && steps.report-category.outputs.category != 'no-candidate' }}
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         continue-on-error: true
@@ -566,7 +567,7 @@ jobs:
           done
 
       - name: Upload log as artifact
-        if: ${{ steps.report-category.outputs.category != 'cancelled' }}
+        if: ${{ steps.report-category.outputs.category != 'cancelled' && steps.report-category.outputs.category != 'no-candidate' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
