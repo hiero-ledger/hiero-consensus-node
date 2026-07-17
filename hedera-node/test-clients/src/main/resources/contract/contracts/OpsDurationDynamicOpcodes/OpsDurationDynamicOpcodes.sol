@@ -4,22 +4,6 @@ pragma solidity ^0.8.20;
 contract OpsDurationDynamicOpcodes {
 
     // -----------------------------------------------------------------------
-    // Storage helpers
-    // -----------------------------------------------------------------------
-
-    event Log0Event(bytes data);
-    event Log1Event(bytes data, bytes32 indexed topic1);
-    event Log2Event(bytes data, bytes32 indexed topic1, bytes32 indexed topic2);
-    event Log3Event(bytes data, bytes32 indexed topic1, bytes32 indexed topic2, bytes32 indexed topic3);
-
-    bytes public storedCode;
-
-    constructor() {
-        // Store some dummy bytecode so CODECOPY / EXTCODECOPY have something to copy
-        storedCode = address(this).code;
-    }
-
-    // -----------------------------------------------------------------------
     // 1. KECCAK256 (0x20) — 30 + 6 × ⌈size / 32⌉
     // -----------------------------------------------------------------------
 
