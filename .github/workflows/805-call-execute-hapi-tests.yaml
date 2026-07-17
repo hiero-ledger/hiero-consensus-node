@@ -211,6 +211,10 @@ jobs:
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
+            hedera-node/yahcli/build/**/*.blk.gz
+            hedera-node/yahcli/build/**/*.rcd.gz
+            hedera-node/yahcli/build/**/*.pb
+            hedera-node/yahcli/build/**/*.pces
             hedera-node/yahcli/build/reports/tests/testSubprocess/**
             hedera-node/yahcli/build/hapi-test/**/output/**
             hedera-node/yahcli/build/hapi-test/**/*.log

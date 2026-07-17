@@ -2,7 +2,7 @@
 package org.hiero.consensus.pcli;
 
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
-import static org.hiero.consensus.state.management.SignedStateFileWriter.writeSignedStateFilesToDirectory;
+import static org.hiero.consensus.state.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 import static org.hiero.consensus.state.saved.SavedStateMetadata.NO_NODE_ID;
 
 import com.hedera.pbj.runtime.ParseException;
@@ -23,7 +23,7 @@ import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.platformstate.PlatformStateAccessor;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
-import org.hiero.consensus.state.management.SignedStateFileReader;
+import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import picocli.CommandLine;

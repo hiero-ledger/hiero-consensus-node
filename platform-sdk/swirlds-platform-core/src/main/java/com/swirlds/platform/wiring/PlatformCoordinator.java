@@ -58,7 +58,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         components.hashgraphModule().flush();
         components.transactionHandlingModule().flush();
         components.eventCreatorModule().flush();
-        components.stateManagementModule().flush();
+        components.stateModule().flush();
     }
 
     /**
@@ -77,7 +77,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
 
         final boolean offerResult =
-                components.stateManagementModule().hashedStatesInputWire().offer(stateReservedForHasher);
+                components.stateModule().hashedStatesInputWire().offer(stateReservedForHasher);
         if (!offerResult) {
             stateReservedForHasher.close();
         }

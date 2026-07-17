@@ -300,36 +300,21 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public VirtualMap(
             final @NonNull VirtualDataSourceBuilder dataSourceBuilder, final @NonNull Configuration configuration) {
-        this.fastCopyVersion = 0L;
-        this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
-        this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
-
-        this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
-        this.dataSource = dataSourceBuilder.build(LABEL, null, true, false);
-        this.metadata = new VirtualMapMetadata();
-        this.statistics = new VirtualMapStatistics(LABEL);
-        this.statistics.setSize(size());
-
-        final int hashChunkHeight = this.dataSource.getHashChunkHeight();
-        this.hasher = new VirtualHasher(virtualMapConfig);
-        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
-        this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
-        this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
-        this.pipeline.registerCopy(this);
+        this(dataSourceBuilder, configuration, null);
     }
 
     /**
-     * Create a virtual map from a snapshot
+     * Create a new virtual map or from a snapshot if snapshot path is not null.
+     *
      * @param dataSourceBuilder the data source builder. Must not be null.
      * @param configuration platform configuration
-     * @param snapshotPath path to the snapshot directory. Must not be null.
+     * @param snapshotPath path to the snapshot directory.
+     *                     If {@code null}, new data source will be created, otherwise restored from a snapshot.
      */
     private VirtualMap(
             final @NonNull VirtualDataSourceBuilder dataSourceBuilder,
             final @NonNull Configuration configuration,
-            final @NonNull Path snapshotPath) {
-        requireNonNull(snapshotPath);
-
+            final @Nullable Path snapshotPath) {
         this.fastCopyVersion = 0L;
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
@@ -493,19 +478,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
-        final CompletableFuture<Hash> fullRehashFuture = CompletableFuture.supplyAsync(() -> hasher.hash(
+        final CompletableFuture<Hash> fullRehashFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),
                         cache::preloadHashChunk,
                         rehashIterator,
                         firstLeafPath,
                         lastLeafPath,
-                        hashListener))
-                .exceptionally((exception) -> {
+                        hashListener)
+                .exceptionally(throwable -> {
                     // Shut down the iterator.
                     rehashIterator.close();
-                    final var message = "Full rehash failed";
-                    logger.error(EXCEPTION.getMarker(), message, exception);
-                    throw new RuntimeException(message, exception);
+                    throw new RuntimeException(
+                            "Exception occurred during full rehashing of the virtual map", throwable);
                 });
 
         final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;

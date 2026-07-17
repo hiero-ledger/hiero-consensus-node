@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Hashgraph
-last_reviewed: 2026-07-02
+last_reviewed: 2026-07-13
 ---
 
 # Hashgraph
@@ -172,10 +172,11 @@ buffered future events and emit several decided rounds.
 rounds differ, it inherits the maximum parent round; when the parents'
 rounds agree at parent round `r`, it counts the witnesses in round `r`
 that this event strongly sees (weighted by roster) and increments to
-`r + 1` if a super-majority is reached. Events older than the latest
-decided ancient threshold are marked `ROUND_NEGATIVE_INFINITY` and
-skipped. The current code drives ancient-ness from birth round, not
-generation; for the conceptual background see
+`r + 1` if a super-majority is reached. As a short-circuit, any event
+whose sequence number is below the latest decided round's judges
+(`ConsensusRounds.isOlderThanDecidedRoundSeqNum`), and any consensus
+event, is assigned `ROUND_NEGATIVE_INFINITY` and skips the witness and
+strongly-seeing work — see RUL-005. For the conceptual background see
 [`../../concepts/rounds-and-witnesses.md`](../../concepts/rounds-and-witnesses.md).
 
 **Witnesses.** `ConsensusImpl.witness` marks an event as a witness iff
@@ -354,11 +355,16 @@ the layer's invariants are established:
 - INV-012 — the minimum non-ancient round never decreases (the ancient boundary only moves forward).
 - INV-014 — consensus order is a strict total order with unique, gap-free ranks.
 
+**Rules.**
+
+- [RUL-005](../../rules/RUL-005-events-below-decided-round-skip-witness-calc.md) — events below the latest decided round's judges are excluded from witness calculation.
+
 **Decisions.** [TBD: ADR-NNN once
 [`../../decisions/`](../../decisions/) catalog populates.]
 
-**Scenarios.** [TBD: SCN-NNN once
-[`../../scenarios/`](../../scenarios/) catalog populates.]
+**Scenarios.**
+
+- [SCN-001](../../scenarios/SCN-001-same-round-judge-ancestry-stalls-consensus.md) — same-round judge ancestry stalls consensus after a roster change.
 
 **Sibling topics.**
 

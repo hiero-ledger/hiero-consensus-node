@@ -67,6 +67,9 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
      */
     public static ResponseCodeEnum statusFor(@NonNull final ExceptionalHaltReason reason) {
         requireNonNull(reason);
+        if (reason instanceof HandleExceptionHaltReason handleExceptionHaltReason) {
+            return handleExceptionHaltReason.status();
+        }
         return HALT_REASON_TO_STATUS.getOrDefault(reason, ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION);
     }
 
@@ -75,6 +78,12 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
         // #10568 - We add this check to match mono behavior
         if (reason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS) {
             return Bytes.of(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED.name().getBytes())
+                    .toHexString();
+        }
+        // A HandleException resolved as a halt externalizes its status exactly as the
+        // legacy abort path did, as the hex-encoded status name
+        if (reason instanceof HandleExceptionHaltReason handleExceptionHaltReason) {
+            return Bytes.of(handleExceptionHaltReason.status().name().getBytes())
                     .toHexString();
         }
         return reason.toString();

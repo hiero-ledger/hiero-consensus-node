@@ -9,7 +9,7 @@ dependencies {
 }
 
 val besu = "26.2.0"
-val bouncycastle = "1.83"
+val bouncycastle = "1.84"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
@@ -44,7 +44,7 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
+    api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -58,7 +58,7 @@ dependencies.constraints {
     api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.18.1") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.19.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
