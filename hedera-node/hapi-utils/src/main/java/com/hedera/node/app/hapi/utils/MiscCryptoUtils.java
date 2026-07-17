@@ -85,11 +85,9 @@ public class MiscCryptoUtils {
     public static byte[] decompressSecp256k1(final byte[] compressedKey) {
         final ThreadLocalCache cache = CACHE.get();
         // convert public key to native format
-        // final LibSecp256k1.secp256k1_pubkey publicKey = cache.pubKey;
         final int keyParseResult = LIBSECP256K1.secp256k1EcPubkeyParse(
                 cache.pubKeySeg, MemorySegment.ofArray(compressedKey), compressedKey.length);
         if (keyParseResult != 1) throw new IllegalArgumentException("Failed to parse public key");
-        // final ByteBuffer outputBuffer = cache.uncompressedPublicKeyByteBuffer;
         cache.length[0] = ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE;
         final int keySerializeResult = LIBSECP256K1.secp256k1EcPubkeySerialize(
                 cache.uncompressedPublicKeyByteBufferSeg,
