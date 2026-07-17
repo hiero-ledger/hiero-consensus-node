@@ -69,18 +69,20 @@ that creator's earlier events. A creator's value may have climbed to, say, 50,
 and then a genuinely *later* event arrives carrying `nGen = 1`, moving the value
 **backward**. Any consumer that uses `nGen` as an ordering key inherits this.
 
-# 24618 assessed four such consumers as exposed: event creation (the tipset), the
-
-consensus algorithm, sync, and `cGen`. That assessment held for two of them and
-was corrected for the other two:
+Issue #24618 assessed four such consumers as exposed: event creation (the
+tipset), the consensus algorithm, sync, and `cGen`. That assessment held for two
+of them and was corrected for the other two:
 
 - **Event creation (the tipset) — genuinely exposed.** The advancement score and
   `ChildlessEventTracker` assume monotonic per-creator ordering. A slot dropping
   `50 → 1` registers as a regression, and the `existingEvent >= event` check in
   the childless tracker rejects the genuinely newer event — degrading event
   creation exactly when a node is trying to catch up.
-- **Sync — genuinely exposed.** The send-list order is a topological ordering, so
-  the reset perturbs it the same way.
+- **Sync — genuinely exposed.** The send list is sorted into topological order by
+  the key, but its search reaches below the sender's ancient threshold to the
+  peer's (`SyncUtils.unknownNonAncient`). A reset event (`nGen = 1`) can therefore
+  share a send list with its own still-retained ancestors, which carry higher
+  `nGen`, and sort *before* them — a non-topological send order.
 - **Consensus and `cGen` — not exposed after all.** Migrating them showed neither
   actually depends on the reset: the consensus-relevant threshold needs graph
   *height* (not ordering), and `cGen` needs only a topological order of an
