@@ -118,7 +118,7 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
-        if (networkBehavior != null) {
+        if (networkBehavior != null && toxiproxyContainer != null) {
             toxiproxyContainer.restart();
             networkBehavior.reconnect(toxiproxyContainer.getHost(), toxiproxyContainer.getControlPort(), connections);
         }
