@@ -32,6 +32,7 @@ import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -141,6 +142,7 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
+    @RepeatedTest(value = 10, failureThreshold = 1)
     @OtterTest(requires = Capability.BACK_PRESSURE)
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;
