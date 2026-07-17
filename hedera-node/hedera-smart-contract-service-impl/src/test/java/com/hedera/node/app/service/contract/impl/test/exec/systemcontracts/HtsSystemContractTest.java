@@ -8,21 +8,26 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.callTypeOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hederaConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TRANSACTION_MAX_BYTES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSamePrecompileResult;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
@@ -35,7 +40,9 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityTyp
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.nio.ByteBuffer;
@@ -45,8 +52,11 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -86,6 +96,9 @@ class HtsSystemContractTest {
     private GasCalculator gasCalculator;
 
     @Mock
+    private HederaConfig hederaConfig;
+
+    @Mock
     private ContractMetrics contractMetrics;
 
     @Mock
@@ -114,7 +127,8 @@ class HtsSystemContractTest {
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
-
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
         final var pricedResult = gasOnly(successResult(ByteBuffer.allocate(1), 123L), SUCCESS, true);
         given(call.execute(frame)).willReturn(pricedResult);
         given(attempt.senderId()).willReturn(SENDER_ID);
@@ -128,6 +142,8 @@ class HtsSystemContractTest {
                         HTS_167_CONTRACT_ID, Bytes.EMPTY, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame))
                 .willThrow(RuntimeException.class);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
         final var expected = haltResult(ExceptionalHaltReason.INVALID_OPERATION, frame.getRemainingGas());
         final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);
@@ -140,6 +156,8 @@ class HtsSystemContractTest {
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
         given(call.execute(frame)).willThrow(RuntimeException.class);
 
         final var expected = haltResult(ExceptionalHaltReason.PRECOMPILE_ERROR, frame.getRemainingGas());
@@ -162,9 +180,31 @@ class HtsSystemContractTest {
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
         given(attempt.asExecutableCall()).willThrow(new HandleException(CONTRACT_REVERT_EXECUTED));
         final var expected = revertResult(CONTRACT_REVERT_EXECUTED, frame.getRemainingGas());
         final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+        assertSamePrecompileResult(expected, result);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 3, TRANSACTION_MAX_BYTES + 1})
+    @DisplayName("HtsSystemContract halts and consumes remaining gas on input size validation")
+    void inputSizeValidation(int inputSize) {
+        byte[] input = new byte[inputSize];
+        TestHelpers.RANDOM.nextBytes(input);
+
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        if (inputSize >= FUNCTION_SELECTOR_LENGTH) {
+            frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+            when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
+        }
+        final var expected = haltResult(INVALID_OPERATION, frame.getRemainingGas());
+        final var result = subject.computeFully(HTS_167_CONTRACT_ID, Bytes.of(input), frame);
         assertSamePrecompileResult(expected, result);
     }
 
@@ -176,6 +216,8 @@ class HtsSystemContractTest {
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
         frameUtils.when(() -> configOf(frame)).thenReturn(BOTH_MODE_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
 
         final long gasRequirement = 123L;
         // FullResult with a non-null recordBuilder triggers the dispatchedRecordBuilder branch
@@ -201,6 +243,8 @@ class HtsSystemContractTest {
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
         frameUtils.when(() -> configOf(frame)).thenReturn(BLOCKS_MODE_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
 
         final long gasRequirement = 123L;
         final var pricedResult =
@@ -224,6 +268,8 @@ class HtsSystemContractTest {
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
         frameUtils.when(() -> configOf(frame)).thenReturn(BLOCKS_MODE_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
 
         final long gasRequirement = 123L;
         final var pricedResult =

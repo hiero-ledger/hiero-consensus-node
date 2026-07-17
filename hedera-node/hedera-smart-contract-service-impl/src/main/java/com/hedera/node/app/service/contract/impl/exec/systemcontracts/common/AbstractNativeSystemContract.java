@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hederaConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.contractFunctionResultFailedFor;
@@ -82,8 +83,15 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         final Call call;
         AbstractCallAttempt<?> attempt = null;
         try {
-            validateTrue(input.size() >= FUNCTION_SELECTOR_LENGTH, INVALID_TRANSACTION_BODY);
+            // Input boundary size validation.
+            // With "input <= transactionMaxBytes()" we ensure nobody can send a huge input for parsing or execution,
+            // because parsing or execution can happen before any rejection, e.g. by gas or function param length.
+            validateTrue(
+                    input.size() >= FUNCTION_SELECTOR_LENGTH
+                            && input.size() <= hederaConfigOf(frame).transactionMaxBytes(),
+                    INVALID_TRANSACTION_BODY);
             attempt = callFactory.createCallAttemptFrom(contractID, input, callType, frame);
+            // check if the calldata size of the call to
             call = attempt.asExecutableCall();
             if (call == null) {
                 return successResult(Bytes.EMPTY, 0);
