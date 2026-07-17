@@ -75,7 +75,7 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
-            @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
+            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,

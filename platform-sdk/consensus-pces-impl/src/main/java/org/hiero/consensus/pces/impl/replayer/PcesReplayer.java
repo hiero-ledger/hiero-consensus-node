@@ -111,9 +111,9 @@ public class PcesReplayer {
 
         logger.info(
                 STARTUP.getMarker(),
-                "Replayed {} preconsensus events with max birth roundAfterReplay {}. These events contained {} transactions. "
+                "Replayed {} preconsensus events with max birth round {}. These events contained {} transactions. "
                         + "{} rounds reached consensus spanning {} of consensus time. The latest "
-                        + "roundAfterReplay to reach consensus is roundAfterReplay {}. Replay took {}.",
+                        + "round to reach consensus is round {}. Replay took {}.",
                 commaSeparatedNumber(eventCount),
                 commaSeparatedNumber(maxBirthRound),
                 commaSeparatedNumber(transactionCount),

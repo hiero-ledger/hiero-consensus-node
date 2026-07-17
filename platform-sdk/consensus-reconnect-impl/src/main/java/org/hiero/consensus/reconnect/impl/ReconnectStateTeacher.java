@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;

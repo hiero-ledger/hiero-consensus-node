@@ -3,9 +3,9 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
@@ -13,6 +13,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
+import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -21,19 +22,14 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.ConsensusModuleBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -41,12 +37,13 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -55,9 +52,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.management.SavedStateController;
-import org.hiero.consensus.state.management.persistence.SignedStateFilePath;
+import org.hiero.consensus.state.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.saved.SavedStateInfo;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -101,95 +98,73 @@ public class SwirldsPlatform implements Platform {
     private final NotificationEngine notificationEngine;
 
     /**
-     * The platform context for this platform. Should be used to access basic services
-     */
-    private final PlatformContext platformContext;
-
-    /**
      * Controls which states are saved to disk
      */
     private final SavedStateController savedStateController;
 
-    /**
-     * Encapsulated wiring for the platform.
-     */
-    private final PlatformComponents platformComponents;
-
     private final long pcesReplayLowerBound;
     private final PlatformCoordinator platformCoordinator;
 
+    private final PlatformContext platformContext;
+    private final ConsensusLayerInputs inputs;
+    private final ConsensusLayerBuildingBlocks buildingBlocks;
+
     /**
      * Constructor.
-     *
-     * @param builder this object is responsible for building platform components and other things needed by the
-     *                platform
      */
-    public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
-        final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
-        platformContext = blocks.platformContext();
+    public SwirldsPlatform(
+            @NonNull final ConsensusLayerInputs inputs,
+            @NonNull final PlatformCoordinator platformCoordinator,
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        this.inputs = requireNonNull(inputs);
+        this.buildingBlocks = requireNonNull(buildingBlocks);
+        this.platformContext = PlatformContext.create(
+                inputs.configuration(),
+                inputs.time(),
+                inputs.metrics(),
+                inputs.fileSystemManager(),
+                inputs.recycleBin());
+        this.platformCoordinator = platformCoordinator;
 
         // The reservation on this state is held by the caller of this constructor.
-        final SignedState initialState = blocks.initialState().get();
+        final SignedState initialState = inputs.initialState().get();
 
-        selfId = blocks.selfId();
+        selfId = inputs.selfId();
 
-        notificationEngine = blocks.notificationEngine();
+        notificationEngine = buildingBlocks.notificationEngine();
 
-        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
-        currentRoster = blocks.rosterHistory().getCurrentRoster();
+        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", inputs.rosterHistory());
+        currentRoster = inputs.rosterHistory().getCurrentRoster();
 
-        final Metrics metrics = platformContext.getMetrics();
+        final Metrics metrics = inputs.metrics();
         registerRosterMetrics(metrics, currentRoster, selfId);
 
         RuntimeMetrics.setup(metrics);
 
-        keysAndCerts = blocks.keysAndCerts();
+        keysAndCerts = inputs.keysAndCerts();
+        savedStateController = buildingBlocks.savedStateController();
 
-        savedStateController = blocks.savedStateController();
+        final Configuration configuration = inputs.configuration();
 
-        this.platformComponents = blocks.platformComponents();
-        this.platformCoordinator = blocks.platformCoordinator();
-
-        blocks.statusActionSubmitterReference().set(platformCoordinator);
-
-        final Configuration configuration = platformContext.getConfiguration();
-
-        initializeState(initialState, blocks.consensusStateEventHandler());
+        initializeState(initialState, inputs.consensusStateEventHandler());
 
         // The StateLifecycleManager is already initialized before PlatformBuilder.build() is called:
         // - For genesis: the manager creates a genesis state eagerly in its constructor.
         // - For restart: loadSnapshot() initializes the manager when loading from disk.
         // - For reconnect: initWithState() re-initializes the manager at runtime.
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = blocks.stateLifecycleManager();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = inputs.stateLifecycleManager();
         // Startup initialization may hash/freeze the state referenced by the initial SignedState.
         // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
         stateLifecycleManager.copyMutableState();
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {
-            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
         }
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
+        final AppNotifier appNotifier = new DefaultAppNotifier(buildingBlocks.notificationEngine());
 
-        final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
-
-        final ReconnectModule reconnectModule =
-                ConsensusModuleBuilder.createModule(ReconnectModule.class, configuration);
-        reconnectModule.initialize(
-                configuration,
-                platformContext.getTime(),
-                currentRoster,
-                platformComponents,
-                this,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                blocks.consensusStateEventHandler(),
-                blocks.reservedSignedStateResultPromise(),
-                selfId,
-                blocks.fallenBehindMonitor());
-
-        platformComponents.bind(builder, eventWindowManager, appNotifier);
+        buildingBlocks.platformComponents().bind(inputs, eventWindowManager, appNotifier);
 
         final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
                 ? Cryptography.NULL_HASH
@@ -200,21 +175,23 @@ public class SwirldsPlatform implements Platform {
 
         // Load the minimum generation into the pre-consensus event writer
         final String actualMainClassName =
-                configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
+                configuration.getConfigData(StateConfig.class).getMainClassName(inputs.appName());
 
-        final SignedStateFilePath statePath = new SignedStateFilePath(
-                platformContext.getFileSystemManager(), actualMainClassName, selfId, blocks.swirldName());
+        final SignedStateFilePath statePath =
+                new SignedStateFilePath(inputs.fileSystemManager(), actualMainClassName, selfId, inputs.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
-                    savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
+                    savedStates.getLast().metadata().minimumBirthRoundNonAncient();
             platformCoordinator.injectPcesMinimumBirthRoundToStore(minimumGenerationNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = initialState.isGenesisState();
 
-        blocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial state"));
+        // TODO - this has moved to ConsensusLayerFactory, check if this actually works before removing this line
+        // buildingBlocks.latestImmutableStateNexus().setState(initialState.reserve("set latest immutable to initial
+        // state"));
 
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
@@ -228,8 +205,7 @@ public class SwirldsPlatform implements Platform {
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
-            final ConsensusSnapshot consensusSnapshot =
-                    Objects.requireNonNull(consensusSnapshotOf(initialState.getState()));
+            final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(initialState.getState()));
             platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
@@ -311,18 +287,18 @@ public class SwirldsPlatform implements Platform {
     public void start() {
         logger.info(STARTUP.getMarker(), "Starting platform {}", selfId);
 
-        platformContext.getRecycleBin().start();
-        platformContext.getMetrics().start();
+        inputs.recycleBin().start();
+        inputs.metrics().start();
         platformCoordinator.start();
 
-        platformComponents.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
+        buildingBlocks.pcesModule().replayPcesEvents(pcesReplayLowerBound, startingRound);
         platformCoordinator.startGossip();
     }
 
     @Override
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
-        platformContext.getRecycleBin().stop();
+        inputs.recycleBin().stop();
         platformCoordinator.stop();
         getMetricsProvider().removePlatformMetrics(selfId);
     }

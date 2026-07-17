@@ -133,7 +133,7 @@ public class ToxiproxyClient {
             final HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
             validateToxinFromResponse(response);
         } catch (final IOException | InterruptedException e) {
-            throw new AssertionError("Exception while updating proxy", e);
+            throw new AssertionError("Exception while updating toxin", e);
         }
     }
 
