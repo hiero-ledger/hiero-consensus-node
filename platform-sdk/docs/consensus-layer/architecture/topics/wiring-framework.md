@@ -1,7 +1,7 @@
 ---
+type: architecture-topic
 title: Wiring framework
-kind: architecture-topic
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Wiring framework
@@ -153,10 +153,11 @@ A few specifics worth pinning down. The default `unhandledTaskCapacity` on the f
 
 - Topics: `../topics/health-monitor-and-backpressure.md` — reaction side of queue health.
 - Module-API boundary: `../interfaces/consensus-execution-boundary.md` — where the future module-API-level backpressure differs from wire-level backpressure (see [Future state](#future-state-sidebar) below).
-- Invariants: [TBD: INV-NNN once invariants.md catalog populates].
-- Decisions: [TBD: ADR-NNN once decisions/ catalog populates].
+- Invariants: none directly.
+- Rules: RUL-002 — the intake pipeline flushes component-by-component in topological order; this substrate is what it depends on.
+- Decisions: ADR-005 — embedded future-event buffers.
 - Glossary: `../../glossary.md` — entries for "wire", "scheduler", "soldering", "transformer".
 
 ## Future state (sidebar)
 
-> A planned **module-API-level** backpressure will operate above wire-level backpressure, not in place of it. Execution will drive a `nextRound` pull that throttles Consensus end-to-end across the module boundary. The two layers compose: wire-level backpressure remains the per-component mechanism; the `nextRound` pull is an additional throttle at the Consensus / Execution boundary. See `../interfaces/consensus-execution-boundary.md` *(planned)* for where the module-API backpressure differs from the wire-level mechanism described above.
+> A planned **module-API-level** backpressure (the `nextRound` pull; see the [overview's Future state](../overview.md#future-state)) will operate *above* wire-level backpressure, not in place of it. The two compose: wire-level backpressure stays the per-component mechanism, and the `nextRound` pull adds a throttle at the Consensus / Execution boundary. See [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md) for the boundary view.

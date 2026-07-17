@@ -21,12 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -42,11 +38,6 @@ public class CryptoQuerySimpleFeesSuite {
     private static final double CRYPTO_GET_INFO_USD = 0.0001;
     private static final double CRYPTO_GET_ACCOUNT_RECORDS_USD = 0.0001;
     private static final long EXPECTED_NODE_PAYMENT_TINYCENTS = 84L;
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
 
     @HapiTest
     @DisplayName("crypto get info simple fee")

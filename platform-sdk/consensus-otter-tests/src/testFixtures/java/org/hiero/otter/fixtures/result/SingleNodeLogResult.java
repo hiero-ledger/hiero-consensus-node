@@ -65,6 +65,14 @@ public interface SingleNodeLogResult extends OtterResult {
     SingleNodeLogResult suppressingLoggerName(@NonNull String loggerName);
 
     /**
+     * Exludes any ISS errors from the log results.
+     *
+     * @return a new {@code SingleNodeLogResult} instance with ISS errors excluded
+     */
+    @NonNull
+    SingleNodeLogResult suppressingIssErrors();
+
+    /**
      * Returns the set of unique markers present in the log entries for this node.
      *
      * @return a set of {@link Marker} objects

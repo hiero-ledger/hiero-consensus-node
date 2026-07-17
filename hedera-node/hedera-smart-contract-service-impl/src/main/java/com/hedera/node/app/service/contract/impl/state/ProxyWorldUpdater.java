@@ -16,6 +16,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
@@ -493,6 +494,45 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @NonNull
     public ExchangeRate currentExchangeRate() {
         return enhancement().systemOperations().currentExchangeRate();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean setAccountCodeDelegation(
+            @NonNull final AccountID accountID, @NonNull final Address delegationAddress) {
+        return enhancement.operations().setAccountCodeDelegation(accountID, delegationAddress);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean createAccountWithKeyAndCodeDelegation(
+            @NonNull final Address authority,
+            @NonNull final byte[] ecdsaPublicKey,
+            @NonNull final Address delegationAddress) {
+        final var maybeHaltReason =
+                evmFrameState.tryCreateAccountWithKeyAndCodeDelegation(authority, ecdsaPublicKey, delegationAddress);
+        return maybeHaltReason.isEmpty();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long lazyCreationCostInGas(@NonNull Address recipient) {
+        return enhancement.operations().lazyCreationCostInGas(recipient);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        return enhancement().nativeOperations().createNewChildRecordBuilder(recordBuilderClass, functionality);
     }
 
     private long getValidatedCreationNumber(

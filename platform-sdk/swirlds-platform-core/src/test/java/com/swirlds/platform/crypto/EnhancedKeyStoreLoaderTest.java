@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
 import com.swirlds.platform.util.BootstrapUtils;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +24,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.config.CryptoConfig_;
+import org.hiero.base.utility.test.fixtures.io.ResourceExtractor;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -58,8 +58,8 @@ class EnhancedKeyStoreLoaderTest {
 
     @BeforeEach
     void testSetup() throws IOException {
-        final ResourceLoader<EnhancedKeyStoreLoaderTest> loader =
-                new ResourceLoader<>(EnhancedKeyStoreLoaderTest.class);
+        final ResourceExtractor<EnhancedKeyStoreLoaderTest> loader =
+                new ResourceExtractor<>(EnhancedKeyStoreLoaderTest.class);
         final Path tempDir = loader.loadDirectory("com/swirlds/platform/crypto/EnhancedKeyStoreLoader");
 
         Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);

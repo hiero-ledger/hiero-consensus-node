@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
@@ -20,6 +21,8 @@ import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -265,6 +268,17 @@ public interface HandleContext {
     Configuration configuration();
 
     /**
+     * Returns the ledger id to surface in responses produced during this handle. By default this is the configured
+     * ledger id, but implementations may override it with an externalized ledger id from state when one is available.
+     *
+     * @return the ledger id to surface from this handle
+     */
+    @NonNull
+    default Bytes ledgerId() {
+        return configuration().getConfigData(LedgerConfig.class).id();
+    }
+
+    /**
      * Returns information on current block and record file
      *
      * @return current BlockRecordInfo
@@ -356,7 +370,10 @@ public interface HandleContext {
     NetworkInfo networkInfo();
 
     /**
-     * Dispatches the fee calculation for a child transaction (that might then be dispatched).
+     * Dispatches the fee calculation for a child transaction (that might then be dispatched), with
+     * an optional override {@link SignatureMap} whose serialized size replaces the context-derived
+     * value when computing fees. Pass {@code null} for {@code overrideSignatureMap} to preserve
+     * existing behavior.
      *
      * <p>The override payer id still matters for this purpose, because a transaction can add
      * state whose lifetime is scoped to a payer account (the main current example is a
@@ -365,12 +382,15 @@ public interface HandleContext {
      * @param txBody the {@link TransactionBody} of the child transaction to compute fees for
      * @param syntheticPayerId the child payer
      * @param computeDispatchFeesAsTopLevel for mono fidelity, whether to compute fees as a top-level transaction
+     * @param overrideSignatureMap when non-null, the serialized size of this map is used instead of the
+     *                             context-derived signature map size
      * @return the calculated fees
      */
     Fees dispatchComputeFees(
             @NonNull TransactionBody txBody,
             @NonNull AccountID syntheticPayerId,
-            @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel);
+            @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel,
+            @Nullable SignatureMap overrideSignatureMap);
 
     /**
      * Dispatches a child transaction with the given options.

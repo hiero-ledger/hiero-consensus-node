@@ -3,8 +3,8 @@ package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static com.hedera.node.app.hapi.fees.test.IdUtils.asAccount;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoDeleteAllowanceMeta.countNftDeleteSerials;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_DELETE_ALLOWANCE_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.fees.test.IdUtils;
@@ -17,10 +17,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class CryptoDeleteAllowanceMetaTest {
-    private final AccountID proxy = asAccount("0.0.1234");
+    private final AccountID proxy = asAccount(1234L);
     private final NftRemoveAllowance nftAllowances = NftRemoveAllowance.newBuilder()
             .setOwner(proxy)
-            .setTokenId(IdUtils.asToken("0.0.1000"))
+            .setTokenId(IdUtils.asToken(1000L))
             .addAllSerialNumbers(List.of(1L, 2L, 3L))
             .build();
 

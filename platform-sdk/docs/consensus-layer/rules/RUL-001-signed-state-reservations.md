@@ -1,4 +1,5 @@
 ---
+type: rule
 id: RUL-001
 title: A SignedState must remain reserved while any consumer can still access it
 class: structural
@@ -8,12 +9,12 @@ components:
   - consensus-state/src/main/java/org/hiero/consensus/state/signed/ReservedSignedState.java
   - consensus-state/src/main/java/org/hiero/consensus/state/signed/SignedStateReference.java
   - consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/SignedStateReserver.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/StateWithHashComplexityReserver.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/StateWithHashComplexityToStateReserver.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/LockFreeStateNexus.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/DefaultLatestCompleteStateNexus.java
-  - swirlds-platform-core/src/main/java/com/swirlds/platform/state/signed/DefaultStateSignatureCollector.java
+  - consensus-state/src/main/java/org/hiero/consensus/state/utils/SignedStateReserver.java
+  - consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityReserver.java
+  - consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityToStateReserver.java
+  - consensus-state/src/main/java/org/hiero/consensus/state/nexus/LockFreeStateNexus.java
+  - consensus-state/src/main/java/org/hiero/consensus/state/nexus/DefaultLatestCompleteStateNexus.java
+  - consensus-state/src/main/java/org/hiero/consensus/state/signing/DefaultStateSignatureCollector.java
 related:
   invariants: []
   decisions: []
@@ -25,7 +26,7 @@ provenance: extracted from architecture/topics/signed-state-management.md, 2026-
 curated_by: Kelly Greco (@poulok)
 ---
 
-# RUL-001 — A SignedState must remain reserved while any consumer may still require access it
+# RUL-001 — A SignedState must remain reserved while any consumer can still access it
 
 ## Statement
 

@@ -55,8 +55,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -112,8 +112,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(SUCCESS), result.output());
     }
 
     @Test
@@ -122,7 +122,7 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
+        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.state());
     }
 
     @Test
@@ -142,10 +142,9 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
-                asBytesResult(INT64_ENCODER.encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))),
-                result.getOutput());
+                asBytesResult(INT64_ENCODER.encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))), result.output());
     }
 
     @Test
@@ -170,8 +169,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE), result.output());
         verify(recordBuilder).status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
     }
 
@@ -185,8 +184,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
-        assertEquals(Optional.of(CustomExceptionalHaltReason.NOT_SUPPORTED), result.getHaltReason());
+        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.state());
+        assertEquals(Optional.of(CustomExceptionalHaltReason.NOT_SUPPORTED), result.haltReason());
     }
 
     @Test
@@ -201,8 +200,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(INVALID_RECEIVING_NODE_ACCOUNT), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(INVALID_RECEIVING_NODE_ACCOUNT), result.output());
     }
 
     @Test
@@ -218,11 +217,11 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 asBytesResult(
                         INT64_ENCODER.encode(Tuple.singleton((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal()))),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -441,8 +440,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = localSubject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(SUCCESS), result.output());
         // check that events was added
         TransferEventLoggingUtilsTest.validateFtLogEvent(logs, expectedTransfers);
     }
@@ -478,8 +477,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = localSubject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(SUCCESS), result.output());
         // check that events was added
         TransferEventLoggingUtilsTest.validateNftLogEvent(logs, expectedTransfers);
     }

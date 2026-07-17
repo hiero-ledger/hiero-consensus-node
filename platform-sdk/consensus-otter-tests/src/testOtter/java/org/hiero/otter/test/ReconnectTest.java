@@ -13,7 +13,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Arrays;
@@ -22,6 +21,7 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
+import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -154,7 +154,7 @@ public class ReconnectTest {
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
         network.withConfigValue(
-                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, 50L);
 
@@ -258,10 +258,10 @@ public class ReconnectTest {
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
         network.withConfigValue(
-                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
-                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.SOCKET_TIMEOUT, Duration.ofSeconds(1))
                 .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, 2)
                 .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 
@@ -320,28 +320,16 @@ public class ReconnectTest {
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
         network.withConfigValue(
-                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
-                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.SOCKET_TIMEOUT, Duration.ofSeconds(1))
                 .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects)
                 .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 
         network.start();
 
         final Node nodeToReconnect = network.nodes().getLast();
-
-        network.newReconnectResults().subscribe(notification -> {
-            if (notification.payload().getClass().equals(ReconnectStartPayload.class)) {
-                final ReconnectStartPayload payload = (ReconnectStartPayload) notification.payload();
-                final Node node = network.nodes().stream()
-                        .filter(n -> n.selfId().id() == payload.getOtherNodeId())
-                        .findFirst()
-                        .orElse(nodeToReconnect);
-                network.isolate(node);
-            }
-            return SubscriberAction.CONTINUE;
-        });
 
         enableSyntheticBottleneck(Duration.ofMinutes(10), nodeToReconnect);
         timeManager.waitForCondition(
@@ -377,10 +365,10 @@ public class ReconnectTest {
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
         network.withConfigValue(
-                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
+                        TransactionHandlingWiringConfig_.HANDLER,
                         "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE")
                 .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED)
-                .withConfigValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, Duration.ofSeconds(1))
+                .withConfigValue(ReconnectConfig_.SOCKET_TIMEOUT, Duration.ofSeconds(1))
                 .withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, maxFailedReconnects)
                 .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofMillis(10));
 

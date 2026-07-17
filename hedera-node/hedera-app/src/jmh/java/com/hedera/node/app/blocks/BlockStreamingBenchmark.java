@@ -17,6 +17,7 @@ import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.blocks.utils.BlockGeneratorUtil;
 import com.hedera.node.app.blocks.utils.FakeGrpcServer;
 import com.hedera.node.app.blocks.utils.SimulatedNetworkProxy;
@@ -332,6 +333,7 @@ public class BlockStreamingBenchmark {
                 .withValue("blockNode.grpcOverallTimeout", grpcOverallTimeoutMs + "ms")
                 .withValue("blockNode.pipelineOperationTimeout", pipelineOperationTimeoutMs + "ms")
                 .withValue("blockNode.minRetryIntervalMs", "5000")
+                .withValue("blockStream.enhancedObservabilityEnabled", "false")
                 .build();
 
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
@@ -349,9 +351,10 @@ public class BlockStreamingBenchmark {
                 new PlatformMetricsFactoryImpl(config.getConfigData(MetricsConfig.class)),
                 config.getConfigData(MetricsConfig.class));
         final BlockStreamMetrics blockStreamMetrics = new BlockStreamMetrics(metrics);
+        final BlockStreamingObs streamingObs = new BlockStreamingObs(configProvider);
 
         // 4. Services
-        bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        bufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         bufferService.start();
 
         bnConfigService = new BlockNodeConfigService(configProvider);
@@ -430,7 +433,8 @@ public class BlockStreamingBenchmark {
                 blockStreamMetrics,
                 networkInfo,
                 () -> pipelineExecutor,
-                bnConfigService);
+                bnConfigService,
+                streamingObs);
         connectionManager.start();
 
         // 5. Connection Setup (CONNECT TO PROXY PORT) with parametrized HTTP/2 and gRPC
@@ -471,7 +475,8 @@ public class BlockStreamingBenchmark {
                 pipelineExecutor,
                 0L,
                 new BlockNodeClientFactory(),
-                0L);
+                0L,
+                streamingObs);
 
         connection.initialize();
         BlockNodeConnectionHelper.updateConnectionState(connection, ConnectionState.ACTIVE);

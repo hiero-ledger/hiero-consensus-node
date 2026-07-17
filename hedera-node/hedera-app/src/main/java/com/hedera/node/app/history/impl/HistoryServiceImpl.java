@@ -204,7 +204,17 @@ public class HistoryServiceImpl implements HistoryService {
         writableStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
-        writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(ProtoBytes.DEFAULT);
+        // Persist the configured WRAPS proving key hash if present; otherwise initialize to empty.
+        // We must match what V0730HistorySchema.restart() would put on a restart of a never-yet-
+        // joined node, so that a node that joins via restart sees the same WRAPS hash state as
+        // nodes that were present at genesis. If genesis only wrote DEFAULT and restart wrote the
+        // configured hash, the restarted node's round-1 state would diverge from the network's
+        // -> SELF_ISS for round 1.
+        final var configuredHash = configuration.getConfigData(TssConfig.class).wrapsProvingKeyHash();
+        final var wrapsHash = configuredHash.isBlank()
+                ? ProtoBytes.DEFAULT
+                : ProtoBytes.newBuilder().value(Bytes.fromHex(configuredHash)).build();
+        writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(wrapsHash);
         return true;
     }
 

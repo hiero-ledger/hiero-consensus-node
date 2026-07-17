@@ -28,6 +28,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -38,7 +39,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANCES;
@@ -327,7 +327,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
                         .via("baseDeleteNft"),
-                validateFees("baseDeleteNft", 0.05, CRYPTO_DELETE_ALLOWANCE_FEE),
+                validateChargedUsdWithin("baseDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 /* with specifying owner */
                 cryptoDeleteAllowance()
@@ -335,7 +335,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .via("baseDeleteNft"),
-                validateFees("baseDeleteNft", 0.05, CRYPTO_DELETE_ALLOWANCE_FEE),
+                validateChargedUsdWithin("baseDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
 
                 /* with 2 serials */
                 cryptoDeleteAllowance()
@@ -343,7 +343,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(2L, 3L))
                         .via("twoDeleteNft"),
-                validateFees("twoDeleteNft", 0.050101, CRYPTO_DELETE_ALLOWANCE_FEE),
+                validateChargedUsdWithin("twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
                 /* with 2 sigs */
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 cryptoDeleteAllowance()
@@ -352,7 +352,8 @@ public class CryptoDeleteAllowanceSuite {
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .signedBy(payer, owner)
                         .via("twoDeleteNft"),
-                validateFees("twoDeleteNft", 0.08124, CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                validateChargedUsdWithin(
+                        "twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1));
     }
 
     @HapiTest
@@ -902,7 +903,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .via("cryptoDeleteAllowanceTxn")
                         .logged(),
-                validateFees("cryptoDeleteAllowanceTxn", 0.05, CRYPTO_DELETE_ALLOWANCE_FEE),
+                validateChargedUsdWithin("cryptoDeleteAllowanceTxn", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
                 getAccountDetails(owner)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),

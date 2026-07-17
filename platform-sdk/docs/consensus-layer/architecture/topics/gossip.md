@@ -1,7 +1,7 @@
 ---
+type: architecture-topic
 title: Gossip
-kind: architecture-topic
-last_reviewed: TBD
+last_reviewed: 2026-06-12
 ---
 
 # Gossip
@@ -85,10 +85,10 @@ Layered on the RPC pipeline, simple broadcast pushes each self-event to every co
 
 `RpcOverloadMonitor` (`platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/protocol/rpc/RpcOverloadMonitor.java`) enforces the simple-backpressure rule per peer:
 
-- Output queue size exceeds `BroadcastConfig.throttleOutputQueueThreshold` (default `200` items), or
-- Round-trip ping time exceeds `BroadcastConfig.disablePingThreshold` (default `900ms`).
+- Output queue size exceeds `BroadcastConfig.throttleOutputQueueThreshold` (TUN-154), or
+- Round-trip ping time exceeds `BroadcastConfig.disablePingThreshold` (TUN-153).
 
-When either trips, broadcast is paused for `BroadcastConfig.pauseOnLag` (default `30s`) and sync handles the connection during the cooldown. See `BroadcastConfig` (`platform-sdk/consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/BroadcastConfig.java`).
+When either trips, broadcast is paused for `BroadcastConfig.pauseOnLag` (TUN-155) and sync handles the connection during the cooldown. See `BroadcastConfig` (`platform-sdk/consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/BroadcastConfig.java`).
 
 Broadcast remains disabled until the initial sync with a peer completes, so newly connected nodes catch up via sync first.
 
@@ -118,9 +118,9 @@ Gossip permits, queue-overflow signalling, and the global health-monitor feedbac
 - **Topics:** [event-intake.md](event-intake.md), [reconnect.md](reconnect.md), [event-creator.md](event-creator.md), [health-monitor-and-backpressure.md](health-monitor-and-backpressure.md), [reasons-not-to-gossip.md](reasons-not-to-gossip.md). [TBD: these topic files are forthcoming.]
 - **Source docs:** [gossip.md](../../../core/gossip/gossip.md), [rpc-gossip.md](../../../core/gossip/rpc/rpc-gossip.md), [simple-broadcast.md](../../../core/gossip/rpc/simple-broadcast.md), [fair-sync-selector.md](../../../core/gossip/syncing/fair-sync-selector.md), [sync-protocol.md](../../../core/gossip/syncing/sync-protocol.md).
 - **Tunables:** [../../tunables.md](../../tunables.md).
-- **Invariants:** [TBD: INV-NNN once invariants.md catalog populates].
+- **Invariants:** INV-005 — every honest event eventually reaches consensus or becomes stale; INV-004 — a stale event is never ordered on any node.
 - **Decisions:** [TBD: ADR-NNN once decisions/ catalog populates].
 
 ## Future state (sidebar)
 
-The [Consensus-Layer proposal](../../../proposals/consensus-layer/Consensus-Layer.md) introduces a Sheriff module for peer discipline, layered above gossip rather than replacing any current mechanism. Sheriff is not present in current code; this topic intentionally does not assert peer-discipline semantics tied to it.
+The proposal's Sheriff module for peer discipline would layer *above* gossip rather than replace any current mechanism; it is absent from current code, so this topic does not assert peer-discipline semantics tied to it. Sheriff is described for the whole layer in the [overview's Future state](../overview.md#future-state).

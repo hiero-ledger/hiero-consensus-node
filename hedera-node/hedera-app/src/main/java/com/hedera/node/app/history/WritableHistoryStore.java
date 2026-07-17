@@ -18,7 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.Consumer;
 
 /**
@@ -61,6 +61,20 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void addProofVote(long nodeId, long constructionId, @NonNull HistoryProofVote vote);
 
     /**
+     * Removes any persisted proof votes for the given construction cast by the given nodes.
+     *
+     * <p>Used when a proof is completed to mirror the in-memory clearing of votes that lets the
+     * network vote again (for example, to convert a freshly built proof into a WRAPS-extensible
+     * one). Without this, a node that restarts or reconnects while a conversion is in flight would
+     * rebuild its controller from the now-superseded persisted votes and treat the subsequent
+     * conversion vote as already counted, diverging the active construction from the live network.
+     *
+     * @param constructionId the construction ID
+     * @param nodeIds the IDs of the nodes whose votes should be removed
+     */
+    void clearProofVotes(long constructionId, @NonNull SortedSet<Long> nodeIds);
+
+    /**
      * Adds a node's signature on a particular assembled history proof for the given construction.
      */
     void addWrapsMessage(long constructionId, @NonNull WrapsMessagePublication publication);
@@ -88,7 +102,7 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @param sourceNodeIds the source node IDs whose WRAPS messages should be purged
      * @return the updated construction
      */
-    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull Set<Long> sourceNodeIds);
+    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull SortedSet<Long> sourceNodeIds);
 
     /**
      * Sets the ledger ID to the given bytes.
@@ -110,6 +124,17 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @return whether the handoff happened
      */
     boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
+
+    /**
+     * Hands off from the active construction to the next construction if appropriate.
+     * @param fromRoster the roster to hand off from
+     * @param toRoster if applicable, the roster to hand off to
+     * @param toRosterHash if applicable, the hash of the roster to hand off to
+     * @param forceHandoff whether to force the handoff when the roster hash doesn't match the next construction
+     * @return whether the handoff happened
+     */
+    boolean handoff(
+            @NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash, boolean forceHandoff);
 
     /**
      * Updates the WRAPS signing state with the given specification.

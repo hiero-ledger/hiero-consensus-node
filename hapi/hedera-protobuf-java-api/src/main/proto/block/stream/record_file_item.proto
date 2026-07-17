@@ -51,14 +51,28 @@ import "services/transaction_contents.proto";
  * file from the contents of this item. All numbers are big-endian.
  * <code><pre>{@code
  * recordFormatVersion = BlockProof.SignedRecordFileProof.version
+ * hapiProtoVersion    = record_file_contents.hapi_proto_version
+ * recordStreamFile    = record_file_contents
+ * previousRecordFileHash = record_file_contents.start_object_running_hash.hash
+ *
+ * NOTE: The meaning of record_file_contents.start_object_running_hash varies
+ *       by version:
+ *       - v2: Stores the hash of the previous record file (NOT a running hash
+ *         of RecordStreamItems). This is used as previousRecordFileHash above.
+ *       - v5/v6: Stores the actual running hash of all RecordStreamItems
+ *         before this file, as documented in RecordStreamFile.
+ *       In all cases, this is a different value from
+ *       BlockFooter.previous_block_root_hash, which is the block stream
+ *       merkle tree root hash of the previous block.
+ *
  * PROCEDURE reconstructRecordFile(recordFormatVersion,
- *                                  hapiProtoVersion, previousBlockHash,
+ *                                  hapiProtoVersion, previousRecordFileHash,
  *                                  recordStreamFile):
  *     WRITE version number (4 bytes, int)
  *     IF version == 2:
  *         WRITE HAPI major version (4 bytes int)
  *         WRITE previous file hash marker (1 byte = 0x01)
- *         WRITE previous block hash (48 bytes SHA-384)
+ *         WRITE previousRecordFileHash (48 bytes SHA-384)
  *         FOR EACH item IN recordStreamFile.recordStreamItems:
  *             WRITE record marker (1 byte = 0x02)
  *             WRITE transaction length (4 bytes int)

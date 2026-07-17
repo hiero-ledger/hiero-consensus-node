@@ -14,8 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -156,6 +156,7 @@ class V0750BlockRecordSchemaTest {
                         .votingComplete(false)
                         .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
                         .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
                         .build());
     }
 
@@ -177,6 +178,38 @@ class V0750BlockRecordSchemaTest {
                         .votingComplete(false)
                         .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
                         .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
+                        .build());
+    }
+
+    @Test
+    void restartClearsStaleWrappedHashQueueOnNewJumpstartCycle() {
+        givenRestartPreconditions();
+        givenCutoverDisabled();
+        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
+        given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
+        final var staleHash = MigrationWrappedHashes.newBuilder()
+                .blockNumber(39952)
+                .consensusTimestampHash(Bytes.fromHex("aa".repeat(48)))
+                .outputItemsTreeRootHash(Bytes.fromHex("bb".repeat(48)))
+                .build();
+        given(blockInfoState.get())
+                .willReturn(baseBlockInfo()
+                        .copyBuilder()
+                        .migrationWrappedHashes(List.of(staleHash))
+                        .build());
+
+        subject.restart(ctx);
+
+        verify(blockInfoState)
+                .put(baseBlockInfo()
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
+                        .migrationRootHashVotes(List.of())
+                        .migrationWrappedHashes(List.of())
                         .build());
     }
 
@@ -234,38 +267,6 @@ class V0750BlockRecordSchemaTest {
         subject.restart(ctx);
 
         verify(ctx, never()).sharedValues();
-    }
-
-    @Test
-    void migrateIsNoopOnGenesis() {
-        given(ctx.isGenesis()).willReturn(true);
-
-        subject.migrate(ctx);
-
-        verify(ctx, never()).newStates();
-        verifyNoInteractions(writableStates, blockInfoState);
-    }
-
-    @Test
-    void migrateIncrementsLastBlockNumberAndSetsFirstConsTimeToEpoch() {
-        final var nonEpochTime = new Timestamp(1_000_000L, 0);
-        final var initialBlockInfo = baseBlockInfo()
-                .copyBuilder()
-                .firstConsTimeOfCurrentBlock(nonEpochTime)
-                .build();
-        given(ctx.isGenesis()).willReturn(false);
-        given(ctx.newStates()).willReturn(writableStates);
-        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
-        given(blockInfoState.get()).willReturn(initialBlockInfo);
-
-        subject.migrate(ctx);
-
-        verify(blockInfoState)
-                .put(initialBlockInfo
-                        .copyBuilder()
-                        .lastBlockNumber(initialBlockInfo.lastBlockNumber() + 1)
-                        .firstConsTimeOfCurrentBlock(EPOCH)
-                        .build());
     }
 
     private void givenRestartPreconditions() {

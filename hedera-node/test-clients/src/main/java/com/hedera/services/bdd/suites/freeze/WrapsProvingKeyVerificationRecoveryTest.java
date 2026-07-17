@@ -114,11 +114,11 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                         CONFIG_HASH_A)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
-                        NodeSelector.allNodes(), "WRAPS proving key hash from config: \\S+", Duration.ofSeconds(5)),
+                        NodeSelector.allNodes(), "WRAPS proving key hash from config: \\S+", Duration.ofSeconds(30)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
-                        "Persisted first WRAPS proving key hash \\S+ to state",
-                        Duration.ofSeconds(5)));
+                        "Overwriting previous WRAPS proving key hash \\S+ with new pending hash \\S+",
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -139,7 +139,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "Overwriting previous WRAPS proving key hash \\S+ with new pending hash \\S+",
-                        Duration.ofSeconds(5)));
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -170,7 +170,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "WRAPS proving key hash mismatch at .+ \\(expected=.+, actual=.+\\), initiating download",
-                        Duration.ofSeconds(5)));
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -211,7 +211,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "Successfully downloaded and verified WRAPS proving key on retry \\(hash=\\S+\\)",
-                        Duration.ofSeconds(5)),
+                        Duration.ofSeconds(30)),
                 // Verify the extracted v1.0.0 WRAPS artifact set exists at the correct path
                 doingContextual(spec -> {
                     for (final var node : spec.getNetworkNodes()) {

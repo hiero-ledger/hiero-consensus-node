@@ -1,8 +1,23 @@
-# ADR: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
+---
+type: decision
+id: ADR-003
+title: Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
+topics: [restart-and-pces]
+related:
+  invariants: []
+  decisions: []
+  scenarios: []
+  heuristics: []
+  rules: []
+status: accepted
+date: 2026-05-19
+deciders:
+  - Kelly Greco (@poulok)
+  - Lazar Petrovic (@lpetrovic05)
+curated_by: Kelly Greco (@poulok)
+---
 
-## Status
-
-Accepted
+# ADR-003 — Remove `SwirldsPlatform.performPcesRecovery()` and Drive ISS Recovery On the Spot
 
 ## Context
 
@@ -60,14 +75,14 @@ easiest path — using artifacts from one node sidesteps any cross-node-consiste
    and transactions handle as during normal startup.
 3. **Capture the resulting state.** Acquire the latest immutable state via the `latestImmutableStateNexus`
    (`SwirldsPlatform.java:114`; interface `SignedStateNexus.getState(reason)` at
-   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/state/nexus/SignedStateNexus.java:24`). The
+   `platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/nexus/SignedStateNexus.java:24`). The
    result is a `ReservedSignedState`
    (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/signed/ReservedSignedState.java:23`) that
    must be closed when done.
 4. **Mark and dump.** On the underlying `SignedState`, call `markAsStateToSave(StateToDiskReason.PCES_RECOVERY_COMPLETE)`
    (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/snapshot/StateToDiskReason.java:38`);
    construct a `StateDumpRequest` via `StateDumpRequest.create(...)`
-   (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/state/snapshot/StateDumpRequest.java:28`);
+   (`platform-sdk/consensus-state/src/main/java/org/hiero/consensus/state/saved/StateDumpRequest.java:28`);
    hand it to `PlatformCoordinator.dumpStateToDisk(request)`
    (`platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java:199`); block
    on `request.waitForFinished()` so the process does not exit before the on-disk write completes.
@@ -168,8 +183,3 @@ See **Decision** above.
 - [`../../proposals/consensus-layer/Consensus-Layer.md`](../../proposals/consensus-layer/Consensus-Layer.md) — the
   proposal that moves state-saving and lifecycle to the Execution side; relevant context for any future revision of
   the recovery driver, as noted under **Neutral** consequences.
-
-## Authors / Deciders
-
-- Kelly Greco (@poulok)
-- Lazar Petrovic (@lpetrovic05)

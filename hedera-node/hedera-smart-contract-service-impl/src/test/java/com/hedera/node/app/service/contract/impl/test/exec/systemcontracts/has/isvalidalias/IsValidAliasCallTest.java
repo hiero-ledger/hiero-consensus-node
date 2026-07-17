@@ -53,13 +53,13 @@ public class IsValidAliasCallTest extends CallTestBase {
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IS_VALID_ALIAS
                         .getOutputs()
                         .encode(Tuple.singleton(true))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -72,13 +72,13 @@ public class IsValidAliasCallTest extends CallTestBase {
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(asEvmAddress(RECEIVER_ID.accountNumOrThrow())));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IS_VALID_ALIAS
                         .getOutputs()
                         .encode(Tuple.singleton(true))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -91,13 +91,13 @@ public class IsValidAliasCallTest extends CallTestBase {
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(asEvmAddress(RECEIVER_ID.accountNumOrThrow())));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IS_VALID_ALIAS
                         .getOutputs()
                         .encode(Tuple.singleton(true))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -114,13 +114,13 @@ public class IsValidAliasCallTest extends CallTestBase {
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IS_VALID_ALIAS
                         .getOutputs()
                         .encode(Tuple.singleton(false))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -135,12 +135,12 @@ public class IsValidAliasCallTest extends CallTestBase {
         subject = new IsValidAliasCall(attempt, asHeadlongAddress(OWNER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IS_VALID_ALIAS
                         .getOutputs()
                         .encode(Tuple.singleton(false))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

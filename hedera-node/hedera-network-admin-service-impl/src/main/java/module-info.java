@@ -3,7 +3,10 @@ import com.hedera.node.app.service.networkadmin.NetworkService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 
 module com.hedera.node.app.service.network.admin.impl {
-    requires transitive com.hedera.node.app.hapi.fees;
+    exports com.hedera.node.app.service.networkadmin.impl.handlers;
+    exports com.hedera.node.app.service.networkadmin.impl.schemas;
+    exports com.hedera.node.app.service.networkadmin.impl;
+
     requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
@@ -18,6 +21,7 @@ module com.hedera.node.app.service.network.admin.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
     requires org.hiero.base.utility;
@@ -26,12 +30,8 @@ module com.hedera.node.app.service.network.admin.impl {
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
-    provides com.hedera.node.app.service.networkadmin.FreezeService with
-            FreezeServiceImpl;
     provides NetworkService with
             com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
-
-    exports com.hedera.node.app.service.networkadmin.impl;
-    exports com.hedera.node.app.service.networkadmin.impl.handlers;
-    exports com.hedera.node.app.service.networkadmin.impl.schemas;
+    provides com.hedera.node.app.service.networkadmin.FreezeService with
+            FreezeServiceImpl;
 }

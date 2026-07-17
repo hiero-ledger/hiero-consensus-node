@@ -3,12 +3,12 @@ package org.hiero.consensus.hashgraph.impl;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.test.fixtures.EqualsVerifier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.Test;

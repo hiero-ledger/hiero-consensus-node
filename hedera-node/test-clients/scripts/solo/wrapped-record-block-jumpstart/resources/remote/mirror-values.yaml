@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Mirror-node Helm chart (hedera-mirror umbrella) value overrides for the REMOTE multi-tenant
+# cluster (e.g. solo-sdlt-n6), passed via `solo mirror node add --values-file` (remote only).
+#
+# Every worker node is tainted solo.hashgraph.io/owner=...:NoSchedule, and the hedera-mirror
+# sub-charts ship no tolerations, so without this each component (importer/grpc/rest/restjava/
+# web3/monitor/pinger) lands FailedScheduling. We grant a blanket `operator: Exists` toleration
+# per sub-chart so they schedule immediately on any tainted worker.
+#
+# IMPORTANT — the toleration is deliberately exactly [{operator: Exists}] to MATCH the remote
+# toleration patcher (start_remote_toleration_patcher in solo-wrb-jumpstart.sh), which patches
+# every non-consensus Deployment template to that same value. Matching it makes the patcher a
+# no-op for the mirror: it neither re-patches the template (so no Deployment rollover) nor deletes
+# the pods (they already carry the Exists toleration). That removes the rollover-vs-Solo race that
+# otherwise crashes `solo mirror node add` at "Check pods are ready" with
+# "Cannot read properties of undefined (reading 'labels')".
+#
+# Keys are the hedera-mirror umbrella chart's sub-chart aliases; each maps to that sub-chart's
+# .Values.tolerations. Setting an alias whose component is disabled is harmless (ignored).
+grpc:
+  tolerations:
+    - operator: "Exists"
+importer:
+  tolerations:
+    - operator: "Exists"
+rest:
+  tolerations:
+    - operator: "Exists"
+  monitor:
+    tolerations:
+      - operator: "Exists"
+restjava:
+  tolerations:
+    - operator: "Exists"
+web3:
+  tolerations:
+    - operator: "Exists"
+monitor:
+  tolerations:
+    - operator: "Exists"
+pinger:
+  tolerations:
+    - operator: "Exists"

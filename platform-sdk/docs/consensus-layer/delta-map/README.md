@@ -2,7 +2,7 @@
 
 Per-topic record of how the current code aligns with the proposed future-state design in `../../proposals/consensus-layer/Consensus-Layer.md`. The KB treats current code as canonical; the delta map is where the future shape and the work it implies are tracked.
 
-One file per topic, eleven topics total. Each file states the topic's status, then enumerates what aligns, what doesn't, and (where known) why.
+One file per topic. Each file states the topic's status, then enumerates what aligns, what doesn't, and (where known) why.
 
 ## Status values
 

@@ -8,7 +8,6 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -107,11 +106,6 @@ public class HapiGetContractBytecode extends HapiQueryOp<HapiGetContractBytecode
                 .setContractID(resolvedTarget)
                 .build();
         return Query.newBuilder().setContractGetBytecode(query).build();
-    }
-
-    @Override
-    protected long costOnlyNodePayment(HapiSpec spec) {
-        return spec.fees().forOp(HederaFunctionality.ContractGetBytecode, FeeBuilder.getCostForQueryByIdOnly());
     }
 
     @Override

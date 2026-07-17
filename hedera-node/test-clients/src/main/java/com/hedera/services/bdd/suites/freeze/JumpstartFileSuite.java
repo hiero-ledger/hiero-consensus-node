@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -42,6 +44,7 @@ import com.hedera.services.bdd.spec.utilops.upgrade.VerifyCutoverBlockStreamOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -50,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
@@ -86,6 +90,10 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<String> liveBlockNum = new AtomicReference<>();
         final AtomicReference<BlockInfo> capturedBlockInfo = new AtomicReference<>();
         final AtomicReference<RunningHashes> capturedRunningHashes = new AtomicReference<>();
+        final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig2 = new AtomicReference<>();
+        final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes2 = new AtomicReference<>();
+        final AtomicReference<String> nodeComputedHash2 = new AtomicReference<>();
+        final AtomicReference<String> freezeBlockNum2 = new AtomicReference<>();
 
         // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
@@ -97,6 +105,9 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<HashMap<String, String>> corruptedEnvOverridesRef = new AtomicReference<>();
 
         return hapiTest(
+                doingContextual(spec -> org.junit.jupiter.api.Assumptions.assumeTrue(
+                        spec.startupProperties().getStreamMode("blockStream.streamMode") != BLOCKS,
+                        "Cutover jumpstart requires record/WRB; skipping in BLOCKS-only mode")),
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(envOverrides),
@@ -152,14 +163,70 @@ class JumpstartFileSuite implements LifecycleTest {
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
                         freezeBlockNum.get())),
-                logIt("Phase 6: Verify migration is not re-applied on restart"),
+                logIt("Phase 6: Verify a SECOND jumpstart cycle re-computes a distinct, correct hash"),
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(envOverrides),
+                upgradeToNextConfigVersion(
+                        envOverrides,
+                        // Re-populate envOverrides with a fresh jumpstart dataset (config B)
+                        buildDynamicJumpstartConfig(jumpstartConfig2, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Jumpstart migration already applied \\(votingComplete=true\\), skipping",
+                        "Initialized wrapped record voting singleton with deadline=\\d+",
                         Duration.ofSeconds(30)),
+                // The second cycle must independently re-compute the jumpstart hash. Capture the most
+                // recent "Completed processing" line (cycle 2's) and verify it as Phase 5 did for cycle 1.
+                assertHgcaaLogContainsPattern(
+                                NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                                "Completed processing all \\d+ recent wrapped record hashes\\. Final wrapped record block hash \\(as of expected freeze block (\\d+)\\): (\\S+)",
+                                Duration.ofSeconds(30))
+                        .matchingLast()
+                        .exposingMatchGroupTo(1, freezeBlockNum2)
+                        .exposingMatchGroupTo(2, nodeComputedHash2),
+                getWrappedRecordHashes(wrappedRecordHashes2),
+                sourcing(() -> verifyJumpstartHash(
+                        jumpstartConfig2.get(),
+                        wrappedRecordHashes2.get(),
+                        nodeComputedHash2.get(),
+                        freezeBlockNum2.get())),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Migration root hash voting finalized after node\\d+ vote, >1/3 threshold reached",
+                        Duration.ofSeconds(30)),
+                // Verify cycle 2's voting handler did not replay stale queued hashes from cycle 1.
+                // All "Applied queued hash for block{N}" entries processed by cycle 2's voting handler
+                // must have block numbers > cycle 2's freeze block (F2). Stale entries from cycle 1's
+                // voting window would have block numbers < F2 and would fail this assertion.
+                sourcing(() -> doingContextual(spec -> {
+                    final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+                    final String log;
+                    try {
+                        log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    final int initIdx = log.lastIndexOf("Initialized wrapped record voting singleton with deadline=");
+                    assertTrue(initIdx >= 0, "Expected to find cycle 2 voting init in log");
+                    final var logAfterInit = log.substring(initIdx);
+                    final var appliedPattern = Pattern.compile("Applied queued hash for block(\\d+):");
+                    final var matcher = appliedPattern.matcher(logAfterInit);
+                    final long cycle2FreezeBlock = Long.parseLong(freezeBlockNum2.get());
+                    while (matcher.find()) {
+                        final long blockNum = Long.parseLong(matcher.group(1));
+                        assertTrue(
+                                blockNum > cycle2FreezeBlock,
+                                "Stale queued hash from prior jumpstart cycle detected: block "
+                                        + blockNum
+                                        + " <= cycle-2 freeze block "
+                                        + cycle2FreezeBlock);
+                    }
+                })),
+                // Distinct-by-construction: the second cycle used a different jumpstart block than the first.
+                doAdhoc(() -> assertNotEquals(
+                        jumpstartConfig.get().blockNum(),
+                        jumpstartConfig2.get().blockNum(),
+                        "Second jumpstart cycle should use a distinct jumpstart block from the first")),
                 logIt("Phase 7: Third burst with live wrapped record hashes"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 8: Freeze and live hash verification"),
@@ -177,6 +244,10 @@ class JumpstartFileSuite implements LifecycleTest {
                                 .exposingMatchGroupTo(1, liveBlockNum)
                                 .exposingMatchGroupTo(2, liveWrappedHash)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Jumpstart migration already applied \\(votingComplete=true\\) and no jumpstart config, skipping",
+                        Duration.ofSeconds(30)),
                 sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())),
                 logIt("Phase 9: Ops burst prior to cutover"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),

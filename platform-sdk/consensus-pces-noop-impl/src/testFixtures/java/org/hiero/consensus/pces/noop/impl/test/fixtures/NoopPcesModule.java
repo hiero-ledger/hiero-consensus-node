@@ -24,9 +24,9 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.pces.PcesReplayProgress;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * No-op implementation of the {@link PcesModule}.
@@ -53,11 +53,10 @@ public class NoopPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull final Runnable flushPrimaryPipeline,
+            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable stateHasherFlusher,
+            @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         requireNonNull(model);
@@ -65,11 +64,10 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(metrics);
         requireNonNull(selfId);
         requireNonNull(recycleBin);
-        requireNonNull(flushIntake);
-        requireNonNull(flushTransactionHandling);
-        requireNonNull(latestImmutableStateSupplier);
+        requireNonNull(flushPrimaryPipeline);
+        requireNonNull(replayProgressSupplier);
+        requireNonNull(platformStatusFlusher);
         requireNonNull(statusActionConsumer);
-        requireNonNull(stateHasherFlusher);
         requireNonNull(signalEndOfPcesReplay);
 
         final var scheduler = model.<PlatformEvent>schedulerBuilder("InlinePcesWriter")
@@ -166,6 +164,11 @@ public class NoopPcesModule implements PcesModule {
     @NonNull
     public InputWire<Long> discontinuityInputWire() {
         return requireNonNull(discontinuityInputWire, "Not initialized");
+    }
+
+    @Override
+    public void injectMinimumBirthRound(final long minimumBirthRoundNonAncientForOldestState) {
+        // no-op
     }
 
     /**

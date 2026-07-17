@@ -19,7 +19,9 @@ produced by a given consensus node in an ordered manner.
 - Keeps a recent history of blocks produced by the consensus node.
 - Tracks which blocks are currently being produced and what the latest (or highest) block acknowledged by the block node.
 - Provides an interface for access any block that is held in the buffer.
-- Regularly prunes the buffer to reclaim memory after a block has been acknowledged and exceeded the max TTL.
+- Regularly prunes the buffer to reclaim memory by removing acknowledged blocks once they fall outside the soft
+  retention floor (`blockStream.buffer.minAckedBlocksToBuffer`), with the hard `blockStream.buffer.maxBlocks`
+  ceiling always taking precedence when unacknowledged blocks push the buffer toward capacity.
 - Monitors the buffer for saturation (i.e. too many blocks unacknowledged) and applies back pressure if necessary.
 - Persists the buffer to disk for recovery purposes (only when `streamMode` is `BLOCKS`).
 
@@ -53,6 +55,13 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 - The buffer tracks acknowledgment status as a single high watermark.
 - Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
 - A periodic pruning mechanism removes acknowledged and expired entries.
+- When backpressure is enabled, pruning also enforces a soft retention floor configured by
+  `blockStream.buffer.minAckedBlocksToBuffer` (default `10`): at least this many of the most recent acknowledged
+  blocks are retained (those above `highestBlockAcked - minAckedBlocksToBuffer`); older acknowledged blocks are
+  dropped even while the buffer is below `maxBlocks`. This keeps steady-state memory low when the block node is
+  healthy while still preserving a small window of acknowledged blocks in case the block node re-requests one.
+  The soft limit is overridden by `maxBlocks` when the buffer is dominated by unacknowledged blocks — under that
+  pressure, acknowledged blocks within the floor may still be evicted to make room.
 - The buffer size is monitored to apply backpressure when needed.
 
 ### Buffer State

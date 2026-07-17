@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.PruneResult;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -123,6 +124,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Mock
     private BlockStreamMetrics blockStreamMetrics;
+
+    @Mock
+    private BlockStreamingObs streamingObs;
 
     private BlockBufferService blockBufferService;
 
@@ -424,9 +428,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
         // when and then
-        assertThatThrownBy(() -> blockBufferService.addItem(TEST_BLOCK_NUMBER, null))
+        assertThatThrownBy(
+                        () -> blockBufferService.addItem(TEST_BLOCK_NUMBER, null, BlockItem.ItemOneOfType.BLOCK_HEADER))
                 .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("blockItem must not be null");
+                .hasMessageContaining("serializedItem must not be null");
 
         verify(blockStreamMetrics).recordLatestBlockOpened(TEST_BLOCK_NUMBER);
         verify(blockStreamMetrics).recordBlockOpened();
@@ -439,8 +444,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService = initBufferService(configProvider);
 
         // when and then
-        assertDoesNotThrow(() -> blockBufferService.addItem(
-                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()));
+        assertDoesNotThrow(() -> addItem(
+                blockBufferService, TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()));
 
         verifyNoMoreInteractions(blockStreamMetrics);
     }
@@ -501,6 +506,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(4L);
+        verify(blockStreamMetrics).recordBufferedBlocks(4);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         assertThat(buffer).hasSize(4);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
@@ -525,6 +533,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(5);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
         verifyBlockSizingMetrics();
@@ -547,6 +558,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
+        verify(blockStreamMetrics).recordBufferedBlocks(6);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(6);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -574,6 +588,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureActionStage();
         verify(blockStreamMetrics).recordBufferOldestBlock(2L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(3);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -593,6 +610,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBufferOldestBlock(2L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -616,12 +636,88 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBufferOldestBlock(3L);
         verify(blockStreamMetrics).recordBufferNewestBlock(7L);
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(1);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
 
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(5);
         assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(3L);
+    }
+
+    @Test
+    void testUnacknowledgedBlocksWalk() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+
+        // Step 1: produce (open + close) blocks 1..6 without acking -> 6 outstanding.
+        for (long n = 1; n <= 6; n++) {
+            blockBufferService.openBlock(n);
+            blockBufferService.closeBlock(n);
+        }
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(6);
+        assertThat(lastPruningResultRef(blockBufferService).get().numBlocksPendingAck)
+                .isEqualTo(6);
+        reset(blockStreamMetrics);
+
+        // Step 2: acknowledge through block 2 (BlockAcknowledgement) -> outstanding drops to 4.
+        blockBufferService.setLatestAcknowledgedBlock(2L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        reset(blockStreamMetrics);
+
+        // Step 3: acknowledge through block 4 -> outstanding drops to 2 (blocks 5, 6).
+        blockBufferService.setLatestAcknowledgedBlock(4L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(2);
+        reset(blockStreamMetrics);
+
+        // Step 4: a non-acknowledgement handshake event (SkipBlock/ResendBlock/BehindPublisher) repositions the
+        // stream cursor but does not change the buffer's ack watermark, and an in-progress (opened but not yet
+        // closed) block is excluded from the count. Outstanding must stay at 2.
+        blockBufferService.openBlock(7L); // opened, not closed -> in progress, not pending-ack
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(2);
+        reset(blockStreamMetrics);
+
+        // Step 5: complete block 7 and add block 8 -> outstanding grows to 4 (blocks 5, 6, 7, 8).
+        blockBufferService.closeBlock(7L);
+        blockBufferService.openBlock(8L);
+        blockBufferService.closeBlock(8L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        reset(blockStreamMetrics);
+
+        // Step 6: acknowledge through block 8 (catch-up) -> nothing outstanding.
+        blockBufferService.setLatestAcknowledgedBlock(8L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        reset(blockStreamMetrics);
+
+        // Step 7: produce blocks 9, 10 then receive an acknowledgement for a block BEYOND the last produced (this
+        // consensus node was behind its peers, so the block node jumps it ahead) -> still nothing outstanding.
+        blockBufferService.openBlock(9L);
+        blockBufferService.closeBlock(9L);
+        blockBufferService.openBlock(10L);
+        blockBufferService.closeBlock(10L);
+        blockBufferService.setLatestAcknowledgedBlock(15L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        assertThat(lastPruningResultRef(blockBufferService).get().numBlocksPendingAck)
+                .isZero();
     }
 
     private void verifyBlockSizingMetrics() {
@@ -776,6 +872,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, atLeastOnce()).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, atLeastOnce()).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, atLeastOnce()).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -886,6 +985,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(10);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -918,7 +1020,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .blockHeader(BlockHeader.newBuilder().number(10L).build())
                 .build();
 
-        blockBufferService.addItem(10L, item);
+        addItem(blockBufferService, 10L, item);
 
         assertThat(buffer).isEmpty();
 
@@ -1027,6 +1129,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1082,6 +1187,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1135,6 +1243,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1193,6 +1304,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1244,6 +1358,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1290,6 +1407,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1331,6 +1451,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(10L);
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(10);
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(10);
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1379,6 +1502,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1427,6 +1553,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics, times(2)).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics, times(2)).recordBufferNewestBlock(anyLong());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1439,7 +1568,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.maxBlocks", 10)
-                .withValue("blockStream.buffer.isPruningEnabled", false)
                 .withValue("blockStream.buffer.recoveryThreshold", 70.0)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
@@ -1475,6 +1603,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(10);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
@@ -1511,6 +1642,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(8);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1541,6 +1675,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(7);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
         reset(blockStreamMetrics);
 
@@ -1571,6 +1708,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(0L);
         verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -1597,7 +1737,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             writeBlockToDisk(block, true, new File(blockDir, "block-" + block.blockNumber() + ".bin"));
         }
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         blockBufferService.start();
 
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
@@ -1718,28 +1858,28 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final long BLOCK_1 = 1L;
         blockBufferService.openBlock(BLOCK_1);
         final List<BlockItem> block1Items = generateBlockItems(10, BLOCK_1, Set.of(1L));
-        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        block1Items.forEach(item -> addItem(blockBufferService, BLOCK_1, item));
         blockBufferService.closeBlock(BLOCK_1);
 
         // Setup block 2
         final long BLOCK_2 = 2L;
         blockBufferService.openBlock(BLOCK_2);
         final List<BlockItem> block2Items = generateBlockItems(35, BLOCK_2, Set.of());
-        block2Items.forEach(item -> blockBufferService.addItem(BLOCK_2, item));
+        block2Items.forEach(item -> addItem(blockBufferService, BLOCK_2, item));
         blockBufferService.closeBlock(BLOCK_2);
 
         // Setup block 3
         final long BLOCK_3 = 3L;
         blockBufferService.openBlock(BLOCK_3);
         final List<BlockItem> block3Items = generateBlockItems(38, BLOCK_3, Set.of(2L, 3L, 4L));
-        block3Items.forEach(item -> blockBufferService.addItem(BLOCK_3, item));
+        block3Items.forEach(item -> addItem(blockBufferService, BLOCK_3, item));
         blockBufferService.closeBlock(BLOCK_3);
 
         // Setup block 4, don't close it
         final long BLOCK_4 = 4L;
         blockBufferService.openBlock(BLOCK_4);
         final List<BlockItem> block4Items = generateBlockItems(19, BLOCK_4, Set.of(5L, 6L));
-        block4Items.forEach(item -> blockBufferService.addItem(BLOCK_4, item));
+        block4Items.forEach(item -> addItem(blockBufferService, BLOCK_4, item));
 
         // request the buffer be persisted
         blockBufferService.persistBuffer();
@@ -1773,7 +1913,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final long BLOCK_5 = 5L;
         blockBufferService.openBlock(BLOCK_5);
         final List<BlockItem> block5Items = generateBlockItems(12, BLOCK_5, Set.of(7L));
-        block5Items.forEach(item -> blockBufferService.addItem(BLOCK_5, item));
+        block5Items.forEach(item -> addItem(blockBufferService, BLOCK_5, item));
         blockBufferService.closeBlock(BLOCK_5);
 
         // attempt to persist the buffer again, this time blocks 1-5 should be persisted since they are all closed
@@ -1815,7 +1955,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final long BLOCK_1 = 1L;
         blockBufferService.openBlock(BLOCK_1);
         final List<BlockItem> block1Items = generateBlockItems(60, BLOCK_1, Set.of(10L, 11L));
-        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        block1Items.forEach(item -> addItem(blockBufferService, BLOCK_1, item));
         blockBufferService.closeBlock(BLOCK_1);
 
         blockBufferService.persistBuffer();
@@ -1844,7 +1984,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         Files.createDirectories(testDirFile.toPath());
 
         // Create service but don't start it
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         // Note: not calling initBufferService which would set isStarted to true
 
         // Try to persist - should do nothing since not started
@@ -1883,7 +2023,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             final long b = blockNum;
             blockBufferService.openBlock(b);
             final List<BlockItem> items = generateBlockItems(10, b, Set.of());
-            items.forEach(item -> blockBufferService.addItem(b, item));
+            items.forEach(item -> addItem(blockBufferService, b, item));
             blockBufferService.closeBlock(b);
         }
 
@@ -1928,6 +2068,253 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 assertThat(actualFileNames).isEqualTo(expectedFileNames);
             }
         }
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_aggressivePruneWhenAllAcked() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 3)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 10L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(10L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 10 - 3 + 1 = 8; acked blocks strictly below 8 are pruned, leaving blocks 8..10,
+        // i.e. exactly `minAckedBlocksToBuffer` of the most recent acked blocks.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(8L, 9L, 10L);
+
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        // pruning acked blocks does not affect numBlocksPendingAck, saturation stays at 0
+        assertThat(result.numBlocksPendingAck).isZero();
+        assertThat(result.saturationPercent).isZero();
+        assertThat(result.isSaturated).isFalse();
+        assertThat(result.numBlocksPruned).isEqualTo(7);
+
+        verify(blockStreamMetrics, times(10)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(10)).recordBlockOpened();
+        verify(blockStreamMetrics, times(10)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(10L);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(7);
+        verify(blockStreamMetrics).recordBufferOldestBlock(8L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(10L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(3);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_softLimitOverriddenByMaxBlocks() throws Throwable {
+        // maxBlocks=5, minAcked=10. The soft floor wants to keep 10 acked blocks, but the buffer is
+        // dominated by unacked blocks and over the hard ceiling. Acked blocks within the soft floor
+        // must be evicted to make room.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 5)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        // produce 7 closed blocks and ack the first 3; total buffer size 7 > maxBlocks 5
+        for (long b = 1L; b <= 7L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(3L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 3 - 10 + 1 = -6; the soft floor is inert for positive block numbers, so only the
+        // hard ceiling drives pruning. Blocks 1 and 2 are evicted to bring size back to maxBlocks=5
+        // even though the soft floor (10) wanted to keep them. End state: [3, 4, 5, 6, 7].
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(3L, 4L, 5L, 6L, 7L);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isEqualTo(2);
+        assertThat(result.numBlocksPendingAck).isEqualTo(4);
+
+        verify(blockStreamMetrics, times(7)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(7)).recordBlockOpened();
+        verify(blockStreamMetrics, times(7)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(3L);
+        verify(blockStreamMetrics).recordBufferSaturation(80.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(2);
+        verify(blockStreamMetrics).recordBufferOldestBlock(3L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(7L);
+        verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_zeroRetainsNoAckedBlocks() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 5L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        // ack blocks 1..4, leave 5 unacked
+        blockBufferService.setLatestAcknowledgedBlock(4L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Threshold = 4 - 0 + 1 = 5; all acked blocks (1..4) are strictly below 5 and pruned, leaving
+        // zero acked blocks. Only the unacked block 5 remains.
+        assertThat(buffer.keySet()).containsExactlyInAnyOrder(5L);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isEqualTo(4);
+
+        verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(5)).recordBlockOpened();
+        verify(blockStreamMetrics, times(5)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(4L);
+        verify(blockStreamMetrics).recordBufferSaturation(5.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(4);
+        verify(blockStreamMetrics).recordBufferOldestBlock(5L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(1);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(1);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_noPruningWhenNoAcksReceived() throws Throwable {
+        // With no acks received yet, the soft-limit branch must be inert (and the threshold
+        // subtraction must not underflow). Pruning should do nothing while the buffer is below the
+        // hard ceiling.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 10)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 3)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 4L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        // intentionally never call setLatestAcknowledgedBlock
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        assertThat(buffer).hasSize(4);
+        final PruneResult result = lastPruningResultRef(blockBufferService).get();
+        assertThat(result).isNotNull();
+        assertThat(result.numBlocksPruned).isZero();
+
+        verify(blockStreamMetrics, times(4)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(4)).recordBlockOpened();
+        verify(blockStreamMetrics, times(4)).recordBlockClosed();
+        verify(blockStreamMetrics).recordBufferSaturation(40.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(4L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(4);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testMinAckedBlocksToBuffer_backpressureDisabledIgnoresSoftLimit() throws Throwable {
+        // Backpressure is disabled when streamMode is not BLOCKS. In that mode pruning falls back to
+        // the hard ceiling and the soft retention floor must not kick in. Use FILE_AND_GRPC writerMode
+        // so the buffer still accepts blocks via the GRPC path.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockStream.streamMode", "BOTH")
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 2)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 5L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(5L);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        // all 5 blocks retained because size <= maxBlocks; the soft limit must be ignored when
+        // backpressure is disabled
+        assertThat(buffer).hasSize(5);
+
+        verify(blockStreamMetrics, times(5)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(5)).recordBlockOpened();
+        verify(blockStreamMetrics, times(5)).recordBlockClosed();
+        verify(blockStreamMetrics).recordLatestBlockAcked(5L);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics).recordBufferOldestBlock(1L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordBufferedBlocks(5);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
+        verifyBlockSizingMetrics();
+        verifyNoMoreInteractions(blockStreamMetrics);
     }
 
     // Utilities
@@ -2023,7 +2410,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     private BlockBufferService initBufferService(final ConfigProvider configProvider, final boolean realStart) {
-        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics);
+        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
 
         if (realStart) {
             svc.start();

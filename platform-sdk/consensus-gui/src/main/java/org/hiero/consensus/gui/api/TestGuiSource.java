@@ -20,11 +20,14 @@ import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.HashgraphGuiRunner;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.gui.internal.hashgraph.util.StandardGuiSource;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.round.EventWindowUtils;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;
@@ -32,6 +35,7 @@ public class TestGuiSource {
     private ConsensusSnapshot savedSnapshot;
     private final GuiEventStorage eventStorage;
     private final OrphanBuffer orphanBuffer;
+    private final Configuration configuration;
 
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
@@ -81,6 +85,7 @@ public class TestGuiSource {
         this.guiSource = new StandardGuiSource(roster, eventStorage);
         this.eventProvider = eventProvider;
         this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
+        this.configuration = configuration;
     }
 
     public void runGui() {
@@ -94,7 +99,10 @@ public class TestGuiSource {
                 .flatMap(Collection::stream)
                 .toList();
         for (final PlatformEvent event : events) {
-            eventStorage.handlePreconsensusEvent(event);
+            final EventWindow eventWindow = eventStorage.handlePreconsensusEvent(event);
+            if (eventWindow != null) {
+                orphanBuffer.setEventWindow(eventWindow);
+            }
         }
     }
 
@@ -124,7 +132,10 @@ public class TestGuiSource {
                     .toList();
 
             for (final PlatformEvent event : events) {
-                eventStorage.handlePreconsensusEvent(event);
+                final EventWindow eventWindow = eventStorage.handlePreconsensusEvent(event);
+                if (eventWindow != null) {
+                    orphanBuffer.setEventWindow(eventWindow);
+                }
             }
             updateFameDecidedBelow.run();
         });
@@ -183,7 +194,10 @@ public class TestGuiSource {
     @SuppressWarnings("unused") // useful for debugging
     public void loadSnapshot(final ConsensusSnapshot snapshot) {
         System.out.println("Loading snapshot for round: " + snapshot.round());
+        final EventWindow currentEventWindow = EventWindowUtils.createEventWindow(
+                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
         eventStorage.handleSnapshotOverride(snapshot);
+        orphanBuffer.setEventWindow(currentEventWindow);
     }
 
     /**

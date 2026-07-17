@@ -839,8 +839,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             try {
                 final var writer = wrbWriterSupplier.get();
                 writer.openBlock(justFinishedBlockNumber);
-                writer.writePbjItem(result.headerItem());
-                writer.writePbjItem(result.recordFileItem());
+                writer.writePbjItemAndBytes(result.headerItem(), result.headerItemBytes());
+                writer.writePbjItemAndBytes(result.recordFileItem(), result.recordFileItemBytes());
                 addOpenWrbWriter(justFinishedBlockNumber, writer);
                 signAndCloseWrbAsync(
                         justFinishedBlockNumber, blockRootHash, previousBlockRootHash, allPrevBlocksRootHash);
@@ -881,8 +881,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         allPrevBlocksRootHash,
                         serializedRosterSignatures))
                 .exceptionally(t -> {
-                    logger.warn(
-                            "Unhandled exception while signing WRB block #{} after record file close", blockNumber, t);
+                    if (t instanceof CancellationException || t.getCause() instanceof CancellationException) {
+                        // Expected when the node falls BEHIND and cancels in-flight RSA signings
+                        logger.info("Signing cancelled for WRB block #{} after record file close", blockNumber);
+                    } else {
+                        logger.warn(
+                                "Unhandled exception while signing WRB block #{} after record file close",
+                                blockNumber,
+                                t);
+                    }
                     return null;
                 });
     }
@@ -933,9 +940,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 .startOfBlockStateRootHash(HASH_OF_ZERO)
                 .build();
         final var footerItem = BlockItem.newBuilder().blockFooter(footer).build();
-        writer.writePbjItem(footerItem);
+        writer.writePbjItemAndBytes(footerItem, BlockItem.PROTOBUF.toBytes(footerItem));
         final var proofItem = signedRecordFileProofItem(blockNumber, serializedRosterSignatures);
-        writer.writePbjItem(proofItem);
+        writer.writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
         writer.closeCompleteBlock();
         removeOpenWrbWriter(blockNumber, writer);
     }

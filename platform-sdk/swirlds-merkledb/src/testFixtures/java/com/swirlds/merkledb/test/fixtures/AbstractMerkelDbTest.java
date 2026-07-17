@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertDatabaseFolderDeleted;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
@@ -11,9 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.function.CheckedConsumer;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,14 +67,14 @@ public abstract class AbstractMerkelDbTest extends AbstractFileManagerAwareTest 
     }
 
     protected MerkleDbDataSource restoreDataSource(
-            final Configuration configuration, final Path dbPath, final String name, final boolean compactionEnabled)
+            final MerkleDbConfig configuration, final Path dbPath, final String name, final boolean compactionEnabled)
             throws IOException {
         return new MerkleDbDataSource(dbPath, configuration, fileSystemManager, name, compactionEnabled, false);
     }
 
     protected MerkleDbDataSource restoreDataSource(
             final Path dbPath, final String name, final boolean compactionEnabled) throws IOException {
-        return restoreDataSource(CONFIGURATION, dbPath, name, compactionEnabled);
+        return restoreDataSource(DEFAULT_MERKLE_DB_CONFIG, dbPath, name, compactionEnabled);
     }
 
     protected MerkleDbDataSource createDataSource(
@@ -84,7 +85,7 @@ public abstract class AbstractMerkelDbTest extends AbstractFileManagerAwareTest 
     protected MerkleDbDataSource createDataSource(
             final String name, final long size, final boolean compactionEnabled, boolean preferDiskBasedIndexes) {
         MerkleDbDataSourceBuilder dataSourceBuilder =
-                new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, size);
+                new MerkleDbDataSourceBuilder(DEFAULT_CONFIGURATION, fileSystemManager, size);
         return (MerkleDbDataSource) dataSourceBuilder.build(name, null, compactionEnabled, preferDiskBasedIndexes);
     }
 

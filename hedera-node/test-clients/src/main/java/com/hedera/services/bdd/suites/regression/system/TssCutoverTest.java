@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContai
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -57,13 +56,9 @@ public class TssCutoverTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS / 100, stakedNodeId = 3)
-    static SpecAccount NODE3_STAKER;
-
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo(), NODE3_STAKER.getInfo());
+        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo());
     }
 
     @HapiTest
@@ -133,6 +128,6 @@ public class TssCutoverTest implements LifecycleTest {
     }
 
     private static List<SpecAccount> stakers() {
-        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER);
+        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER);
     }
 }

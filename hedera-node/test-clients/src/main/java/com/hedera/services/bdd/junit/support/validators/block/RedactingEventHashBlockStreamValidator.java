@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamEventBuilder.isTransactionInEvent;
 
 import com.hedera.hapi.block.stream.Block;
@@ -60,7 +62,9 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
+            // Write under the gitignored build directory (cleaned by `gradlew clean`) instead of
+            // the source tree, matching where the other block validators resolve their artifacts.
+            final Path outputDir = Path.of("build", "redacted-blocks", spec.getName());
             final var pcesData = EventHashBlockStreamValidator.readPcesDataFromSpec(spec);
             return new RedactingEventHashBlockStreamValidator(outputDir, pcesData);
         }
@@ -172,7 +176,14 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      */
     private SignedTransaction getEventTransactionOrNull(@NonNull final BlockItem item) throws ParseException {
         if (item.hasSignedTransaction() && isTransactionInEvent(item.item().as())) {
-            return SignedTransaction.PROTOBUF.parse((Bytes) item.item().as());
+            // Raised ceiling for node-generated history proof votes carrying the ~32 MB
+            // uncompressed WRAPS proof, which exceed the default PBJ max message size
+            return SignedTransaction.PROTOBUF.parse(
+                    ((Bytes) item.item().as()).toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
         }
         return null;
     }
@@ -254,8 +265,14 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
                 // Read file contents
                 final byte[] fileBytes = Files.readAllBytes(blockFile);
 
-                // Deserialize using PBJ protobuf codec
-                final Block reloadedBlock = Block.PROTOBUF.parseStrict(Bytes.wrap(fileBytes));
+                // Deserialize using PBJ protobuf codec; parseStrict shorthand omitted because
+                // unredacted node-generated transactions can exceed the default max message size
+                final Block reloadedBlock = Block.PROTOBUF.parse(
+                        Bytes.wrap(fileBytes).toReadableSequentialData(),
+                        true,
+                        false,
+                        DEFAULT_MAX_DEPTH,
+                        MAX_PBJ_RECORD_SIZE);
                 reloadedBlocks.add(reloadedBlock);
 
             } catch (final IOException e) {

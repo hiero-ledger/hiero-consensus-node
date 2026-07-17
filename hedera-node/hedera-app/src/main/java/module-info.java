@@ -35,7 +35,6 @@ module com.hedera.node.app {
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
-    requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
     requires transitive java.net.http;
@@ -118,6 +117,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.throttle;
     exports com.hedera.node.app.blocks.impl;
     exports com.hedera.node.app.blocks.impl.streaming;
+    exports com.hedera.node.app.blocks.impl.streaming.obs;
     exports com.hedera.node.app.workflows.handle.metric;
     exports com.hedera.node.app.tss;
     exports com.hedera.node.app.workflows.handle.stack;

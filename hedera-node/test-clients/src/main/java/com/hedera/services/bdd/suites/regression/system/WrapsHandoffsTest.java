@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContai
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withExternalizedLedgerIdFromHgcaaLog;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -33,7 +32,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Validates construction of genesis and incremental WRAPS proofs.
+ * Validates construction of genesis and incremental WRAPS proofs, and that the network then
+ * externalizes blocks signed with the resulting WRAPS chain-of-trust proof.
  */
 @Tag(WRAPS)
 @HapiTestLifecycle
@@ -58,19 +58,16 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS / 100, stakedNodeId = 3)
-    static SpecAccount NODE3_STAKER;
-
     @BeforeAll
     public static void setup(TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo(), NODE3_STAKER.getInfo());
+        lifecycle.doAdhoc(NODE0_STAKER.getInfo(), NODE1_STAKER.getInfo(), NODE2_STAKER.getInfo());
     }
 
     @HapiTest
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
         return hapiTest(sourcingContextual(spec -> {
             if (hasWrapsArtifactsPath()) {
+                StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
                 StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
                 return blockingOrder(
                         withExternalizedLedgerIdFromHgcaaLog(
@@ -130,6 +127,6 @@ public class WrapsHandoffsTest implements LifecycleTest {
     }
 
     private static List<SpecAccount> stakers() {
-        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER);
+        return List.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER);
     }
 }

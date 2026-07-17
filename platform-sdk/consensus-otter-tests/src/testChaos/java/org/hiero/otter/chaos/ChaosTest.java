@@ -19,7 +19,8 @@ class ChaosTest {
     void chaosTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         network.addNodes(7);
-        network.withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, Integer.MAX_VALUE);
+        network.withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, Integer.MAX_VALUE)
+                .withConfigValue(ReconnectConfig_.MINIMUM_TIME_BETWEEN_RECONNECTS, Duration.ofSeconds(10L));
         network.start();
 
         env.createChaosBot(ChaosBotConfiguration.DEFAULT).runChaos(Duration.ofMinutes(60L));

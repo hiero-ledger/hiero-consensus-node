@@ -23,9 +23,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive org.hiero.consensus.event.stream;
     requires transitive com.esaulpaugh.headlong;
     requires transitive com.google.protobuf;
-    requires transitive dagger;
     requires transitive java.compiler;
-    requires transitive javax.inject;
     requires transitive net.i2p.crypto.eddsa;
     requires transitive org.apache.commons.lang3;
     requires transitive org.hyperledger.besu.evm;

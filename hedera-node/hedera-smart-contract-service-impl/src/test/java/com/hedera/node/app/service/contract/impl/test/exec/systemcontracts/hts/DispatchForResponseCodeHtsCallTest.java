@@ -43,8 +43,8 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -101,7 +101,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
         given(recordBuilder.status()).willReturn(SUCCESS);
 
         final var pricedResult = subject.execute(frame);
-        final var contractResult = pricedResult.fullResult().result().getOutput();
+        final var contractResult = pricedResult.fullResult().result().output();
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
 
         verifyNoInteractions(failureCustomizer);
@@ -140,7 +140,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
         Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
         // when
         final var pricedResult = subject.execute(frame);
-        final var contractResult = pricedResult.fullResult().result().getOutput();
+        final var contractResult = pricedResult.fullResult().result().output();
         // then
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
         // check that events was added
@@ -169,7 +169,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
 
         assertEquals(
                 Optional.of(ERROR_DECODING_PRECOMPILE_INPUT),
-                fullResult.result().getHaltReason());
+                fullResult.result().haltReason());
         assertEquals(DEFAULT_CONTRACTS_CONFIG.precompileHtsDefaultGasCost(), fullResult.gasRequirement());
     }
 
@@ -189,7 +189,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
                 .willReturn(INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
 
         final var pricedResult = subject.execute(frame);
-        final var contractResult = pricedResult.fullResult().result().getOutput();
+        final var contractResult = pricedResult.fullResult().result().output();
         assertArrayEquals(
                 ReturnTypes.encodedRc(INVALID_TREASURY_ACCOUNT_FOR_TOKEN).array(), contractResult.toArray());
     }

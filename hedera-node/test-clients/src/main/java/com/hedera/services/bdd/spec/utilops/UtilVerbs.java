@@ -8,11 +8,13 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.LEDGER_ID_TIMEOUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -115,6 +117,7 @@ import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hedera.services.bdd.spec.infrastructure.RegistryNotFound;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -1190,15 +1193,66 @@ public class UtilVerbs {
     private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
 
     /**
-     * Returns an operation that uses a {@link com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo} query
-     * against the {@code 0.0.2} account to look up the ledger id of the target network; and then passes the ledger
-     * id to the given callback.
+     * Returns an operation that looks up the ledger id of the target network and passes it to the given callback.
+     * <p>
+     * On a subprocess network with {@code tss.historyEnabled=true} the active ledger id changes once during the
+     * lifetime of the network: the configured {@code ledger.id} is replaced by the address-book hash externalized
+     * by the genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
+     * line. Because the proof runs asynchronously while the test framework is already issuing transactions, a
+     * spec that reads the ledger id naively can observe the old configured value once and the externalized value
+     * a few rounds later (failing any byte-exact assertion that captures the id early and re-reads it later). To
+     * avoid that race this operation waits for the externalization log to appear before returning - driving rounds
+     * via small system transfers so the proof can finish even if the surrounding spec is otherwise quiescent. With
+     * history disabled, {@code blockStream.streamMode=RECORDS} (which deactivates TSS regardless of
+     * {@code tss.historyEnabled}), or on non-subprocess networks, the externalization log never appears and we
+     * fall back to a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
      *
      * @param ledgerIdConsumer the callback to pass the ledger id to
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
-        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
+        return sourcingContextual(spec -> {
+            // Match TssBlockHashSigner's gating: TSS only runs when history is enabled AND the block stream is
+            // active (streamMode != RECORDS); otherwise the "Externalizing ledger id" log never appears.
+            //
+            // tss.historyEnabled is read via inPriorityOrder(node application.properties,
+            // spec.startupProperties()) so that overrides written by copyBootstrapAssets() (e.g.
+            // configuration/dev tss.historyEnabled=false) take precedence over spec defaults.
+            //
+            // blockStream.streamMode is read exclusively from spec.startupProperties() because it is
+            // a test-framework-level override (e.g. blockStream.streamMode=RECORDS for hapiTestMiscRecords)
+            // passed as a system property and NOT written to application.properties by copyBootstrapAssets().
+            // Using inPriorityOrder for streamMode would cause application.properties' bootstrap default
+            // of BOTH to override the spec's RECORDS setting, incorrectly enabling the wait.
+            final boolean isSubProcess = spec.targetNetworkOrThrow() instanceof SubProcessNetwork;
+            final boolean historyEnabled;
+            if (isSubProcess) {
+                final var nodeProps = inPriorityOrder(
+                        new JutilPropertySource(((SubProcessNetwork) spec.targetNetworkOrThrow())
+                                .getRequiredNode(NodeSelector.byNodeId(0))
+                                .getExternalPath(APPLICATION_PROPERTIES)),
+                        spec.startupProperties());
+                historyEnabled = nodeProps.getBoolean("tss.historyEnabled");
+            } else {
+                historyEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+            }
+            final boolean waitForExternalization = isSubProcess
+                    && historyEnabled
+                    && !"RECORDS".equals(spec.startupProperties().get("blockStream.streamMode"));
+            if (waitForExternalization) {
+                return exposeExternalizedLedgerIdFromHgcaaLogTo(
+                        NodeSelector.byNodeId(0),
+                        LEDGER_ID_TIMEOUT,
+                        Duration.ofSeconds(1),
+                        () -> new SpecOperation[] {
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, 1L))
+                                    .payingWith(GENESIS),
+                            sleepFor(250L)
+                        },
+                        ledgerIdConsumer);
+            }
+            return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
+        });
     }
 
     /**
@@ -2435,13 +2489,7 @@ public class UtilVerbs {
     }
 
     public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equalsIgnoreCase(flag)) {
-                return validateChargedUsd(txnName, newPrice);
-            } else {
-                return validateChargedUsd(txnName, oldPrice);
-            }
-        });
+        return validateChargedUsd(txnName, newPrice);
     }
 
     public static SpecOperation safeValidateChargedUsdWithin(
@@ -2450,13 +2498,7 @@ public class UtilVerbs {
             double oldAllowedPercentDiff,
             double newPrice,
             double newAllowedPercentDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equalsIgnoreCase(flag)) {
-                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
-            } else {
-                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
-            }
-        });
+        return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
     }
 
     public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
@@ -2487,13 +2529,8 @@ public class UtilVerbs {
             OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
         List<SpecOperation> opsList = new ArrayList<>();
 
-        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
         opsList.addAll(provider.provide());
         opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
-
-        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
-        opsList.addAll(provider.provide());
-        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
 
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
@@ -2588,39 +2625,6 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
-        });
-    }
-
-    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
-            String txn,
-            String parent,
-            double oldPrice,
-            double oldAllowedPercentDiff,
-            double newPrice,
-            double newAllowedPercentDiff) {
-        return assertionsHold((spec, assertLog) -> {
-            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
-            if ("true".equalsIgnoreCase(flag)) {
-                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
-                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
-                assertEquals(
-                        newPrice,
-                        actualUsdCharged,
-                        (effectivePercentDiff / 100.0) * newPrice,
-                        String.format(
-                                "%s fee (%s) more than %.2f percent different than expected!",
-                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
-            } else {
-                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
-                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
-                assertEquals(
-                        oldPrice,
-                        actualUsdCharged,
-                        (effectivePercentDiff / 100.0) * oldPrice,
-                        String.format(
-                                "%s fee (%s) more than %.2f percent different than expected!",
-                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
-            }
         });
     }
 

@@ -24,12 +24,12 @@ class IsAssociatedCallTest extends CallTestBase {
         subject = new IsAssociatedCall(gasCalculator, mockEnhancement(), SENDER_ID, FUNGIBLE_TOKEN);
 
         final var result = subject.execute().fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(IsAssociatedTranslator.IS_ASSOCIATED
                         .getOutputs()
                         .encode(Tuple.singleton(false))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

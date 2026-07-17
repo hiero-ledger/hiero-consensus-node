@@ -12,12 +12,12 @@ import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
-import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
@@ -79,7 +79,6 @@ import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -213,8 +212,8 @@ public class ServicesMain {
             rosterHistory = RosterHistory.fromGenesis(genesisRoster);
             rosterEntries = genesisRoster.rosterEntries();
         } else {
-            rosterHistory = RosterStateUtils.createRosterHistory(state);
             final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+            rosterHistory = rosterStore.getRosterHistory();
             rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
@@ -257,7 +256,7 @@ public class ServicesMain {
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
                 .withExecutionLayer(hedera)
-                .withStaleEventCallback(hedera)
+                .withStaleEventConsumer(hedera)
                 .withTransactionOffsetNanos(transactionOffsetNanos);
         final var platform = platformBuilder.build();
 

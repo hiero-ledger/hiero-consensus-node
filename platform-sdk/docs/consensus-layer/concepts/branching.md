@@ -1,7 +1,7 @@
 ---
+type: concept
 title: Branching
-kind: concept
-last_reviewed: TBD
+last_reviewed: 2026-06-08
 ---
 
 # Branching
@@ -9,11 +9,10 @@ last_reviewed: TBD
 ## Definition
 
 A creator *branches* (the original whitepaper calls this *forking*)
-when it signs two events `x` and `y` with the same self-parent —
-equivalently, two events by the same creator where neither is a
-self-ancestor of the other. An honest creator's events form a single
-chain under the self-parent edge; a branched creator's events form a
-tree.
+when it signs two events `x` and `y` — neither a self-ancestor of the
+other — whose birth rounds differ by at most the non-ancient window.
+An honest creator's events form a single chain under the self-parent
+edge; a branched creator's events form a tree.
 
 Branching is the Byzantine behaviour that the entire strong-seeing
 machinery exists to tolerate. Without the possibility of branching,
@@ -169,4 +168,5 @@ is correct without any such mechanism.
   fork relation). The 2020 redefinition of seeing is documented in
   `SWIRLDS-TR-2020-01`, referenced from the JavaDoc on the seeing
   predicates in `ConsensusImpl`.
+- Invariants: INV-002 (consensus order is agreed by all nodes), INV-007 (all deciders of a round agree on its judge set).
 - Glossary entry: [`../glossary.md`](../glossary.md).

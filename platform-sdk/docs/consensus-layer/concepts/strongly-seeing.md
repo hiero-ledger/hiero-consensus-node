@@ -1,7 +1,7 @@
 ---
+type: concept
 title: Strongly-seeing
-kind: concept
-last_reviewed: TBD
+last_reviewed: 2026-05-22
 ---
 
 # Strongly-seeing
@@ -54,4 +54,5 @@ The super-majority test uses `Threshold.SUPER_MAJORITY`
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`judges.md`](judges.md).
+- Invariants: INV-001 (voting round is monotonic along ancestry).
 - Glossary entry: [`../glossary.md`](../glossary.md).

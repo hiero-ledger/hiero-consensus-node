@@ -8,9 +8,11 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BESU_LO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BESU_MAX_REFUND_QUOTIENT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CHARGING_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEDERA_MAX_REFUND_PERCENTAGE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INTRINSIC_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
@@ -31,9 +33,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.PropagatedCallFailureRef;
@@ -41,6 +46,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,8 +54,10 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,7 +70,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class FrameRunnerTest {
 
-    private static final long EXPECTED_GAS_USED_NO_REFUNDS = 400000;
+    private static final long EXPECTED_GAS_USED_NO_REFUNDS = 400_000;
 
     @Mock
     private MessageFrame frame;
@@ -83,7 +91,7 @@ class FrameRunnerTest {
     private ContractCreationProcessor contractCreationProcessor;
 
     @Mock
-    private CustomGasCalculator gasCalculator;
+    private HederaGasCalculatorImpl gasCalculator;
 
     @Mock
     private EntityIdFactory entityIdFactory;
@@ -105,7 +113,7 @@ class FrameRunnerTest {
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(CALLED_CONTRACT_ID);
         final var contractId = ContractID.newBuilder()
-                .evmAddress(Bytes.wrap(EIP_1014_ADDRESS.toArray()))
+                .evmAddress(Bytes.wrap(EIP_1014_ADDRESS.getBytes().toArray()))
                 .build();
         given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
 
@@ -117,7 +125,14 @@ class FrameRunnerTest {
         given(frame.getGasRefund()).willReturn(nominalRefund);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -145,7 +160,14 @@ class FrameRunnerTest {
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
@@ -170,7 +192,14 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -195,7 +224,14 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -220,7 +256,14 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -235,19 +278,24 @@ class FrameRunnerTest {
     @Test
     void failurePathWorksWithHaltReasonWhenExceedingChildRecords() {
         final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
-        final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
-        messageFrameStack.addFirst(frame);
 
         givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(INSUFFICIENT_CHILD_RECORDS));
         final var contractId = ContractID.newBuilder()
-                .evmAddress(Bytes.wrap(NON_SYSTEM_LONG_ZERO_ADDRESS.toArray()))
+                .evmAddress(Bytes.wrap(NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes().toArray()))
                 .build();
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -258,6 +306,125 @@ class FrameRunnerTest {
         assertFailureExpectationsWith(frame, result);
         assertEquals(INSUFFICIENT_CHILD_RECORDS, result.haltReason());
         assertNull(result.revertReason());
+    }
+
+    @Test
+    void handleExceptionEscapingExecutionResolvesAsHaltOfWholeRunPreservingStatus() {
+        final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
+        final var status = ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+        final var expectedHaltReason = new HandleExceptionHaltReason(status);
+
+        final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
+        messageFrameStack.addFirst(frame);
+        given(frame.getType()).willReturn(MessageFrame.Type.CONTRACT_CREATION);
+        given(childFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
+        // The parent frame suspends after spawning a child call, so both frames are still
+        // open when the child's system contract re-throws a HandleException
+        doAnswer(invocation -> {
+                    messageFrameStack.addFirst(childFrame);
+                    return null;
+                })
+                .when(contractCreationProcessor)
+                .process(frame, tracer);
+        doAnswer(invocation -> {
+                    throw new HandleException(status);
+                })
+                .when(messageCallProcessor)
+                .process(childFrame, tracer);
+
+        // Mirror setters in getters so the initial frame's final state drives the result
+        final var frameState = new AtomicReference<>(MessageFrame.State.CODE_SUSPENDED);
+        final var frameHaltReason = new AtomicReference<Optional<ExceptionalHaltReason>>(Optional.empty());
+        doAnswer(invocation -> {
+                    frameState.set(invocation.getArgument(0));
+                    return null;
+                })
+                .when(frame)
+                .setState(any());
+        doAnswer(invocation -> {
+                    frameHaltReason.set(invocation.getArgument(0));
+                    return null;
+                })
+                .when(frame)
+                .setExceptionalHaltReason(any());
+        given(frame.getState()).willAnswer(invocation -> frameState.get());
+        given(frame.getExceptionalHaltReason()).willAnswer(invocation -> frameHaltReason.get());
+        given(frame.getRevertReason()).willReturn(Optional.empty());
+
+        given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
+        given(frame.getContextVariable(FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE))
+                .willReturn(propagatedCallFailure);
+        given(frame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VARIABLE)).willReturn(true);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.maxRefundPercentOfGasLimit", HEDERA_MAX_REFUND_PERCENTAGE)
+                .getOrCreateConfig();
+        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+        given(gasCalculator.getMaxRefundQuotient()).willReturn(BESU_MAX_REFUND_QUOTIENT);
+        // All gas is consumed and refunds are forfeited on the halt
+        given(frame.getRemainingGas()).willReturn(0L);
+        given(frame.getGasRefund()).willReturn(0L);
+        given(frame.getGasPrice()).willReturn(Wei.of(NETWORK_GAS_PRICE));
+        given(frame.getRecipientAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
+
+        final var result = subject.runToCompletion(
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
+
+        inOrder.verify(tracer).traceOriginAction(frame);
+        inOrder.verify(contractCreationProcessor).process(frame, tracer);
+        inOrder.verify(messageCallProcessor).process(childFrame, tracer);
+        // Both open frames are halted and their pending actions finalized, innermost first
+        inOrder.verify(childFrame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        inOrder.verify(childFrame).setExceptionalHaltReason(Optional.of(expectedHaltReason));
+        inOrder.verify(tracer).traceNotExecuting(childFrame);
+        inOrder.verify(tracer).traceNotExecuting(frame);
+        inOrder.verify(frame).clearGasRemaining();
+        inOrder.verify(frame).clearGasRefund();
+        inOrder.verify(tracer).sanitizeTracedActions(frame);
+
+        assertTrue(messageFrameStack.isEmpty());
+        assertFalse(result.isSuccess());
+        assertEquals(expectedHaltReason, result.haltReason());
+        assertEquals(status, result.finalStatus());
+        assertNull(result.revertReason());
+        assertEquals(GAS_LIMIT, result.gasUsed());
+    }
+
+    @Test
+    void happyPathWithMinimumGasUsed() {
+        final var minimumGasUsed = 1_000_000;
+        givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
+        final var result = subject.runToCompletion(
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                new GasCharges(INTRINSIC_GAS, minimumGasUsed, 0L),
+                null);
+
+        assertEquals(minimumGasUsed, result.gasUsed());
+
+        assertSuccessExpectationsWith(
+                NON_SYSTEM_CONTRACT_ID, asEvmContractId(entityIdFactory, NON_SYSTEM_LONG_ZERO_ADDRESS), result);
     }
 
     private void assertSuccessExpectationsWith(
@@ -332,7 +499,7 @@ class FrameRunnerTest {
         given(frame.getRecipientAddress()).willReturn(receiver);
         given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
         final var contractId = ContractID.newBuilder()
-                .evmAddress(Bytes.wrap(receiver.toArray()))
+                .evmAddress(Bytes.wrap(receiver.getBytes().toArray()))
                 .build();
         given(childFrame.getMessageFrameStack()).willReturn(messageFrameStack);
     }
