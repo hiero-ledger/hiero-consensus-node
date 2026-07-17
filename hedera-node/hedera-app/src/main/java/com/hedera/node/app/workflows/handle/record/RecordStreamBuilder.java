@@ -341,20 +341,6 @@ public class RecordStreamBuilder
         final List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
         if (!traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
             if (contractStateChanges != null && status != REVERTED_SUCCESS) {
-                contractStateChanges = contractStateChanges.stream()
-                        .map(entry -> {
-                            final var changes = new ContractStateChanges(entry.getKey().contractStateChanges().stream()
-                                    .map(change -> change.copyBuilder()
-                                            .storageChanges(change.storageChanges().stream()
-                                                    .map(sc -> sc.copyBuilder()
-                                                            .valueWritten(null)
-                                                            .build())
-                                                    .toList())
-                                            .build())
-                                    .toList());
-                            return new AbstractMap.SimpleEntry<>(changes, entry.getValue());
-                        })
-                        .toList();
                 contractStateChanges.stream()
                         .map(pair -> new TransactionSidecarRecord(
                                 transactionRecord.consensusTimestamp(),
