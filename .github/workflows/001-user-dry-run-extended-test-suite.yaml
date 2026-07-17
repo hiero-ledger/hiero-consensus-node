@@ -245,3 +245,90 @@ jobs:
       slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+
+  report-failure:
+    name: Report XTS Dry Run Failure
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - extract-citr-vars
+      - xts-execution
+    if: ${{ needs.xts-execution.result == 'failure' && !cancelled() }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "1"
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          setup-gomplate: "true"
+
+      - name: Determine Report Category
+        id: report-category
+        run: |
+          if [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
+            echo "category=environment" >> "${GITHUB_OUTPUT}"
+          else
+            echo "category=test" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Build Test Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'test' }}
+        env:
+          XTS_INFO: "${{ inputs.branch-name != '' && format('{0} - {1}', inputs.branch-name, inputs.ref) || inputs.ref }} (dry run)"
+          FETCH_XTS_CANDIDATE_RESULT: "skipped (dry run)"
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: "skipped (dry run)"
+          FAILED_TESTS: ${{ needs.xts-execution.outputs.failed-tests }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
+          COMMIT_AUTHOR: ${{ github.actor }}
+          SLACK_USER_ID: ""
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_LIST: "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+          CITR_SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}
+          CITR_TCK_VERSION: ${{ needs.extract-citr-vars.outputs.tck-version }}
+          CITR_JS_SDK_VERSION: ${{ needs.extract-citr-vars.outputs.js-sdk-version }}
+          CITR_MIRROR_NODE_VERSION: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+          CITR_BN_RELEASE_VERSION: ${{ needs.extract-citr-vars.outputs.bn-release-version }}
+          CITR_BN_MIRROR_NODE_VERSION: ${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}
+          CITR_JSON_RPC_RELAY_VERSION: ${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}
+        run: gomplate -f .github/workflows/templates/slack-xts-test-failure-detailed.json.tpl -o slack_payload.json
+
+      - name: Build Environment Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'environment' }}
+        env:
+          XTS_INFO: "${{ inputs.branch-name != '' && format('{0} - {1}', inputs.branch-name, inputs.ref) || inputs.ref }} (dry run)"
+          FETCH_XTS_CANDIDATE_RESULT: "skipped (dry run)"
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: "skipped (dry run)"
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CITR_SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.adhoc-xts-solo-version }}
+          CITR_TCK_VERSION: ${{ needs.extract-citr-vars.outputs.tck-version }}
+          CITR_JS_SDK_VERSION: ${{ needs.extract-citr-vars.outputs.js-sdk-version }}
+          CITR_MIRROR_NODE_VERSION: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+          CITR_BN_RELEASE_VERSION: ${{ needs.extract-citr-vars.outputs.bn-release-version }}
+          CITR_BN_MIRROR_NODE_VERSION: ${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}
+          CITR_JSON_RPC_RELAY_VERSION: ${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}
+        run: gomplate -f .github/workflows/templates/slack-xts-env-failure-detailed.json.tpl -o slack_payload.json
+
+      - name: Notify test failure (Slack)
+        if: ${{ steps.report-category.outputs.category == 'test' }}
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          errors: "true"
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Notify environment failure (Slack)
+        if: ${{ steps.report-category.outputs.category == 'environment' }}
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
