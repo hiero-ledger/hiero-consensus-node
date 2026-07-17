@@ -13,7 +13,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.monitor.internal.DefaultPlatformMonitor;
 import com.swirlds.platform.monitor.internal.PlatformMonitor;
-import com.swirlds.platform.monitor.internal.StatusMonitorWiringConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.config.PlatformStatusConfig;
