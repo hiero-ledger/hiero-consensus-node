@@ -294,7 +294,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         checkboxesPanel.add(new Label(" "), constr);
         constr.gridy++;
         eventInfoText = GuiUtils.newJTextArea(wrap(50, ABOUT_TEXT));
-        eventInfoText.setFont(new Font(Font.MONOSPACED,Font.PLAIN, 12));
+        eventInfoText.setFont(new Font(Font.MONOSPACED,Font.PLAIN, 10));
         eventInfoText.setText(ABOUT_TEXT);
         checkboxesPanel.add(eventInfoText, constr);
         constr.gridy++;
