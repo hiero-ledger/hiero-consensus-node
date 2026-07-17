@@ -144,9 +144,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** JVM arguments to add when starting up the java process */
     private final List<String> jvmArgs;
 
-    /** A best-effort listener invoked after this node has been killed, used to clean up network state. */
-    private final Runnable onKillListener;
-
     /** The self-healing client subscribed to this node's event stream; created in {@link #doStart}. */
     private EventStreamClient eventStreamClient;
 
@@ -163,8 +160,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * @param consensusRoundPool   the shared pool for deduplicating consensus rounds
      * @param gcLoggingEnabled     {@code true} if GC logging should be enabled for the node process
      * @param jvmArgs              additional JVM arguments to pass to the node process
-     * @param onKillListener       a best-effort listener invoked after this node has been killed, used to clean up
-     *                             network state
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -176,8 +171,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool,
             final boolean gcLoggingEnabled,
-            @NonNull final List<String> jvmArgs,
-            @NonNull final Runnable onKillListener) {
+            @NonNull final List<String> jvmArgs) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -189,7 +183,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.random = new SecureRandom();
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
-        this.onKillListener = requireNonNull(onKillListener, "onKillListener must not be null");
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
@@ -321,7 +314,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     .build();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
-            onKillListener.run();
             platformStatus = null;
 
             log.info("Node {} has been killed", selfId);
