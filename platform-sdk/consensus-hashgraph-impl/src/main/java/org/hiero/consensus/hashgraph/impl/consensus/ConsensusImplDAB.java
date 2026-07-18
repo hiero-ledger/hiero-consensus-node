@@ -273,7 +273,8 @@ public class ConsensusImplDAB implements Consensus {
                 nodeIds,
                 weights,
                 config.coinFreq(),
-                false,
+                3,
+                3,
                 false,
                 config.roundsNonAncient(),
                 NUM_ROUNDS_ROSTER);
@@ -563,7 +564,8 @@ public class ConsensusImplDAB implements Consensus {
                 nodeIds,
                 weights,
                 config.coinFreq(),
-                false,
+                3,
+                3,
                 false,
                 config.roundsNonAncient(),
                 NUM_ROUNDS_ROSTER);

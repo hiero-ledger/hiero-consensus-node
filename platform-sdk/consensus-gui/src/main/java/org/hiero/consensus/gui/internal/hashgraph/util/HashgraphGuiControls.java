@@ -205,8 +205,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                         + ") ====================================";
                 str += "\n                         nodes  " + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
                 str += "\n                         stake  " + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
-                str += "\n               seeNum / seeDen  " + HashgraphInfo.getLatestRoundInfo().firstVotingRoundSee();
-                str += " / " + HashgraphInfo.getLatestRoundInfo().firstVotingRoundSee();
+                str += "\n               seeNum / seeDen  " + HashgraphInfo.getLatestRoundInfo().seeNum();
+                str += " / " + HashgraphInfo.getLatestRoundInfo().seeDen();
                 str += "\n                     judgeCon1  " + HashgraphInfo.getLatestRoundInfo().judgeCon1();
                 str += "\n                  coinInterval  " + HashgraphInfo.getLatestRoundInfo().coinInterval();
                 str += "\n     targetNumRoundsNonAncient  " + HashgraphInfo.getLatestRoundInfo().targetNumRoundsNonAncient();
