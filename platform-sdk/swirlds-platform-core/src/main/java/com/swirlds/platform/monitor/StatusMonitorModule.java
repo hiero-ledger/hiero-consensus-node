@@ -31,7 +31,7 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
  */
 public class StatusMonitorModule {
 
-    ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring;
+    final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring;
 
     /**
      * Create a new StatusMonitorModule.
