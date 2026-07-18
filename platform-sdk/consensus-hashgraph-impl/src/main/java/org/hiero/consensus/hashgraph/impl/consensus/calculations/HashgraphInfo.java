@@ -83,7 +83,11 @@ public final class HashgraphInfo {
     private long minNonAncientRound;
     private int voteD; // must be 1 or 2
     private ArrayList<EventInfo> parents = new ArrayList<>(); // used as scratchpad during update of an event
-    private int parentsMaxSize = 0; // capacity requested for parents list (it might actually be more than requested)
+    private ArrayList<EventInfo> judges = new ArrayList<>(); // used as scratchpad during update of an event
+    private ArrayList<EventInfo> consensusEvents = new ArrayList<>(); // used as scratchpad during update of an event
+    private int parentsCapacity = 0; // capacity requested for parents list (it might actually be more than requested)
+    private int judgesCapacity = 0; // capacity requested for judges list (it might actually be more than requested)
+    private int consensusEventsCapacity = 0; // capacity requested for consensusEvents list (might be more)
     private boolean nodesChanged; // true for round 1 and for any round where nodes[] differs from the round before it
     private int currMark = 0;
     private boolean roundDecided;
@@ -94,7 +98,7 @@ public final class HashgraphInfo {
     private EventInfo[] candEventInfo; // for each node, the list of candidate events
     private long[] candStakeCollected; // the total stake of all votes collected, for each candidate event
     private static RoundInfo latestRoundInfo; // the latest roundInfo passed to update() for any hashgraph instance
-    private static RoundInfoPrev latestRoundInfoPrev; // this is the most recent roundInfoPrev passed to update()
+    private static RoundInfoPrev latestRoundInfoPrev; // the most recent roundInfoPrev passed to any update()
 
     // define what each element in benchmarks[] currently means. Always at least 1. Elements 0/1 must never change
     private static final int BENCHMARK_UPDATE = 0; // time spent in update()
@@ -183,8 +187,24 @@ public final class HashgraphInfo {
         return parents;
     }
 
-    public int getParentsMaxSize() {
-        return parentsMaxSize;
+    public ArrayList<EventInfo> getJudges() {
+        return judges;
+    }
+
+    public ArrayList<EventInfo> getJConsensusEvents() {
+        return consensusEvents;
+    }
+
+    public int getParentsCapacity() {
+        return parentsCapacity;
+    }
+
+    public int getJudgesCapacity() {
+        return judgesCapacity;
+    }
+
+    public int getConsensusEventsCapacity() {
+        return consensusEventsCapacity;
     }
 
     public int getCurrMark() {
@@ -632,8 +652,6 @@ public final class HashgraphInfo {
             final RoundInfoPrev rp = roundInfoPrev;
             final HashgraphInfo h = hashgraph;
             long parentRound;
-            ArrayList<EventInfo> judges;
-            ArrayList<EventInfo> consensusEvents;
             EventInfo[] judgesArray;
             EventInfo[] consensusEventsArray;
             long minJudgeBirthRound;
@@ -696,10 +714,16 @@ public final class HashgraphInfo {
                         h.nodeIdToIndex.put(h.nodeIDs[i], i);
                     }
                 }
-                if ((h.parents == null) || (h.parentsMaxSize > 2 * h.numNodes)) {
+                if ((h.parents == null) || (h.parentsCapacity > 2 * h.numNodes)) {
                     // initialize h.parents the first time, and shrink to recover after massive branching in last round
                     h.parents = new ArrayList<>(h.numNodes);
-                    h.parentsMaxSize = h.numNodes;
+                    h.parentsCapacity = h.numNodes;
+                }
+                if (h.judges == null || h.judgesCapacity > h.numNodes) { // shrink if address book shrank
+                    h.judges = new ArrayList<>(h.numNodes);
+                }
+                if (h.consensusEvents == null || h.consensusEventsCapacity > 10 * h.numNodes) { // shrink after a surge
+                    h.consensusEvents = new ArrayList<>(10 * h.numNodes);
                 }
                 // function totalStake /--------------------------------------------------------------------------
                 h.totalStake = 0;
@@ -772,7 +796,7 @@ public final class HashgraphInfo {
                     h.parents.add(parent);
                 }
             }
-            h.parentsMaxSize = Math.max(h.parentsMaxSize, parentsSigned.length);
+            h.parentsCapacity = Math.max(h.parentsCapacity, parentsSigned.length);
             selfParent = (h.parents.isEmpty() || h.parents.getFirst().creator != creator) ? null : h.parents.getFirst();
             // function ancestorJudge  /--------------------------------------------------------------------------
             // (for each i that is the index of the judge in prevJudge(r))
@@ -1078,18 +1102,19 @@ public final class HashgraphInfo {
                     s += r.stake[m];
                 }
             }
-            judges = new ArrayList<>();
+            h.judges.clear();
             prevJudgesCopied = (s <= h.supermajorityThreshold);
             if (prevJudgesCopied) { // if not a supermajority, copy previous judges. This is VERY rare.
-                Collections.addAll(judges, rp.prevJudges); // Some might not be in the current address book.
+                Collections.addAll(h.judges, rp.prevJudges); // Some might not be in the current address book.
             } else {
                 for (int m = 0; m < numNodes; m++) {
                     if (voteE[m] != null) {
-                        judges.add(voteE[m]);
+                        h.judges.add(voteE[m]);
                     }
                 }
             }
-            judgesArray = judges.toArray(new EventInfo[0]);
+            h.judgesCapacity = Math.max(h.judgesCapacity, h.judges.size());
+            judgesArray = h.judges.toArray(new EventInfo[0]);
             // function receivedEvent /--------------------------------------------------------------------------
             // function isReceived /------------------------------------------------------------------------------
             // function reachedCon /------------------------------------------------------------------------------
@@ -1097,9 +1122,10 @@ public final class HashgraphInfo {
             // graphSearch finds each new event that reaches consensus (so isReceived and reachedCon are true),
             // sets isConsensus for it, finds all its receivedEvent events, and sets its receivedTim[] to be the
             // times from those received events.
-            consensusEvents = new ArrayList<>(3 * numNodes);
-            h.graphSearch(judgesArray, r.judgeCon1, consensusEvents);
-            consensusEventsArray = consensusEvents.toArray(new EventInfo[0]);
+            h.consensusEvents.clear();
+            h.graphSearch(judgesArray, r.judgeCon1, h.consensusEvents);
+            h.consensusEventsCapacity = Math.max(h.consensusEventsCapacity, h.consensusEvents.size());
+            consensusEventsArray = h.consensusEvents.toArray(new EventInfo[0]);
             // function timeCon /---------------------------------------------------------------------------------
             // timeCon is either gen (if judgeCon1 is true) or the extended median of sorted receivedTime (if false)
             // function before /----------------------------------------------------------------------------------
@@ -1159,11 +1185,11 @@ public final class HashgraphInfo {
             for (EventInfo judge : rp.prevJudges) {
                 judge.isPrevJudge = false;
             }
-            for (EventInfo judge : judges) {
+            for (EventInfo judge : h.judges) {
                 judge.isPrevJudge = true;
             }
             minJudgeBirthRound = Long.MAX_VALUE;
-            for (EventInfo judge : judges) {
+            for (EventInfo judge : h.judges) {
                 minJudgeBirthRound = Math.min(minJudgeBirthRound, judge.birthRound);
             }
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
@@ -1177,7 +1203,7 @@ public final class HashgraphInfo {
                             judgesArray, // prevJudges
                             prevJudgesCopied, // prevJudgesCopied
                             h.minNonAncientRound, // prevMinNonAncientRound
-                            rp.prevNumCons + consensusEvents.size(), // prevNumCons
+                            rp.prevNumCons + consensusEventsArray.length, // prevNumCons
                             minJudgeBirthRound)); // prevMinJudgeBirthRound
         }
     }
