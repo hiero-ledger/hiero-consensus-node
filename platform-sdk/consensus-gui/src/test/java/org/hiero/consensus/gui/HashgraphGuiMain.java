@@ -24,8 +24,8 @@ public class HashgraphGuiMain {
         final Configuration defaultConfig = new TestConfigBuilder().getOrCreateConfig();
 
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .numNodes(4) // 4
-                .maxOtherParents(1) // 2 /**/
+                .numNodes(7) // 4
+                .maxOtherParents(2) // 2 /**/
                 .seed(0)
                 .build();
 
