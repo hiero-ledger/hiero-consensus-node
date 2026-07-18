@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This package contains a single file that does all the consensus calculations for the Hashgraph consensus algorithm.
@@ -67,8 +68,11 @@ public final class HashgraphInfo {
     public static boolean ENFORCE_ROUND_ADVANCE = false;
     /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public static final RoundInfoPrev FIRST_ROUND_INFO_PREV =
-            new RoundInfoPrev(1, false, new EventInfo[0], false, 1, 0, 0);
+            new RoundInfoPrev(1, false, new EventInfo[0],
+                    false, 1, 0, 0);
 
+    private static AtomicLong lastHashgraphInfoID = new AtomicLong(-1); // ID of last one instantiated
+    private long hashgraphInfoID = lastHashgraphInfoID.incrementAndGet();
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long lastEventID = 0; //the most recent unique ID generated for an event by generateEventID()
     private boolean newRound = true; // true iff update() has never been called for the pending round
@@ -139,6 +143,13 @@ public final class HashgraphInfo {
     }
 
     // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
+
+    public static AtomicLong getLastHashgraphInfoID() {return lastHashgraphInfoID;}
+
+    public long getHashgraphInfoID() {return hashgraphInfoID;}
+
+    public boolean isNewRound() {return newRound;}
+
     public long getLastEventID() {return lastEventID;}
 
     public long getPendingRound() {

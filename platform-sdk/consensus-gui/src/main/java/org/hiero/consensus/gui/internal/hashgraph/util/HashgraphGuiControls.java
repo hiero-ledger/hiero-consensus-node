@@ -180,6 +180,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             try {
                 str += "\nSELECTED EVENT ===============================================";
                 str += "\n                            ID  " + eventInfo.getEventID();
+                str += "\n               hashgraphInfoID  " + eventInfo.getHashgraph().getHashgraphInfoID();
                 str += "\n                   timeCreated  " + eventInfo.getTimeCreated();
                 str += "\n                       creator  " + eventInfo.getCreator();
                 str += "\n                    birthRound  " + eventInfo.getBirthRound();
