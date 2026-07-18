@@ -2165,6 +2165,18 @@ public class FeesChargingUtils {
                 / 100;
     }
 
+    /**
+     * Gets the gas used for a ContractCreate transaction.
+     */
+    public static long getGasUsedForContractCreate(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var op = getTxnRecord(txn).logged();
+        allRunFor(spec, op);
+        final var rcd = op.getResponseRecord();
+        return rcd.getContractCreateResult().getGasUsed();
+    }
+
     // -------- ContractCall simple fees utils ---------//
 
     /**

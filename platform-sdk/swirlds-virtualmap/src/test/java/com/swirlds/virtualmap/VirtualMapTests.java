@@ -33,7 +33,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -506,28 +505,8 @@ class VirtualMapTests extends VirtualTestBase {
         copy3.release();
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy4.release();
-        assertTrue(copy4.getPipeline().awaitTermination(5, SECONDS), "Timed out");
-        assertTrue(ds.isClosed(), "Should now be released");
-    }
 
-    @Test
-    @Tags({@Tag("VirtualMap"), @Tag("Pipeline"), @Tag("VMAP-021")})
-    @DisplayName("Database is closed if prematurely terminated")
-    void databaseClosedWhenExpresslyTerminated() throws InterruptedException {
-        final VirtualMap copy0 = createMap();
-        final InMemoryDataSource ds = (InMemoryDataSource) copy0.getDataSource();
-        final VirtualMap copy1 = copy0.copy();
-        final VirtualMap copy2 = copy1.copy();
-        final VirtualMap copy3 = copy2.copy();
-        final VirtualMap copy4 = copy3.copy();
-
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy0.release();
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy1.release();
-        assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy2.getPipeline().terminate();
-        assertTrue(copy2.getPipeline().awaitTermination(5, SECONDS), "Timed out");
+        assertTrue(copy0.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
@@ -561,7 +540,7 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @DisplayName("Million sized hashed maps have non-null hashes on everything")
-    void millionNonNullHashesOnHashedMap() throws InterruptedException {
+    void millionNonNullHashesOnHashedMap() {
         VirtualMap fcm = createMap();
         for (int i = 0; i < 1_000_000; i++) {
             fcm.put(TestKey.longToKey(i), new TestValue("" + i), TestValueCodec.INSTANCE);
@@ -588,7 +567,6 @@ class VirtualMapTests extends VirtualTestBase {
         } finally {
             fcm.release();
             completed.release();
-            assertTrue(fcm.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -957,7 +935,6 @@ class VirtualMapTests extends VirtualTestBase {
             }
         } finally {
             map.release();
-            assertTrue(map.getPipeline().awaitTermination(60, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -1221,8 +1198,8 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Detach Test")
-    void detachTest() throws IOException {
+    @DisplayName("Detach is not affected when map destroyed")
+    void detachIsNotAffectedByMapDestroy() throws IOException, InterruptedException {
         final VirtualMap original = new VirtualMap(new InMemoryBuilder(), DEFAULT_CONFIGURATION);
         Bytes testKey = Bytes.wrap("testKey");
         original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
@@ -1233,17 +1210,17 @@ class VirtualMapTests extends VirtualTestBase {
         final RecordAccessor detachedCopy = original.detach();
         assertNotNull(detachedCopy);
 
+        // release maps family
+        original.release();
+        copy.release();
+
         try {
-            VirtualMapMetadata originalMetadata = original.getMetadata();
-            // let's change the original state and make sure that the detached copy is not affected
-            originalMetadata.setFirstLeafPath(-1);
-            originalMetadata.setLastLeafPath(-1);
+            assertTrue(original.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+
             VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
             assertNotNull(leafRecord);
             assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
         } finally {
-            original.release();
-            copy.release();
             detachedCopy.close();
         }
     }
@@ -1269,14 +1246,6 @@ class VirtualMapTests extends VirtualTestBase {
             root = copy;
         }
         root.release();
-    }
-
-    @Test
-    @DisplayName("Copy of a root node with terminated pipeline")
-    void copyOfRootNodeWithTerminatedPipeline() {
-        VirtualMap map = createMap();
-        map.getPipeline().terminate();
-        assertThrows(IllegalStateException.class, map::copy);
     }
 
     @Test
