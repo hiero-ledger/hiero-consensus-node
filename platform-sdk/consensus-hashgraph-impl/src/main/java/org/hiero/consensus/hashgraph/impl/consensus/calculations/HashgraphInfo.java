@@ -84,6 +84,7 @@ public final class HashgraphInfo {
     private ArrayList<EventInfo> parents = new ArrayList<>(); // used as scratchpad during update of an event
     private ArrayList<EventInfo> judges = new ArrayList<>(); // used as scratchpad during update of an event
     private ArrayList<EventInfo> consensusEvents = new ArrayList<>(); // used as scratchpad during update of an event
+    private Integer[] sortInd; // used as a scratchpad for each judge index, while sorting to calculate median
     private int parentsCapacity = 0; // capacity requested for parents list (it might actually be more than requested)
     private int judgesCapacity = 0; // capacity requested for judges list (it might actually be more than requested)
     private int consensusEventsCapacity = 0; // capacity requested for consensusEvents list (might be more)
@@ -94,7 +95,7 @@ public final class HashgraphInfo {
     // the following are used for tracking candidates for judge in the current round (to speed up topVote & stakeAgrees)
     private int candCount; // how many candidates found so far during the pending round
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
-    private EventInfo[] candEventInfo; // for each node, the list of candidate events
+    private EventInfo[] candEventInfo; // all the judge candidate events for voting
     private long[] candStakeCollected; // the total stake of all votes collected, for each candidate event
     private static RoundInfo latestRoundInfo; // the latest roundInfo passed to update() for any hashgraph instance
     private static RoundInfoPrev latestRoundInfoPrev; // the most recent roundInfoPrev passed to any update()
@@ -624,20 +625,19 @@ public final class HashgraphInfo {
         /**
          * This should be called for each event just after it is added to the hashgraph. If it returns a non-null
          * result, then consensus has now been reached for that round. At that point, switch to the round info for the
-         * next round. Using it, call update on all the judges that were just found, and their descendents.
-         * Stop updating them if one of those calls reaches consensus.
+         * next round. Using it, call update on all existing events with a birth round equal to or greater than the
+         * minimum birth round of the judges that were just found. Stop updating them if one of those calls reaches
+         * consensus.
          * <p>
          * When starting with an empty hashgraph after a reconnect or restart, there will be a period before all
          * the previous judges have been added to the hashgraph. Do not call this update function
          * during that period. Once all the previous round's judges have been added, it will be possible
          * to instantiate the {@link RoundInfoPrev RoundInfoPrev} record, because all the references for
          * {@link RoundInfoPrev#prevJudges RoundInfoPrev.prevJudges} will be known.
-         * At that point, call update() on all the judges that were just added, and their
-         * descendents. Stop updating them if one of those calls reaches consensus.
+         * At that point, call update() on all the events with appropriate birth round. Stop updating them if one of
+         * those calls reaches consensus.
          * <p>
-         * This is sometimes called on a batch of events, because it is the start of a new round,
-         * or because the last of the previous judges was finally added after a restart. For such a
-         * batch, it should be called on all those events in topological order. So if it is to be called
+         * For any given pending round, call update() on events in topological order. So if it is to be called
          * on both an event and its parent, the call on the parent must come first.
          * <p>
          * This will write to the private {@link EventInfo EventInfo} fields of this event, and sometimes of other
@@ -659,18 +659,19 @@ public final class HashgraphInfo {
          * A new hashgraph starting from scratch at genesis should be started with
          * {@link RoundInfo#pendingRound RoundInfo.pendingRound} == 1.
          * <p>
-         * To ensure isPrevJudge is set correctly, this method should be called on a given pending round for a given
-         * hashgraph until it reaches consensus, and then be called on the next pending round. It shouldn't be called
-         * again on the round that already reached consensus, nor on a previous round.
+         * To ensure the {@link EventInfo#isPrevJudge} and {@link EventInfo#isConsensus} fields are set correctly,
+         * this method should be called repeatedly on a given pending round for a given hashgraph until it reaches
+         * consensus, and then be called on the next pending round. It shouldn't be called again on the round that
+         * already reached consensus, nor on a previous round.
          * <p>
-         * For each batch of events that reach consensus, they are first sorted by median timestamp
+         * For each batch of events that reaches consensus, they are first sorted by median timestamp
          * (if judgeCon1==false), or by generation (if judgeCon1==true). Either way, ties are broken by eventID, and
-         * further ties are broken by search order (the order they were found in the graph search). Consensus will
-         * still work, be consistent across nodes, and be in topological order if the eventIDs are chosen randomly
-         * and might even have duplicates. But the random choice must be the same on all nodes. One way to do this
-         * is to change the event IDs of all events in consensusEvents at the end of graphSearch(), using a
+         * ties in that are broken by search order (the order they were found in the graph search). Consensus will
+         * still work, be consistent across nodes, and be in topological order, even if the eventIDs are chosen randomly
+         * and might have duplicates. But the random choice must be the same on all nodes. One way to do this
+         * is to set the event IDs of all events in consensusEvents at the end of graphSearch(), using a
          * CSPRNG seeded with the XOR of all judge hashes for that round. Or, for debugging, set them randomly when
-         * they are created.
+         * they are originally created.
          *
          * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
          * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
@@ -685,11 +686,11 @@ public final class HashgraphInfo {
             final RoundInfoPrev rp = roundInfoPrev;
             final HashgraphInfo h = hashgraph;
             long parentRound;
-            EventInfo[] judgesArray;
-            EventInfo[] consensusEventsArray;
             long minJudgeBirthRound;
             boolean witness;
             boolean prevJudgesCopied; // true iff judges for this round copied from the previous, rather than elected
+            EventInfo[] judgesArray;
+            EventInfo[] consensusEventsArray;
 
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
             if (hashgraph == null) {
@@ -760,6 +761,9 @@ public final class HashgraphInfo {
                 if (h.consensusEvents == null || h.consensusEventsCapacity > 10 * h.numNodes) { // shrink after a surge
                     h.consensusEventsCapacity = 10 * h.numNodes;
                     h.consensusEvents = new ArrayList<>(h.consensusEventsCapacity);
+                }
+                if (h.sortInd == null || h.sortInd.length != h.numNodes) { // match address book size
+                    h.sortInd = new Integer[h.numNodes];
                 }
                 // function totalStake /--------------------------------------------------------------------------
                 h.totalStake = 0;
@@ -1168,30 +1172,25 @@ public final class HashgraphInfo {
             // function before /----------------------------------------------------------------------------------
             // function consensusOrder /--------------------------------------------------------------------------
             // function consensusTimestamp /----------------------------------------------------------------------
-            // These 3 functions are combined here by sorting receivedTime and setting consensusOrder and
-            // consensusTimestamp. The sort breaks ties according to the tiebreaker(x)<=tiebreaker(y) from the last
-            // line of the before function in the paper.
-            // If judgeCon1 is true, then f is sorting by gen, breaking ties by searchOrder.
-            // If judgeCon1 is false, then f first compares the extended medians, then the searchOrder.
             if (r.judgeCon1 && consensusEventsArray.length > 0) { // if each is ancestor of at least one judge
+                Arrays.sort(consensusEventsArray, Comparator
+                        .comparingLong((EventInfo e) -> e.gen) // sort by timeCon(r,d,x) which is just e.gen plus const
+                        .thenComparingLong(e -> e.eventID) // tiebreaker is eventID then searchOrder
+                        .thenComparingInt(e -> e.searchOrder));
                 Instant roundTime;
-                Arrays.sort(judgesArray, Comparator.comparing(e -> e.timeCreated));
-                roundTime = judgesArray[judgesArray.length / 2].timeCreated;
-                Arrays.sort(consensusEventsArray, (e1, e2) -> { // before function
-                    if (e1 == e2) {
-                        return 0;
-                    } // an event is <= itself (comparing the actual references)
-                    int c = Long.compare(e1.gen, e2.gen);
-                    if (c != 0) { // timeCon(r,d,x) is just x.gen plus a constant, so this sorts by timeCon()
-                        return c;
-                    }
-                    // tiebreaker is to sort by eventID, and if there's still a tie, subsort by searchOrder
-                    c = Long.compare(e1.eventID, e2.eventID);
-                    if (c != 0) {
-                        return c;
-                    }
-                    return Integer.compare(e1.searchOrder, e2.searchOrder); // tiebreaker is search order
+                Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., consensusEventsArray.length - 1]
+                Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
+                    return (i2 >= judgesArray.length) ? -1
+                            : (i1 >= judgesArray.length) ? 1
+                            : judgesArray[i1].timeCreated.compareTo(judgesArray[i1].timeCreated);
                 });
+                long stake = 0; // sum of weights of judges with earlier received time
+                int medianPos;
+                for (medianPos = 0; 2 * stake < h.totalStake; medianPos++) {
+                    stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
+                }
+                // the round timestamp is the weighted median created time of all the judges.
+                roundTime = judgesArray[medianPos].timeCreated;
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTime.plusNanos(i);
@@ -1199,33 +1198,24 @@ public final class HashgraphInfo {
             } else if (consensusEventsArray.length > 0) { // each new consensus event is an ancestor of all judges
                 // put weighted median timestamp for each event into event.receivedTime[0]
                 for (EventInfo event : consensusEventsArray) {
-                    Integer[] indices = new Integer[judgesArray.length];
-                    Arrays.setAll(indices, i -> i); // set array to [0, 1, ..., consensusEventsArray.length - 1]
-                    Arrays.sort(indices, (Integer i1, Integer i2) -> { // sort by received time, ascending
-                        return event.receivedTime[i1].compareTo(event.receivedTime[i2]);
+                    Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., consensusEventsArray.length - 1]
+                    Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
+                        return (i2 >= judgesArray.length) ? -1
+                                : (i1 >= judgesArray.length) ? 1
+                                  : event.receivedTime[i1].compareTo(event.receivedTime[i2]);
                     });
                     long stake = 0; // sum of weights of judges with earlier received time
                     int medianPos;
                     for (medianPos = 0; 2 * stake < h.totalStake; medianPos++) {
-                        stake += r.stake[judgesArray[indices[medianPos]].creator];
+                        stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
                     }
                     event.consensusTimestamp = event.receivedTime[medianPos];
                 }
-                Arrays.sort(consensusEventsArray, (e1, e2) -> { // sort by weighted median time
-                    if (e1 == e2) {
-                        return 0;
-                    }
-                    int c = e1.consensusTimestamp.compareTo(e2.consensusTimestamp);
-                    if (c != 0) { // sort by median time received
-                        return c;
-                    }
-                    // tiebreaker is to sort by eventID, and if there's still a tie, subsort by searchOrder
-                    c = Long.compare(e1.eventID, e2.eventID);
-                    if (c != 0) {
-                        return c;
-                    }
-                    return Integer.compare(e1.searchOrder, e2.searchOrder);
-                });
+                Arrays.sort(consensusEventsArray, Comparator
+                        .comparing((EventInfo e) -> e.consensusTimestamp) // sort by weighted median time received
+                        .thenComparingLong(e -> e.gen) // tiebreaker is gen then eventID then searchOrder
+                        .thenComparingLong(e -> e.eventID)
+                        .thenComparingInt(e -> e.searchOrder));
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                 }
