@@ -8,7 +8,6 @@ import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import javax.swing.*;
-
 import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.GuiUtils;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
@@ -61,7 +60,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private static JTextArea eventInfoText;
 
     /** description of the graph image, printed in the left column */
-    private final static String ABOUT_TEXT = """
+    private static final String ABOUT_TEXT = """
                                 - Witnesses are colored circles, non-witnesses are black/gray\s
                                 - Dark circles are part of the consensus, light are not\s
                                 - Judges are blue\s
@@ -80,8 +79,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelEventIDCheckbox = new Checkbox("Labels: EventID (nGen)");
         labelEventIDCheckbox.setState(true);
         labelNGenCheckbox = new Checkbox("Labels: NGen (non-deterministic generation)");
-        labelRoundCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                ? "Labels: Voting round" : "Labels: Round created");
+        labelRoundCheckbox = new Checkbox(
+                GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE ? "Labels: Voting round" : "Labels: Round created");
         labelRoundCheckbox.setState(true);
         labelVoteCheckbox = new Checkbox("Labels: Vote");
         labelEventHashCheckbox = new Checkbox("Labels: Event Hash (h)");
@@ -90,8 +89,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
-        labelDeGenCheckbox = new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                ? "Labels: gen (dGen)" : "Labels: DeGen");
+        labelDeGenCheckbox =
+                new Checkbox(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE ? "Labels: gen (dGen)" : "Labels: DeGen");
         displayLatestEvents = new Checkbox("Display latest events");
         displayLatestEvents.setState(true);
 
@@ -174,13 +173,14 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     /** display the fields of this EventInfo on the left side of the window */
     public static void printEventInfo(HashgraphInfo.EventInfo eventInfo) {
         if (eventInfo == null) {
-            eventInfoText.setText(ABOUT_TEXT);}
-        else {
-                String str = "";
+            eventInfoText.setText(ABOUT_TEXT);
+        } else {
+            String str = "";
             try {
                 str += "\nSELECTED EVENT ===============================================";
                 str += "\n                            ID  " + eventInfo.getEventID();
-                str += "\n               hashgraphInfoID  " + eventInfo.getHashgraph().getHashgraphInfoID();
+                str += "\n               hashgraphInfoID  "
+                        + eventInfo.getHashgraph().getHashgraphInfoID();
                 str += "\n                   timeCreated  " + eventInfo.getTimeCreated();
                 str += "\n                       creator  " + eventInfo.getCreator();
                 str += "\n                    birthRound  " + eventInfo.getBirthRound();
@@ -188,7 +188,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n                 parentsSigned  " + eventInfosToString(eventInfo.getParentsSigned());
                 str += "\n                    selfParent  " + eventID(eventInfo.getSelfParent());
                 str += "\n                 ancestorJudge  " + booleanssToString(eventInfo.getAncestorJudge());
-                str += "\n                     prevJudge  " + eventInfo.isPrevJudge(); //need prevJudgeDesc
+                str += "\n                     prevJudge  " + eventInfo.isPrevJudge(); // need prevJudgeDesc
                 str += "\n                           gen  " + eventInfo.getGen();
                 str += "\n                       lastSee  " + eventInfosToString(eventInfo.getLastSee());
                 str += "\n                  stronglySeeP  " + eventInfosToString(eventInfo.getStronglySeeP());
@@ -204,21 +204,31 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\nLATEST ROUND INFO ("
                         + HashgraphInfo.getLatestRoundInfo().pendingRound()
                         + ") ====================================";
-                str += "\n                         nodes  " + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
-                str += "\n                         stake  " + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
-                str += "\n               seeNum / seeDen  " + HashgraphInfo.getLatestRoundInfo().seeNum();
+                str += "\n                         nodes  "
+                        + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
+                str += "\n                         stake  "
+                        + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
+                str += "\n               seeNum / seeDen  "
+                        + HashgraphInfo.getLatestRoundInfo().seeNum();
                 str += " / " + HashgraphInfo.getLatestRoundInfo().seeDen();
-                str += "\n                     judgeCon1  " + HashgraphInfo.getLatestRoundInfo().judgeCon1();
-                str += "\n                  coinInterval  " + HashgraphInfo.getLatestRoundInfo().coinInterval();
-                str += "\n     targetNumRoundsNonAncient  " + HashgraphInfo.getLatestRoundInfo().targetNumRoundsNonAncient();
-                str += "\n          numRoundsAddressBook  " + HashgraphInfo.getLatestRoundInfo().numRoundsAddressBook();
+                str += "\n                     judgeCon1  "
+                        + HashgraphInfo.getLatestRoundInfo().judgeCon1();
+                str += "\n                  coinInterval  "
+                        + HashgraphInfo.getLatestRoundInfo().coinInterval();
+                str += "\n     targetNumRoundsNonAncient  "
+                        + HashgraphInfo.getLatestRoundInfo().targetNumRoundsNonAncient();
+                str += "\n          numRoundsAddressBook  "
+                        + HashgraphInfo.getLatestRoundInfo().numRoundsAddressBook();
                 str += "\nLATEST ROUND INFO PREV ("
                         + HashgraphInfo.getLatestRoundInfoPrev().pendingRound()
                         + ") ===============================";
-                str += "\n                 prevJudgeCon1  " + HashgraphInfo.getLatestRoundInfoPrev().prevJudgeCon1();
+                str += "\n                 prevJudgeCon1  "
+                        + HashgraphInfo.getLatestRoundInfoPrev().prevJudgeCon1();
                 str += "\n                    prevJudges  "
-                        + eventInfosToString(HashgraphInfo.getLatestRoundInfoPrev().prevJudges());
-                str += "\n              prevJudgesCopied  " + HashgraphInfo.getLatestRoundInfoPrev().prevJudgesCopied();
+                        + eventInfosToString(
+                                HashgraphInfo.getLatestRoundInfoPrev().prevJudges());
+                str += "\n              prevJudgesCopied  "
+                        + HashgraphInfo.getLatestRoundInfoPrev().prevJudgesCopied();
                 str += "\n        prevMinNonAncientRound  "
                         + HashgraphInfo.getLatestRoundInfoPrev().prevMinNonAncientRound();
                 str += "\n                   prevNumCons  "
@@ -295,7 +305,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         checkboxesPanel.add(new Label(" "), constr);
         constr.gridy++;
         eventInfoText = GuiUtils.newJTextArea(wrap(50, ABOUT_TEXT));
-        eventInfoText.setFont(new Font(Font.MONOSPACED,Font.PLAIN, 10));
+        eventInfoText.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 10));
         eventInfoText.setText(ABOUT_TEXT);
         checkboxesPanel.add(eventInfoText, constr);
         constr.gridy++;

@@ -136,7 +136,8 @@ public class HashgraphPicture extends JPanel {
             if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
                 String benchmarksString = "benchmarks:  ";
                 Rectangle2D rect;
-                long[] benchmarks = events.getFirst().getEventInfo().getHashgraph().getBenchmarks();
+                long[] benchmarks =
+                        events.getFirst().getEventInfo().getHashgraph().getBenchmarks();
                 benchmarksString += benchmarks[1] + " update() calls, ";
                 benchmarksString += (benchmarks[0] / benchmarks[1]) + " ns per update(), inner loops: ";
                 for (int i = 2; i < benchmarks.length; i++) {
@@ -282,21 +283,23 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeRoundCreated()) {
-            s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                    ? event.getEventInfo().getVotingRound()
-                    : event.getRoundCreated());
+            s += " "
+                    + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                            ? event.getEventInfo().getVotingRound()
+                            : event.getRoundCreated());
         }
         if (options.writeVote() && event.isWitness()) {
             if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
-                //final HashgraphInfo.EventInfo[] votes = event.getEventInfo().getVoteE();
+                // final HashgraphInfo.EventInfo[] votes = event.getEventInfo().getVoteE();
                 final int[] votes = event.getEventInfo().getVoteIndex();
                 if (votes == null) {
                     s += " NULL";
                 } else {
                     s += " < ";
                     for (int vi : votes) {
-                        HashgraphInfo.EventInfo ve = event.getEventInfo().getHashgraph().getCandEventInfo()[vi];
-                         s += (ve == null) ? " -" : (" " + ve.getEventID());
+                        HashgraphInfo.EventInfo ve =
+                                event.getEventInfo().getHashgraph().getCandEventInfo()[vi];
+                        s += (ve == null) ? " -" : (" " + ve.getEventID());
                     }
                     s += " >";
                 }
@@ -333,7 +336,8 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeBirthRound()) {
-            s += " " + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+            s += " "
+                    + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
                             ? event.getEventInfo().getBirthRound()
                             : event.getBirthRound());
         }

@@ -2,7 +2,6 @@
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
 import java.awt.Color;
-
 import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
@@ -60,7 +59,8 @@ public final class HashgraphGuiUtils {
     public static Color eventColor(final EventImpl event, final HashgraphPictureOptions options) {
         try {
             if (options.simpleColors()) { // if checkbox checked
-                if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE && event.getEventInfo().isPrevJudge()) {
+                if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                        && event.getEventInfo().isPrevJudge()) {
                     return event.isConsensus() ? HashgraphGuiConstants.DARK_RED : HashgraphGuiConstants.LIGHT_RED;
                 }
                 return event.isConsensus() ? HashgraphGuiConstants.LIGHT_BLUE : HashgraphGuiConstants.LIGHT_GREEN;
