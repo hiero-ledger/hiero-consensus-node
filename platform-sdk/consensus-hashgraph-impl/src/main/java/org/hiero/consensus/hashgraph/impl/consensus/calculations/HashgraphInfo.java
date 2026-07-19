@@ -265,8 +265,8 @@ public final class HashgraphInfo {
     /**
      * Set isConsensus to true for each event x in the hashgraph where it is false, and where x is an ancestor
      * of all the given judges (or of at least one judge, if judgeCon1 is true). Add each x to consensusEvents
-     * (if consensusEvents is not null). For each judge j, set x.receivedTime[j] to the creation time of the
-     * event where x first reached a self-ancestor of judge j.
+     * (if consensusEvents is not null). Set x.searchOrder to the order in which it was found. For each judge j,
+     * set x.receivedTime[j] to the creation time of the event where x first reached a self-ancestor of judge j.
      */
     private void graphSearch(@NonNull EventInfo[] judges, boolean judgeCon1, ArrayList<EventInfo> consensusEvents) {
         // mark used while searching from the first judge (later judges' marks are greater)
@@ -328,9 +328,6 @@ public final class HashgraphInfo {
                 }
             }
         }
-        // For greater consensus order randomness, could generate a random permutation each round, and do for all i:
-        //    consensusEvents.get(i).searchOrder = perm[i]
-        // The "random" permutation must be the same on all nodes. Perhaps seed the CSPRNG with XOR of all judge hashes.
         benchmarks[BENCHMARK_SEARCH] += System.nanoTime();
     }
 
@@ -650,7 +647,15 @@ public final class HashgraphInfo {
          * To ensure isPrevJudge is set correctly, this method should be called on a given pending round for a given
          * hashgraph until it reaches consensus, and then be called on the next pending round. It shouldn't be called
          * again on the round that already reached consensus, nor on a previous round.
-         *
+         * <p>
+         * For each batch of events that reach consensus, they are first sorted by median timestamp
+         * (if judgeCon1==false), or by generation (if judgeCon1==true). Either way, ties are broken by eventID, and
+         * further ties are broken by search order (the order they were found in the graph search). Consensus will
+         * still work, be consistent accross nodes, and be in topological order if the eventIDs are chosen randomly,
+         * and might even have duplicates. But the random choice must be the same on all nodes. One way to do this
+         * is to change the event IDs of all events in consensusEvents at the end of graphSearch(), using a
+         * CSPRNG seeded with the XOR of all judge hashes for that round. Or, for debugging, set them randomly when
+         * they are created.
          *
          * @param roundInfo info about the pending round (e.g., the nodes, weights, various settings)
          * @param roundInfoPrev info about the pending round reflecting the previous round (e.g., judges, old settings)
@@ -1159,12 +1164,16 @@ public final class HashgraphInfo {
                     if (e1 == e2) {
                         return 0;
                     } // an event is <= itself (comparing the actual references)
-                    if (e1.gen < e2.gen) { //timeCon(r,d,x) is just x.gen plus a constant, so this sorts by timeCon()
-                        return -1;
-                    } else if (e1.gen > e2.gen) {
-                        return 1;
+                    int c = Long.compare(e1.gen, e2.gen);
+                    if (c != 0) { //timeCon(r,d,x) is just x.gen plus a constant, so this sorts by timeCon()
+                        return c;
                     }
-                    return Integer.compare(e1.searchOrder, e2.searchOrder); // f is search order
+                    //tiebreaker is to sort by eventID, and if there's still a tie, subsort by searchOrder
+                    c = Long.compare(e1.eventID, e2.eventID);
+                    if (c != 0) {
+                        return c;
+                    }
+                    return Integer.compare(e1.searchOrder, e2.searchOrder); // tiebreaker is search order
                 });
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
@@ -1189,12 +1198,14 @@ public final class HashgraphInfo {
                     if (e1 == e2) {
                         return 0;
                     }
-                    Instant t1 = e1.consensusTimestamp;
-                    Instant t2 = e2.consensusTimestamp;
-                    if (t1.isBefore(t2)) {
-                        return -1;
-                    } else if (t1.isAfter(t2)) {
-                        return 1;
+                    int c = e1.consensusTimestamp.compareTo(e2.consensusTimestamp);
+                    if (c != 0) { //sort by median time received
+                        return c;
+                    }
+                    //tiebreaker is to sort by eventID, and if there's still a tie, subsort by searchOrder
+                    c = Long.compare(e1.eventID, e2.eventID);
+                    if (c != 0) {
+                        return c;
                     }
                     return Integer.compare(e1.searchOrder, e2.searchOrder);
                 });
