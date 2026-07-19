@@ -273,77 +273,6 @@ public final class HashgraphInfo {
                 roundInfoPrev.prevMinJudgeBirthRound - roundInfo.targetNumRoundsNonAncient);
     }
 
-    /**
-     * Set isConsensus to true for each event x in the hashgraph where it is false, and where x is an ancestor
-     * of all the given judges (or of at least one judge, if judgeCon1 is true). Add each x to consensusEvents
-     * (if consensusEvents is not null). Set x.searchOrder to the order in which it was found. For each judge j,
-     * set x.receivedTime[j] to the creation time of the event where x first reached a self-ancestor of judge j.
-     */
-    private void graphSearch(@NonNull EventInfo[] judges, boolean judgeCon1, ArrayList<EventInfo> consensusEvents) {
-        // mark used while searching from the first judge (later judges' marks are greater)
-        int firstMark = currMark + 1;
-        // events reach consensus when they are an ancestor of this many judges
-        int targetCount = judgeCon1 ? 1 : judges.length;
-        benchmarks[BENCHMARK_SEARCH] -= System.nanoTime();
-        for (int judgeIndex = 0;
-                judgeIndex < judges.length;
-                judgeIndex++) { // depth-first search starting from each judge
-            EventInfo nextX;
-            EventInfo x = judges[judgeIndex];
-            Instant lowestTime = x.timeCreated; // created time for lowest self-ancestor on current search path
-            x.searchJudgeSelfAncestor = true; // true iff x is a self-ancestor of judge judgeIndex
-
-            if (x.isConsensus) {
-                continue;
-            }
-            currMark++;
-            x.searchChild = null; // backtracking up from this judge means the search is done
-            while (x != null) { // depth-first search starting from this judge
-                // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
-                x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
-                x.receivedTime[judgeIndex] = lowestTime;
-                x.searchParent = -1; // descend through the first parent first (index 0)
-                if (x.searchCount == targetCount) {
-                    x.isConsensus = true;
-                    if (consensusEvents != null) {
-                        x.searchOrder = consensusEvents.size();
-                        consensusEvents.add(x);
-                    }
-                }
-                nextX = null;
-                // while nextX is bad (null / ancient / marked / isConsensus), search until a good one is found or done
-                while (x != null
-                        && (nextX == null
-                                || nextX.birthRound < minNonAncientRound
-                                || nextX.searchMark == currMark
-                                || nextX.isConsensus)) {
-                    while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
-                        x.searchMark = currMark; // backtrack up from x to its child, so mark x as fully explored
-                        x = x.searchChild; // backtrack up until an event is found with an unexplored parent
-                        if (x != null && x.searchJudgeSelfAncestor) {
-                            lowestTime = x.timeCreated;
-                        }
-                    }
-                    if (x == null) {
-                        nextX = null;
-                    } else {
-                        x.searchParent++;
-                        nextX = x.parentsSigned[x.searchParent];
-                    }
-                }
-                if (nextX != null) {
-                    nextX.searchChild = x;
-                    nextX.searchJudgeSelfAncestor = x.searchJudgeSelfAncestor && x.searchParent == 0;
-                }
-                x = nextX; // move to the new event that was good (or null if done searching from this judge)
-                if (x != null && x.searchJudgeSelfAncestor) {
-                    lowestTime = x.timeCreated;
-                }
-            }
-        }
-        benchmarks[BENCHMARK_SEARCH] += System.nanoTime();
-    }
-
     /** Info about a round that might be known multiple rounds in advance. No element can be null. */
     public record RoundInfo(
             @Min(1L) @Max(Long.MAX_VALUE) long pendingRound, // info used in this round
@@ -622,6 +551,77 @@ public final class HashgraphInfo {
                 @NonNull RoundInfoPrev nextRoundInfoPrev) {}
 
         /**
+         * Set isConsensus to true for each event x in the hashgraph where it is false, and where x is an ancestor
+         * of all the given judges (or of at least one judge, if judgeCon1 is true). Add each x to consensusEvents
+         * (if consensusEvents is not null). Set x.searchOrder to the order in which it was found. For each judge j,
+         * set x.receivedTime[j] to the creation time of the event where x first reached a self-ancestor of judge j.
+         */
+        private static void graphSearch(@NonNull HashgraphInfo hashgraphInfo, @NonNull EventInfo[] judges,
+                                 boolean judgeCon1, ArrayList<EventInfo> consensusEvents) {
+            // mark used while searching from the first judge (later judges' marks are greater)
+            int firstMark = hashgraphInfo.currMark + 1;
+            // events reach consensus when they are an ancestor of this many judges
+            int targetCount = judgeCon1 ? 1 : judges.length;
+            hashgraphInfo.benchmarks[BENCHMARK_SEARCH] -= System.nanoTime();
+            for (int judgeIndex = 0;
+                 judgeIndex < judges.length;
+                 judgeIndex++) { // depth-first search starting from each judge
+                EventInfo nextX;
+                EventInfo x = judges[judgeIndex];
+                Instant lowestTime = x.timeCreated; // created time for lowest self-ancestor on current search path
+                x.searchJudgeSelfAncestor = true; // true iff x is a self-ancestor of judge judgeIndex
+                if (x.isConsensus) {
+                    continue;
+                }
+                hashgraphInfo.currMark++;
+                x.searchChild = null; // backtracking up from this judge means the search is done
+                while (x != null) { // depth-first search starting from this judge
+                    // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
+                    x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
+                    x.receivedTime[judgeIndex] = lowestTime;
+                    x.searchParent = -1; // descend through the first parent first (index 0)
+                    if (x.searchCount == targetCount) {
+                        x.isConsensus = true;
+                        if (consensusEvents != null) {
+                            x.searchOrder = consensusEvents.size();
+                            consensusEvents.add(x);
+                        }
+                    }
+                    nextX = null;
+                    // while nextX is bad (null / ancient / marked / isConsensus), search until good is found or done
+                    while (x != null
+                            && (nextX == null
+                            || nextX.birthRound < hashgraphInfo.minNonAncientRound
+                            || nextX.searchMark == hashgraphInfo.currMark
+                            || nextX.isConsensus)) {
+                        while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
+                            x.searchMark = hashgraphInfo.currMark; // backtrack up from x to its child, so mark x as fully explored
+                            x = x.searchChild; // backtrack up until an event is found with an unexplored parent
+                            if (x != null && x.searchJudgeSelfAncestor) {
+                                lowestTime = x.timeCreated;
+                            }
+                        }
+                        if (x == null) {
+                            nextX = null;
+                        } else {
+                            x.searchParent++;
+                            nextX = x.parentsSigned[x.searchParent];
+                        }
+                    }
+                    if (nextX != null) {
+                        nextX.searchChild = x;
+                        nextX.searchJudgeSelfAncestor = x.searchJudgeSelfAncestor && x.searchParent == 0;
+                    }
+                    x = nextX; // move to the new event that was good (or null if done searching from this judge)
+                    if (x != null && x.searchJudgeSelfAncestor) {
+                        lowestTime = x.timeCreated;
+                    }
+                }
+            }
+            hashgraphInfo.benchmarks[BENCHMARK_SEARCH] += System.nanoTime();
+        }
+
+        /**
          * This should be called for each event just after it is added to the hashgraph. If it returns a non-null
          * result, then consensus has now been reached for that round. At that point, switch to the round info for the
          * next round. Using it, call update on all the judges that were just found, and their descendents.
@@ -711,7 +711,7 @@ public final class HashgraphInfo {
             if (h.newRound) {
                 // If this is the first time update has ever been called on this hashgraph.
                 if (h.pendingRound == 0) {
-                    h.graphSearch(roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
+                    graphSearch(h,roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
                 }
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
@@ -1160,7 +1160,7 @@ public final class HashgraphInfo {
             // sets isConsensus for it, finds all its receivedEvent events, and sets its receivedTim[] to be the
             // times from those received events.
             h.consensusEvents.clear();
-            h.graphSearch(judgesArray, r.judgeCon1, h.consensusEvents);
+            graphSearch(h, judgesArray, r.judgeCon1, h.consensusEvents);
             h.consensusEventsCapacity = Math.max(h.consensusEventsCapacity, h.consensusEvents.size());
             consensusEventsArray = h.consensusEvents.toArray(new EventInfo[0]);
             // function timeCon /---------------------------------------------------------------------------------

@@ -137,32 +137,32 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
 
     /** convert an EventInfo[] to a string of the EventID of each element */
     private static String eventInfosToString(HashgraphInfo.EventInfo[] events) {
-        String str = "[ ";
+        StringBuilder str = new StringBuilder("[ ");
         for (HashgraphInfo.EventInfo event : events) {
-            str += ((event == null) ? "-" : event.getEventID()) + " ";
+            str.append((event == null) ? "-" : event.getEventID()).append(" ");
         }
-        str += "]";
-        return str;
+        str.append("]");
+        return str.toString();
     }
 
     /** convert a boolean[] to a string */
     private static String booleanssToString(boolean[] booleans) {
-        String str = "[ ";
+        StringBuilder str = new StringBuilder("[ ");
         for (boolean b : booleans) {
-            str += (b ? "T " : "F ");
+            str.append(b ? "T " : "F ");
         }
-        str += "]";
-        return str;
+        str.append("]");
+        return str.toString();
     }
 
     /** convert a long[] to a string */
     private static String longsToString(long[] longs) {
-        String str = "[ ";
+        StringBuilder str = new StringBuilder("[ ");
         for (long n : longs) {
-            str += n + " ";
+            str.append(n).append(" ");
         }
-        str += "]";
-        return str;
+        str.append("]");
+        return str.toString();
     }
 
     /** convert an EventInfo to a string that is its event ID, or "-" if null */
@@ -236,7 +236,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n        prevMinJudgeBirthRound  "
                         + HashgraphInfo.getLatestRoundInfoPrev().prevMinJudgeBirthRound();
             } catch (Exception e) {
-                str = "\n" + e.toString() + "\n" + e.getMessage();
+                str = "\n" + e + "\n" + e.getMessage();
             }
             eventInfoText.setText(str);
         }
