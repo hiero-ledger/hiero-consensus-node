@@ -634,8 +634,8 @@ public final class HashgraphInfo {
          * during that period. Once all the previous round's judges have been added, it will be possible
          * to instantiate the {@link RoundInfoPrev RoundInfoPrev} record, because all the references for
          * {@link RoundInfoPrev#prevJudges RoundInfoPrev.prevJudges} will be known.
-         * At that point, call update() on all the events with appropriate birth round. Stop updating them if one of
-         * those calls reaches consensus.
+         * At that point, call update() on all the events with the appropriate birth round. Stop updating them if
+         * one of those calls reaches consensus.
          * <p>
          * For any given pending round, call update() on events in topological order. So if it is to be called
          * on both an event and its parent, the call on the parent must come first.
@@ -844,7 +844,7 @@ public final class HashgraphInfo {
                 ancestorJudge[i] = (this == rp.prevJudges[i]);
                 h.benchmarks[HashgraphInfo.BENCHMARK_LOOP1] -= System.nanoTime();
                 for (EventInfo parent : parentsSigned) {
-                    if (parent.ancestorJudge[i]) {
+                    if (parent.birthRound >= rp.prevMinJudgeBirthRound  && parent.ancestorJudge[i]) {
                         ancestorJudge[i] = true;
                         break;
                     }
@@ -1182,7 +1182,7 @@ public final class HashgraphInfo {
                 Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
                     return (i2 >= judgesArray.length) ? -1
                             : (i1 >= judgesArray.length) ? 1
-                            : judgesArray[i1].timeCreated.compareTo(judgesArray[i1].timeCreated);
+                            : judgesArray[i1].timeCreated.compareTo(judgesArray[i2].timeCreated);
                 });
                 long stake = 0; // sum of weights of judges with earlier received time
                 int medianPos;
