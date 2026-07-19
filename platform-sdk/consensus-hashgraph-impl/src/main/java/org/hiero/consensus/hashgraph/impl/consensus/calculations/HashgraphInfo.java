@@ -275,9 +275,11 @@ public final class HashgraphInfo {
         int targetCount = judgeCon1 ? 1 : judges.length;
         benchmarks[BENCHMARK_SEARCH] -= System.nanoTime();
         for (int judgeIndex = 0; judgeIndex < judges.length; judgeIndex++) { // depth-first search starting from each judge
-            EventInfo x = judges[judgeIndex], nextX;
-            boolean judgeSelfAncestor = true; // true iff x is a self-ancestor of judge
+            EventInfo nextX;
+            EventInfo x = judges[judgeIndex];
             Instant lowestTime = x.timeCreated; // created time for lowest self-ancestor on current search path
+            x.searchJudgeSelfAncestor = true; // true iff x is a self-ancestor of judge judgeIndex
+
             if (x.isConsensus) {
                 continue;
             }
@@ -287,7 +289,6 @@ public final class HashgraphInfo {
                 // x is ancestor of this many judges so far (1 if the mark is lower than the first judge's)
                 x.searchCount = (x.searchMark < firstMark) ? 1 : x.searchCount + 1;
                 x.receivedTime[judgeIndex] = lowestTime;
-                x.searchSelfAncestor = judgeSelfAncestor;
                 x.searchParent = -1; // descend through the first parent first (index 0)
                 if (x.searchCount == targetCount) {
                     x.isConsensus = true;
@@ -306,18 +307,26 @@ public final class HashgraphInfo {
                     while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
                         x.searchMark = currMark; // backtrack up from x to its child, so mark x as fully explored
                         x = x.searchChild; // backtrack up until an event is found with an unexplored parent
-                        judgeSelfAncestor = (x != null) && x.searchSelfAncestor;
+                        if (x != null && x.searchJudgeSelfAncestor) {
+                            lowestTime = x.timeCreated;
+                        }
                     }
                     if (x != null) {
                         x.searchParent++;
-                        judgeSelfAncestor = false;
                     }
-                    nextX = (x == null) ? null : x.parentsSigned[x.searchParent];
+                    if (x == null) {
+                        nextX = null;
+                    } else {
+                        nextX = x.parentsSigned[x.searchParent];
+                    }
                 }
                 if (nextX != null) {
                     nextX.searchChild = x;
                 }
                 x = nextX; // move to the new event that was good (or null if done searching from this judge)
+                if (x!=null && x.searchJudgeSelfAncestor) {
+                    lowestTime = x.timeCreated;
+                }
             }
         }
         // For greater consensus order randomness, could generate a random permutation each round, and do for all i:
@@ -389,7 +398,7 @@ public final class HashgraphInfo {
         private int searchCount; // number of judges that are descendents of this event
         private int searchParent; // index of the parent of this event currently being searched
         private EventInfo searchChild; // the child of this event through which it was reached
-        private boolean searchSelfAncestor; // true iff this is a self-ancestor of the judge currently being searched
+        private boolean searchJudgeSelfAncestor; // true iff a self-ancestor of the judge currently being searched
         private int searchOrder; // order in which this was found during search (or could be randomized)
 
         /**
@@ -562,8 +571,8 @@ public final class HashgraphInfo {
             return eventCandIndex;
         }
 
-        public boolean isSearchSelfAncestor() {
-            return searchSelfAncestor;
+        public boolean isSearchJudgeSelfAncestor() {
+            return searchJudgeSelfAncestor;
         }
 
         /**
@@ -719,16 +728,18 @@ public final class HashgraphInfo {
                         h.nodeIdToIndex.put(h.nodeIDs[i], i);
                     }
                 }
-                if ((h.parents == null) || (h.parentsCapacity > 2 * h.numNodes)) {
+                if (h.parents == null || h.parentsCapacity > 2 * h.numNodes) {
                     // initialize h.parents the first time, and shrink to recover after massive branching in last round
-                    h.parents = new ArrayList<>(h.numNodes);
-                    h.parentsCapacity = h.numNodes;
+                    h.parentsCapacity = 2 * h.numNodes;
+                    h.parents = new ArrayList<>(h.parentsCapacity);
                 }
                 if (h.judges == null || h.judgesCapacity > h.numNodes) { // shrink if address book shrank
-                    h.judges = new ArrayList<>(h.numNodes);
+                    h.judgesCapacity = h.numNodes;
+                    h.judges = new ArrayList<>(h.judgesCapacity);
                 }
                 if (h.consensusEvents == null || h.consensusEventsCapacity > 10 * h.numNodes) { // shrink after a surge
-                    h.consensusEvents = new ArrayList<>(10 * h.numNodes);
+                    h.consensusEventsCapacity = 10 * h.numNodes;
+                    h.consensusEvents = new ArrayList<>(h.consensusEventsCapacity);
                 }
                 // function totalStake /--------------------------------------------------------------------------
                 h.totalStake = 0;
