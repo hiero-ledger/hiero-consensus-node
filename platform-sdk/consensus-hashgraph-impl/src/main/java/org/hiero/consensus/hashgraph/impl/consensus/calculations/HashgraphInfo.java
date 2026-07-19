@@ -651,7 +651,7 @@ public final class HashgraphInfo {
          * For each batch of events that reach consensus, they are first sorted by median timestamp
          * (if judgeCon1==false), or by generation (if judgeCon1==true). Either way, ties are broken by eventID, and
          * further ties are broken by search order (the order they were found in the graph search). Consensus will
-         * still work, be consistent accross nodes, and be in topological order if the eventIDs are chosen randomly,
+         * still work, be consistent across nodes, and be in topological order if the eventIDs are chosen randomly
          * and might even have duplicates. But the random choice must be the same on all nodes. One way to do this
          * is to change the event IDs of all events in consensusEvents at the end of graphSearch(), using a
          * CSPRNG seeded with the XOR of all judge hashes for that round. Or, for debugging, set them randomly when
