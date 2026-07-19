@@ -467,6 +467,21 @@ public class ConsensusImplDAB implements Consensus {
 
         updateRoundInfo(results);
 
+        // lastConsensusTime is updated above with the last transaction in the last event that reached consensus
+        // if no events reach consensus, then we need to calculate the lastConsensusTime differently
+        if (consensusEvents.isEmpty()) {
+            if (lastConsensusTime == null) {
+                // if this is the first round ever, and there are no events (which is usually the case)
+                // we take the median of all the judge created times
+                final List<Instant> judgeTimes =
+                        judges.stream().map(EventImpl::getTimeCreated).sorted().toList();
+                lastConsensusTime = judgeTimes.get(judgeTimes.size() / 2);
+            } else {
+                // if we have reached consensus before, we simply increase the lastConsensusTime by the min amount
+                lastConsensusTime = ConsensusUtils.calcMinTimestampForNextEvent(lastConsensusTime);
+            }
+        }
+
         return new ConsensusRound(
                 rosterLookup.getRoster(),
                 consensusEvents,
