@@ -548,8 +548,9 @@ public final class HashgraphInfo {
          * {@link EventInfo#update EventInfo.update} returns this (or null if consensus wasn't yet reached).
          */
         public record UpdateResults(
-                @NonNull EventInfo[] consensusEvents,
-                @NonNull RoundInfoPrev nextRoundInfoPrev) {}
+                @NonNull EventInfo[] consensusEvents, // consensus events, in consensus order
+                Instant roundTimestamp, // weighted median of created times of all judges in judgesArray
+                @NonNull RoundInfoPrev nextRoundInfoPrev) {} //roundInfoPrev to use for the next update()
 
         /**
          * Set isConsensus to true for each event x in the hashgraph where it is false, and where x is an ancestor
@@ -689,8 +690,10 @@ public final class HashgraphInfo {
             long minJudgeBirthRound;
             boolean witness;
             boolean prevJudgesCopied; // true iff judges for this round copied from the previous, rather than elected
-            EventInfo[] judgesArray;
-            EventInfo[] consensusEventsArray;
+            // the following 3 variables are filled in and returned, if this update() reaches consensus on this round
+            EventInfo[] judgesArray; // all judges for this round, in arbitrary order
+            EventInfo[] consensusEventsArray; // all events that reached consensus this round (in consensus order)
+            Instant roundTimestamp; // the weighted median of the created timestamps of all the judges
 
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
             if (hashgraph == null) {
@@ -844,7 +847,7 @@ public final class HashgraphInfo {
                 ancestorJudge[i] = (this == rp.prevJudges[i]);
                 h.benchmarks[HashgraphInfo.BENCHMARK_LOOP1] -= System.nanoTime();
                 for (EventInfo parent : parentsSigned) {
-                    if (parent.birthRound >= rp.prevMinJudgeBirthRound  && parent.ancestorJudge[i]) {
+                    if (parent.birthRound >= rp.prevMinJudgeBirthRound && parent.ancestorJudge[i]) {
                         ancestorJudge[i] = true;
                         break;
                     }
@@ -1156,6 +1159,24 @@ public final class HashgraphInfo {
             }
             h.judgesCapacity = Math.max(h.judgesCapacity, h.judges.size());
             judgesArray = h.judges.toArray(new EventInfo[0]);
+            // calculate roundTimestamp to be returned: weighted median timeCreated of all judges
+            Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
+            Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by timeCreated, ascending
+                return (i2 >= judgesArray.length) ? -1
+                        : (i1 >= judgesArray.length) ? 1
+                          : judgesArray[i1].timeCreated.compareTo(judgesArray[i2].timeCreated);
+            });
+            {
+                long stake = 0; // sum of weights of judges with earlier created time
+                int medianPos;
+                for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
+                    stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
+                    if (2 * stake >= h.totalStake) {
+                        break;
+                    }
+                }
+                roundTimestamp = judgesArray[medianPos].timeCreated;
+            }
             // function receivedEvent /--------------------------------------------------------------------------
             // function isReceived /------------------------------------------------------------------------------
             // function reachedCon /------------------------------------------------------------------------------
@@ -1177,37 +1198,26 @@ public final class HashgraphInfo {
                         .comparingLong((EventInfo e) -> e.gen) // sort by timeCon(r,d,x) which is just e.gen plus const
                         .thenComparingLong(e -> e.eventID) // tiebreaker is eventID then searchOrder
                         .thenComparingInt(e -> e.searchOrder));
-                Instant roundTime;
-                Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., consensusEventsArray.length - 1]
-                Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
-                    return (i2 >= judgesArray.length) ? -1
-                            : (i1 >= judgesArray.length) ? 1
-                            : judgesArray[i1].timeCreated.compareTo(judgesArray[i2].timeCreated);
-                });
-                long stake = 0; // sum of weights of judges with earlier received time
-                int medianPos;
-                for (medianPos = 0; 2 * stake < h.totalStake; medianPos++) {
-                    stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
-                }
-                // the round timestamp is the weighted median created time of all the judges.
-                roundTime = judgesArray[medianPos].timeCreated;
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
-                    consensusEventsArray[i].consensusTimestamp = roundTime.plusNanos(i);
+                    consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(i);
                 }
             } else if (consensusEventsArray.length > 0) { // each new consensus event is an ancestor of all judges
                 // put weighted median timestamp for each event into event.receivedTime[0]
                 for (EventInfo event : consensusEventsArray) {
-                    Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., consensusEventsArray.length - 1]
+                    long stake = 0;
+                    int medianPos;
+                    Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
                     Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
                         return (i2 >= judgesArray.length) ? -1
                                 : (i1 >= judgesArray.length) ? 1
                                   : event.receivedTime[i1].compareTo(event.receivedTime[i2]);
                     });
-                    long stake = 0; // sum of weights of judges with earlier received time
-                    int medianPos;
-                    for (medianPos = 0; 2 * stake < h.totalStake; medianPos++) {
+                    for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                         stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
+                        if (2 * stake >= h.totalStake) {
+                            break;
+                        }
                     }
                     event.consensusTimestamp = event.receivedTime[medianPos];
                 }
@@ -1236,6 +1246,7 @@ public final class HashgraphInfo {
             h.newRound = true;
             return new UpdateResults(
                     consensusEventsArray, // consensusEvents
+                    roundTimestamp, // weighted median of created times of all judges in judgesArray
                     new RoundInfoPrev(
                             h.pendingRound, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
