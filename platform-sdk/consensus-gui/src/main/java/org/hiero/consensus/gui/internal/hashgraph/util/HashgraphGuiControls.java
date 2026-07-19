@@ -75,7 +75,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     public HashgraphGuiControls(final ItemListener freezeListener) {
         freezeCheckbox = new Checkbox("Freeze: don't change this window");
         freezeCheckbox.addItemListener(freezeListener);
-        simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not");
+        simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not (dark/light red=judge)");
         simpleColorsCheckbox.setState(true);
         labelEventIDCheckbox = new Checkbox("Labels: EventID (nGen)");
         labelEventIDCheckbox.setState(true);

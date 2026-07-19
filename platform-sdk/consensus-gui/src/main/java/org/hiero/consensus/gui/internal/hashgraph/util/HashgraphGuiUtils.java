@@ -2,6 +2,8 @@
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
 import java.awt.Color;
+
+import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
@@ -56,25 +58,32 @@ public final class HashgraphGuiUtils {
      * @return its color
      */
     public static Color eventColor(final EventImpl event, final HashgraphPictureOptions options) {
-        if (options.simpleColors()) { // if checkbox checked
-            return event.isConsensus() ? HashgraphGuiConstants.LIGHT_BLUE : HashgraphGuiConstants.LIGHT_GREEN;
-        }
-        if (!event.isWitness()) {
-            return event.isConsensus() ? HashgraphGuiConstants.DARK_GRAY : HashgraphGuiConstants.LIGHT_GRAY;
-        }
-        // after this point, we know the event is a witness
-        if (!event.isFameDecided()) {
-            return event.isConsensus() ? HashgraphGuiConstants.DARK_RED : HashgraphGuiConstants.LIGHT_RED;
-        }
-        // after this point, we know the event is a witness and fame is decided
-        if (event.isJudge()) {
-            return event.isConsensus() ? HashgraphGuiConstants.DARK_BLUE : HashgraphGuiConstants.LIGHT_BLUE;
-        }
-        if (event.isFamous()) {
-            return event.isConsensus() ? HashgraphGuiConstants.DARK_GREEN : HashgraphGuiConstants.LIGHT_GREEN;
-        }
+        try {
+            if (options.simpleColors()) { // if checkbox checked
+                if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE && event.getEventInfo().isPrevJudge()) {
+                    return event.isConsensus() ? HashgraphGuiConstants.DARK_RED : HashgraphGuiConstants.LIGHT_RED;
+                }
+                return event.isConsensus() ? HashgraphGuiConstants.LIGHT_BLUE : HashgraphGuiConstants.LIGHT_GREEN;
+            }
+            if (!event.isWitness()) {
+                return event.isConsensus() ? HashgraphGuiConstants.DARK_GRAY : HashgraphGuiConstants.LIGHT_GRAY;
+            }
+            // after this point, we know the event is a witness
+            if (!event.isFameDecided()) {
+                return event.isConsensus() ? HashgraphGuiConstants.DARK_RED : HashgraphGuiConstants.LIGHT_RED;
+            }
+            // after this point, we know the event is a witness and fame is decided
+            if (event.isJudge()) {
+                return event.isConsensus() ? HashgraphGuiConstants.DARK_BLUE : HashgraphGuiConstants.LIGHT_BLUE;
+            }
+            if (event.isFamous()) {
+                return event.isConsensus() ? HashgraphGuiConstants.DARK_GREEN : HashgraphGuiConstants.LIGHT_GREEN;
+            }
 
-        // if we reached here, it means the event is a witness, fame is decided, but it is not famous
-        return event.isConsensus() ? HashgraphGuiConstants.DARK_YELLOW : HashgraphGuiConstants.LIGHT_YELLOW;
+            // if we reached here, it means the event is a witness, fame is decided, but it is not famous
+            return event.isConsensus() ? HashgraphGuiConstants.DARK_YELLOW : HashgraphGuiConstants.LIGHT_YELLOW;
+        } catch (Exception e) {
+            return Color.BLACK;
+        }
     }
 }
