@@ -204,6 +204,97 @@ class ThrottleMetricsTest {
     }
 
     @Test
+    void setupBytesMetricShouldCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
+        // given
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when
+        throttleMetrics.setupBytesThrottleMetric(throttle, configuration);
+
+        // then
+        verify(metrics).getOrCreate(any(DoubleGauge.Config.class));
+    }
+
+    @Test
+    void setupNonTrackedBytesMetricShouldNotCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
+        // given
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when
+        throttleMetrics.setupBytesThrottleMetric(throttle, configuration);
+
+        // then
+        verify(metrics, never()).getOrCreate(any());
+    }
+
+    @Test
+    void setupBytesTokenShouldNotCreateInertMetric() {
+        // given
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when
+        throttleMetrics.setupThrottleMetrics(List.of(), configuration);
+
+        // then
+        verify(metrics, never()).getOrCreate(any());
+    }
+
+    @Test
+    void updateBytesMetricSucceeds(@Mock LeakyBucketDeterministicThrottle bytesThrottle, @Mock DoubleGauge gauge) {
+        // given
+        when(bytesThrottle.instantaneousPercentUsed()).thenReturn(Math.E);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+        throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
+
+        // when
+        throttleMetrics.updateAllMetrics();
+
+        // then
+        verify(gauge).set(Math.E);
+    }
+
+    @Test
+    void updateGasAndBytesMetricsIndependently(
+            @Mock LeakyBucketDeterministicThrottle gasThrottle,
+            @Mock DoubleGauge gasGauge,
+            @Mock LeakyBucketDeterministicThrottle bytesThrottle,
+            @Mock DoubleGauge bytesGauge) {
+        // given
+        when(gasThrottle.name()).thenReturn("Gas");
+        when(gasThrottle.instantaneousPercentUsed()).thenReturn(Math.PI);
+        when(bytesThrottle.name()).thenReturn("Bytes");
+        when(bytesThrottle.instantaneousPercentUsed()).thenReturn(Math.E);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gasGauge, bytesGauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<GAS>,<BYTES>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+        throttleMetrics.setupGasThrottleMetric(gasThrottle, configuration);
+        throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
+
+        // when
+        throttleMetrics.updateAllMetrics();
+
+        // then
+        verify(metrics, times(2)).getOrCreate(any(DoubleGauge.Config.class));
+        verify(gasGauge).set(Math.PI);
+        verify(bytesGauge).set(Math.E);
+    }
+
+    @Test
     void setupAndUpdateOpsDurationMetricSucceeds(
             @Mock OpsDurationDeterministicThrottle opsDurationThrottle, @Mock DoubleGauge gauge) {
         when(opsDurationThrottle.name()).thenReturn("OPS_DURATION");

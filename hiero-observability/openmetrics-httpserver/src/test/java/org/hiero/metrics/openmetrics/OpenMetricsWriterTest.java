@@ -8,6 +8,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.hiero.metrics.DoubleCounter;
@@ -19,6 +22,7 @@ import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.metrics.core.MetricRegistrySnapshot;
 import org.hiero.metrics.core.MetricsExporter;
 import org.hiero.metrics.core.Unit;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,6 +31,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class OpenMetricsWriterTest {
+
+    private static final List<Locale> LOCALES = List.of(Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN);
 
     private static class TestMetricsExporter implements MetricsExporter {
 
@@ -55,7 +61,7 @@ public class OpenMetricsWriterTest {
         }
     }
 
-    private final OpenMetricsWriter defaultWriter = new OpenMetricsWriter("#.###");
+    private OpenMetricsWriter defaultWriter;
     private final TestMetricsExporter exporter = new TestMetricsExporter();
 
     private MetricRegistry createRegistry(Label... globalLabels) {
@@ -64,6 +70,16 @@ public class OpenMetricsWriterTest {
             builder.addGlobalLabel(globalLabel);
         }
         return builder.build();
+    }
+
+    @BeforeEach
+    void beforeEach() {
+        // create new for each test since it is not thread safe
+        defaultWriter = createDefaultWriter();
+    }
+
+    private static OpenMetricsWriter createDefaultWriter() {
+        return new OpenMetricsWriter("#.###");
     }
 
     @Nested
@@ -98,6 +114,28 @@ public class OpenMetricsWriterTest {
                     # HELP test_metric %s
                     # EOF
                     """, expectedEscapedDescription);
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "   "})
+        void testBlankDescriptionSkipped(String description) {
+            LongCounter.builder("test_metric").setDescription(description).register(createRegistry());
+
+            exporter.exportAndVerify(defaultWriter, """
+                    # TYPE test_metric counter
+                    # EOF
+                    """);
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "   "})
+        void testBlankUnitSkipped(String unit) {
+            LongCounter.builder("test_metric").setUnit(unit).register(createRegistry());
+
+            exporter.exportAndVerify(defaultWriter, """
+                    # TYPE test_metric counter
+                    # EOF
+                    """);
         }
 
         @ParameterizedTest
@@ -186,13 +224,23 @@ public class OpenMetricsWriterTest {
         @ParameterizedTest
         @ValueSource(strings = {"bytes", "a", "a9", "valid__name__"})
         void testWithOnlyUnit(String unit) {
-            LongCounter.builder("long_counter").setUnit(unit).register(createRegistry());
+            LongCounter counter =
+                    LongCounter.builder("long_counter").setUnit(unit).register(createRegistry());
 
             exporter.exportAndVerify(defaultWriter, """
                     # TYPE long_counter_%s counter
                     # UNIT long_counter_%s %s
                     # EOF
                     """, unit, unit, unit);
+
+            counter.getOrCreateNotLabeled().increment();
+
+            exporter.exportAndVerify(defaultWriter, """
+                    # TYPE long_counter_%s counter
+                    # UNIT long_counter_%s %s
+                    long_counter_%s_total 1
+                    # EOF
+                    """, unit, unit, unit, unit);
         }
 
         @Test
@@ -212,47 +260,62 @@ public class OpenMetricsWriterTest {
 
         @ParameterizedTest
         @MethodSource("longFormattingArguments")
-        void testNoLabelsLongFormatting(long value, String expectedRepresentation) {
-            LongCounter counter = LongCounter.builder("long_counter").register(createRegistry());
-            counter.getOrCreateNotLabeled().increment(value);
+        void testLongFormatting(long value, String expectedRepresentation, Locale locale) {
+            testWithLocale(locale, () -> {
+                LongCounter counter = LongCounter.builder("long_counter").register(createRegistry());
+                counter.getOrCreateNotLabeled().increment(value);
 
-            exporter.exportAndVerify(defaultWriter, """
+                // create fresh writer to capture locale
+                exporter.exportAndVerify(createDefaultWriter(), """
                     # TYPE long_counter counter
                     long_counter_total %s
                     # EOF
                     """, expectedRepresentation);
+            });
         }
 
         private static Stream<Arguments> longFormattingArguments() {
-            return Stream.of(
+            return forEachLocale(Stream.of(
                     Arguments.of(0L, "0"),
                     Arguments.of(1L, "1"),
+                    Arguments.of(42L, "42"),
                     Arguments.of(123456789L, "123456789"),
-                    Arguments.of(Long.MAX_VALUE, "+Inf"));
+                    Arguments.of(Long.MAX_VALUE, "+Inf")));
         }
 
         @ParameterizedTest
         @MethodSource("doubleFormattingArguments")
-        void testNoLabelsLongFormatting(double value, String expectedRepresentation) {
-            DoubleCounter counter = DoubleCounter.builder("double_counter").register(createRegistry());
-            counter.getOrCreateNotLabeled().increment(value);
+        void testDoubleFormatting(double value, String expectedRepresentation, Locale locale) {
+            testWithLocale(locale, () -> {
+                DoubleCounter counter = DoubleCounter.builder("double_counter").register(createRegistry());
+                counter.getOrCreateNotLabeled().increment(value);
 
-            exporter.exportAndVerify(defaultWriter, """
+                // create fresh writer to capture locale
+                exporter.exportAndVerify(createDefaultWriter(), """
                     # TYPE double_counter counter
                     double_counter_total %s
                     # EOF
                     """, expectedRepresentation);
+            });
         }
 
         private static Stream<Arguments> doubleFormattingArguments() {
-            return Stream.of(
+            return forEachLocale(Stream.of(
                     Arguments.of(Double.NaN, "NaN"),
                     Arguments.of(0.0, "0"),
-                    Arguments.of(1.0, "1"),
+                    Arguments.of(0.0001, "0"),
+                    Arguments.of(0.001, "0.001"),
+                    Arguments.of(0.0009, "0.001"),
                     Arguments.of(Double.MIN_VALUE, "0"),
                     Arguments.of(Double.POSITIVE_INFINITY, "+Inf"),
+                    Arguments.of(1.0, "1"),
+                    Arguments.of(42.0, "42"),
                     Arguments.of(123.456, "123.456"),
-                    Arguments.of(123.123456789, "123.123"));
+                    Arguments.of(123.45, "123.45"),
+                    Arguments.of(0.0625, "0.063"), // RoundingMode.HALF_UP
+                    Arguments.of(123456789.8, "123456789.8"),
+                    Arguments.of(123.123456789, "123.123"),
+                    Arguments.of(123.1239, "123.124")));
         }
     }
 
@@ -276,13 +339,22 @@ public class OpenMetricsWriterTest {
         @ParameterizedTest
         @ValueSource(strings = {"bytes", "a", "a9", "valid__name__"})
         void testWithOnlyUnit(String unit) {
-            LongGauge.builder("long_gauge").setUnit(unit).register(createRegistry());
+            LongGauge gauge = LongGauge.builder("long_gauge").setUnit(unit).register(createRegistry());
 
             exporter.exportAndVerify(defaultWriter, """
                     # TYPE long_gauge_%s gauge
                     # UNIT long_gauge_%s %s
                     # EOF
                     """, unit, unit, unit);
+
+            gauge.getOrCreateNotLabeled().set(10L);
+
+            exporter.exportAndVerify(defaultWriter, """
+                    # TYPE long_gauge_%s gauge
+                    # UNIT long_gauge_%s %s
+                    long_gauge_%s 10
+                    # EOF
+                    """, unit, unit, unit, unit);
         }
 
         @Test
@@ -302,54 +374,94 @@ public class OpenMetricsWriterTest {
 
         @ParameterizedTest
         @MethodSource("longFormattingArguments")
-        void testNoLabelsLongFormatting(long value, String expectedRepresentation) {
-            LongGauge gauge = LongGauge.builder("long_gauge").register(createRegistry());
-            gauge.getOrCreateNotLabeled().set(value);
+        void testLongFormatting(long value, String expectedRepresentation, Locale locale) {
+            testWithLocale(locale, () -> {
+                LongGauge gauge = LongGauge.builder("long_gauge").register(createRegistry());
+                gauge.getOrCreateNotLabeled().set(value);
 
-            exporter.exportAndVerify(defaultWriter, """
+                // create fresh writer to capture locale
+                exporter.exportAndVerify(createDefaultWriter(), """
                     # TYPE long_gauge gauge
                     long_gauge %s
                     # EOF
                     """, expectedRepresentation);
+            });
         }
 
         private static Stream<Arguments> longFormattingArguments() {
-            return Stream.of(
+            return forEachLocale(Stream.of(
                     Arguments.of(0L, "0"),
                     Arguments.of(-1L, "-1"),
                     Arguments.of(1L, "1"),
+                    Arguments.of(42L, "42"),
                     Arguments.of(123456789L, "123456789"),
                     Arguments.of(-123456789L, "-123456789"),
                     Arguments.of(Long.MIN_VALUE, "-Inf"),
-                    Arguments.of(Long.MAX_VALUE, "+Inf"));
+                    Arguments.of(Long.MAX_VALUE, "+Inf")));
         }
 
         @ParameterizedTest
         @MethodSource("doubleFormattingArguments")
-        void testNoLabelsLongFormatting(double value, String expectedRepresentation) {
-            DoubleGauge gauge = DoubleGauge.builder("double_gauge").register(createRegistry());
-            gauge.getOrCreateNotLabeled().set(value);
+        void testDoubleFormatting(double value, String expectedRepresentation, Locale locale) {
+            testWithLocale(locale, () -> {
+                DoubleGauge gauge = DoubleGauge.builder("double_gauge").register(createRegistry());
+                gauge.getOrCreateNotLabeled().set(value);
 
-            exporter.exportAndVerify(defaultWriter, """
+                // create fresh writer to capture locale
+                exporter.exportAndVerify(createDefaultWriter(), """
                     # TYPE double_gauge gauge
                     double_gauge %s
                     # EOF
                     """, expectedRepresentation);
+            });
         }
 
         private static Stream<Arguments> doubleFormattingArguments() {
-            return Stream.of(
+            return forEachLocale(Stream.of(
                     Arguments.of(Double.NaN, "NaN"),
                     Arguments.of(0.0, "0"),
+                    Arguments.of(-0.0, "-0"),
+                    Arguments.of(0.0001, "0"),
+                    Arguments.of(-0.0001, "-0"),
+                    Arguments.of(0.001, "0.001"),
+                    Arguments.of(0.0009, "0.001"),
+                    Arguments.of(-0.0009, "-0.001"),
                     Arguments.of(1.0, "1"),
                     Arguments.of(-1.0, "-1"),
+                    Arguments.of(42.0, "42"),
+                    Arguments.of(-42.0, "-42"),
                     Arguments.of(Double.MIN_VALUE, "0"),
+                    Arguments.of(-Double.MIN_VALUE, "-0"),
                     Arguments.of(Double.NEGATIVE_INFINITY, "-Inf"),
                     Arguments.of(Double.POSITIVE_INFINITY, "+Inf"),
+                    Arguments.of(12345678.123, "12345678.123"),
+                    Arguments.of(-12345678.123, "-12345678.123"),
                     Arguments.of(123.456, "123.456"),
                     Arguments.of(-123.45, "-123.45"),
+                    Arguments.of(0.0625, "0.063"), // RoundingMode.HALF_UP
+                    Arguments.of(-0.0625, "-0.063"), // RoundingMode.HALF_UP
                     Arguments.of(123.123456789, "123.123"),
-                    Arguments.of(-123.123456789, "-123.123"));
+                    Arguments.of(-123.123456789, "-123.123")));
+        }
+    }
+
+    private static Stream<Arguments> forEachLocale(Stream<Arguments> arguments) {
+        return arguments.flatMap(args -> LOCALES.stream().map(locale -> {
+            Object[] existing = args.get();
+            Object[] combined = Arrays.copyOf(existing, existing.length + 1);
+            combined[existing.length] = locale;
+            return Arguments.of(combined);
+        }));
+    }
+
+    private static void testWithLocale(Locale locale, Runnable test) {
+        Locale defaultLocale = Locale.getDefault();
+        Locale.setDefault(locale);
+
+        try {
+            test.run();
+        } finally {
+            Locale.setDefault(defaultLocale);
         }
     }
 }

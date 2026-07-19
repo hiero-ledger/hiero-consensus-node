@@ -12,7 +12,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -25,6 +30,13 @@ public final class TssKeyFiles {
     public static final String SCHNORR_KEY_PAIR_FILE = "schnorr.bin";
 
     private static final Pattern SEQ_NO_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final Set<PosixFilePermission> KEY_DIRECTORY_PERMISSIONS =
+            PosixFilePermissions.fromString("rwx------");
+    private static final Set<PosixFilePermission> KEY_FILE_PERMISSIONS = PosixFilePermissions.fromString("rw-------");
+    private static final FileAttribute<Set<PosixFilePermission>> KEY_DIRECTORY_ATTRIBUTES =
+            PosixFilePermissions.asFileAttribute(KEY_DIRECTORY_PERMISSIONS);
+    private static final FileAttribute<Set<PosixFilePermission>> KEY_FILE_ATTRIBUTES =
+            PosixFilePermissions.asFileAttribute(KEY_FILE_PERMISSIONS);
 
     private TssKeyFiles() {
         throw new UnsupportedOperationException("Utility class");
@@ -109,6 +121,7 @@ public final class TssKeyFiles {
 
     private static Bytes readBytes(@NonNull final Path path) {
         try {
+            ensureKeyFilePermissions(path);
             return Bytes.wrap(Files.readAllBytes(path));
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read TSS key from " + path.toAbsolutePath(), e);
@@ -121,11 +134,66 @@ public final class TssKeyFiles {
 
     private static void writeBytes(@NonNull final Path path, @NonNull final Bytes bytes) {
         try {
-            Files.createDirectories(path.getParent());
-            Files.write(path, bytes.toByteArray());
+            writeKeyBytes(path, bytes);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to write TSS key to " + path.toAbsolutePath(), e);
         }
+    }
+
+    /**
+     * Writes TSS key material with owner-only file permissions when the filesystem supports POSIX permissions.
+     */
+    public static void writeKeyBytes(@NonNull final Path path, @NonNull final Bytes bytes) throws IOException {
+        requireNonNull(path);
+        requireNonNull(bytes);
+        final var parent = requireNonNull(path.getParent());
+        createKeyDirectories(parent);
+        if (supportsPosixFilePermissions(path)) {
+            if (Files.exists(path)) {
+                ensureKeyFilePermissions(path);
+            } else {
+                Files.createFile(path, KEY_FILE_ATTRIBUTES);
+            }
+            Files.write(path, bytes.toByteArray(), StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            ensureKeyFilePermissions(path);
+        } else {
+            Files.write(
+                    path,
+                    bytes.toByteArray(),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+        }
+    }
+
+    /**
+     * Ensures TSS key material and its directory are owner-only when the filesystem supports POSIX permissions.
+     */
+    public static void ensureKeyFilePermissions(@NonNull final Path path) throws IOException {
+        requireNonNull(path);
+        if (!supportsPosixFilePermissions(path)) {
+            return;
+        }
+        final var parent = path.getParent();
+        if (parent != null && Files.isDirectory(parent)) {
+            Files.setPosixFilePermissions(parent, KEY_DIRECTORY_PERMISSIONS);
+        }
+        if (Files.exists(path)) {
+            Files.setPosixFilePermissions(path, KEY_FILE_PERMISSIONS);
+        }
+    }
+
+    private static void createKeyDirectories(@NonNull final Path path) throws IOException {
+        if (supportsPosixFilePermissions(path)) {
+            Files.createDirectories(path, KEY_DIRECTORY_ATTRIBUTES);
+            Files.setPosixFilePermissions(path, KEY_DIRECTORY_PERMISSIONS);
+        } else {
+            Files.createDirectories(path);
+        }
+    }
+
+    private static boolean supportsPosixFilePermissions(@NonNull final Path path) {
+        return path.getFileSystem().supportedFileAttributeViews().contains("posix");
     }
 
     /**

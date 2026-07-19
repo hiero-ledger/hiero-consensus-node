@@ -11,19 +11,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator.FeeCalculatorFunction;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.math.BigInteger;
-import java.util.function.ToLongBiFunction;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -43,7 +41,7 @@ class HbarAllowanceCallTest extends CallTestBase {
     private CanonicalDispatchPrices dispatchPrices;
 
     @Mock
-    private ToLongBiFunction<TransactionBody, AccountID> feeCalculator;
+    private FeeCalculatorFunction feeCalculator;
 
     @Test
     void revertsWithNoOwner() {
@@ -53,8 +51,8 @@ class HbarAllowanceCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID), result.output());
     }
 
     @Test
@@ -65,7 +63,7 @@ class HbarAllowanceCallTest extends CallTestBase {
         subject = new HbarAllowanceCall(attempt, B_NEW_ACCOUNT_ID, UNAUTHORIZED_SPENDER_ID);
 
         final var result = subject.execute(frame).fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY
                         .getOutputs()
@@ -73,7 +71,7 @@ class HbarAllowanceCallTest extends CallTestBase {
                                 (long) com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS.getNumber(),
                                 BigInteger.valueOf(0L)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test

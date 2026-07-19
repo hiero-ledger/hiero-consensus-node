@@ -11,11 +11,9 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
@@ -113,12 +111,6 @@ public final class FakePlatform implements Platform {
     @Override
     public NodeId getSelfId() {
         return selfNodeId;
-    }
-
-    @Override
-    @NonNull
-    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(String reason) {
-        return null;
     }
 
     @Override

@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIAL_NUMBER_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.MAX_SERIAL_NO_ALLOWED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -104,13 +105,16 @@ public class TokenMintHandler extends BaseTokenHandler implements TransactionHan
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);
         // validate token exists and is usable
         final var token = TokenHandlerHelper.getIfUsable(tokenId, tokenStore);
-        validateTrue(token.supplyKey() != null, TOKEN_HAS_NO_SUPPLY_KEY);
+        // An empty key list (the HIP-540 removal sentinel) means the supply function is disabled; it
+        // must be treated as "no supply key" rather than a key that requires no signature.
+        validateTrue(!isEmpty(token.supplyKey()), TOKEN_HAS_NO_SUPPLY_KEY);
 
         // validate treasury relation exists
         final var treasuryRel = TokenHandlerHelper.getIfUsable(token.treasuryAccountId(), tokenId, tokenRelStore);
 
         validateTrue(treasuryRel != null, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
-        if (token.hasKycKey()) {
+        // An empty key list (the HIP-540 removal sentinel) disables KYC, so it counts as "no KYC key".
+        if (!isEmpty(token.kycKey())) {
             validateTrue(treasuryRel.kycGranted(), ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN);
         }
 

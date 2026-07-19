@@ -581,6 +581,21 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
             throw new IllegalStateException("Cannot create new input wires after the model has been started.");
         }
 
+        // A method that returns a value can only be wired as a consumer if Java's overload resolution failed to
+        // select the value-producing overload of getInputWire(). That happens when the method's return type does not
+        // match this component's OUTPUT_TYPE, in which case the compiler silently falls back to the consumer overload
+        // and the return value would be discarded at runtime (see #13894). Fail loudly at wiring-configuration time
+        // instead of producing a silent functional error.
+        if ((handlerWithoutReturn != null || handlerWithoutReturnAndWithoutParameter != null)
+                && method.getReturnType() != void.class) {
+            throw new IllegalArgumentException("Method " + clazz.getSimpleName() + "." + method.getName()
+                    + "() returns " + method.getReturnType().getSimpleName()
+                    + " but was wired as a consumer. This usually means the ComponentWiring's output type does not "
+                    + "match the method's return type, so the value-producing overload of getInputWire() was not "
+                    + "selected and the return value would be silently discarded. Ensure the ComponentWiring's output "
+                    + "type matches the method's return type.");
+        }
+
         final String label;
         if (name != null) {
             label = name;

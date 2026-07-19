@@ -2,7 +2,7 @@
 package com.hedera.node.app.hapi.fees.usage.token;
 
 import static com.hedera.node.app.hapi.fees.test.AdapterUtils.feeDataFrom;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.fees.pricing.ResourceProvider;
@@ -17,7 +17,7 @@ import com.hedera.node.app.hapi.fees.usage.token.meta.TokenPauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnfreezeMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenUnpauseMeta;
 import com.hedera.node.app.hapi.fees.usage.token.meta.TokenWipeMeta;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hederahashgraph.api.proto.java.CustomFee;
 import com.hederahashgraph.api.proto.java.FixedFee;
 import com.hederahashgraph.api.proto.java.FractionalFee;
@@ -32,12 +32,12 @@ class TokenOpsUsageTest {
 
     @Test
     void knowsBytesNeededToReprCustomFeeSchedule() {
-        final var expectedHbarFixed = FeeBuilder.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
-        final var expectedHtsFixed = FeeBuilder.LONG_SIZE + 2 * BASIC_ENTITY_ID_SIZE;
-        final var expectedFractional = 4 * FeeBuilder.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
-        final var expectedRoyaltyNoFallback = 2 * FeeBuilder.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
-        final var expectedRoyaltyHtsFallback = 3 * FeeBuilder.LONG_SIZE + 2 * BASIC_ENTITY_ID_SIZE;
-        final var expectedRoyaltyHbarFallback = 3 * FeeBuilder.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
+        final var expectedHbarFixed = FeeConstants.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
+        final var expectedHtsFixed = FeeConstants.LONG_SIZE + 2 * BASIC_ENTITY_ID_SIZE;
+        final var expectedFractional = 4 * FeeConstants.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
+        final var expectedRoyaltyNoFallback = 2 * FeeConstants.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
+        final var expectedRoyaltyHtsFallback = 3 * FeeConstants.LONG_SIZE + 2 * BASIC_ENTITY_ID_SIZE;
+        final var expectedRoyaltyHbarFallback = 3 * FeeConstants.LONG_SIZE + BASIC_ENTITY_ID_SIZE;
 
         final var perHbarFixedFee = subject.bytesNeededToRepr(1, 0, 0, 0, 0, 0);
         final var perHtsFixedFee = subject.bytesNeededToRepr(0, 1, 0, 0, 0, 0);

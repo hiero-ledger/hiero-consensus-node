@@ -25,10 +25,10 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -81,7 +81,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     private static final String CIVILIAN = "somebody";
     private static final String SPONSOR = "autoCreateSponsor";
     private static final long EXPECTED_AUTO_CREATION_SIMPLE_FEE = 41666666L;
-    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
     private static final String HBAR_XFER = "hbarXfer";
     private static final String FT_XFER = "ftXfer";
     private static final String NFT_XFER = "nftXfer";
@@ -91,7 +90,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
         final var simpleTransferFee = 333333L;
-        final long transferFee = 188608L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -108,13 +106,9 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                assertionsHold((spec, opLog) -> {
-                    final var expectedFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_AUTO_CREATION_SIMPLE_FEE
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
-
+                assertionsHold((spec, _) -> {
                     final var childRecordsCheck = childRecordsCheck(
-                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedFee));
+                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(EXPECTED_AUTO_CREATION_SIMPLE_FEE));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
@@ -127,9 +121,8 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedTransferFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedTransferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, simpleTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
@@ -150,7 +143,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
         final var simpleTransferFee = 333333L;
-        final long transferFee = 188608L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
@@ -169,12 +161,9 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                assertionsHold((spec, opLog) -> {
-                    final var expectedFee = spec.simpleFeesEnabled()
-                            ? EXPECTED_AUTO_CREATION_SIMPLE_FEE
-                            : EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE;
+                assertionsHold((spec, _) -> {
                     final var childRecordsCheck = childRecordsCheck(
-                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(expectedFee));
+                            TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).fee(EXPECTED_AUTO_CREATION_SIMPLE_FEE));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
@@ -187,9 +176,8 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     if (isEndOfStakingPeriodRecord(child)) {
                         child = lookup.getChildRecord(1);
                     }
-                    final var expectedTransferFee = spec.simpleFeesEnabled() ? simpleTransferFee : transferFee;
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, expectedTransferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, simpleTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
@@ -213,7 +201,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
         return hapiTest(
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -223,7 +211,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     partyAlias.set(asSolidityAddress(partyId.get()));
                     counterAlias.set(addressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
 
                     // account create with key then delete account
@@ -288,7 +276,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                             .hasKnownStatusFrom(SUCCESS);
                     allRunFor(spec, completion);
 
-                    final var expectedUsdCharged = spec.simpleFeesEnabled() ? 0.0002 : 0.00015;
+                    final var expectedUsdCharged = 0.0002;
                     // verify completed hollow account
                     var completedAccount = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .has(accountWith()
@@ -326,7 +314,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                         .treasury(PARTY)
                         .initialSupply(1_000),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -337,7 +325,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     partyAlias.set(asSolidityAddress(partyId.get()));
                     counterAlias.set(addressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
 
                     // account create with key than delete account
                     final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
@@ -430,7 +418,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                 mintToken(
                         NFT_INFINITE_SUPPLY_TOKEN, List.of(ByteString.copyFromUtf8("a"), ByteString.copyFromUtf8("b"))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -442,7 +430,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     treasuryId.set(registry.getAccountID(TOKEN_TREASURY));
                     partyAlias.set(asSolidityAddress(partyId.get()));
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
 
                     // account create with key than delete account
                     final var counterAliasStr = ByteString.copyFrom(counterAlias.get());

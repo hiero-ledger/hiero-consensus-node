@@ -34,7 +34,7 @@ the `EventIntakeModule` interface; the wiring is built by
 Intake exposes its inputs and outputs through `EventIntakeModule`
 ([EventIntakeModule.java:24](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:24)).
 Component soldering happens in
-[`PlatformWiring.wire`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:56).
+[`PlatformWiring.wire`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:33).
 
 **Inputs**
 
@@ -86,7 +86,7 @@ Component soldering happens in
 ## Validation pipeline
 
 The pipeline is built in
-[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:72)
+[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:83)
 with five components soldered in series (lines 103-131). Schedulers are configured in
 [`EventIntakeWiringConfig`](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/config/EventIntakeWiringConfig.java).
 
@@ -438,7 +438,8 @@ in [health-monitor-and-backpressure.md](./health-monitor-and-backpressure.md).
   - `platform-sdk/docs/core/gossip/syncing/sync-protocol.md` —
     orientation only; the protocol detail belongs in
     [gossip.md](./gossip.md).
-- **Invariants**: [TBD: INV-NNN once invariants.md catalog populates].
+- **Invariants**: INV-010 — every event used in consensus has a verified creator signature; INV-011 — birth round is monotonic along ancestry.
+- **Rules**: RUL-004 — consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent.
 - **Decisions**: [TBD: ADR-NNN once decisions/ catalog populates].
 - **Scenarios**: [TBD: SCN-NNN — orphan-buffer growth under sustained
   out-of-order arrival, validation-stage-ordering edge cases, and the

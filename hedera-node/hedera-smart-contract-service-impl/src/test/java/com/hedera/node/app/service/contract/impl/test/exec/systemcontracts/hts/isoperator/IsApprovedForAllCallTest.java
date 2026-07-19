@@ -39,8 +39,8 @@ class IsApprovedForAllCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -56,8 +56,8 @@ class IsApprovedForAllCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertHasSuccessVerdict(true, result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertHasSuccessVerdict(true, result.output());
     }
 
     @Test
@@ -70,8 +70,8 @@ class IsApprovedForAllCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertHasSuccessVerdict(false, result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertHasSuccessVerdict(false, result.output());
     }
 
     @Test
@@ -84,10 +84,10 @@ class IsApprovedForAllCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         final boolean verdict = IsApprovedForAllTranslator.ERC_IS_APPROVED_FOR_ALL
                 .getOutputs()
-                .decode(result.getOutput().toArray())
+                .decode(result.output().toArray())
                 .get(0);
         assertFalse(verdict);
     }
@@ -102,8 +102,8 @@ class IsApprovedForAllCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertHasSuccessVerdict(false, result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertHasSuccessVerdict(false, result.output());
     }
 
     private void assertHasSuccessVerdict(final boolean verdict, @NonNull final Bytes output) {

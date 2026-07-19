@@ -105,9 +105,7 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "fees.simpleFeesEnabled", "true",
-                "entities.unlimitedAutoAssociationsEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("entities.unlimitedAutoAssociationsEnabled", "true"));
     }
 
     @Nested

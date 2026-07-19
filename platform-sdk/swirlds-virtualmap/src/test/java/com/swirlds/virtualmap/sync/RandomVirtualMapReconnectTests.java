@@ -2,6 +2,7 @@
 package com.swirlds.virtualmap.sync;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -10,11 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.reconnect.VirtualMapReconnectTestBase;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -31,7 +29,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -67,14 +64,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     protected VirtualDataSourceBuilder createBuilder() {
         // Set initial capacity to a low value to reduce memory usage in tests. If needed,
         // the data source (HDHM bucket index) will be resized automatically
-        return new MerkleDbDataSourceBuilder(
-                ConfigurationBuilder.create()
-                        .withConfigDataType(MerkleDbConfig.class)
-                        .withConfigDataType(VirtualMapConfig.class)
-                        .withConfigDataType(ReconnectConfig.class)
-                        .build(),
-                fileSystemManager,
-                1_000_000);
+        return new MerkleDbDataSourceBuilder(DEFAULT_CONFIGURATION, fileSystemManager, 1_000_000);
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {
@@ -242,7 +232,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         // reconnect happening
-        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
 
         for (final String key : removedKeys) {
             try {
@@ -277,7 +267,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         teacherMap.reserve();
         learnerMap.reserve();
 
-        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
 
         // Create a copy of the resulting map
         final VirtualMap afterCopy = afterMap.copy();

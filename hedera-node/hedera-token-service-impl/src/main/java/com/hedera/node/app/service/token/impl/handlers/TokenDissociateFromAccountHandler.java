@@ -11,10 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.hasAccountNumOrAlias;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -28,9 +25,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.token.TokenDissociateUsage;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -44,7 +38,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -259,19 +252,4 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
             @NonNull Account acct,
             // This is the relation of the token's treasury account ID and the token ID
             @Nullable TokenRelation treasuryTokenRel) {}
-
-    public FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            final SigValueObj svo,
-            final Account account) {
-        if (account == null) {
-            return CONSTANT_FEE_DATA;
-        } else {
-            final var sigUsage =
-                    new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-            final var estimate =
-                    TokenDissociateUsage.newEstimate(txn, txnEstimateFactory.get(sigUsage, txn, ESTIMATOR_UTILS));
-            return estimate.get();
-        }
-    }
 }

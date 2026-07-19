@@ -8,7 +8,6 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
@@ -50,7 +49,7 @@ public final class LearnerTreeExchanger {
      */
     private final NodeTraversalOrder traversalOrder;
 
-    private final ReconnectMapStats mapStats;
+    private final LearnerSyncMetrics stats;
 
     /**
      * Responses from teacher may come in a different order than they are sent by learner. The order
@@ -74,18 +73,18 @@ public final class LearnerTreeExchanger {
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param traversalOrder
      *      the traversal order defining which paths to request
-     * @param mapStats
+     * @param stats
      *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
-            @NonNull final ReconnectMapStats mapStats) {
+            @NonNull final LearnerSyncMetrics stats) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
         this.originalState = vmapLearner.getOriginalState();
         this.reconnectState = vmapLearner.getReconnectState();
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
-        this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
+        this.stats = Objects.requireNonNull(stats, "mapStats is null");
     }
 
     /**
@@ -151,12 +150,15 @@ public final class LearnerTreeExchanger {
         }
     }
 
+    public void onRequestSend() {
+        stats.incrementTransfersFromLearner();
+    }
+
     // This method is called concurrently from multiple threads and called for non-root nodes (internal and leaves)
     public void responseReceived(final PullVirtualTreeResponse response) {
         final long responsePath = response.path();
         if (!isLeaf(responsePath)) {
             handleResponse(response);
-            mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
         } else {
             responses.put(responsePath, response);
             // Handle responses in the same order as the corresponding requests were sent to the teacher
@@ -172,7 +174,6 @@ public final class LearnerTreeExchanger {
                 handleResponse(r);
                 anticipatedLeafPaths.remove();
             }
-            mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
         }
     }
 
@@ -186,7 +187,7 @@ public final class LearnerTreeExchanger {
         final boolean isClean = response.isClean();
         final boolean isLeaf = isLeaf(path);
         traversalOrder.nodeReceived(path, isClean);
-        mapStats.incrementTransfersFromTeacher();
+        stats.incrementTransfersFromTeacher();
 
         if (isLeaf) {
             if (!isClean) {
@@ -195,20 +196,10 @@ public final class LearnerTreeExchanger {
                 assert path == leaf.path();
                 vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
             }
-            mapStats.incrementLeafData(1, isClean ? 1 : 0);
+            stats.incrementLeafData(isClean);
         } else {
-            mapStats.incrementInternalData(1, isClean ? 1 : 0);
+            stats.incrementInternalHashes(isClean);
         }
-    }
-
-    /**
-     * Returns the ReconnectMapStats object.
-     *
-     * @return the ReconnectMapStats object
-     */
-    @NonNull
-    public ReconnectMapStats getMapStats() {
-        return mapStats;
     }
 
     /**

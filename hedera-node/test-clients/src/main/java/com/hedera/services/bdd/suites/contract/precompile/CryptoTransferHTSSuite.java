@@ -1781,7 +1781,7 @@ public class CryptoTransferHTSSuite {
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
             });
             childRecordsChecks[i] = childRecordsCheck(
-                    "nftTransfer" + i, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ALIAS_KEY));
+                    "nftTransfer" + i, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_RECEIVING_NODE_ACCOUNT));
         }
         return hapiTest(flattened(
                 newKeyNamed(MULTI_KEY),

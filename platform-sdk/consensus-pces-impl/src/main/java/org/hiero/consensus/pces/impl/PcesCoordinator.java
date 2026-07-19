@@ -11,12 +11,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.status.PlatformStatusAction;
-import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
+import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 
 /**
  * The {@link PcesCoordinator} is responsible for coordinating the replay of events from the preconsensus event stream
@@ -32,7 +32,7 @@ public class PcesCoordinator {
     private final PcesFileTracker initialPcesFiles;
     private final PcesReplayerWiring pcesReplayerWiring;
     private final Consumer<PlatformStatusAction> statusActionConsumer;
-    private final Runnable stateHasherFlusher;
+    private final Runnable platformStatusFlusher;
     private final Runnable signalEndOfPcesReplay;
 
     /**
@@ -42,21 +42,20 @@ public class PcesCoordinator {
      * @param initialPcesFiles the {@link PcesFileTracker} to read the PCES files from
      * @param pcesReplayerWiring the wiring for the {@link PcesReplayer}
      * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
-     * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
-     * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector
+     * @param signalEndOfPcesReplay a runnable that signals to the system that PCES replay is complete
      */
     public PcesCoordinator(
             @NonNull final Time time,
             @NonNull final PcesFileTracker initialPcesFiles,
             @NonNull final PcesReplayerWiring pcesReplayerWiring,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable stateHasherFlusher,
+            @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay) {
         this.time = requireNonNull(time);
         this.initialPcesFiles = requireNonNull(initialPcesFiles);
         this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
         this.statusActionConsumer = requireNonNull(statusActionConsumer);
-        this.stateHasherFlusher = requireNonNull(stateHasherFlusher);
+        this.platformStatusFlusher = requireNonNull(platformStatusFlusher);
         this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
     }
 
@@ -69,6 +68,9 @@ public class PcesCoordinator {
     public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
         requireNonNull(initialPcesFiles, "Not initialized");
         statusActionConsumer.accept(new StartedReplayingEventsAction());
+        // Flush the replay started action so that the status is up to date when rounds start reaching consensus
+        // and the ConsensusRound#pcesRound boolean is guaranteed to be accurate.
+        platformStatusFlusher.run();
 
         final IOIterator<PlatformEvent> iterator =
                 initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
@@ -76,14 +78,7 @@ public class PcesCoordinator {
         logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
 
         pcesReplayerWiring.pcesIteratorInputWire().inject(iterator);
-
-        // We have to wait for all the PCES transactions to reach the ISS detector before telling it that PCES replay is
-        // done. The PCES replay will flush the intake pipeline, but we have to flush the hasher
-
-        // FUTURE WORK: These flushes can be done by the PCES replayer.
-        stateHasherFlusher.run();
         signalEndOfPcesReplay.run();
-
         statusActionConsumer.accept(new DoneReplayingEventsAction(time.now()));
     }
 }

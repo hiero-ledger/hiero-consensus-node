@@ -27,8 +27,6 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Methods for testing {@link VirtualMap}.
@@ -37,17 +35,15 @@ public final class VirtualMapTestUtils {
 
     private VirtualMapTestUtils() {}
 
-    public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(PathsConfig.class)
-            .withConfigDataType(ReconnectConfig.class)
-            .build();
+    public static final Configuration DEFAULT_CONFIGURATION =
+            ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
-    public static final VirtualMapConfig VIRTUAL_MAP_CONFIG = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+    public static final VirtualMapConfig DEFAULT_VIRTUAL_MAP_CONFIG =
+            DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class);
 
     public static VirtualMap createMap() {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        return new VirtualMap(builder, CONFIGURATION);
+        return new VirtualMap(builder, DEFAULT_CONFIGURATION);
     }
 
     public static Hash hash(final long t) {

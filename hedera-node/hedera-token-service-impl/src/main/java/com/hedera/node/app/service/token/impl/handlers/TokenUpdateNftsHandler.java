@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_SERIAL_NUMBERS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -72,19 +73,23 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
         validateTruePreCheck(token != null, INVALID_TOKEN_ID);
 
         final var nftStore = context.createStore(ReadableNftStore.class);
+        // An empty key list (the HIP-540 removal sentinel) means the role function is disabled; such
+        // a key must be treated as absent rather than as a key that requires no signature.
+        final var hasMetadataKey = !isEmpty(token.metadataKey());
+        final var hasSupplyKey = !isEmpty(token.supplyKey());
         if (serialNumbersInTreasury(
                 token.treasuryAccountIdOrThrow(), op.serialNumbers(), nftStore, token.tokenIdOrThrow())) {
-            validateTruePreCheck(token.hasMetadataKey() || token.hasSupplyKey(), TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY);
+            validateTruePreCheck(hasMetadataKey || hasSupplyKey, TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY);
 
-            if (token.hasMetadataKey() && token.hasSupplyKey()) {
+            if (hasMetadataKey && hasSupplyKey) {
                 context.requireKey(TokenUpdateHandler.oneOf(token.metadataKeyOrThrow(), token.supplyKeyOrThrow()));
-            } else if (token.hasMetadataKey()) {
+            } else if (hasMetadataKey) {
                 context.requireKey(token.metadataKeyOrThrow());
-            } else if (token.hasSupplyKey()) {
+            } else if (hasSupplyKey) {
                 context.requireKey(token.supplyKeyOrThrow());
             }
         } else {
-            validateTruePreCheck(token.hasMetadataKey(), TOKEN_HAS_NO_METADATA_KEY);
+            validateTruePreCheck(hasMetadataKey, TOKEN_HAS_NO_METADATA_KEY);
             context.requireKey(token.metadataKeyOrThrow());
         }
     }

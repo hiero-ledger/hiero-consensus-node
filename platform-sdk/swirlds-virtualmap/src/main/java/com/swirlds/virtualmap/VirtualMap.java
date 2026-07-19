@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -300,36 +301,21 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public VirtualMap(
             final @NonNull VirtualDataSourceBuilder dataSourceBuilder, final @NonNull Configuration configuration) {
-        this.fastCopyVersion = 0L;
-        this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
-        this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
-
-        this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
-        this.dataSource = dataSourceBuilder.build(LABEL, null, true, false);
-        this.metadata = new VirtualMapMetadata();
-        this.statistics = new VirtualMapStatistics(LABEL);
-        this.statistics.setSize(size());
-
-        final int hashChunkHeight = this.dataSource.getHashChunkHeight();
-        this.hasher = new VirtualHasher(virtualMapConfig);
-        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
-        this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
-        this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
-        this.pipeline.registerCopy(this);
+        this(dataSourceBuilder, configuration, null);
     }
 
     /**
-     * Create a virtual map from a snapshot
+     * Create a new virtual map or from a snapshot if snapshot path is not null.
+     *
      * @param dataSourceBuilder the data source builder. Must not be null.
      * @param configuration platform configuration
-     * @param snapshotPath path to the snapshot directory. Must not be null.
+     * @param snapshotPath path to the snapshot directory.
+     *                     If {@code null}, new data source will be created, otherwise restored from a snapshot.
      */
     private VirtualMap(
             final @NonNull VirtualDataSourceBuilder dataSourceBuilder,
             final @NonNull Configuration configuration,
-            final @NonNull Path snapshotPath) {
-        requireNonNull(snapshotPath);
-
+            final @Nullable Path snapshotPath) {
         this.fastCopyVersion = 0L;
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
@@ -370,10 +356,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.cache = source.cache.copy();
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = source.pipeline;
-
-        if (this.pipeline.isTerminated()) {
-            throw new IllegalStateException("A fast-copy was made of a VirtualMap with a terminated pipeline!");
-        }
         this.pipeline.registerCopy(this);
     }
 
@@ -493,19 +475,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
-        final CompletableFuture<Hash> fullRehashFuture = CompletableFuture.supplyAsync(() -> hasher.hash(
+        final CompletableFuture<Hash> fullRehashFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),
                         cache::preloadHashChunk,
                         rehashIterator,
                         firstLeafPath,
                         lastLeafPath,
-                        hashListener))
-                .exceptionally((exception) -> {
+                        hashListener)
+                .exceptionally(throwable -> {
                     // Shut down the iterator.
                     rehashIterator.close();
-                    final var message = "Full rehash failed";
-                    logger.error(EXCEPTION.getMarker(), message, exception);
-                    throw new RuntimeException(message, exception);
+                    throw new RuntimeException(
+                            "Exception occurred during full rehashing of the virtual map", throwable);
                 });
 
         final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
@@ -558,9 +539,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return records;
     }
 
-    // Exposed for tests only.
-    public VirtualPipeline getPipeline() {
-        return pipeline;
+    /**
+     * Waits until all copies in the same family as current instance are destroyed
+     * (with possible hash/flush/merge) or until the given timeout expires.
+     * It can be called on any copy in the family, even released ones.
+     *
+     * @param timeout timeout to wait until all copies in the same family as current instance are destroyed
+     * @return {@code true} if all copies are destroyed and finally processed if needed.
+     *
+     * @throws InterruptedException if current thread was interrupted
+     */
+    public boolean waitUntilFamilyDestroyed(final Duration timeout) throws InterruptedException {
+        return pipeline.awaitTermination(timeout.toMillis(), MILLISECONDS);
     }
 
     // ---- Package-private accessors for VirtualMapReconnect ----
@@ -587,14 +577,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     @NonNull
     public VirtualMapConfig getVirtualMapConfig() {
         return virtualMapConfig;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {
-        return pipeline == this.pipeline;
     }
 
     /**
@@ -1223,7 +1205,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @return copy of underlying datasource with cache copy flushed into it, and running compaction
      */
     VirtualDataSource detachAsDataSourceCopy() {
-        return pipeline.pausePipelineAndRun("detach", () -> {
+        return pipeline.pausePipelineAndExecute("detach", () -> {
             final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
             try {
                 VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
@@ -1248,7 +1230,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @return a reference to the detached state of virtual map at some moment
      */
     public RecordAccessor detach() {
-        return pipeline.pausePipelineAndRun("detach", () -> {
+        return pipeline.pausePipelineAndExecute("detach", () -> {
             final Path snapshotPath = dataSourceSnapshot();
             try {
                 final VirtualDataSource dataSourceCopy =
@@ -1420,7 +1402,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public void createSnapshot(@NonNull final Path outputDirectory) throws IOException {
         final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
-        final Path snapshotPath = pipeline.pausePipelineAndRun("detach", () -> {
+        final Path snapshotPath = pipeline.pausePipelineAndExecute("detach", () -> {
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
             cacheSnapshot.setValue(cache.snapshot());
             // And make a data source snapshot. The snapshot is not loaded here, though, it is
@@ -1428,7 +1410,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return dataSourceSnapshot();
         });
 
-        // build(), flush() and snapshot() below are called outside pausePipelineAndRun() to
+        // build(), flush() and snapshot() below are called outside pausePipelineAndExecute() to
         // unpause the lifecycle thread as quickly as possible. If the lifecycle thread is paused
         // for too long, unhandled copies pile up in the virtual pipeline, which triggers size
         // backpressure mechanism

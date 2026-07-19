@@ -19,6 +19,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
@@ -138,8 +140,12 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var metrics = new NoOpMetrics();
-        this.state = new VirtualMapStateImpl(
-                platformConfig, new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir()), metrics);
+        final var merkleDbConfig = platformConfig.getConfigData(MerkleDbConfig.class);
+        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final var dsBuilder =
+                new MerkleDbDataSourceBuilder(platformConfig, fileSystemManager, merkleDbConfig.initialCapacity());
+        final var virtualMap = new VirtualMap(dsBuilder, platformConfig);
+        this.state = new VirtualMapStateImpl(virtualMap, metrics);
     }
 
     @Override

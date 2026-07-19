@@ -21,9 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.QueryHederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
@@ -105,12 +107,12 @@ class QueryHederaNativeOperationsTest {
     @Test
     void resolveAliasReturnsMissingNumIfNotPresent() {
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
-        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)));
+        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())));
     }
 
     @Test
     void resolveAliasReturnsNumIfPresent() {
-        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS);
+        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes());
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountIDByAlias(0, 0, alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
         assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(0, 0, alias));
@@ -147,5 +149,13 @@ class QueryHederaNativeOperationsTest {
         final var expected = Bytes.fromHex("deadbeef");
         given(context.ledgerId()).willReturn(expected);
         assertEquals(expected, subject.ledgerId());
+    }
+
+    @Test
+    void createNewChildRecordBuilderTest() {
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> subject.createNewChildRecordBuilder(
+                        ContractCreateStreamBuilder.class, HederaFunctionality.CONTRACT_CREATE));
     }
 }

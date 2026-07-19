@@ -104,8 +104,8 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
-                                "Persisted first WRAPS proving key hash (\\S+) to state",
-                                Duration.ofSeconds(5))
+                                "Pending WRAPS proving key hash (\\S+) matches proving key in state",
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, selectedProvingKeyHash),
                 verify(() -> assertEquals(
                         validProvingKeyHash.toHex(),
@@ -131,7 +131,7 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.allNodes(),
                                 "Overwriting previous WRAPS proving key hash (\\S+) with new pending hash (\\S+)",
-                                Duration.ofSeconds(5))
+                                Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, prevProvingKeyHash)
                         .exposingMatchGroupTo(2, selectedProvingKeyHash),
                 verify(() -> {
@@ -171,6 +171,22 @@ class WrapsProvingKeyVerificationOnDiskTest implements LifecycleTest {
             Files.write(target, bytes);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Deletes the extracted WRAPS artifact set and the {@code wraps.sha384} sentinel from a keys
+     * directory. Used to reset a node's "already present" state on the shared network so it re-runs
+     * its on-disk verification / download path instead of treating the proving key as present.
+     */
+    static void clearExtractedProvingKey(@NonNull final Path keysDir) {
+        final String[] names = {"wraps.sha384", "decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin"};
+        for (final var name : names) {
+            try {
+                Files.deleteIfExists(keysDir.resolve(name));
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 }

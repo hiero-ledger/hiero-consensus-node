@@ -2,7 +2,7 @@
 package com.hedera.node.app.hapi.fees.usage;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.HRS_DIVISOR;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.HRS_DIVISOR;
 
 import com.hederahashgraph.api.proto.java.FeeComponents;
 

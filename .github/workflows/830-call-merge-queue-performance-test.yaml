@@ -130,7 +130,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -375,16 +375,21 @@ jobs:
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
+      - name: Checkout NLG
+        if: false
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/network-load-generator
+          token: ${{ secrets.perf_ghp }}
+          ref: main
+          path: "./network-load-generator"
+
       - name: Build NLG test
         if: false
-        env:
-          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
           set +x
           set +e
-          git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/network-load-generator network-load-generator
           cd network-load-generator
-          git checkout main
           ./gradlew --no-daemon clean assemble
           cd build/libs
           tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
@@ -1014,7 +1019,7 @@ jobs:
 
       ## Slack notifications
       - name: Report status (slack detailed reports)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-report-webhook }}
           webhook-type: incoming-webhook

@@ -21,7 +21,7 @@ package com.hedera.node.app.hapi.fees.usage.schedule.entities;
  * ‍
  */
 
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.KEY_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.KEY_SIZE;
 
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 

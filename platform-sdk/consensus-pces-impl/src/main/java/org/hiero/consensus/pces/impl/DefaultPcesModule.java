@@ -25,8 +25,8 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatusAction;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesWiringConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
@@ -39,7 +39,7 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
-import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Default implementation of the {@link PcesModule}.
@@ -74,11 +74,10 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final RecycleBin recycleBin,
             @NonNull final FileSystemManager fileSystemManager,
             final long startingRound,
-            @NonNull final Runnable flushIntake,
-            @NonNull final Runnable flushTransactionHandling,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull final Runnable flushPrimaryPipeline,
+            @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable stateHasherFlusher,
+            @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
@@ -128,9 +127,8 @@ public class DefaultPcesModule implements PcesModule {
                 configuration,
                 time,
                 pcesReplayerWiring.eventOutput(),
-                flushIntake,
-                flushTransactionHandling,
-                latestImmutableStateSupplier,
+                flushPrimaryPipeline,
+                replayProgressSupplier,
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         pcesReplayerWiring.bind(pcesReplayer);
 
@@ -139,7 +137,7 @@ public class DefaultPcesModule implements PcesModule {
                 initialPcesFiles,
                 pcesReplayerWiring,
                 statusActionConsumer,
-                stateHasherFlusher,
+                platformStatusFlusher,
                 signalEndOfPcesReplay);
     }
 
@@ -206,6 +204,15 @@ public class DefaultPcesModule implements PcesModule {
     public InputWire<Long> discontinuityInputWire() {
         return requireNonNull(pcesWriterWiring, "Not initialized")
                 .getInputWire(InlinePcesWriter::registerDiscontinuity);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void injectMinimumBirthRound(final long minimumBirthRoundNonAncientForOldestState) {
+        requireNonNull(pcesWriterWiring, "Not initialized")
+                .getInputWire(InlinePcesWriter::setMinimumBirthRoundToStore)
+                .inject(minimumBirthRoundNonAncientForOldestState);
     }
 
     /**

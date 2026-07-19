@@ -351,6 +351,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     }
 
     @Override
+    public boolean writeSeqNum() {
+        return false;
+    }
+
+    @Override
     public boolean writeBirthRound() {
         return labelBirthroundCheckbox.getState();
     }

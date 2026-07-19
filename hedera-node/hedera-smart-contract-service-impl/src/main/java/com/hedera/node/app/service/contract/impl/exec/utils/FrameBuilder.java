@@ -21,29 +21,40 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TI
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static java.util.Objects.requireNonNull;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.code.CodeFactory;
-import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 
 /**
  * Infrastructure component that builds the initial {@link MessageFrame} instance for a transaction.
@@ -58,27 +69,29 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class FrameBuilder {
     private static final int MAX_STACK_SIZE = 1024;
 
+    private final ContractCodeCache codeCache;
+
     /**
      * Default constructor for injection.
      */
     @Inject
-    public FrameBuilder() {
-        // Dagger2
+    public FrameBuilder(@NonNull final ContractCodeCache codeCache) {
+        this.codeCache = requireNonNull(codeCache);
     }
 
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction the transaction
-     * @param worldUpdater the world updater for the transaction
-     * @param context the Hedera EVM context (gas price, block values, etc.)
-     * @param config the active Hedera configuration
-     * @param featureFlags the feature flag currently used
-     * @param from the sender of the transaction
-     * @param to the recipient of the transaction
-     * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
-     * @param codeFactory the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
-     * *                    from raw bytecode.
+     * @param transaction                     the transaction
+     * @param worldUpdater                    the world updater for the transaction
+     * @param context                         the Hedera EVM context (gas price, block values, etc.)
+     * @param config                          the active Hedera configuration
+     * @param featureFlags                    the feature flag currently used
+     * @param from                            the sender of the transaction
+     * @param to                              the recipient of the transaction
+     * @param initialGas                      the initial gas amount available for execution
+     * @param gasCalculator                   the gas calculator
+     * @param codeDelegationAccessedAddresses the authorities of the processed code delegations
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -91,8 +104,9 @@ public class FrameBuilder {
             @NonNull final FeatureFlags featureFlags,
             @NonNull final Address from,
             @NonNull final Address to,
-            final long intrinsicGas,
-            @NonNull final CodeFactory codeFactory) {
+            final long initialGas,
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final List<Address> codeDelegationAccessedAddresses) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
@@ -101,7 +115,7 @@ public class FrameBuilder {
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
-                .initialGas(transaction.gasAvailable(intrinsicGas))
+                .initialGas(initialGas)
                 .originator(from)
                 .gasPrice(Wei.of(context.gasPrice()))
                 .blobGasPrice(Wei.ONE) // Per Hedera CANCUN adaptation
@@ -114,8 +128,25 @@ public class FrameBuilder {
                 .miningBeneficiary(nominalCoinbase)
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
+        // add accessLists and codeDelegations authorities to "warmed" addresses
+        if ((transaction.accessLists() != null && !transaction.accessLists().isEmpty())
+                || !codeDelegationAccessedAddresses.isEmpty()) {
+            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
+            final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
+            // add accessLists to "warmed" addresses
+            if (transaction.accessLists() != null) {
+                for (final AccessListItem accessList : transaction.accessLists()) {
+                    final Address address = Address.wrap(accessList.address());
+                    accessListWarmAddresses.add(address);
+                    accessListWarmStorage.putAll(address, accessList.storageKeys());
+                }
+            }
+            builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
+            builder.eip2930AccessListWarmStorage(accessListWarmStorage);
+        }
+        // finish initial frame
         if (transaction.isCreate()) {
-            return finishedAsCreate(to, builder, transaction, codeFactory);
+            return finishedAsCreate(to, builder, transaction);
         } else {
             return finishedAsCall(
                     to,
@@ -124,7 +155,7 @@ public class FrameBuilder {
                     transaction,
                     featureFlags,
                     config.getConfigData(ContractsConfig.class),
-                    codeFactory);
+                    gasCalculator);
         }
     }
 
@@ -168,13 +199,12 @@ public class FrameBuilder {
     private MessageFrame finishedAsCreate(
             @NonNull final Address to,
             @NonNull final MessageFrame.Builder builder,
-            @NonNull final HederaEvmTransaction transaction,
-            final CodeFactory codeFactory) {
+            @NonNull final HederaEvmTransaction transaction) {
         return builder.type(MessageFrame.Type.CONTRACT_CREATION)
                 .address(to)
                 .contract(to)
                 .inputData(Bytes.EMPTY)
-                .code(codeFactory.createCode(transaction.evmPayload(), false))
+                .code(codeForInitCode(transaction.evmPayload()))
                 .build();
     }
 
@@ -185,8 +215,7 @@ public class FrameBuilder {
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final ContractsConfig config,
-            @NonNull final CodeFactory codeFactory) {
-        Code code = CodeV0.EMPTY_CODE;
+            @NonNull final GasCalculator gasCalculator) {
         final var contractId = transaction.contractIdOrThrow();
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
 
@@ -199,26 +228,50 @@ public class FrameBuilder {
                     .address(to)
                     .contract(to)
                     .inputData(transaction.evmPayload())
-                    .code(code)
+                    .code(Code.EMPTY_CODE)
                     .build();
         }
 
         final var account = worldUpdater.getHederaAccount(contractId);
+        final Code code;
         if (account != null) {
             // Hedera account for contract is present, get the byte code
-            code = account.getEvmCode(Bytes.wrap(transaction.payload().toByteArray()), codeFactory);
+            final var accountCode = account.getCode();
 
-            // If after getting the code, it is empty, then check if this is allowed
-            if (code.equals(CodeV0.EMPTY_CODE)) {
-                validateTrue(emptyCodePossiblyAllowed(contractMustBePresent, transaction), INVALID_CONTRACT_ID);
+            final var eligibleForCodeDelegation =
+                    account.isRegularAccount() || account.isTokenFacade() || account.isScheduleTxnFacade();
+            if (CodeDelegationHelper.hasCodeDelegation(accountCode) && eligibleForCodeDelegation) {
+                // Resolve the target account of the delegation and use its code
+                final var targetAddress =
+                        Address.wrap(accountCode.slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+
+                final HederaEvmAccount targetAccount = worldUpdater.getHederaAccount(targetAddress);
+                if (targetAccount == null || gasCalculator.isPrecompile(targetAddress)) {
+                    code = Code.EMPTY_CODE;
+                } else {
+                    code = codeFor(targetAccount);
+                }
+            } else {
+                // No delegation, so try to resolve the code of the smart contract.
+                if (!accountCode.isEmpty()) {
+                    // A non-delegation code is there (it must be a regular smart contract), so just use it.
+                    code = codeFor(account);
+                } else {
+                    // The code is empty.
+                    // First validate if this is allowed, and if so, proceed.
+                    validateTrue(emptyCodePossiblyAllowed(contractMustBePresent, transaction), INVALID_CONTRACT_ID);
+                    code = Code.EMPTY_CODE;
+                }
             }
         } else {
+            // The target account doesn't exist. Verify that it's allowed, and if so, proceed with empty code.
+
             // Only do this check if the contract must be present
             if (contractMustBePresent) {
                 validateTrue(transaction.permitsMissingContract(), INVALID_ETHEREUM_TRANSACTION);
             }
+            code = Code.EMPTY_CODE;
         }
-
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
                 .contract(to)
@@ -255,5 +308,22 @@ public class FrameBuilder {
         // Empty code is allowed if the transaction is an Ethereum transaction or has a value or the contract does not
         // have to be present via config
         return transaction.isEthereumTransaction() || transaction.hasValue() || !contractMustBePresent;
+    }
+
+    private @NonNull Code codeForInitCode(@NonNull final Bytes initCode) {
+        return initCode.isEmpty() ? Code.EMPTY_CODE : codeCache.getCodeFromTuweni(initCode);
+    }
+
+    private @NonNull Code codeFor(@NonNull final HederaEvmAccount account) {
+        if (account instanceof AbstractMutableEvmAccount mutable) {
+            try {
+                final var pbjCode = mutable.getCodePBJ();
+                return pbjCode.length() == 0 ? Code.EMPTY_CODE : codeCache.getCode(pbjCode);
+            } catch (UnsupportedOperationException ignored) {
+                // Token/schedule facades without getCodePBJ — fall through
+            }
+        }
+        final var tuweniCode = account.getCode();
+        return tuweniCode.isEmpty() ? Code.EMPTY_CODE : codeCache.getCodeFromTuweni(tuweniCode);
     }
 }

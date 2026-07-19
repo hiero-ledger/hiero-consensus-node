@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenKey.METADATA_KEY;
@@ -385,9 +386,10 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         // Since we de-duplicate all the keys in the PreHandleContext,
         // we can safely add one key multiple times for the transaction to keep the logic simple.
 
-        // metadata can be updated with either admin key or metadata key
+        // metadata can be updated with either admin key or metadata key. An empty key list (the
+        // HIP-540 removal sentinel) means the metadata key is disabled, so fall back to the admin key.
         if (op.hasMetadata()) {
-            if (token.hasMetadataKey()) {
+            if (!isEmpty(token.metadataKey())) {
                 requireAdminOrRole(context, token, METADATA_KEY);
             } else {
                 requireAdmin(context, token);
@@ -474,9 +476,12 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             @Nullable final Key replacementKey)
             throws PreCheckException {
         final var maybeRoleKey = roleKey.getFromToken(token);
+        // An empty key list (the HIP-540 removal sentinel) is treated as "no key": a removed role key
+        // cannot be updated, and an empty admin key cannot authorize the update.
+        final var hasAdminKey = !isEmpty(token.adminKey());
         // Prioritize TOKEN_IS_IMMUTABLE for completely immutable tokens
-        mustExist(maybeRoleKey, token.hasAdminKey() ? roleKey.tokenHasNoKeyStatus() : TOKEN_IS_IMMUTABLE);
-        if (token.hasAdminKey()) {
+        validateTruePreCheck(!isEmpty(maybeRoleKey), hasAdminKey ? roleKey.tokenHasNoKeyStatus() : TOKEN_IS_IMMUTABLE);
+        if (hasAdminKey) {
             context.requireKey(oneOf(
                     replacementKey == null ? maybeRoleKey : allOf(maybeRoleKey, replacementKey),
                     token.adminKeyOrThrow()));
@@ -497,7 +502,8 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
      */
     private void requireAdmin(@NonNull final PreHandleContext context, @NonNull final Token originalToken)
             throws PreCheckException {
-        validateTruePreCheck(originalToken.hasAdminKey(), TOKEN_IS_IMMUTABLE);
+        // An empty key list (the HIP-540 removal sentinel) means the token is effectively immutable.
+        validateTruePreCheck(!isEmpty(originalToken.adminKey()), TOKEN_IS_IMMUTABLE);
         context.requireKey(originalToken.adminKeyOrThrow());
     }
 
