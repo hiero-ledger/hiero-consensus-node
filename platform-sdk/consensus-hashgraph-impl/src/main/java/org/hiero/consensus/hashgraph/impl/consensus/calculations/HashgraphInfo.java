@@ -311,17 +311,16 @@ public final class HashgraphInfo {
                             lowestTime = x.timeCreated;
                         }
                     }
-                    if (x != null) {
-                        x.searchParent++;
-                    }
                     if (x == null) {
                         nextX = null;
                     } else {
+                        x.searchParent++;
                         nextX = x.parentsSigned[x.searchParent];
                     }
                 }
                 if (nextX != null) {
                     nextX.searchChild = x;
+                    nextX.searchJudgeSelfAncestor = x.searchJudgeSelfAncestor && x.searchParent == 0;
                 }
                 x = nextX; // move to the new event that was good (or null if done searching from this judge)
                 if (x!=null && x.searchJudgeSelfAncestor) {
