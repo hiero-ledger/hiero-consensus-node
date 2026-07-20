@@ -145,6 +145,21 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
+    void preHandleRejectsPlainEoaContractId() throws PreCheckException {
+        when(accountStore.getContractById(targetContract)).thenReturn(null);
+
+        final var txn = TransactionBody.newBuilder()
+                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
+                        .contractID(targetContract)
+                        .memo("new memo"))
+                .transactionID(transactionID)
+                .build();
+        final var fakePreHandleContext = new FakePreHandleContext(accountStore, txn);
+
+        assertThrowsPreCheck(() -> subject.preHandle(fakePreHandleContext), INVALID_CONTRACT_ID);
+    }
+
+    @Test
     void invalidAutoRenewAccountIdFails() throws PreCheckException {
         when(payerAccount.keyOrThrow()).thenReturn(AN_ED25519_KEY);
         when(accountStore.getContractById(targetContract)).thenReturn(payerAccount);

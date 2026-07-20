@@ -91,6 +91,7 @@ class QueryModuleTest {
         final var calculator = QueryModule.provideSystemContractGasCalculator(canonicalDispatchPrices, tinybarValues);
         assertThrows(
                 IllegalStateException.class,
-                () -> calculator.gasRequirement(TransactionBody.DEFAULT, DispatchType.APPROVE, AccountID.DEFAULT));
+                () -> calculator.gasRequirement(
+                        TransactionBody.DEFAULT, DispatchType.APPROVE, AccountID.DEFAULT, null));
     }
 }

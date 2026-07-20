@@ -21,6 +21,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -317,6 +318,11 @@ class ConnectionPriorityTest {
         @Override
         protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, Topology.ConnectionState> connections) {
             // No action needed for this test
+        }
+
+        @Override
+        protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+            throw new UnsupportedOperationException("Not needed for this test");
         }
 
         @Override

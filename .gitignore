@@ -1095,7 +1095,7 @@ snyk-code.json
 snyk/
 
 ### AI Helpers Code
-.claude/
+/.claude
 **/ai.local
 
 ### Solo Testing Output

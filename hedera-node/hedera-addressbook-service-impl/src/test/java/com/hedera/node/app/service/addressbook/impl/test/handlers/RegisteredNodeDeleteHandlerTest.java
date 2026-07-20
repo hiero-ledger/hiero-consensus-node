@@ -20,8 +20,6 @@ import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -63,12 +61,6 @@ class RegisteredNodeDeleteHandlerTest extends AddressBookTestBase {
 
     @Mock
     private FeeContext feeContext;
-
-    @Mock
-    private FeeCalculatorFactory feeCalculatorFactory;
-
-    @Mock
-    private FeeCalculator feeCalculator;
 
     private RegisteredNodeDeleteHandler subject;
 

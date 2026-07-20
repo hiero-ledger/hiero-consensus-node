@@ -153,7 +153,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.builder.PlatformBuilder`
   * `com.swirlds.platform.system.Platform`
   * `com.swirlds.platform.ReconnectStateLoader`
-  * `com.swirlds.platform.state.address.RosterMetrics`
+  * `org.hiero.consensus.roster.RosterMetrics`
   * `com.swirlds.platform.recovery.internal.EventStreamRoundIterator`
   * `com.swirlds.platform.recovery.internal.StreamedRound`
   * `com.swirlds.platform.uptime.UptimeTracker`
@@ -171,11 +171,11 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
 * DefaultSignedStateValidator support code
   * `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
-  * `com.swirlds.platform.state.signed.SignedStateValidator`
+  * `org.hiero.consensus.reconnect.impl.SignedStateValidator`
   * `org.hiero.consensus.state.signed.SignedState`
   * `com.swirlds.platform.state.signed.SignedStateInfo`
-  * `com.swirlds.platform.state.signed.SignedStateValidationData`
-  * `com.swirlds.platform.metrics.IssMetrics`
+  * `org.hiero.consensus.reconnect.impl.SignedStateValidationData`
+  * `org.hiero.consensus.iss.detection.internal.IssMetrics`
 * ReconnectStateLoader support code
   * `com.swirlds.platform.ReconnectStateLoader`
   * `com.swirlds.platform.reconnect.ReconnectLearnerFactory`
@@ -201,7 +201,7 @@ After this task, the old RosterHistory object will be deleted.
 
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`
 * `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`
-* `com.swirlds.platform.state.iss.DefaultIssDetector`
+* `org.hiero.consensus.iss.detection.internal.DefaultIssDetector`
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
 * `com.swirlds.platform.gossip.SyncGossipModular`
 * `org.hiero.consensus.reconnect.impl.DefaultSignedStateValidator`
@@ -242,7 +242,7 @@ For DAB, all accesses to the RosterHistory needs to provide the round to get the
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`: `#reportBranch` will use the event's birth round. `#updateEventWindow` will use the event's window latestConsensusRound. The constructor will still use getCurrentRoster.
 * `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`: In all places where consensus is using the roster we need to access the roster for the pending round.
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`: `#registerEvent` can use the event's birth round. TipsetEventCreator's constructor will still use  `rosterHistory.getCurrentRoster()` for the creation of tipsetTracker, tipsetMetrics, tipsetWeightCalculator. networkSize field can be removed and calculated dynamically using the event window.
-* `com.swirlds.platform.state.iss.DefaultIssDetector`: `#handlePostconsensusSignature`:can access roster using the round in the signaturePayload; `#shiftRoundDataWindow` can access the roster using the roundNumber parameter.
+* `org.hiero.consensus.iss.detection.internal.DefaultIssDetector`: `#handlePostconsensusSignature`:can access roster using the round in the signaturePayload; `#shiftRoundDataWindow` can access the roster using the roundNumber parameter.
 * `com.swirlds.platform.gossip.SyncGossipModular` The constructor will still use  `rosterHistory.getCurrentRoster()` unless we can create the component sending the round as another parameter.
 
 ##### Create a hierarchy of `CustomRosterDataHistory`

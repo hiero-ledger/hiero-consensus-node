@@ -94,7 +94,10 @@ public class HgcaaLogValidator {
                 List.of("Ignoring forced handoff to incomplete construction"),
                 List.of("Completing signing attempt"),
                 List.of("No pending blocks found"),
+                List.of("Forcing handoff to history construction", "with different target roster"),
                 List.of("Forcing handoff to construction", "with different target roster"),
+                // Guarded joint TSS handoff deliberately skips partial promotions until both services are ready
+                List.of("TssHandoffCoordinator", "Skipping forced TSS handoff because"),
                 List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
@@ -112,7 +115,8 @@ public class HgcaaLogValidator {
                 List.of("WRAPS proving key download failed"),
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
-                List.of("Failed to initiate async download of WRAPS proving key (from URL "));
+                List.of("Failed to initiate async download of WRAPS proving key (from URL "),
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

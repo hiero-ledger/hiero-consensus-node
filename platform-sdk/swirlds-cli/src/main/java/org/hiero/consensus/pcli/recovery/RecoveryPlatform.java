@@ -8,10 +8,8 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.Signature;
@@ -19,7 +17,6 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.SignedStateReference;
 
@@ -132,21 +129,6 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
     @NonNull
     public NodeId getSelfId() {
         return selfId;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    @NonNull
-    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull String reason) {
-        final ReservedSignedState reservedSignedState = immutableState.getAndReserve(reason);
-        return new AutoCloseableWrapper<>(
-                reservedSignedState.isNull()
-                        ? null
-                        : (T) reservedSignedState.get().getState(),
-                reservedSignedState::close);
     }
 
     /**

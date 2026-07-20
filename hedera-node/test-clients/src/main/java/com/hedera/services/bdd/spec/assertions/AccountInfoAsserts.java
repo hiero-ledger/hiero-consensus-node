@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Assertions;
 public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo> {
 
     public static final String BAD_ALIAS = "Bad Alias!";
+    public static final String WRONG_DELEGATION_ADDRESS = "Wrong delegation address!";
 
     boolean hasTokenAssociationExpectations = false;
 
@@ -40,8 +41,12 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
     public AccountInfoAsserts noChangesFromSnapshot(final String snapshot) {
         hasTokenAssociationExpectations = true;
         registerProvider((spec, o) -> {
-            final var expected = spec.registry().getAccountInfo(snapshot);
-            final var actual = (AccountInfo) o;
+            // It's possible for the ledger ID to materialize after the snapshot was taken, and should have no material
+            // effect on an individual account's data; so we ignore it for this comparison
+            final var expected = spec.registry().getAccountInfo(snapshot).toBuilder()
+                    .clearLedgerId()
+                    .build();
+            final var actual = ((AccountInfo) o).toBuilder().clearLedgerId().build();
             assertEquals(expected, actual, "Changes occurred since snapshot '" + snapshot + "'");
         });
         return this;
@@ -216,6 +221,12 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
                     (allowedPercentDiff / 100.0) * expectedTinyBarsToSubtract,
                     errorMsgIfOutsideTolerance);
         });
+        return this;
+    }
+
+    public AccountInfoAsserts delegationAddress(ByteString delegationAddress) {
+        registerProvider((spec, o) ->
+                assertEquals(delegationAddress, ((AccountInfo) o).getDelegationAddress(), WRONG_DELEGATION_ADDRESS));
         return this;
     }
 

@@ -32,7 +32,6 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Account;
@@ -60,7 +59,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -337,8 +335,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      */
     private long associationHighVolumeScalingDelta(@NonNull final HandleContext feeContext) {
         final var context = (FeeContext) feeContext;
-        if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()
-                || !feeContext.body().highVolume()) {
+        if (!feeContext.body().highVolume()) {
             return 0L;
         }
 
@@ -565,36 +562,11 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      */
     private long airdropFee(final HandleContext feeContext) {
         final var context = ((FeeContext) feeContext);
-
-        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            final var simpleFeeCalculator = context.getSimpleFeeCalculator();
-            var airdropFee = simpleFeeCalculator.getExtraFee(Extra.AIRDROPS);
-            final var highVolumeMultiplier = simpleFeeCalculator.highVolumeRawMultiplier(context.body(), context);
-            airdropFee = (airdropFee * highVolumeMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
-            return tinycentsToTinybars(airdropFee, fromPbj(context.activeRate()));
-        }
-
-        return context.feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .calculate()
-                .totalFee();
-    }
-
-    /**
-     * Calculate the fees for the token airdrop transaction. Initially only the CryptoTransferFees is charged
-     * for the token airdrop transaction. The fees are charged based on number of pending airdrops that
-     * are created in the transaction. If there are no pending airdrops created, no extra fees is charged and
-     * only the CryptoTransferFees is charged.
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body().tokenAirdropOrThrow();
-        final var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
-        validateTrue(tokensConfig.airdropsEnabled(), NOT_SUPPORTED);
-        // Always charge CryptoTransferFee as base price and then each time a pending airdrop is created
-        // we charge airdrop fee in handle
-        return calculateCryptoTransferFees(feeContext, op.tokenTransfers());
+        final var simpleFeeCalculator = context.getSimpleFeeCalculator();
+        var airdropFee = simpleFeeCalculator.getExtraFee(Extra.AIRDROPS);
+        final var highVolumeMultiplier = simpleFeeCalculator.highVolumeRawMultiplier(context.body(), context);
+        airdropFee = (airdropFee * highVolumeMultiplier) / HIGH_VOLUME_MULTIPLIER_SCALE;
+        return tinycentsToTinybars(airdropFee, fromPbj(context.activeRate()));
     }
 
     /**

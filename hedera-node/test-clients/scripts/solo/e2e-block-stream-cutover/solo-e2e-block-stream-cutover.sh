@@ -6,10 +6,12 @@
 #- [x] Produce jumpstart.bin via block-node wrapping tool (offline)
 #- [x] Build temp upgrade properties using parsed jumpstart values
 #- [x] Upgrade to v0.75.0 with application.properties and jumpstart values
-#- [x] Deploy BN with firs managed block jumpstart block + 1000
-#- [x] Upgrade to v0.76.0 -> TSS + WRAPS enabled, dual-write (BOTH / FILE_AND_GRPC), mock signatures
-#- [ ] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
-#- [ ] Perform rolling upgrades of block nodes and ensure block keep flowing e2e
+#- [x] Deploy BN with first managed block jumpstart block + 1000
+#- [x] Upgrade to v0.76.0 -> TSS + WRAPS enabled, dual-write (BOTH / FILE_AND_GRPC), mock signatures.
+#      Each CN self-downloads + extracts the WRAPS proving key from the tss.wrapsProvingKeyDownloadUrl
+#      in resources/0.76|0.77 application.properties (public builds.hedera.com URL); no host-side
+#      pre-download or local nginx server. Per-node download times are reported from hgcaa.log.
+#- [x] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
 
 set -eo pipefail
 set +m
@@ -62,26 +64,25 @@ Environment:
                             (default: resources/0.75/application.properties next to this script)
   APP_PROPS_076_FILE         application.properties for the local-build 0.76.0 upgrade
                             (default: resources/0.76/application.properties next to this script)
+                            Carries the tss.wrapsProvingKeyDownloadUrl each CN self-downloads the
+                            WRAPS proving key from; point this at an edited copy to change the URL.
   APP_PROPS_077_FILE         application.properties for the local-build 0.77.0 BLOCKS-only cutover upgrade
                             (default: resources/0.77/application.properties next to this script)
+                            Carries the same tss.wrapsProvingKeyDownloadUrl as the 0.76 file.
   UPGRADE_074_RELEASE_TAG    Solo release tag for the intermediate upgrade (default: v0.74.0-rc.1)
-  UPGRADE_075_VERSION        Solo upgrade-version for the local-build jumpstart step
-                            Placeholder value required by Solo; local build is used regardless.
-                            Must be strictly newer than the currently-deployed tag and must not
-                            collide with an existing release tag Solo can resolve.
-                            (default: v0.74.0-rc.2)
-  UPGRADE_076_VERSION        Solo upgrade-version for the local-build 0.76 step
-                            Placeholder value required by Solo; local build is used regardless.
-                            Must be strictly newer than UPGRADE_075_VERSION and must not
-                            collide with an existing release tag Solo can resolve.
-                            (default: v0.74.0-rc.3)
-  UPGRADE_077_VERSION        Solo upgrade-version for the local-build 0.77 BLOCKS-only cutover step
-                            Placeholder value required by Solo; local build is used regardless.
-                            Must be strictly newer than UPGRADE_076_VERSION and must not
-                            collide with an existing release tag Solo can resolve.
-                            (default: v0.74.0-rc.4)
+  UPGRADE_075_VERSION        Solo upgrade-version label for the local-build jumpstart step.
+                            Must point at a published Solo tag (Solo resolves it before applying
+                            --local-build-path), but the binary always comes from the local build.
+                            Solo accepts reusing the same label across local-build upgrades.
+                            (default: v0.75.0-rc.6)
+  UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
+                            release image (no --local-build-path), so the 0.76 step exercises the
+                            tag's own default config. (default: v0.76.0-rc.1)
+  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step.
+                            Must be >= the 0.76 release the network is on, or Solo rejects it as a
+                            downgrade. (default: UPGRADE_076_VERSION, i.e. v0.76.0-rc.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
-  SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 local-build upgrade (default: 900)
+  SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
   KEEP_PORT_FORWARD_WATCHDOG true|false; keep CN/mirror/grafana forwards healthy post-run (default: true)
   EXPLORER_INGRESS_LOCAL_PORT Local port for explorer UI tunnel (default: 38080)
@@ -155,9 +156,12 @@ APP_ENV_076_FILE="${APP_ENV_076_FILE:-${SCRIPT_DIR}/resources/0.76/application.e
 APP_PROPS_077_FILE="${APP_PROPS_077_FILE:-${SCRIPT_DIR}/resources/0.77/application.properties}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
-UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.5}"
-UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.75.0-rc.5}"
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-v0.75.0-rc.5}"
+UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
+UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
+# The 0.77 upgrade uses the local build, but its --upgrade-version label must be >= the network's
+# current version (now ${UPGRADE_076_VERSION} after the 0.76 step) or Solo rejects it as a downgrade.
+# Default to the 0.76 tag so it tracks automatically if UPGRADE_076_VERSION is bumped.
+UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-${UPGRADE_076_VERSION}}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -171,21 +175,13 @@ MIRROR_IMPORTER_MEMORY_REQUEST="${MIRROR_IMPORTER_MEMORY_REQUEST:-768Mi}"
 MIRROR_IMPORTER_MEMORY_LIMIT="${MIRROR_IMPORTER_MEMORY_LIMIT:-1536Mi}"
 
 # WRAPS proving-key config (Step 10).
-# WRAPS_KEY_PATH holds the extracted artifacts pre-staged into each CN pod via Solo's
-# --wraps-key-path. WRAPS_TARBALL_CACHE_PATH is the cached tarball used to seed the
-# extracted directory. CNs additionally download the same tarball at runtime from
-# WRAPS_ARTIFACTS_DOWNLOAD_URL (mirrored into 0.76/application.properties as
-# tss.wrapsProvingKeyDownloadUrl).
-WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v1.0.0}"
-WRAPS_TARBALL_CACHE_PATH="${WRAPS_TARBALL_CACHE_PATH:-${HOME}/.solo/cache/wraps-v1.0.0.tar.gz}"
-WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz}"
+# The CN downloads + extracts the WRAPS proving-key archive itself from the
+# tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties
+# (tss.wrapsProvingKeyDownloadEnabled=true). The script does not pre-download or serve it;
+# to use a different URL, point APP_PROPS_076_FILE/APP_PROPS_077_FILE at edited copies.
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 HAPI_PATH="${HAPI_PATH:-/opt/hgcapp/services-hedera/HapiApp2.0}"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/keys/wraps"
-# Local Docker nginx serving the wraps tarball at host.docker.internal:8089 so
-# CNs can pull it from inside the kind cluster without an internet round-trip.
-WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}"
-WRAPS_SERVER_CONTAINER_NAME="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
 # upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
@@ -307,9 +303,14 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_P
 # Only used on MN >= 0.155 (written as HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION). On 0.154
 # there is no hapiVersion key — leave empty and the importer auto-detects the record→block cutover.
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
-# Mirror node chart version used by `solo mirror node upgrade` in Step 9.
-# Block-cutover env wiring requires MN >= 0.153.1; Solo's default is v0.152.0 which silently ignores the env keys.
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.154.0}"
+# Mirror node chart version pinned for BOTH `solo mirror node add` (Step 3) and `solo mirror node
+# upgrade` (Step 9). Pinning both to one explicit version keeps the upgrade target == the deployed
+# version, satisfying Solo's no-downgrade guard (assertUpgradeVersionNotOlder). Block-cutover env
+# wiring needs MN >= 0.153.1 to honor the HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_* keys; 0.156.0 does.
+# COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
+# currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
+# itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
 
 # Step at which to start; lower-numbered steps are skipped. Default 1 = full run.
 START_STEP="${START_STEP:-1}"
@@ -325,6 +326,7 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 WORK_DIR="$(mktemp -d)"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 NETWORK_PROBE_SCRIPT="${WORK_DIR}/sdk-network-probe.js"
+WRAPS_ENV_VALUES_FILE="${WORK_DIR}/wraps-extra-env-values.yaml"
 JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
 TMP_075_UPGRADE_APP_PROPS="${WORK_DIR}/application-075-jumpstart.properties"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-cutover-values.yaml"
@@ -450,7 +452,6 @@ cleanup() {
   if [[ -n "${PORT_FORWARD_WATCHDOG_PID}" ]]; then
     kill "${PORT_FORWARD_WATCHDOG_PID}" >/dev/null 2>&1 || true
   fi
-  stop_wraps_proving_key_server
 
   if command -v solo >/dev/null 2>&1; then
     solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
@@ -478,9 +479,12 @@ require_cmd() {
 # the protobuf wire format of a block-stream file and slices out the serialized
 # LedgerIdPublicationTransactionBody — exactly the form the Block Node expects at
 # verification.tssParametersFilePath. No protobuf classes / JVM / compile needed: a
-# length-delimited field's value bytes ARE the serialized sub-message, so we navigate by
-# field number  Block.items(1) -> BlockItem.signed_transaction(4) ->
-# SignedTransaction.bodyBytes(1) -> TransactionBody.ledger_id_publication(77).
+# length-delimited field's value bytes ARE the serialized sub-message. The publication is
+# nested differently depending on the stream mode when it was published — records mode
+# (pre-cutover, the usual case here) wraps it in a RecordFileItem, blocks mode carries it as
+# a BlockItem.signed_transaction — so the script walks every sub-message recursively and
+# returns the first field-77 payload that validates as a LedgerIdPublicationTransactionBody
+# rather than hard-coding a single path.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -494,6 +498,8 @@ def read_varint(buf, pos):
     shift = 0
     result = 0
     while True:
+        if pos >= len(buf):
+            raise IndexError("varint past end of buffer")
         b = buf[pos]
         pos += 1
         result |= (b & 0x7F) << shift
@@ -502,51 +508,81 @@ def read_varint(buf, pos):
         shift += 7
 
 
-def iter_fields(msg):
+def parse_fields(msg):
+    # Return [(field_num, wire_type, value), ...] or None if `msg` is not cleanly-framed
+    # protobuf (every byte consumed, no field 0, no length overrun). Used both to walk the
+    # block and to validate candidate sub-messages before descending into them.
     pos = 0
     n = len(msg)
-    while pos < n:
-        key, pos = read_varint(msg, pos)
-        fnum = key >> 3
-        wtype = key & 0x07
-        if wtype == 0:
-            val, pos = read_varint(msg, pos)
-            yield fnum, wtype, val
-        elif wtype == 1:
-            yield fnum, wtype, msg[pos : pos + 8]
-            pos += 8
-        elif wtype == 2:
-            length, pos = read_varint(msg, pos)
-            yield fnum, wtype, msg[pos : pos + length]
-            pos += length
-        elif wtype == 5:
-            yield fnum, wtype, msg[pos : pos + 4]
-            pos += 4
-        else:
-            return
+    out = []
+    try:
+        while pos < n:
+            key, pos = read_varint(msg, pos)
+            fnum = key >> 3
+            wtype = key & 0x07
+            if fnum == 0:
+                return None
+            if wtype == 0:
+                val, pos = read_varint(msg, pos)
+                out.append((fnum, 0, val))
+            elif wtype == 2:
+                length, pos = read_varint(msg, pos)
+                if length < 0 or pos + length > n:
+                    return None
+                out.append((fnum, 2, msg[pos : pos + length]))
+                pos += length
+            elif wtype == 1:
+                pos += 8
+                out.append((fnum, 1, None))
+            elif wtype == 5:
+                pos += 4
+                out.append((fnum, 5, None))
+            else:
+                return None
+    except IndexError:
+        return None
+    return out if pos == n else None
 
 
-def find_field(msg, field_num):
-    for fnum, wtype, val in iter_fields(msg):
-        if fnum == field_num and wtype == 2:
+def is_ledger_id_publication(msg):
+    # A serialized LedgerIdPublicationTransactionBody: cleanly-framed protobuf whose only fields
+    # are ledger_id(1, bytes), history_proof_verification_key(2, bytes) and
+    # node_contributions(3, repeated msg), carrying a plausibly-sized ledger_id. This guards
+    # against a stray field 77 that happens to appear inside unrelated bytes.
+    fields = parse_fields(msg)
+    if not fields:
+        return False
+    has_ledger_id = False
+    for fnum, wtype, val in fields:
+        if fnum not in (1, 2, 3):
+            return False
+        if fnum == 1 and wtype == 2 and 16 <= len(val) <= 64:
+            has_ledger_id = True
+    return has_ledger_id
+
+
+def find_ledger_id_publication(msg, depth=0):
+    # The LedgerIdPublication is nested differently depending on the stream mode when it was
+    # published. Records mode (pre-cutover, the usual case for this seed) wraps it in a record file:
+    #   Block.items(1) -> BlockItem.record_file(10) -> RecordFileItem.record_file_contents(2)
+    #   -> RecordStreamFile.record_stream_items(3) -> RecordStreamItem.transaction(1)
+    #   -> Transaction.signedTransactionBytes(5) -> SignedTransaction.bodyBytes(1)
+    #   -> TransactionBody.ledger_id_publication(77)
+    # Blocks mode uses BlockItem.signed_transaction(4) -> SignedTransaction.bodyBytes(1) -> 77.
+    # Rather than hard-code either path, walk every length-delimited sub-message and return the
+    # first field 77 whose bytes validate as a LedgerIdPublicationTransactionBody.
+    fields = parse_fields(msg)
+    if not fields:
+        return None
+    for fnum, wtype, val in fields:
+        if wtype != 2:
+            continue
+        if fnum == 77 and is_ledger_id_publication(val):
             return val
-    return None
-
-
-def extract_from_block(data):
-    # Block.items = field 1 (repeated). Each item -> BlockItem.
-    for fnum, wtype, val in iter_fields(data):
-        if fnum != 1 or wtype != 2:
-            continue
-        stx = find_field(val, 4)  # BlockItem.signed_transaction
-        if stx is None:
-            continue
-        body = find_field(stx, 1)  # SignedTransaction.bodyBytes
-        if body is None:
-            continue
-        pub = find_field(body, 77)  # TransactionBody.ledger_id_publication
-        if pub is not None:
-            return pub
+        if depth < 12 and len(val) > 0 and parse_fields(val) is not None:
+            found = find_ledger_id_publication(val, depth + 1)
+            if found is not None:
+                return found
     return None
 
 
@@ -560,7 +596,7 @@ def main():
             with open(path, "rb") as f:
                 raw = f.read()
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
-            pub = extract_from_block(data)
+            pub = find_ledger_id_publication(data)
             if pub is not None:
                 with open(out, "wb") as o:
                     o.write(pub)
@@ -592,69 +628,108 @@ EOF
 # and can be deleted.
 #
 # Source: the LedgerIdPublication tx is a synthetic "Ledger id" admin tx in the block
-# stream; we pull .blk.gz from the MinIO solo-streams bucket (the CN block-stream
-# uploader writes them there; gzip, no zstd needed), extract the body, drop it into the
-# BN volume at verification.tssParametersFilePath, then roll the BN so init() loads it.
-seed_block_node_tss_parameters() {
-  local minio_pod creds_tmp u p in_pod_dir bn_pod
-  minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
-    .items[].metadata.name | select(test("^minio-"))' | head -n 1)"
-  if [[ -z "${minio_pod}" ]]; then
-    echo "seed_block_node_tss_parameters: no MinIO pod found in ${MINIO_NAMESPACE}" >&2
-    return 1
-  fi
-
-  creds_tmp="$(mktemp)"
-  if ! minio_discover_pod_credentials "${MINIO_NAMESPACE}" >"${creds_tmp}"; then
-    rm -f "${creds_tmp}"
-    echo "seed_block_node_tss_parameters: could not discover MinIO credentials" >&2
-    return 1
-  fi
-  u="$(sed -n '1p' "${creds_tmp}")"
-  p="$(sed -n '2p' "${creds_tmp}")"
-  rm -f "${creds_tmp}"
-
-  # Copy all block-stream objects out of the bucket via in-pod mc, then kubectl cp the dir.
-  in_pod_dir="/tmp/bn-blk-$$"
-  echo "Copying block-stream files from MinIO ${MINIO_BUCKET}/blockStreams via in-pod mc"
-  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-      "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
-       mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-       mc cp --recursive 'local/${MINIO_BUCKET}/blockStreams/' '${in_pod_dir}/' >/dev/null 2>&1"; then
-    echo "seed_block_node_tss_parameters: in-pod mc cp of blockStreams failed" >&2
-    return 1
-  fi
+# stream. Post-cutover the CN streams blocks to the Block Node (not MinIO), so we pull the
+# block files straight from the BN's own live storage (/opt/hiero/block-node/data/live,
+# zstd-compressed .blk.zstd per the BN's FilesRecentConfig). The publication block is recent
+# and the live retention threshold is large, so it is still in live storage (never archived
+# to the historic zip store). We decompress, extract the body, drop it into the BN volume at
+# verification.tssParametersFilePath, then roll the BN so init() loads it.
+# One attempt to pull the BN's live block files and extract the LedgerIdPublication into
+# BN_TSS_PARAMS_LOCAL. Returns 0 once the publication is found + written; 1 if there are no
+# blocks yet or none of them carry the publication yet (the caller polls). The caller is
+# responsible for python3 + extractor setup. The BN solo-dev image ships findutils + bash (no
+# tar), so we list with find and stream each file out tar-free via `kubectl exec ... cat`.
+pull_bn_blocks_and_extract_ledger_id() {
+  local bn_pod="$1" bn_live_dir="$2"
+  local rel base dest pulled=0 pull_failures=0 bn_block_list="" listed=0
+  echo "Copying block-stream files from Block Node ${bn_pod}:${bn_live_dir}"
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
-  # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
-  # to tar, which the distroless MinIO image does not ship). Stdout without a TTY is a raw
-  # binary stream, so .blk.gz bytes survive intact.
-  local rel base dest pulled=0
+  # Discovery + pull with errexit OFF: under the global `set -e -o pipefail`, a transient
+  # kubectl/find hiccup in a `$(...)`/pipeline would abort the whole scenario with no diagnostic.
+  # Handle errors explicitly and log per-stage counts, then restore errexit.
+  local errexit_was_set=0; [[ $- == *e* ]] && errexit_was_set=1
+  set +e
+  bn_block_list="$(kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- \
+    find "${bn_live_dir}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)"
+  listed="$(printf '%s' "${bn_block_list}" | grep -c . 2>/dev/null)"
+  echo "  BN reports ${listed:-0} block file(s) under ${bn_live_dir}"
   while IFS= read -r rel; do
     [[ -n "${rel}" ]] || continue
     base="$(basename "${rel}")"
     dest="${BN_BLOCK_FILES_DIR}/${base}"
-    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null
-    if [[ -s "${dest}" ]]; then ((pulled++)); else rm -f "${dest}"; fi
-  done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-            "for f in ${in_pod_dir}/*/*.blk.gz ${in_pod_dir}/*.blk.gz; do [ -f \"\$f\" ] && echo \"\$f\"; done" 2>/dev/null)
-  kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
+    if kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- cat "${rel}" > "${dest}" 2>/dev/null && [[ -s "${dest}" ]]; then
+      pulled=$((pulled + 1))
+    else
+      pull_failures=$((pull_failures + 1))
+      echo "  WARN: failed to copy BN block file '${rel}'"
+      rm -f "${dest}"
+    fi
+  done <<< "${bn_block_list}"
+  echo "  pulled ${pulled} block file(s) from BN (pull_failures=${pull_failures})"
+  (( errexit_was_set )) && set -e
 
   local blk_files=()
-  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f -name '*.blk.gz' | sort)
+  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)
   if [[ "${#blk_files[@]}" -eq 0 ]]; then
-    echo "seed_block_node_tss_parameters: no .blk.gz files retrieved from MinIO (pulled=${pulled})" >&2
+    echo "  no .blk* files retrieved from BN live storage yet (pulled=${pulled}, pull_failures=${pull_failures})"
     return 1
   fi
-  echo "Retrieved ${#blk_files[@]} block-stream files; extracting LedgerIdPublication"
+
+  # Block-stream files are zstd-compressed (.blk.zstd); the extractor reads gzip/raw (not zstd),
+  # so decompress any .blk.zstd to a raw .blk first (system zstd, else the bundled zstd-jni wrapper).
+  if printf '%s\n' "${blk_files[@]}" | grep -q '\.blk\.zstd$'; then
+    ensure_zstd_command_for_block_node || return 1
+    local zi zdst
+    for zi in "${!blk_files[@]}"; do
+      [[ "${blk_files[$zi]}" == *.blk.zstd ]] || continue
+      zdst="${blk_files[$zi]%.zstd}"
+      if zstd -d -c "${blk_files[$zi]}" > "${zdst}" 2>/dev/null && [[ -s "${zdst}" ]]; then
+        blk_files[$zi]="${zdst}"
+      else
+        echo "  WARN: failed to zstd-decompress ${blk_files[$zi]}" >&2
+      fi
+    done
+  fi
+  echo "  scanning ${#blk_files[@]} block-stream file(s) for LedgerIdPublication"
+
+  rm -f "${BN_TSS_PARAMS_LOCAL}"
+  python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}" >/dev/null 2>&1 || return 1
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || return 1
+  return 0
+}
+
+seed_block_node_tss_parameters() {
+  local bn_pod="block-node-${BLOCK_NODE_ID}-0"
+  local bn_live_dir="/opt/hiero/block-node/data/live"
 
   require_cmd python3
   write_ledger_id_extractor || return 1
-  rm -f "${BN_TSS_PARAMS_LOCAL}"
-  if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed_block_node_tss_parameters: extractor found no LedgerIdPublication in block stream" >&2
-    return 1
-  fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed_block_node_tss_parameters: extracted tss-parameters.bin is empty" >&2; return 1; }
+
+  # Poll for the LedgerIdPublication BEFORE the 0.77 cutover. The ledger id is published
+  # mid-chain only after the TSS history proof finalizes (during/just after the 0.76 step), so it
+  # is typically NOT in a closed, BN-streamed block the instant this runs (observed: the history
+  # proof finalizes ~seconds before this). Re-pull the BN's live blocks and re-extract until the
+  # publication appears; the BN needs it to verify the real-TSS blocks the 0.77 cutover produces.
+  # The network keeps closing blocks on its block-period timer, so the publication lands + streams
+  # to the BN within a few rounds. Pre-cutover it is wrapped in a record file (RecordFileItem), so
+  # the extractor walks the block recursively rather than assuming a native signed_transaction.
+  local deadline=$(( SECONDS + ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300} ))
+  local attempt=0
+  echo "Waiting for the LedgerIdPublication to appear in the Block Node stream (up to ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s) before the 0.77 cutover"
+  while :; do
+    attempt=$(( attempt + 1 ))
+    if pull_bn_blocks_and_extract_ledger_id "${bn_pod}" "${bn_live_dir}"; then
+      echo "Extracted LedgerIdPublication from the BN block stream (attempt ${attempt})"
+      break
+    fi
+    if (( SECONDS >= deadline )); then
+      echo "seed_block_node_tss_parameters: LedgerIdPublication did not appear in the BN block stream within ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s (${attempt} attempts)" >&2
+      kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- find "${bn_live_dir}" -type f 2>/dev/null | head -n 120 >&2 || true
+      return 1
+    fi
+    echo "  LedgerIdPublication not in the BN stream yet (attempt ${attempt}); re-checking in ${LEDGER_ID_PUBLICATION_POLL_SECS:-10}s..."
+    sleep "${LEDGER_ID_PUBLICATION_POLL_SECS:-10}"
+  done
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   echo "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
@@ -694,7 +769,9 @@ seed_block_node_tss_parameters() {
   local deadline=$((SECONDS + 180))
   local bn_logs=""
   while (( SECONDS < deadline )); do
-    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
+    # `|| true`: kubectl logs can transiently fail on a pod still transitioning right after the
+    # roll; under set -e a failing `var="$(...)"` would abort instead of letting the loop retry.
+    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)" || true
     if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
       echo "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
       return 0
@@ -719,7 +796,11 @@ ensure_zstd_command_for_block_node() {
 
   require_cmd java
 
-  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)"
+  # `|| true`: under `set -euo pipefail`, `var="$(find <missing-dir> ... | head)"` aborts the
+  # whole script silently (find exits non-zero on a missing path, pipefail propagates it, and a
+  # failing command substitution trips set -e). Guard it so a missing cache just yields an empty
+  # jar and the explicit check below reports it.
+  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)" || true
   if [[ -z "${zstd_jar}" || ! -f "${zstd_jar}" ]]; then
     echo "zstd command not found and zstd-jni jar was not found in ~/.gradle cache." >&2
     echo "Install zstd (for example: brew install zstd) or run one block-node tools task once to download zstd-jni, then retry." >&2
@@ -1101,6 +1182,11 @@ reconnect_importer_to_minio() {
   echo "Scaling ${MINIO_DISCONNECTED_OWNER_KIND}/${MINIO_DISCONNECTED_OWNER_NAME} in namespace ${MINIO_NAMESPACE} back to 1 replica"
   kubectl --request-timeout=30s -n "${MINIO_NAMESPACE}" scale \
     "${MINIO_DISCONNECTED_OWNER_KIND}/${MINIO_DISCONNECTED_OWNER_NAME}" --replicas=1 || true
+  # Give MinIO time to recover before later steps read block-stream objects from the bucket.
+  echo "Waiting up to 180s for minio-pool-1-0 to become Ready after reconnect"
+  if ! kubectl --request-timeout=10s -n "${MINIO_NAMESPACE}" wait --for=condition=ready pod/minio-pool-1-0 --timeout=180s >/dev/null 2>&1; then
+    echo "WARNING: minio-pool-1-0 did not reach Ready within 180s after reconnect; downstream MinIO reads may need retries" >&2
+  fi
   MINIO_DISCONNECTED_OWNER_KIND=""
   MINIO_DISCONNECTED_OWNER_NAME=""
 }
@@ -1605,6 +1691,29 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
+# Verifies each consensus node runs a release whose Implementation-Version contains the expected
+# substring (e.g. "0.76"). Used for the 0.76 step, which upgrades to a published release image
+# rather than the local build, so the local-build version check does not apply.
+verify_release_version_on_consensus_nodes() {
+  local expected_substr="$1"
+  local node pod pod_version
+  local nodes=()
+
+  echo "Verifying release version on each consensus node (expected to contain '${expected_substr}')"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${pod_version}" == *"${expected_substr}"* ]]; then
+      echo "  ${pod}: ${pod_version} OK"
+    else
+      echo "  ${pod}: expected version containing '${expected_substr}', found ${pod_version:-unknown}" >&2
+      return 1
+    fi
+  done
+}
+
 run_command_with_timeout() {
   local timeout_secs="$1"
   shift
@@ -1650,48 +1759,6 @@ run_075_upgrade() {
     run_command_with_timeout "${SOLO_075_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-}
-
-ensure_wraps_artifacts_downloaded() {
-  local file_count=""
-  local tmp_dir=""
-  local extract_dir=""
-  local extracted_root=""
-  local extracted_dirs=""
-  local extracted_entries=""
-
-  if [[ -d "${WRAPS_KEY_PATH}" ]]; then
-    file_count="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-    if [[ "${file_count}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" && -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-      log "Using cached WRAPS artifacts from ${WRAPS_KEY_PATH}"
-      return 0
-    fi
-  fi
-
-  mkdir -p "$(dirname "${WRAPS_TARBALL_CACHE_PATH}")"
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    log "Downloading WRAPS artifacts from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
-    curl -fL "${WRAPS_ARTIFACTS_DOWNLOAD_URL}" -o "${WRAPS_TARBALL_CACHE_PATH}.partial"
-    mv "${WRAPS_TARBALL_CACHE_PATH}.partial" "${WRAPS_TARBALL_CACHE_PATH}"
-  fi
-
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps-extract.XXXXXX")"
-  extract_dir="${tmp_dir}/extract"
-  mkdir -p "${extract_dir}"
-  tar -xzf "${WRAPS_TARBALL_CACHE_PATH}" -C "${extract_dir}"
-
-  extracted_root="${extract_dir}"
-  extracted_dirs="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-  extracted_entries="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
-  if [[ "${extracted_dirs}" == "1" && "${extracted_entries}" == "1" ]]; then
-    extracted_root="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  fi
-
-  mkdir -p "$(dirname "${WRAPS_KEY_PATH}")"
-  rm -rf "${WRAPS_KEY_PATH}"
-  mkdir -p "${WRAPS_KEY_PATH}"
-  find "${extracted_root}" -maxdepth 1 -type f -exec cp '{}' "${WRAPS_KEY_PATH}/" ';'
-  rm -rf "${tmp_dir}"
 }
 
 configured_wraps_artifacts_container_dir() {
@@ -1750,13 +1817,11 @@ verify_wraps_on_consensus_nodes() {
   local nodes=()
 
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  expected_wraps="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-  [[ "${expected_wraps}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" ]] || {
-    echo "Expected at least ${WRAPS_REQUIRED_FILE_COUNT} WRAPS artifacts in ${WRAPS_KEY_PATH}, found ${expected_wraps}" >&2
-    return 1
-  }
+  # The CN downloads + extracts the WRAPS archive itself into ${wraps_dir}; we expect at least
+  # this many artifact files to land there. No local copy is downloaded by this script.
+  expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
 
-  echo "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting ${expected_wraps} extracted files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
+  echo "Verifying WRAPS runtime on each consensus node (env=${wraps_dir}, expecting >=${expected_wraps} self-downloaded artifact files, up to ${timeout_secs}s/node for env+artifacts+proof construction)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
@@ -1775,7 +1840,7 @@ verify_wraps_on_consensus_nodes() {
     while (( SECONDS < deadline )); do
       found_env="$(consensus_pod_wraps_env "${pod}" || true)"
       found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps}" == "${expected_wraps}" ]]; then
+      if [[ "${found_env}" == "${wraps_dir}" && "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
         ready_for_proof=true
         break
       fi
@@ -1811,126 +1876,63 @@ verify_wraps_on_consensus_nodes() {
   echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
 }
 
-# Wraps remedy strategy:
-# 1. Serve the wraps tarball locally via nginx on host.docker.internal:8089 so
-#    each CN downloads it from inside the kind cluster without a 1.86 GB pull
-#    from builds.hedera.com on every JVM start. See start-wraps-proving-key-server.sh
-#    for the standalone equivalent — we delegate to it for the docker run.
-# 2. Inject TSS_LIB_WRAPS_ARTIFACTS_PATH directly into each network-nodeX
-#    StatefulSet's container spec via `kubectl set env`. This is the only path
-#    we've confirmed actually reaches the JVM `/proc/$pid/environ`. Solo's
-#    --application-env drops the file at /etc/network-node/env/application.env
-#    but the container entrypoint never sources it. Setting via the spec also
-#    survives subsequent pod restarts (kubectl delete pod, freeze-upgrades,
-#    container crashes), which the ephemeral kubectl-cp + entrypoint patch
-#    approach did NOT survive.
-# 3. After Solo's upgrade returns (success OR timeout), recover any CN that
-#    failed to reach ACTIVE/CHECKING/OBSERVING. Jars + state live on the PVC,
-#    so a `kubectl delete pod` re-rolls the JVM from a settled disk and
-#    sidesteps the "jars still copying" startup race that intermittently kills
-#    one or two nodes per upgrade.
-
-ensure_wraps_proving_key_server() {
-  local server_url
-  server_url="http://127.0.0.1:${WRAPS_SERVER_PORT:-8089}/$(basename "${WRAPS_TARBALL_CACHE_PATH}")"
-
-  if curl -sfI "${server_url}" >/dev/null 2>&1; then
-    log "Wraps proving key server already serving ${server_url}"
-    return 0
-  fi
-
-  require_cmd docker
-  if [[ ! -f "${WRAPS_TARBALL_CACHE_PATH}" ]]; then
-    echo "Wraps tarball cache not found: ${WRAPS_TARBALL_CACHE_PATH}" >&2
-    echo "Run Step 10 from earlier, or fetch the tarball into the cache path first." >&2
-    return 1
-  fi
-
-  echo "Starting wraps proving key server (nginx Docker on port ${WRAPS_SERVER_PORT:-8089})"
-  WRAPS_TAR_PATH="${WRAPS_TARBALL_CACHE_PATH}" \
-  WRAPS_SERVER_PORT="${WRAPS_SERVER_PORT:-8089}" \
-    "${SCRIPT_DIR}/start-wraps-proving-key-server.sh"
-}
-
-stop_wraps_proving_key_server() {
-  local name="${WRAPS_SERVER_CONTAINER_NAME:-wraps-proving-key-server}"
-  if command -v docker >/dev/null 2>&1; then
-    docker rm -f "${name}" >/dev/null 2>&1 || true
-  fi
-}
-
-inject_wraps_env_into_statefulsets() {
-  local node sts log_file
-  local wraps_dir nodes=()
+# Build a Solo values file that adds the WRAPS env vars to every consensus node's
+# container spec. Solo reads `defaults.root.extraEnv` from a --values-file and applies
+# it to all nodes unconditionally (independent of the wraps/version gate that guards
+# --wraps-key-path), so it is honored from the genesis deploy onward.
+#
+# WHY we set this at the genesis deploy (Step 2) rather than at Step 10 where WRAPS
+# actually turns on: `solo consensus network upgrade` cannot set container env vars.
+# It has no --values-file/extra-env input, it restarts the JVM in place (so a later
+# `kubectl set env` never reaches the running process), and the chart task that does
+# apply extraEnv runs only in `node add/update`, not in `upgrade`. Injecting the env
+# ourselves at 0.76 therefore means a rolling pod restart of the live 0.75 network;
+# that restart replays the in-flight event stream and, on the cutover binary, diverges
+# into a deterministic network-wide SELF_ISS that leaves Solo's upgrade unable to
+# SDK-ping any node. Baking the env in at deploy sidesteps all of that: Solo's in-place
+# `network upgrade` preserves it (helm --reuse-values), and the 0.73-0.75 binaries simply
+# ignore the unused var until 0.76 reads it. The CN still self-downloads the WRAPS
+# proving-key archive from tss.wrapsProvingKeyDownloadUrl (resources/0.76|0.77
+# application.properties) into ${wraps_dir} at 0.76. This is the cleaner interim approach;
+# revert to a 0.76-time injection once Solo's upgrade command can set extraEnv itself.
+write_wraps_env_values_file() {
+  local wraps_dir
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  log_file="${WORK_DIR}/inject-wraps-env.log"
-  : > "${log_file}"
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
-  if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
-    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
-  fi
-  echo "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
-
-  # `kubectl set env` emits a wave of duplicate-port warnings on every call
-  # because Solo's pod template has `pprof`/`stats` named ports duplicated
-  # across containers — and `kubectl rollout status` chats incrementally. Both
-  # streams are noise the operator can read from the log file if needed; the
-  # script just emits one summary line per node.
-  for node in "${nodes[@]}"; do
-    sts="network-${node}"
-    {
-      echo "=== set env statefulset/${sts} ==="
-      kubectl -n "${SOLO_NAMESPACE}" set env "statefulset/${sts}" -c root-container \
-        "${wraps_env_args[@]}" 2>&1
-    } >> "${log_file}"
-  done
-
-  for node in "${nodes[@]}"; do
-    sts="network-${node}"
-    printf '  injecting env into statefulset/%s... ' "${sts}"
-    if {
-        echo "=== rollout status statefulset/${sts} ==="
-        kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/${sts}" --timeout=600s 2>&1
-      } >> "${log_file}"; then
-      echo "rolled out"
-    else
-      echo "FAILED (see ${log_file})"
-      return 1
+  {
+    echo "defaults:"
+    echo "  root:"
+    echo "    extraEnv:"
+    echo "      - name: TSS_LIB_WRAPS_ARTIFACTS_PATH"
+    echo "        value: ${wraps_dir}"
+    if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "      - name: TSS_LIB_NUM_OF_CORES"
+      echo "        value: \"${WRAPS_NUM_CORES}\""
     fi
-  done
+  } > "${WRAPS_ENV_VALUES_FILE}"
+  echo "Wrote WRAPS extraEnv values file (${WRAPS_ENV_VALUES_FILE}): TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
 }
 
 run_076_upgrade() {
-  # Local nginx server providing the wraps tarball at host.docker.internal:8089.
-  # The CN's tss.wrapsProvingKeyDownloadEnabled flow will pull from this URL.
-  ensure_wraps_proving_key_server
-
-  # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet's container spec
-  # BEFORE Solo's upgrade fires. The rolling restart triggered here runs against
-  # the 0.75 binary, which doesn't use the env var, so it's harmless. Solo's
-  # subsequent freeze-restart is coordinated across all 4 nodes (they all stop
-  # at the same consensus round and resume at the same round) and the env we
-  # pre-injected is preserved through helm's strategic-merge upgrade, so the
-  # 0.76 JVMs all initialize WRAPS in lockstep.
+  # The CN pulls the WRAPS proving key itself from the tss.wrapsProvingKeyDownloadUrl in the
+  # 0.76 properties (tss.wrapsProvingKeyDownloadEnabled flow).
   #
-  # If we instead inject AFTER Solo's upgrade, kubectl set env triggers a
-  # rolling restart on each StatefulSet independently — one pod finishes WRAPS
-  # init and publishes a proof key while others are still on the old config,
-  # which causes a SELF_ISS catastrophic failure on every node.
-  inject_wraps_env_into_statefulsets
-
-  # Note: --wraps-key-path intentionally omitted. Solo only honors it on
-  # `consensus network deploy`; on upgrade it's silently dropped.
+  # No WRAPS env injection here: TSS_LIB_WRAPS_ARTIFACTS_PATH (+ TSS_LIB_NUM_OF_CORES) is
+  # baked into the consensus node container spec at the genesis deploy (Step 2, via
+  # write_wraps_env_values_file) and rides through this in-place upgrade untouched. See
+  # write_wraps_env_values_file for why it cannot be applied at this step.
+  #
+  # Note: --wraps-key-path and --application-env intentionally omitted.
+  # --wraps-key-path is silently dropped on upgrade (Solo only honors it on
+  # `consensus network deploy`). --application-env is a no-op here: Solo drops the
+  # file at /etc/network-node/env/application.env but the container entrypoint
+  # never sources it, and its only var (TSS_LIB_WRAPS_ARTIFACTS_PATH) is now baked
+  # into the pod spec at the genesis deploy (see write_wraps_env_values_file).
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --upgrade-version "${UPGRADE_076_VERSION}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_076_FILE}"
-    --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
     --force
   )
@@ -1939,16 +1941,16 @@ run_076_upgrade() {
   # the JAR cp and restarts them after, so the previous JAR-staging race that
   # forced the stuck-pod recovery dance is gone. We let any non-zero Solo exit
   # (timeout, deploy validation, ACTIVE check failure) propagate via set -e.
-  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (local build, 0.76 properties)" \
+  run_step "Upgrading consensus network to ${UPGRADE_076_VERSION} (release image, 0.76 properties)" \
     run_command_with_timeout "${SOLO_076_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
-  echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
+  echo "--- Step 10 check 1/4: wait for consensus pods + haproxy + verify 0.76 release version ---"
   # Solo's `consensus network upgrade` rolls haproxy via its chart upgrade but
   # doesn't wait for the rollout — explicitly wait here so the next port-forward
   # step finds populated endpoints.
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  verify_local_build_on_consensus_nodes
+  verify_release_version_on_consensus_nodes "0.76"
 
   # The TSS ceremony (proof key publication → CRS contribution → adoption →
   # proof construction) stalls without new rounds, and rounds don't advance
@@ -1969,11 +1971,49 @@ run_076_upgrade() {
 
   echo "--- Step 10 check 4/4: verify WRAPS runtime + proof construction on every consensus node ---"
   verify_wraps_on_consensus_nodes 600
+
+  report_wraps_download_times
   echo "--- Step 10 all checks passed ---"
 }
 
+# Report, per consensus node, how long the CN itself spent downloading + extracting + verifying
+# the WRAPS proving-key archive from tss.wrapsProvingKeyDownloadUrl. Parsed from hgcaa.log:
+#   start: "WrapsProvingKeyVerification - ... Initiating download"
+#   end:   "WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key"
+# Duration is computed in pure awk (ms-of-day delta) so it works on both GNU and BSD date hosts.
+report_wraps_download_times() {
+  local node pod start_line end_line dur
+  local nodes=()
+  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
+
+  echo "WRAPS proving-key self-download times (per consensus node, from hgcaa.log):"
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    start_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "grep -aE 'WrapsProvingKeyVerification - .*Initiating download' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
+    end_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      "grep -aE 'WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
+    if [[ -z "${start_line}" ]]; then
+      echo "  ${pod}: no self-download observed (proving key already present, or not started)"
+      continue
+    fi
+    if [[ -z "${end_line}" ]]; then
+      echo "  ${pod}: download started but completion not yet logged"
+      continue
+    fi
+    # Each hgcaa.log line begins with 'YYYY-MM-DD HH:MM:SS.mmm'; split on space/colon/dot and
+    # take the wall-clock-of-day delta in milliseconds (guarding a midnight rollover).
+    dur="$(awk -v a="${start_line}" -v b="${end_line}" '
+      function ms(t,   x){ split(t, x, /[ :.]/); return ((x[2]*3600)+(x[3]*60)+x[4])*1000 + x[5] }
+      BEGIN { d = ms(b) - ms(a); if (d < 0) d += 86400000; printf "%.3f", d/1000 }')"
+    echo "  ${pod}: ${dur}s"
+  done
+}
+
 run_077_upgrade() {
-  # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10.
+  # 0.77 BLOCKS-only cutover. WRAPS env + on-disk artifacts carry forward from Step 10; the
+  # 0.77 properties keep the same download URL so any restarted pod re-fetches from it.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
@@ -3139,7 +3179,9 @@ deploy_mirror_node_for_cutover() {
   if run_step "Deploying mirror node" \
     solo mirror node add \
     --deployment "${SOLO_DEPLOYMENT}" \
+    --mirror-node-version "${MIRROR_NODE_VERSION}" \
     --enable-ingress \
+    --force-port-forward false \
     --values-file "${MIRROR_NODE_VALUES_FILE}"; then
     return 0
   fi
@@ -3190,7 +3232,6 @@ build_default_block_node_priority_mapping() {
 # Note: nodeId is a STRING and is omitted when 0 (proto default).
 generate_rsa_bootstrap_roster_json() {
   require_cmd openssl
-  require_cmd xxd
   local node node_idx node_id pem hex
   local nodes=()
   local cn_pod="network-node1-0"
@@ -3209,7 +3250,7 @@ generate_rsa_bootstrap_roster_json() {
     hex="$(printf '%s' "${pem}" \
       | openssl x509 -pubkey -noout 2>/dev/null \
       | openssl pkey -pubin -outform DER 2>/dev/null \
-      | xxd -p | tr -d '\n')"
+      | od -An -v -t x1 | tr -d ' \n')"
     if [[ -z "${hex}" ]]; then
       echo "Failed to extract X.509 SPKI hex for node${node_idx}" >&2
       return 1
@@ -3335,6 +3376,7 @@ deploy_block_node_for_cutover() {
     --deployment "${SOLO_DEPLOYMENT}"
     --cluster-ref "${CLUSTER_REF}"
     --quiet-mode
+    --force-port-forward false
   )
   [[ -z "${BLOCK_NODE_PRIORITY_MAPPING}" ]] && BLOCK_NODE_PRIORITY_MAPPING="$(build_default_block_node_priority_mapping)"
   add_args+=(--priority-mapping "${BLOCK_NODE_PRIORITY_MAPPING}")
@@ -3683,26 +3725,32 @@ if should_run_step 2; then
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
-  # Deploy with PVCs on BOTH targets. Step 10 (run_076_upgrade) injects the WRAPS env via
-  # `kubectl set env`, which rolls the consensus StatefulSets BEFORE Solo's upgrade fires. With the
-  # old remote `--pvcs false` (emptyDir), that roll wiped the local-build jars, so the rolled pod
-  # could not restart and Solo's upgrade SDK-ping failed (its retries never found a serving node).
-  # On remote we now use PVCs backed by the local-path StorageClass (made default in
-  # remote_reset_and_prepare_deployment): local-path PVs are node-pinned, so the rolled pod
-  # reschedules to the same node and its data survives the roll. Remote also needs the
-  # scheduling/storage value overrides.
+  # Bake the WRAPS env (TSS_LIB_WRAPS_ARTIFACTS_PATH[, TSS_LIB_NUM_OF_CORES]) into the consensus
+  # node container spec here, at the genesis deploy, via Solo's native extraEnv values file. It
+  # rides through every later in-place `network upgrade` untouched and the 0.73-0.75 binaries
+  # ignore it until 0.76 reads it. See write_wraps_env_values_file for the full rationale (chiefly:
+  # `solo consensus network upgrade` cannot set container env, so injecting at the 0.76 step would
+  # force an unfrozen rolling restart that SELF_ISSes the network).
+  write_wraps_env_values_file
+  network_values_files=("${WRAPS_ENV_VALUES_FILE}")
+  # Deploy with PVCs on BOTH targets so consensus state + jars survive Solo's restarts and the
+  # block-node cutover. On remote, PVCs use the node-pinned local-path StorageClass (made default
+  # in remote_reset_and_prepare_deployment) and the deployment also needs the scheduling/storage
+  # value overrides.
   cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
     --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
     --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}" --pvcs true)
   if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-    cutover_deploy+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+    network_values_files+=("${REMOTE_CLUSTER_NETWORK_VALUES}")
   fi
+  # Solo's --values-file takes a single comma-separated list (later files win on conflicts).
+  cutover_deploy+=(--values-file "$(IFS=,; echo "${network_values_files[*]}")")
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
     "${cutover_deploy[@]}"
   run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
     solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
   run_step "Starting consensus nodes" \
-    solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+    solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --force-port-forward false
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   [[ "${ENABLE_MONITORING}" == "true" ]] && ensure_solo_service_monitor_for_prometheus
@@ -3713,7 +3761,7 @@ if should_run_step 3; then
   print_banner "Step 3/12: Deploy mirror/explorer and validate baseline transactions"
   deploy_mirror_node_for_cutover
   run_step "Deploying explorer node" \
-    solo explorer node add --deployment "${SOLO_DEPLOYMENT}"
+    solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false
   if ! start_explorer_ingress_port_forward; then
     echo "WARNING: Explorer UI tunnel is unavailable; explorer may be inaccessible after run." >&2
   fi
@@ -3848,27 +3896,27 @@ fi
 
 # FUTURE enable when TSS support is ready and tested
 if should_run_step 10; then
-  print_banner "Step 10/12: Upgrade local build with 0.76 properties as ${UPGRADE_076_VERSION}"
-  ensure_wraps_artifacts_downloaded
+  print_banner "Step 10/12: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
   sleep 5
   # Still streaming WRBs but TSS is enabled, force mock signatures
   run_076_upgrade
+  # Bootstrap the Block Node with the network's TSS ledger id BEFORE the 0.77 cutover so it can
+  # verify the real-TSS-signed blocks the cutover starts producing. The ledger id is published
+  # mid-chain during THIS 0.76 step; the BN (deployed mid-chain) never picks it up on its own. We
+  # do it here — after the 0.76 upgrade and before the 0.77 step begins — so the ledger-id check is
+  # part of Step 10, not the 0.77 cutover. See seed_block_node_tss_parameters for why this may
+  # become unnecessary.
+  seed_block_node_tss_parameters
+  # The seed rolled the BN; let it re-catch-up to the live 0.76 stream before Step 11 restarts the
+  # CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the BN stalls
+  # (mirror then can't get the post-cutover blocks).
+  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding to the 0.77 cutover anyway" >&2
   print_step_complete "Step 10/12"
 fi
 
 if should_run_step 11; then
   print_banner "Step 11/12: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
   sleep 5
-  # Pre-cutover: bootstrap the Block Node with the network's TSS ledger id so it can
-  # verify the real-TSS-signed blocks the 0.77 cutover starts producing. The ledger id
-  # was published mid-chain during the 0.76 step; the BN (deployed mid-chain) never
-  # picked it up on its own. See seed_block_node_tss_parameters for why this may become
-  # unnecessary. Run AFTER Step 10 (publication exists) and BEFORE run_077_upgrade.
-  seed_block_node_tss_parameters
-  # The seed rolled the BN; let it re-catch-up to the live stream on 0.76 before run_077_upgrade
-  # restarts the CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the
-  # BN stalls (mirror then can't get the post-cutover blocks).
-  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding with the 0.77 cutover anyway" >&2
   run_077_upgrade
   print_step_complete "Step 11/12"
 fi

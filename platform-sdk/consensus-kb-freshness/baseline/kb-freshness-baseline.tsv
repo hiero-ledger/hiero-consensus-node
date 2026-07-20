@@ -1,0 +1,16 @@
+# kb-freshness baseline v1 — id<TAB>triage<TAB>first_seen<TAB>note
+# Human-owned, version-controlled. One finding per line, tab-separated:
+#   id         the stable finding identity (see findings.json)
+#   triage     new | accepted | dismissed | deferred
+#   first_seen the run date the finding was first recorded (free-form, e.g. 2026-07-06)
+#   note       optional curator note (e.g. why a finding was dismissed)
+#
+# A `dismissed` finding is suppressed from the report. Because identity is keyed on the KB's
+# claim (entry + target + check, never line numbers or file paths), editing the claim mints a
+# new id and re-surfaces the finding as `new` — a dismissal can never silently silence a
+# different problem.
+#
+# To adopt the engine's current findings as the baseline, run with --write-baseline (or copy
+# build/kb-freshness/baseline.proposed.tsv here) and triage the rows.
+#
+# This initial baseline is intentionally empty: on the first run every finding is reported as new.

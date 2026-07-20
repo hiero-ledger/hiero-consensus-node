@@ -83,7 +83,6 @@ class SimpleFeeCalculatorImplTest {
         testSchedule = createTestFeeSchedule();
         lenient().when(feeContext.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
-        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
         lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
         lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
 

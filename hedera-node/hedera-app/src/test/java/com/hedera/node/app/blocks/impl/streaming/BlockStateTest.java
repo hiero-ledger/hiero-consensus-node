@@ -99,6 +99,15 @@ class BlockStateTest {
     }
 
     @Test
+    void testAddSerializedItem_null_returnsMinusOne() {
+        final int index = block.addSerializedItem(null, ItemOneOfType.BLOCK_HEADER);
+
+        assertThat(index).isEqualTo(-1);
+        assertThat(blockItems()).isEmpty();
+        assertThat(block.itemCount()).isZero();
+    }
+
+    @Test
     void testGetBlockItem_notFound() {
         final BlockItem item = block.blockItem(0);
 

@@ -37,6 +37,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
@@ -69,7 +70,6 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.app to
-            org.hiero.otter.test.performance,
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             org.hiero.otter.test,

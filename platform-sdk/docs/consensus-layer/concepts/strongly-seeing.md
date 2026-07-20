@@ -54,4 +54,5 @@ The super-majority test uses `Threshold.SUPER_MAJORITY`
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`judges.md`](judges.md).
+- Invariants: INV-001 (voting round is monotonic along ancestry).
 - Glossary entry: [`../glossary.md`](../glossary.md).

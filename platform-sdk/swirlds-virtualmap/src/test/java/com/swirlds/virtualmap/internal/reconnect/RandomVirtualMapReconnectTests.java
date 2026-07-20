@@ -213,7 +213,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         learnerMap.reserve();
 
         // reconnect happening
-        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, reconnectConfig);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration);
 
         for (final String key : removedKeys) {
             try {

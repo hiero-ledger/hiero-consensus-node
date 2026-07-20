@@ -7,6 +7,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -23,13 +24,13 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.InitialStateLoader;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
+import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -46,6 +47,10 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerFactory;
+import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.gossip.GossipModule;
@@ -61,6 +66,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -126,7 +132,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformComponents platformComponent;
+    private ConsensusLayerBuildingBlocks buildingBlocks;
 
     @Nullable
     private OtterApp otterApp;
@@ -278,33 +284,37 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
             final GossipModule gossipModule = new TurtleGossipModule(gossip);
 
-            final PlatformBuilder platformBuilder = PlatformBuilder.create(
-                            OtterApp.APP_NAME,
-                            OtterApp.SWIRLD_NAME,
-                            version,
-                            initialState,
-                            otterApp,
-                            selfId,
-                            eventStreamLoc,
-                            rosterHistory,
-                            stateLifecycleManager)
-                    .withPlatformContext(platformContext)
-                    .withConfiguration(currentConfiguration)
-                    .withKeysAndCerts(keysAndCerts)
-                    .withExecutionLayer(executionLayer)
-                    .withModel(model)
-                    .withSecureRandomSupplier(new SecureRandomBuilder(randotron.nextLong()))
-                    .withGossipModule(gossipModule)
-                    .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
+            final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+                    currentConfiguration,
+                    platformContext.getMetrics(),
+                    platformContext.getTime(),
+                    rosterHistory,
+                    keysAndCerts,
+                    selfId,
+                    platformContext.getRecycleBin(),
+                    platformContext.getFileSystemManager(),
+                    executionLayer,
+                    otterApp,
+                    initialState,
+                    stateLifecycleManager,
+                    version,
+                    OtterApp.APP_NAME,
+                    OtterApp.SWIRLD_NAME,
+                    eventStreamLoc,
+                    OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS,
+                    null,
+                    model,
+                    new SecureRandomBuilder(randotron.nextLong()).get(),
+                    gossipModule);
+            final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
+            final ConsensusLayerFactoryResult factoryOutput = factory.create();
 
-            final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
-            final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
+            buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+            PlatformWiring.wire(inputs, buildingBlocks);
 
-            gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
+            gossip.provideIntakeEventCounter(buildingBlocks.intakeEventCounter());
 
-            platformComponent = platformBuildingBlocks.platformComponents();
-
-            platformComponent
+            buildingBlocks
                     .hashgraphModule()
                     .consensusRoundOutputWire()
                     .solderTo(
@@ -312,7 +322,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "consensusRounds",
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
-            platformComponent
+            buildingBlocks
                     .platformMonitorWiring()
                     .getOutputWire()
                     .solderTo(
@@ -320,7 +330,27 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
-            platform = platformComponentBuilder.build();
+            final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
+
+            try (final ReservedSignedState ignoredInitialState = initialState) {
+                final SignedState initialSignedState = initialState.get();
+                final boolean startedFromGenesis = initialSignedState.isGenesisState();
+
+                if (startedFromGenesis) {
+                    platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+                } else {
+                    final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
+                    platform = new SwirldsPlatform(
+                            inputs,
+                            platformCoordinator,
+                            buildingBlocks,
+                            initialAncientThreshold,
+                            initialSignedState.getRound());
+                }
+                InitialStateLoader.initializeModulesWithInitialState(
+                        platform, inputs, buildingBlocks, platformCoordinator);
+            }
+            getMetricsProvider().start();
             platformStatus = PlatformStatus.STARTING_UP;
 
             platform.start();
@@ -348,7 +378,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             platformStatus = null;
             platform = null;
-            platformComponent = null;
+            buildingBlocks = null;
             executionLayer = null;
             otterApp = null;
             model = null;
@@ -596,5 +626,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void stopProfiling() {
         throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Thread dump is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
+     */
+    @Override
+    @NonNull
+    public String dumpThreads() {
+        throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
     }
 }

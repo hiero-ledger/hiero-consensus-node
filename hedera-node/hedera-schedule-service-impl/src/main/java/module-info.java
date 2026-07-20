@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.schedule.impl {
-    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.schedule;
     requires transitive com.hedera.node.app.service.token;
@@ -13,6 +12,7 @@ module com.hedera.node.app.service.schedule.impl {
     requires transitive dagger;
     requires transitive static java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.google.common;
     requires org.apache.logging.log4j;

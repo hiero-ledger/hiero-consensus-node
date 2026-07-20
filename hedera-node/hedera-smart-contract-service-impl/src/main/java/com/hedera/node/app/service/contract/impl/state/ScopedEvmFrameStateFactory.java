@@ -3,9 +3,9 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A factory for {@link EvmFrameState} instances that are scoped to the current state of the world in
@@ -14,19 +14,19 @@ import org.hyperledger.besu.evm.code.CodeFactory;
 public class ScopedEvmFrameStateFactory implements EvmFrameStateFactory {
     private final HederaOperations hederaOperations;
     private final HederaNativeOperations hederaNativeOperations;
-    private final CodeFactory codeFactory;
+    private final ContractCodeCache codeCache;
 
     public ScopedEvmFrameStateFactory(
             @NonNull final HederaOperations hederaOperations,
             @NonNull final HederaNativeOperations hederaNativeOperations,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final ContractCodeCache codeCache) {
         this.hederaOperations = Objects.requireNonNull(hederaOperations);
         this.hederaNativeOperations = Objects.requireNonNull(hederaNativeOperations);
-        this.codeFactory = Objects.requireNonNull(codeFactory);
+        this.codeCache = Objects.requireNonNull(codeCache);
     }
 
     @Override
     public EvmFrameState get() {
-        return new DispatchingEvmFrameState(hederaNativeOperations, hederaOperations.getStore(), codeFactory);
+        return new DispatchingEvmFrameState(hederaNativeOperations, hederaOperations.getStore(), codeCache);
     }
 }

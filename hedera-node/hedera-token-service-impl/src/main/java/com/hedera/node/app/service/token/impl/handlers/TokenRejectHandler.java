@@ -15,10 +15,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_REFERENCE_REPEATED;
-import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
-import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createFungibleTransfer;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createNftTransfer;
@@ -35,7 +31,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.NftTransfer;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Account;
@@ -48,15 +43,12 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.AdjustFungibleTokenChangesStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.base.utility.Pair;
@@ -268,51 +260,5 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
         validateTrue(tokenRelation.balance() > 0, INSUFFICIENT_TOKEN_BALANCE);
 
         return createFungibleTransfer(tokenId, accountID, tokenRelation.balance(), token.treasuryAccountId());
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(final FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.tokenRejectOrThrow();
-        final var config = feeContext.configuration();
-        final var tokenMultiplier =
-                requireNonNull(config).getConfigData(FeesConfig.class).tokenTransferUsageMultiplier();
-
-        final int totalRejections = op.rejections().size();
-        int numOfFungibleTokenRejections = 0;
-        int numOfNFTRejections = 0;
-        for (final var rejection : op.rejections()) {
-            if (rejection.hasFungibleToken()) {
-                // Each fungible token rejection involves 2 AccountAmount transfers
-                // We add 2 in order to match CryptoTransfer's bpt & rbs fee calculation
-                numOfFungibleTokenRejections += 2;
-            } else {
-                numOfNFTRejections++;
-            }
-        }
-
-        final int weightedTokensInvolved = tokenMultiplier * totalRejections;
-        final int weightedFungibleTokens = tokenMultiplier * numOfFungibleTokenRejections;
-        final long bpt =
-                calculateBytesPerTransaction(weightedTokensInvolved, weightedFungibleTokens, numOfNFTRejections);
-        final long rbs = USAGE_PROPERTIES.legacyReceiptStorageSecs() * bpt;
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(getSubType(numOfNFTRejections))
-                .addBytesPerTransaction(bpt)
-                .addRamByteSeconds(rbs)
-                .calculate();
-    }
-
-    private SubType getSubType(final int numOfNFTRejections) {
-        return numOfNFTRejections != 0 ? TOKEN_NON_FUNGIBLE_UNIQUE : TOKEN_FUNGIBLE_COMMON;
-    }
-
-    private long calculateBytesPerTransaction(
-            final int weightedTokensInvolved, final int weightedFungibleTokens, final int numNFTRejections) {
-        return TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                weightedTokensInvolved, weightedFungibleTokens, numNFTRejections);
     }
 }

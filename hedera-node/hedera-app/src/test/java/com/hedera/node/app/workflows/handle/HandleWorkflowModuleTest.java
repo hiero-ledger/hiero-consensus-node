@@ -44,7 +44,6 @@ import com.hedera.node.app.service.file.impl.handlers.FileSystemUndeleteHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileUpdateHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkAdminHandlers;
-import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkUncheckedSubmitHandler;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleCreateHandler;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleDeleteHandler;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
@@ -213,9 +212,6 @@ class HandleWorkflowModuleTest {
     private FreezeHandler freezeHandler;
 
     @Mock
-    private NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler;
-
-    @Mock
     private ScheduleCreateHandler scheduleCreateHandler;
 
     @Mock
@@ -326,7 +322,6 @@ class HandleWorkflowModuleTest {
         given(fileHandlers.fileSystemDeleteHandler()).willReturn(fileSystemDeleteHandler);
         given(fileHandlers.fileSystemUndeleteHandler()).willReturn(fileSystemUndeleteHandler);
         given(networkAdminHandlers.freezeHandler()).willReturn(freezeHandler);
-        given(networkAdminHandlers.networkUncheckedSubmitHandler()).willReturn(networkUncheckedSubmitHandler);
         given(scheduleHandlers.scheduleCreateHandler()).willReturn(scheduleCreateHandler);
         given(scheduleHandlers.scheduleSignHandler()).willReturn(scheduleSignHandler);
         given(scheduleHandlers.scheduleDeleteHandler()).willReturn(scheduleDeleteHandler);

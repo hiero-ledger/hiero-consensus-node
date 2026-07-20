@@ -14,6 +14,7 @@ module org.hiero.consensus.reconnect.impl {
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
@@ -24,20 +25,17 @@ module org.hiero.consensus.reconnect.impl {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.component.framework;
     requires com.swirlds.logging;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.hashgraph;
+    requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
-    requires com.github.spotbugs.annotations;
-    requires java.management;
-    requires java.scripting;
-    requires jdk.management;
-    requires jdk.net;
+    requires org.hiero.consensus.transaction.handling;
     requires org.apache.logging.log4j;
+    requires static transitive com.github.spotbugs.annotations;
 
     provides ReconnectModule with
             DefaultReconnectModule;

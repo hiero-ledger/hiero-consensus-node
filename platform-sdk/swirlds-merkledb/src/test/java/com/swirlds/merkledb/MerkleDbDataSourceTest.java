@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.shuffle;
@@ -17,12 +18,11 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.test.fixtures.AbstractMerkelDbTest;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
@@ -31,7 +31,6 @@ import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -51,7 +50,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -504,8 +502,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             assertTrue(dataSource.getKeyToPath().isResizeNeeded(0, 100), "Resize should be needed for key-to-path");
 
             final ThreadPoolExecutor compactingExecutor =
-                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
-                            CONFIGURATION.getConfigData(MerkleDbConfig.class));
+                    (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(DEFAULT_MERKLE_DB_CONFIG);
             final long initialTaskCount = compactingExecutor.getTaskCount();
 
             dataSource.enableBackgroundCompaction();
@@ -646,7 +643,8 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
 
             // Now save some hashes in the old format
             if (hashesRamToDiskThreshold > 0) {
-                final HashListByteBuffer hashStoreRam = new HashListByteBuffer(hashesRamToDiskThreshold, CONFIGURATION);
+                final HashListByteBuffer hashStoreRam =
+                        new HashListByteBuffer(hashesRamToDiskThreshold, DEFAULT_MERKLE_DB_CONFIG);
                 for (long i = 1; i < Math.min(lastLeafPath + 1, hashesRamToDiskThreshold); i++) {
                     hashStoreRam.put(i, hash((int) (i + 1)));
                 }
@@ -657,7 +655,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 final Path tmpDir = fileSystemManager.resolveNewTemp("migrateHashesToChunks-tmp");
                 final LongListSegment hashStoreDiskIndex = new LongListSegment(1024, 2 * size, 1024);
                 final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
-                        CONFIGURATION.getConfigData(MerkleDbConfig.class),
+                        DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class),
                         tmpDir,
                         dbName + "_internalhashes",
                         null,
@@ -724,12 +722,11 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
 
         // Load snapshot 1 with empty tablesToRepairHdhm config. It's expected to contain a stale key
-        final Configuration config1 = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(VirtualMapConfig.class)
-                .withConfigDataType(PathsConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
-                .build();
+        final MerkleDbConfig config1 = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.TABLES_TO_REPAIR_HDHM, "")
+                .build()
+                .getConfigData(MerkleDbConfig.class);
         final MerkleDbDataSource snapshotDataSource1 = restoreDataSource(config1, snapshotDbPath1, label, false);
         try {
             IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
@@ -739,11 +736,11 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         }
 
         // Now load snapshot 2, but with HDHM bucket index rebuilt. There must be no stale keys there
-        final Configuration config2 = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(VirtualMapConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", label))
-                .build();
+        final MerkleDbConfig config2 = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.TABLES_TO_REPAIR_HDHM, label)
+                .build()
+                .getConfigData(MerkleDbConfig.class);
         final MerkleDbDataSource snapshotDataSource2 = restoreDataSource(config2, snapshotDbPath2, label, false);
         try {
             IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));

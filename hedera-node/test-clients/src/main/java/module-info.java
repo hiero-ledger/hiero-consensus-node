@@ -45,7 +45,6 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.transactions.schedule;
     exports com.hedera.services.bdd.spec.transactions.consensus;
     exports com.hedera.services.bdd.spec.transactions.contract;
-    exports com.hedera.services.bdd.spec.transactions.network;
     exports com.hedera.services.bdd.spec.transactions.util;
     exports com.hedera.services.bdd.spec.transactions.system;
     exports com.hedera.services.bdd.suites.perf;

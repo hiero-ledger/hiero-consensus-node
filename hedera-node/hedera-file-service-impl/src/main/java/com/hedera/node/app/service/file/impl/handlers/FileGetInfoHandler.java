@@ -15,12 +15,8 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.file.FileGetInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoResponse;
 import com.hedera.hapi.node.file.FileGetInfoResponse.FileInfo;
-import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.FileMetadata;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
@@ -29,9 +25,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Optional;
@@ -45,16 +39,13 @@ import org.hiero.base.crypto.CryptographyProvider;
  */
 @Singleton
 public class FileGetInfoHandler extends FileQueryBase {
-    private final FileOpsUsage fileOpsUsage;
     private final Cryptography cryptography;
 
     /**
-     * Constructs a {@link FileGetInfoHandler} with the given {@link FileOpsUsage}.
-     * @param fileOpsUsage the file operations usage to be used for fee calculation
+     * Constructs a {@link FileGetInfoHandler}.
      */
     @Inject
-    public FileGetInfoHandler(final FileOpsUsage fileOpsUsage) {
-        this.fileOpsUsage = fileOpsUsage;
+    public FileGetInfoHandler() {
         cryptography = CryptographyProvider.getInstance();
     }
 
@@ -169,21 +160,5 @@ public class FileGetInfoHandler extends FileQueryBase {
             info.ledgerId(ledgerId);
             return Optional.of(info.build());
         }
-    }
-
-    private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.Query query, @Nullable final File file) {
-        requireNonNull(query);
-        if (file == null) {
-            return FeeData.getDefaultInstance();
-        }
-        final com.hederahashgraph.api.proto.java.File details = CommonPbjConverters.fromPbj(file);
-        final var ctx = ExtantFileContext.newBuilder()
-                .setCurrentSize(details.getContents().toByteArray().length)
-                .setCurrentWacl(details.getKeys())
-                .setCurrentMemo(details.getMemo())
-                .setCurrentExpiry(details.getExpirationSecond())
-                .build();
-        return fileOpsUsage.fileInfoUsage(query, ctx);
     }
 }
