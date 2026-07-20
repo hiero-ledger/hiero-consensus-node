@@ -7,7 +7,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import org.hiero.base.crypto.Hash;

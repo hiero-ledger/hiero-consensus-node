@@ -61,7 +61,7 @@ message MerkleDbTableMetadata {
 
 `(minValidKey, maxValidKey)` = the valid leaf-path range, i.e. the VirtualMap’s
 `(firstLeafPath, lastLeafPath)`. `VirtualMap` reconstructs its
-`VirtualMapMetadata` on load directly from these two values; no separate virtual
+`VirtualMap.Metadata` on load directly from these two values; no separate virtual
 map metadata file is written.
 
 ### 2. `idToDiskLocationHashChunks.ll` & `pathToDiskLocationLeafNodes.ll` — index flush

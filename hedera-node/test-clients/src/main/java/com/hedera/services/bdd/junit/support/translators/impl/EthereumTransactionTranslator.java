@@ -20,7 +20,9 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -30,6 +32,7 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -116,7 +119,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             } else {
                                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                             }
-                                            baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                            baseTranslator.addCreatedIdsTo(
+                                                    derivedBuilder, parts, remainingStateChanges);
                                             baseTranslator.addChangedContractNonces(
                                                     derivedBuilder, evmResult.contractNonces());
                                             Bytes initcode = null;
@@ -147,7 +151,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                 derivedBuilder, createdId, remainingStateChanges);
                                     } else if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
                                         mapTracesToVerboseLogs(derivedBuilder, parts.traces());
-                                        baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                        baseTranslator.addCreatedIdsTo(derivedBuilder, parts, remainingStateChanges);
                                         baseTranslator.addChangedContractNonces(
                                                 derivedBuilder, evmResult.contractNonces());
                                     }
@@ -162,7 +166,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                         if (parts.isBatchScoped() && finalEthTxData != null) {
                                             handleBatchScopedNonce(
                                                     evmResult.senderId(),
-                                                    finalEthTxData.nonce(),
+                                                    finalEthTxData,
                                                     derivedBuilder,
                                                     baseTranslator,
                                                     remainingStateChanges);
@@ -191,14 +195,33 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
 
     private void handleBatchScopedNonce(
             AccountID senderId,
-            long currentNonce,
+            EthTxData ethTxData,
             ContractFunctionResult.Builder builder,
             BaseTranslator baseTranslator,
             List<StateChange> remainingStateChanges) {
-        if (baseTranslator.isNonceIncremented(senderId, currentNonce, remainingStateChanges)) {
+        if (baseTranslator.isNonceIncremented(senderId, ethTxData.nonce(), remainingStateChanges)) {
             // If we have multiple ethereum transactions in a batch, and they increment the same nonce,
             // we have to derive the nonce from the input for the transactions that are in the middle of the batch.
-            builder.signerNonce(currentNonce + 1L);
+            if (EthTxData.EthTransactionType.EIP7702.equals(ethTxData.type())) {
+                // if the transaction is EIP7702 (type 4)
+                // we are incrementing +1 signer nonce for each eth address matching with CodeDelegation signer address
+                final var txSig = EthTxSigs.extractSignatures(ethTxData);
+                long expectedNonce = ethTxData.nonce() + 1;
+                for (CodeDelegation delegation : ethTxData.extractCodeDelegations()) {
+                    final var optionalDelegationSig = EthTxSigs.extractAuthoritySignature(delegation);
+                    if (optionalDelegationSig.isPresent()) {
+                        EthTxSigs delegationSig = optionalDelegationSig.get();
+                        if (Arrays.equals(txSig.address(), delegationSig.address())
+                                && expectedNonce == delegation.nonce()
+                                && Arrays.equals(ethTxData.chainId(), delegation.chainId())) {
+                            expectedNonce++;
+                        }
+                    }
+                }
+                builder.signerNonce(expectedNonce);
+            } else {
+                builder.signerNonce(ethTxData.nonce() + 1);
+            }
         } else {
             baseTranslator.addSignerNonce(senderId, builder, remainingStateChanges);
         }
