@@ -310,17 +310,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
+    public void init(
+            @NonNull final State state, @Nullable final Bytes lastBlockHash, final boolean cutoverSchemaExecuted) {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
 
         // Cutover case
-        if (loadCutoverData(
-                configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .enableCutover(),
-                state)) {
+        if (cutoverSchemaExecuted
+                && loadCutoverData(
+                        configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .enableCutover(),
+                        state)) {
             log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
 
             // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
@@ -1701,20 +1703,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Returns true iff the following conditions are met:
+     * Returns true iff the following persistent-state and configuration safeguards are met:
      * <ul>
      *     <li>The {@code enableCutover} flag is set to true</li>
      *     <li>The preview {@code BlockStreamInfo} object has been overwritten with the real wrapped record
      *     block hash (i.e. cutover) data from {@code BlockInfo}</li>
      *     <li>{@code BlockInfo.previewStreamOverwritten} has been marked as true</li>
-     *     <li>No post-cutover blocks have been produced yet (i.e. {@code BlockStreamInfo.blockNumber}
-     *     is still equal to {@code BlockInfo.lastBlockNumber} following the schema overwrite)</li>
+     *     <li>{@code BlockStreamInfo.blockNumber} is equal to {@code BlockInfo.lastBlockNumber}</li>
      * </ul>
      *
-     * If any of these conditions are not met this method returns false, indicating that cutover logic
-     * should not be executed and the block stream manager should proceed with normal initialization. If
-     * all of these conditions are met this method returns true, signaling that the block stream manager
-     * should initialize with the cutover data from state.
+     * <p>The caller separately requires the authoritative, non-persisted signal that the schema overwrite executed
+     * during this startup. Equal block numbers alone are insufficient because record and block streams can continue
+     * advancing in lockstep after cutover.
+     *
+     * <p>If any of these safeguards are not met this method returns false, indicating that the block stream manager
+     * should proceed with normal initialization.
      */
     private static boolean loadCutoverData(final boolean cutoverEnabled, final @NonNull State state) {
         if (!cutoverEnabled) {
@@ -1725,8 +1728,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
-            // This case also applies _after_ cutover, since future restarts shouldn't ever overwrite a preview block
-            // stream
             log.info(
                     "Preview block stream info not overwritten, skipping cutover init logic (previewStreamOverwritten={})",
                     blockInfo != null ? false : "null");

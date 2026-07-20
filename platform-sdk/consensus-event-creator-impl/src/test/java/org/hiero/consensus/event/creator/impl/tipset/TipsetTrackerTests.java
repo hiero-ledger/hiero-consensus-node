@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -116,8 +115,8 @@ class TipsetTrackerTests {
             assertThat(newTipset.getTipSequenceNumberForNode(selfId))
                     .withFailMessage(String.format(
                             "The sequence number should always be %s for the self node, got %s instead",
-                            SEQUENCE_NUMBER_UNDEFINED, newTipset.getTipSequenceNumberForNode(selfId)))
-                    .isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+                            PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER, newTipset.getTipSequenceNumberForNode(selfId)))
+                    .isEqualTo(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.

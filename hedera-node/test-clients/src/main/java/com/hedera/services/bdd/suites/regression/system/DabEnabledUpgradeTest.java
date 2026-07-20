@@ -92,9 +92,8 @@ import org.junit.jupiter.api.*;
 /**
  * Asserts expected behavior of the network when upgrading with DAB enabled.
  * <p>
- * The test framework simulates DAB by regenerating the network to match its {@link HederaNode} instances and
- * writing an <i>override-network.json</i> into each node's working directory that the node adopts on restart; it
- * validates the <i>candidate-roster.json</i> that the node exports during {@code PREPARE_UPGRADE}.
+ * The test framework simulates DAB by copying the <i>config.txt</i> from the node's upgrade artifacts into their
+ * working directories, instead of regenerating a <i>config.txt</i> to match its {@link HederaNode} instances. It
  * <p>
  * There are three upgrades in this test. The first leaves the address book unchanged, the second removes `node1`,
  * and the last one adds a new `node5`.
@@ -259,7 +258,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                         .withAvailableSubProcessPorts()
                         .gossipCaCertificate(VALID_CERT),
                 prepareFakeUpgrade(),
-                // node4 was not active before this upgrade, so it could not have exported a candidate roster
+                // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
@@ -307,7 +306,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // Update a pending node
                     nodeUpdate("node5")
                             // These endpoints will be replaced by the FakeNmt process just before
-                            // restart but can still be validated in the node-exported candidate-roster.json
+                            // restart but can still be validated in the DAB-generated config.txt
                             .gossipEndpoint(
                                     List.of(asServiceEndpoint("127.0.0.1:33000"), asServiceEndpoint("127.0.0.1:33001")))
                             .accountId(String.valueOf(classicFeeCollectorIdFor(905))),

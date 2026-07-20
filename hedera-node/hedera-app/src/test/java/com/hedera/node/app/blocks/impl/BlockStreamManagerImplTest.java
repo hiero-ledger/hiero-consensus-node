@@ -940,6 +940,11 @@ class BlockStreamManagerImplTest {
 
         verify(aWriter).openBlock(N_BLOCK_NO);
 
+        // After the freeze round ends, no successor block is opened, so blockNo() must still report the
+        // freeze block itself; the freeze-time block node acknowledgement wait relies on this to target
+        // the freeze block (see Hedera#awaitFreezeRoundBlockProofsAndAcks).
+        assertEquals(N_BLOCK_NO, subject.blockNo());
+
         // Assert the internal state of the subject has changed as expected and the writer has been closed
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
@@ -1796,16 +1801,15 @@ class BlockStreamManagerImplTest {
                 streamingObs);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
-        subject.init(state, HASH_OF_ZERO);
+        subject.init(state, HASH_OF_ZERO, true);
         // If cutover had run, it would have tried to read BlockRecordService states,
         // which are not mocked here; the test succeeding proves cutover was skipped.
     }
 
     @Test
-    void cutoverSkippedWhenSchemaDidNotExecute() {
-        // Cutover is enabled, but previewStreamOverwritten=false means the schema did not run, and therefore init
-        // should not run
-        // cutover scenario
+    void cutoverSkippedWhenPersistentMarkerIsFalse() {
+        // Even with the current-startup signal, previewStreamOverwritten=false means the durable cutover marker was
+        // not set, so init should retain the normal path.
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
                 .previewStreamOverwritten(false)
@@ -1837,8 +1841,8 @@ class BlockStreamManagerImplTest {
                 .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
         given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
 
-        // init with HASH_OF_ZERO — loadCutoverData should see previewStreamOverwritten=false and skip
-        subject.init(state, HASH_OF_ZERO);
+        // loadCutoverData should see previewStreamOverwritten=false and skip
+        subject.init(state, HASH_OF_ZERO, true);
     }
 
     @Test
@@ -1896,7 +1900,59 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
 
         // init with null lastBlockHash — should trigger the cutover loading path
-        subject.init(state, null);
+        subject.init(state, null, true);
+    }
+
+    @Test
+    void cutoverSkippedWhenSchemaDidNotExecuteEvenIfBlockNumbersMatch() {
+        // In BOTH mode the record and block stream numbers can continue advancing in lockstep after cutover. Matching
+        // numbers therefore do not prove the schema overwrite happened during this startup.
+        final long matchingBlockNumber = 595L;
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(matchingBlockNumber)
+                .previewStreamOverwritten(true)
+                .build();
+        final var blockStreamInfo = blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
+                .copyBuilder()
+                .blockNumber(matchingBlockNumber)
+                .build();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                streamingObs);
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        lenient()
+                .when(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .thenReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        lenient().when(state.getReadableStates(BlockRecordService.NAME)).thenReturn(blockRecordReadable);
+
+        final var blockStreamReadable = mock(ReadableStates.class);
+        given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> blockStreamInfo));
+        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
+
+        subject.init(state, null, false);
+
+        verify(state, never()).getReadableStates(BlockRecordService.NAME);
     }
 
     @Test
@@ -1943,7 +1999,7 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
 
         // init with HASH_OF_ZERO — cutover should be skipped since BSI has advanced
-        subject.init(state, HASH_OF_ZERO);
+        subject.init(state, HASH_OF_ZERO, true);
     }
 
     private void givenSingleRoundPerBlockSubject() {
