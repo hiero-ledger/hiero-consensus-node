@@ -132,9 +132,7 @@ public class RosterFactory {
 
     @NonNull
     private static KeysAndCerts generateKeys(
-            @NonNull final Random random,
-            @NonNull final NodeId nodeId,
-            @NonNull final SigningSchema signingSchema) {
+            @NonNull final Random random, @NonNull final NodeId nodeId, @NonNull final SigningSchema signingSchema) {
         try {
             final byte[] masterKey = new byte[64];
             random.nextBytes(masterKey);
