@@ -33,9 +33,9 @@ public class OpsDurationThrottleTest {
     private static final String SENDER = "sender";
     private static final String RECEIVER = "receiver";
     private static final String TOKEN = "token";
-    private static final String THROTTLE_THROTTLE_BY_OPS_DURATION = "contracts.throttle.throttleByOpsDuration";
-    private static final String OPS_DURATION_THROTTLE_CAPACITY = "contracts.opsDurationThrottleCapacity";
-    private static final String OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND =
+    public static final String THROTTLE_THROTTLE_BY_OPS_DURATION = "contracts.throttle.throttleByOpsDuration";
+    public static final String OPS_DURATION_THROTTLE_CAPACITY = "contracts.opsDurationThrottleCapacity";
+    public static final String OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND =
             "contracts.opsDurationThrottleUnitsFreedPerSecond";
 
     private static final long DEFAULT_OPS_DURATION_CAPACITY = 10_000_000;
