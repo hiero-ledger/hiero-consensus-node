@@ -27,6 +27,7 @@ mainModuleInfo {
 
 jmhModuleInfo {
     requires("com.hedera.node.hapi")
+    requires("com.hedera.pbj.runtime")
     requires("com.swirlds.platform.core")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.model.test.fixtures")
@@ -34,7 +35,6 @@ jmhModuleInfo {
     requires("org.hiero.consensus.pces.impl")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("jmh.core")
-    requires("com.hedera.pbj.runtime")
 }
 
 testModuleInfo {

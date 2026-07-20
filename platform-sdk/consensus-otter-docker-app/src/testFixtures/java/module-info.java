@@ -17,6 +17,7 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
@@ -24,7 +25,6 @@ module org.hiero.consensus.otter.docker.app {
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
-    requires com.swirlds.virtualmap;
     requires io.grpc;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
