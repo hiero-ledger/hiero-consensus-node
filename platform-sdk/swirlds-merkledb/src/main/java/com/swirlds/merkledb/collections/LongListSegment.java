@@ -3,7 +3,7 @@ package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -68,9 +68,9 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * chunk and reserved buffer size are read from the provided configuration.
      *
      * @param capacity      Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration merkle db configuration
      */
-    public LongListSegment(final long capacity, @NonNull final Configuration configuration) {
+    public LongListSegment(final long capacity, @NonNull final MerkleDbConfig configuration) {
         super(capacity, configuration);
     }
 
@@ -96,10 +96,10 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * @param file          The file to load the long list from
      * @param capacity      Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param configuration merkle db configuration
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListSegment(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListSegment(@NonNull final Path file, final long capacity, @NonNull final MerkleDbConfig configuration)
             throws IOException {
         super(capacity, configuration);
         loadFromFile(file);

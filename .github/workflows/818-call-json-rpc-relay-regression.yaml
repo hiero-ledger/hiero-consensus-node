@@ -15,6 +15,10 @@ on:
         description: "The version of solo to install (if not specified, latest will be used):"
         required: false
         type: string
+      mirror-node-version:
+        description: "The version of mirror node pass to solo"
+        required: true
+        type: string
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -69,7 +73,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -151,7 +155,7 @@ jobs:
             solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
             solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
             solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
-            solo mirror node add  --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+            solo mirror node add  --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger --mirror-node-version "${{inputs.mirror-node-version}}"
           else
             echo "::debug::Solo version ($version) is < 0.44.0"
             solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
@@ -162,15 +166,38 @@ jobs:
             solo network deploy --deployment "${SOLO_DEPLOYMENT}"
             solo node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
             solo node start --deployment "${SOLO_DEPLOYMENT}"
-            solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+            solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger --mirror-node-version "${{inputs.mirror-node-version}}"
           fi
+
+      # Solo tears down its internal port-forward for CN gRPC after setup health checks.
+      # Persist it so the SDK can reach the consensus node during tests (same pattern as 821).
+      - name: Port-forward consensus node gRPC
+        run: |
+          kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:non-tls-grpc-client-port &
+          for i in $(seq 1 10); do
+            nc -z 127.0.0.1 50211 2>/dev/null && echo "Port 50211 ready (attempt $i)" && break
+            sleep 2
+          done
+
+      # Wait for the mirror node REST API to be fully ready before starting relay tests.
+      # Solo 0.79.0 changed timing so /health/readiness goes green before the backend
+      # is serving data, causing socket hang up on the first relay startup query.
+      - name: Wait for Mirror Node REST API to stabilize
+        run: |
+          for i in $(seq 1 30); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:38081/api/v1/blocks?limit=1")
+            if [ "$status" = "200" ]; then echo "Mirror node ready (attempt $i)"; exit 0; fi
+            echo "Attempt $i: HTTP $status, retrying in 5s..."
+            sleep 5
+          done
+          echo "Mirror node did not stabilize in 150s"; exit 1
 
       # Perform JSON-RPC Relay regression tests
       - name: Start json-rpc-relay-test-client
         id: run-rpc-relay-tests
         env:
           CHAIN_ID: "0x12a"
-          MIRROR_NODE_URL: "http://127.0.0.1:8081"
+          MIRROR_NODE_URL: "http://127.0.0.1:38081"
           HEDERA_NETWORK: '{"127.0.0.1:50211":"0.0.3"}'
           OPERATOR_ID_MAIN: 0.0.2
           OPERATOR_KEY_MAIN: 302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137
@@ -238,7 +265,7 @@ jobs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
@@ -273,7 +300,7 @@ jobs:
           egress-policy: audit
 
       - name: Report Status to Detailed Test Reports Channel
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook

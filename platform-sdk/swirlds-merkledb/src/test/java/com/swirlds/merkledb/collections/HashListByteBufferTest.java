@@ -12,10 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -44,22 +43,23 @@ class HashListByteBufferTest {
     private static final int LARGE_HASHES_PER_BUFFER = 10_000;
 
     public HashListByteBuffer createHashList(final int hashesPerBuffer, final long capacity, final boolean offHeap) {
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", hashesPerBuffer))
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamOffHeapBuffers", offHeap))
-                .build();
+        final MerkleDbConfig config = createConfiguration(hashesPerBuffer, offHeap);
         return new HashListByteBuffer(capacity, config);
     }
 
     public HashList createHashList(
             final Path file, final int hashesPerBuffer, final long capacity, final boolean offHeap) throws IOException {
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamBufferSize", hashesPerBuffer))
-                .withSource(new SimpleConfigSource("merkleDb.hashStoreRamOffHeapBuffers", offHeap))
-                .build();
+        final MerkleDbConfig config = createConfiguration(hashesPerBuffer, offHeap);
         return new HashListByteBuffer(file, capacity, config);
+    }
+
+    private MerkleDbConfig createConfiguration(final int hashesPerBuffer, final boolean offHeap) {
+        return ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withValue(MerkleDbConfig_.HASH_STORE_RAM_BUFFER_SIZE, String.valueOf(hashesPerBuffer))
+                .withValue(MerkleDbConfig_.HASH_STORE_RAM_OFF_HEAP_BUFFERS, String.valueOf(offHeap))
+                .build()
+                .getConfigData(MerkleDbConfig.class);
     }
 
     /**

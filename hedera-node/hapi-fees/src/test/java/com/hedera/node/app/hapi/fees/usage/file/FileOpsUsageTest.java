@@ -3,10 +3,10 @@ package com.hedera.node.app.hapi.fees.usage.file;
 
 import static com.hedera.node.app.hapi.fees.test.UsageUtils.A_USAGES_MATRIX;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASE_FILEINFO_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASE_FILEINFO_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.BASIC_ENTITY_ID_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.getAccountKeyStorageSize;
 import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -25,7 +25,7 @@ import com.hedera.node.app.hapi.fees.usage.QueryUsage;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hederahashgraph.api.proto.java.FileCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.FileGetInfoQuery;
 import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
@@ -215,7 +215,7 @@ class FileOpsUsageTest {
     @Test
     void hasExpectedBaseReprSize() {
         // given:
-        final int expected = FeeBuilder.BOOL_SIZE + FeeBuilder.LONG_SIZE;
+        final int expected = FeeConstants.BOOL_SIZE + FeeConstants.LONG_SIZE;
 
         // expect:
         assertEquals(expected, FileOpsUsage.bytesInBaseRepr());
@@ -225,7 +225,7 @@ class FileOpsUsageTest {
         return FileOpsUsage.bytesInBaseRepr()
                 + contents.length
                 + memo.length()
-                + FeeBuilder.getAccountKeyStorageSize(wacl);
+                + FeeConstants.getAccountKeyStorageSize(wacl);
     }
 
     private void givenEmptyUpdateOp() {

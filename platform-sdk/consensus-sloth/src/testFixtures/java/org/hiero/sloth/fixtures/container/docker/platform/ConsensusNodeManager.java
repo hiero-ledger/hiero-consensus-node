@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.sloth.fixtures.app.SlothStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -15,14 +16,14 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.InitialStateLoader;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
+import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,6 +34,10 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.ConsensusLayerFactory;
+import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
+import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
@@ -47,6 +52,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.app.SlothExecutionLayer;
@@ -140,34 +146,59 @@ public class ConsensusNodeManager {
 
         final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
-        final PlatformBuilder builder = PlatformBuilder.create(
-                        SlothApp.APP_NAME,
-                        SlothApp.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        slothApp,
-                        selfId,
-                        Long.toString(selfId.id()),
-                        rosterHistory,
-                        stateLifecycleManager)
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionCallback)
-                .withTransactionOffsetNanos(SlothApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
+        final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
+                platformConfig,
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                keysAndCerts,
+                selfId,
+                platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
+                executionCallback,
+                slothApp,
+                initialState,
+                stateLifecycleManager,
+                version,
+                SlothApp.APP_NAME,
+                SlothApp.SWIRLD_NAME,
+                Long.toString(selfId.id()),
+                SlothApp.DEFAULT_TRANSACTION_OFFSET_NANOS,
+                null,
+                null,
+                null,
+                null);
 
         // Build the platform component builder
-        final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
-        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
+        final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
+        final ConsensusLayerFactoryResult factoryOutput = factory.create();
+
+        final ConsensusLayerBuildingBlocks buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
+        PlatformWiring.wire(inputs, buildingBlocks);
 
         // Wiring: Forward consensus rounds to registered listeners
-        final PlatformComponents platformComponents = blocks.platformComponents();
-        platformComponents
+        buildingBlocks
                 .hashgraphModule()
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
-        platform = componentBuilder.build();
+        final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
+        try (final ReservedSignedState ignored = initialState) {
+            final SignedState initialSignedState = initialState.get();
+            final boolean startedFromGenesis = initialSignedState.isGenesisState();
+            if (startedFromGenesis) {
+                platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+            } else {
+                final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
+                platform = new SwirldsPlatform(
+                        inputs,
+                        platformCoordinator,
+                        buildingBlocks,
+                        initialAncientThreshold,
+                        initialSignedState.getRound());
+            }
+            InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
+        }
     }
 
     /**

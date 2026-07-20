@@ -3,7 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -15,7 +15,6 @@ import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,9 +38,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class DataFileCollectionCompactionTest {
-
-    // Would be nice to add a test to make sure files get deleted
-    private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     /**
      * Temporary directory provided by JUnit
@@ -83,7 +79,8 @@ class DataFileCollectionCompactionTest {
     void testMerge() throws Exception {
         final Map<Long, Long> index = new HashMap<>();
         String storeName = "mergeTest";
-        final var coll = new DataFileCollection(MERKLE_DB_CONFIG, tempFileDir.resolve(storeName), storeName, null);
+        final var coll =
+                new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, tempFileDir.resolve(storeName), storeName, null);
 
         coll.startWriting();
         index.put(1L, storeDataItem(coll, new long[] {1, APPLE}));
@@ -179,7 +176,7 @@ class DataFileCollectionCompactionTest {
         final long[] index = new long[MAXKEYS];
         String storeName = "testDoubleMerge";
         final Path testDir = tempFileDir.resolve(storeName);
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         final int numFiles = 2;
         for (long i = 0; i < numFiles; i++) {
@@ -246,7 +243,7 @@ class DataFileCollectionCompactionTest {
         // Create a new data collection from the snapshot
         final String[] index2 = new String[MAXKEYS];
         final DataFileCollection store2 = new DataFileCollection(
-                MERKLE_DB_CONFIG,
+                DEFAULT_MERKLE_DB_CONFIG,
                 snapshot,
                 storeName,
                 (dataLocation, data) ->
@@ -295,7 +292,7 @@ class DataFileCollectionCompactionTest {
         String storeName = "testMergeAndFlush";
         final Path testDir = tempFileDir.resolve(storeName);
 
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         try {
             for (long i = 0; i < 2 * NUM_UPDATES; i++) {
@@ -368,7 +365,7 @@ class DataFileCollectionCompactionTest {
         String storeName = "testRestore";
         final Path testDir = tempFileDir.resolve(storeName);
 
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
         try {
             // Initial values
             store.startWriting();
@@ -427,7 +424,7 @@ class DataFileCollectionCompactionTest {
             // Restore from all files
             final AtomicLongArray reindex = new AtomicLongArray(MAX_KEYS);
             final DataFileCollection restore = new DataFileCollection(
-                    MERKLE_DB_CONFIG,
+                    DEFAULT_MERKLE_DB_CONFIG,
                     testDir,
                     storeName,
                     (dataLocation, data) -> reindex.set((int) data.readLong(), dataLocation));
@@ -459,7 +456,7 @@ class DataFileCollectionCompactionTest {
         Files.createDirectories(testDir);
         try (final LongListSegment index = new LongListSegment(numValues, numFiles * numValues, 0)) {
             index.updateValidRange(0, numFiles * numValues - 1);
-            final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+            final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
             final DataFileCompactor compactor = new DataFileCompactor(store, index, null, null, null, null);
             // Create a few files initially
             for (int i = 0; i < numFiles; i++) {
@@ -559,7 +556,8 @@ class DataFileCollectionCompactionTest {
             // Restore
             final LongListOffHeap index2 =
                     new LongListOffHeap(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0);
-            final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
+            final DataFileCollection store2 =
+                    new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, snapshotDir, storeName, null);
             // Check index size
             assertEquals(numFiles * numValues, index2.size());
             // Check the values
@@ -584,7 +582,7 @@ class DataFileCollectionCompactionTest {
         final LongList index = new LongListOffHeap(MAXKEYS / 10, MAXKEYS, 0);
         String storeName = "testInconsistentIndex";
         final Path testDir = tempFileDir.resolve(storeName);
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
         final DataFileCompactor compactor = new DataFileCompactor(store, index, null, null, null, null);
 
         final int numFiles = 10; // should be greater than min number of files to compact
@@ -642,7 +640,7 @@ class DataFileCollectionCompactionTest {
 
         // Create a new data collection from the snapshot
         LongList index2 = new LongListOffHeap(savedIndex, MAXKEYS / 10, MAXKEYS, 0);
-        final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshot, storeName, null);
+        final DataFileCollection store2 = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, snapshot, storeName, null);
 
         // Merge all files with redundant records
         final List<DataFileReader> filesToMerge2 = getFilesToMerge(store2);
@@ -685,11 +683,13 @@ class DataFileCollectionCompactionTest {
         final String storeName = "testDedup";
         final Path testDir = tempFileDir.resolve(storeName);
         final int metadataSizeDiff = 4;
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         // Create a LongList to act as bucket index
         final LongListHeap index = new LongListHeap(
-                MERKLE_DB_CONFIG.longListChunkSize(), bucketCount, MERKLE_DB_CONFIG.longListReservedBufferSize());
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
+                bucketCount,
+                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
         index.updateValidRange(0, bucketCount - 1);
 
         // Write one file with 4 buckets
@@ -739,13 +739,14 @@ class DataFileCollectionCompactionTest {
     @DisplayName("Compaction with dedup: sanitized entries are both preserved")
     void testCompactionPreservesSanitizedEntries() throws Exception {
         final int bucketCount = 8;
-        final int half = bucketCount / 2;
         final String storeName = "testDedupSanitized";
         final Path testDir = tempFileDir.resolve(storeName);
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         final LongListHeap index = new LongListHeap(
-                MERKLE_DB_CONFIG.longListChunkSize(), bucketCount, MERKLE_DB_CONFIG.longListReservedBufferSize());
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
+                bucketCount,
+                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
         index.updateValidRange(0, bucketCount - 1);
 
         // Write one file with 8 distinct buckets (all sanitized — no mirrors)
@@ -792,10 +793,12 @@ class DataFileCollectionCompactionTest {
         final int metadataSizeDiff = 4;
         String storeName = "testDedupMixed";
         final Path testDir = tempFileDir.resolve(storeName);
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+        final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         final LongListHeap index = new LongListHeap(
-                MERKLE_DB_CONFIG.longListChunkSize(), bucketCount, MERKLE_DB_CONFIG.longListReservedBufferSize());
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
+                bucketCount,
+                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
         index.updateValidRange(0, bucketCount - 1);
 
         // Write one file with 6 data items

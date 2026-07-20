@@ -5,7 +5,6 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,6 +14,7 @@ import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
+import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

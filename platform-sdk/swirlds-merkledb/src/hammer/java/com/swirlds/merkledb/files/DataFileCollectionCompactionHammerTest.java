@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,9 +60,11 @@ class DataFileCollectionCompactionHammerTest {
         assertDoesNotThrow(() -> {
             final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
-            final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
             final var coll = new DataFileCollection(
-                    dbConfig, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
+                    DEFAULT_MERKLE_DB_CONFIG,
+                    tempFileDir.resolve(storeName),
+                    storeName,
+                    (dataLocation, dataValue) -> {});
             final var compactor = new DataFileCompactor(coll, index, null, null, null, null);
 
             final Random rand = new Random(777);
@@ -125,9 +126,8 @@ class DataFileCollectionCompactionHammerTest {
         Files.createDirectories(tempFileDir);
         final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
-        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var coll = new DataFileCollection(
-                dbConfig, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
+                DEFAULT_MERKLE_DB_CONFIG, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
         final var compactor = new DataFileCompactor(coll, index, null, null, null, null);
 
         final Random rand = new Random(777);

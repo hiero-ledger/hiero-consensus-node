@@ -4,9 +4,8 @@ package org.hiero.base.crypto.engine;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.goterl.lazysodium.LazySodiumJava;
-import com.goterl.lazysodium.SodiumJava;
-import com.goterl.lazysodium.interfaces.Sign;
+import com.hedera.cryptography.libsodium.Libsodium;
+import java.lang.foreign.MemorySegment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.SignatureType;
@@ -17,7 +16,7 @@ import org.hiero.base.crypto.TransactionSignature;
  * Ed25519 signatures and depends on LazySodium (libSodium) for all operations.
  */
 public class Ed25519VerificationProvider
-        extends OperationProvider<TransactionSignature, Void, Boolean, Sign.Native, SignatureType> {
+        extends OperationProvider<TransactionSignature, Void, Boolean, Libsodium, SignatureType> {
 
     private static final Logger logger = LogManager.getLogger(Ed25519VerificationProvider.class);
 
@@ -25,11 +24,10 @@ public class Ed25519VerificationProvider
      * The JNI interface to the underlying native libSodium dynamic library. This variable is initialized when this
      * class is loaded and initialized by the {@link ClassLoader}.
      */
-    private static final Sign.Native algorithm;
+    private static final Libsodium algorithm;
 
     static {
-        final SodiumJava sodiumJava = new SodiumJava();
-        algorithm = new LazySodiumJava(sodiumJava);
+        algorithm = Libsodium.getInstance();
     }
 
     /**
@@ -70,7 +68,7 @@ public class Ed25519VerificationProvider
      */
     protected boolean compute(
             final byte[] message, final byte[] signature, final byte[] publicKey, final SignatureType algorithmType) {
-        final Sign.Native loadedAlgorithm = loadAlgorithm(algorithmType);
+        final Libsodium loadedAlgorithm = loadAlgorithm(algorithmType);
         return compute(loadedAlgorithm, algorithmType, message, signature, publicKey);
     }
 
@@ -78,7 +76,7 @@ public class Ed25519VerificationProvider
      * {@inheritDoc}
      */
     @Override
-    protected Sign.Native loadAlgorithm(final SignatureType algorithmType) {
+    protected Libsodium loadAlgorithm(final SignatureType algorithmType) {
         return algorithm;
     }
 
@@ -87,7 +85,7 @@ public class Ed25519VerificationProvider
      */
     @Override
     protected Boolean handleItem(
-            final Sign.Native algorithm,
+            final Libsodium algorithm,
             final SignatureType algorithmType,
             final TransactionSignature sig,
             final Void optionalData) {
@@ -115,12 +113,17 @@ public class Ed25519VerificationProvider
      * @return true if the provided signature is valid; false otherwise
      */
     private boolean compute(
-            final Sign.Native algorithm,
+            final Libsodium algorithm,
             final SignatureType algorithmType,
             final byte[] message,
             final byte[] signature,
             final byte[] publicKey) {
-        final boolean isValid = algorithm.cryptoSignVerifyDetached(signature, message, message.length, publicKey);
+        final boolean isValid = algorithm.cryptoSignVerifyDetached(
+                        MemorySegment.ofArray(signature),
+                        MemorySegment.ofArray(message),
+                        message.length,
+                        MemorySegment.ofArray(publicKey))
+                == 0;
 
         if (!isValid && logger.isDebugEnabled()) {
             logger.debug(

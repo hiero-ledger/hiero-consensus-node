@@ -23,10 +23,12 @@ import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFOR
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -58,6 +60,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -109,6 +112,7 @@ import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -151,6 +155,8 @@ class BlockStreamManagerImplTest {
             .build();
     private static final BlockItem FAKE_RECORD_FILE_ITEM =
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
+    private static final String SIMULATED_PIPELINE_FAILURE = "simulated hashing pipeline failure";
+    private static final String SIMULATED_PIPELINE_ERROR = "simulated hashing pipeline error";
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(HASH_OF_ZERO), 0);
 
     @Mock
@@ -208,6 +214,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
+
+    @Mock
+    private BlockStreamingObs streamingObs;
 
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
@@ -285,7 +294,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -310,7 +320,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -451,6 +462,85 @@ class BlockStreamManagerImplTest {
         final var proof = item.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, proof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, proof.signedBlockProof().blockSignature());
+    }
+
+    @Test
+    void endRoundFailsFastWhenBlockItemWriteFailsInsteadOfHanging() {
+        // A failure inside the per-block hashing pipeline must surface as a fast failure on
+        // the handler thread's sync() (here via endRound), never a permanent deadlock on ForkJoinTask.join().
+        givenSingleRoundPerBlockSubject();
+        given(blockHashSigner.isReady()).willReturn(true);
+        givenWriterFailingOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+
+        final var thrown = assertPipelineFailsFast(() -> subject.endRound(state, ROUND_NO));
+        assertEquals(SIMULATED_PIPELINE_FAILURE, thrown.getCause().getMessage());
+    }
+
+    @Test
+    void prngSeedFailsFastWhenBlockItemWriteFailsInsteadOfHanging() {
+        // The same fast-failure guarantee must hold for the mid-transaction sync() site.
+        givenSingleRoundPerBlockSubject();
+        givenWriterFailingOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // A further item after the failing one keeps prevTask downstream of the failure, so the old
+        // swallow-and-stall behavior would block prngSeed()'s join() here forever.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertEquals(SIMULATED_PIPELINE_FAILURE, thrown.getCause().getMessage());
+    }
+
+    @Test
+    void serializationFailureInParallelTaskFailsFastInsteadOfHanging() throws Exception {
+        // Covers the ParallelTask branch where BlockItem serialization itself throws (rather
+        // than a downstream writer failure). A null item is pushed straight onto the worker so
+        // BlockItem.PROTOBUF.toBytes(item) fails; the pipeline must record it, keep advancing, and fail fast on sync().
+        givenSingleRoundPerBlockSubject();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // This reflection is intentionally coupled to the private `worker` field and its `addItem(BlockItem)` method;
+        // if either is renamed, update this test. Reflection is the only way to feed an unserializable (null) item —
+        // writeItem() rejects nulls before they ever reach the pipeline.
+        final var workerField = BlockStreamManagerImpl.class.getDeclaredField("worker");
+        workerField.setAccessible(true);
+        final var worker = workerField.get(subject);
+        final var addItem = worker.getClass().getDeclaredMethod("addItem", BlockItem.class);
+        addItem.setAccessible(true);
+        addItem.invoke(worker, new Object[] {null});
+        // A valid item after the failing one keeps prevTask downstream of the failure.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertInstanceOf(NullPointerException.class, thrown.getCause());
+    }
+
+    @Test
+    void errorEscapingOnExecuteFailsFastViaOnExceptionInsteadOfHanging() {
+        // The pipeline's try/catch blocks only handle Exception; an Error (e.g. OutOfMemoryError) escapes onExecute()
+        // and is routed to onException() by AbstractTask. That path must still record the failure and advance the chain
+        // so sync() fails fast instead of hanging on join() — the same guarantee ParallelTask.onException provides.
+        givenSingleRoundPerBlockSubject();
+        givenWriterThrowingErrorOnSignedTransaction();
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // A further item after the failing one keeps prevTask downstream of the failure.
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        final var thrown = assertPipelineFailsFast(subject::prngSeed);
+        assertInstanceOf(OutOfMemoryError.class, thrown.getCause());
+        assertEquals(SIMULATED_PIPELINE_ERROR, thrown.getCause().getMessage());
     }
 
     @Test
@@ -770,6 +860,11 @@ class BlockStreamManagerImplTest {
         subject.endRound(state, ROUND_NO);
 
         verify(aWriter).openBlock(N_BLOCK_NO);
+
+        // After the freeze round ends, no successor block is opened, so blockNo() must still report the
+        // freeze block itself; the freeze-time block node acknowledgement wait relies on this to target
+        // the freeze block (see Hedera#awaitFreezeRoundBlockProofsAndAcks).
+        assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed
         final var expectedBlockInfo = new BlockStreamInfo(
@@ -1623,19 +1718,19 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
-        subject.init(state, HASH_OF_ZERO);
+        subject.init(state, HASH_OF_ZERO, true);
         // If cutover had run, it would have tried to read BlockRecordService states,
         // which are not mocked here; the test succeeding proves cutover was skipped.
     }
 
     @Test
-    void cutoverSkippedWhenSchemaDidNotExecute() {
-        // Cutover is enabled, but previewStreamOverwritten=false means the schema did not run, and therefore init
-        // should not run
-        // cutover scenario
+    void cutoverSkippedWhenPersistentMarkerIsFalse() {
+        // Even with the current-startup signal, previewStreamOverwritten=false means the durable cutover marker was
+        // not set, so init should retain the normal path.
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
                 .previewStreamOverwritten(false)
@@ -1659,15 +1754,16 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
         given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
 
-        // init with HASH_OF_ZERO — loadCutoverData should see previewStreamOverwritten=false and skip
-        subject.init(state, HASH_OF_ZERO);
+        // loadCutoverData should see previewStreamOverwritten=false and skip
+        subject.init(state, HASH_OF_ZERO, true);
     }
 
     @Test
@@ -1710,7 +1806,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -1724,7 +1821,59 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
 
         // init with null lastBlockHash — should trigger the cutover loading path
-        subject.init(state, null);
+        subject.init(state, null, true);
+    }
+
+    @Test
+    void cutoverSkippedWhenSchemaDidNotExecuteEvenIfBlockNumbersMatch() {
+        // In BOTH mode the record and block stream numbers can continue advancing in lockstep after cutover. Matching
+        // numbers therefore do not prove the schema overwrite happened during this startup.
+        final long matchingBlockNumber = 595L;
+        final var blockInfo = BlockInfo.newBuilder()
+                .lastBlockNumber(matchingBlockNumber)
+                .previewStreamOverwritten(true)
+                .build();
+        final var blockStreamInfo = blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
+                .copyBuilder()
+                .blockNumber(matchingBlockNumber)
+                .build();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.enableCutover", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                streamingObs);
+
+        final var blockRecordReadable = mock(ReadableStates.class);
+        lenient()
+                .when(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
+                .thenReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
+        lenient().when(state.getReadableStates(BlockRecordService.NAME)).thenReturn(blockRecordReadable);
+
+        final var blockStreamReadable = mock(ReadableStates.class);
+        given(blockStreamReadable.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, () -> blockStreamInfo));
+        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
+
+        subject.init(state, null, false);
+
+        verify(state, never()).getReadableStates(BlockRecordService.NAME);
     }
 
     @Test
@@ -1756,7 +1905,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -1770,7 +1920,45 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
 
         // init with HASH_OF_ZERO — cutover should be skipped since BSI has advanced
-        subject.init(state, HASH_OF_ZERO);
+        subject.init(state, HASH_OF_ZERO, true);
+    }
+
+    private void givenSingleRoundPerBlockSubject() {
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+    }
+
+    private void givenWriterFailingOnSignedTransaction() {
+        doAnswer(invocationOnMock -> {
+                    if (((BlockItem) invocationOnMock.getArgument(0)).hasSignedTransaction()) {
+                        throw new RuntimeException(SIMULATED_PIPELINE_FAILURE);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+    }
+
+    private void givenWriterThrowingErrorOnSignedTransaction() {
+        doAnswer(invocationOnMock -> {
+                    if (((BlockItem) invocationOnMock.getArgument(0)).hasSignedTransaction()) {
+                        // An Error (not an Exception) is not caught inside onExecute(); it must be handled by
+                        // onException() instead of stalling the pipeline.
+                        throw new OutOfMemoryError(SIMULATED_PIPELINE_ERROR);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+    }
+
+    private IllegalStateException assertPipelineFailsFast(final Executable syncTrigger) {
+        // Preemptive timeout so a regression to the old swallow-and-stall behavior fails the test instead of hanging.
+        return assertTimeoutPreemptively(
+                Duration.ofSeconds(30), () -> assertThrows(IllegalStateException.class, syncTrigger));
     }
 
     private void givenSubjectWith(
@@ -1798,7 +1986,8 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
-                metrics);
+                metrics,
+                streamingObs);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);

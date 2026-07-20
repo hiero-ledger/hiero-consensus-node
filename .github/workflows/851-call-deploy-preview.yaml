@@ -48,27 +48,15 @@ jobs:
   Deploy-Preview:
     name: ${{ inputs.custom-job-label || 'Deploy Preview' }}
     runs-on: hl-cn-default-lin-md
-    if: ${{ !github.event.workflow_call.repository.fork }}
+    if: ${{ !github.event.repository.fork }}
     outputs:
       version: ${{ steps.effective-version.outputs.number }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
-          egress-policy: audit
-
-      - name: Install Semantic Version Tools
-        run: |
-          echo "::group::Download SemVer Binary"
-          sudo curl -L -o /usr/local/bin/semver https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver
-          echo "::endgroup::"
-          echo "::group::Change SemVer Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/semver
-          echo "::endgroup::"
-          echo "::group::Show SemVer Binary Version Info"
-          semver --version
-          echo "::endgroup::"
+          setup-semver: "true"
 
       - name: Install JSON Tools
         run: |

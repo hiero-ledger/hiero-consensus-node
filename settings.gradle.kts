@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
+pluginManagement { includeBuild("gradle/besu-native-patch") }
+
 plugins {
-    id("org.hiero.gradle.build") version "0.7.8"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.9" apply false
+    id("org.hiero.gradle.build") version "0.7.11"
+    id("com.hedera.pbj.pbj-compiler") version "0.15.10" apply false
+    id("org.hiero.gradle.feature.besu-native-patch")
 }
 
 javaModules {
@@ -51,9 +54,38 @@ javaModules {
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
 
-// Flaky test handling
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.afterProject {
+    // remove below once https://github.com/hiero-ledger/hiero-gradle-conventions/issues/536 is done
+    plugins.withId("org.hiero.gradle.base.jpms-modules") {
+        configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
+            module("org.hyperledger.besu:besu-evm", "org.hyperledger.besu.evm") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module("org.hyperledger.besu:besu-datatypes", "org.hyperledger.besu.datatypes") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module(
+                "org.hyperledger.besu.internal:besu-crypto-algorithms",
+                "org.hyperledger.besu.internal.crypto",
+            )
+            module(
+                "org.hyperledger.besu.internal:besu-ethereum-rlp",
+                "org.hyperledger.besu.internal.rlp",
+            )
+            module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
+            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.nativelib.boringssl")
+            module("io.vertx:vertx-core", "io.vertx.core")
+            module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
+            module("io.consensys.tuweni:tuweni-units", "tuweni.units")
+        }
+    }
+
+    // Flaky test handling
     tasks.withType<Test>().configureEach {
         // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
         // not flaky

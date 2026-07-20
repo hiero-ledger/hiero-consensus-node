@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -13,7 +13,6 @@ import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
 import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileMetadata;
@@ -25,8 +24,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class GarbageScannerDeadAliveRatioTest {
-
-    private static final MerkleDbConfig DEFAULT_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     // ========================================================================
     // dead/alive ratio computation
@@ -171,7 +168,9 @@ class GarbageScannerDeadAliveRatioTest {
             final DataFileReader file = mockFileReader(1, 0, 5, 1000);
 
             final LongList index = new LongListHeap(
-                    DEFAULT_CONFIG.longListChunkSize(), 4, DEFAULT_CONFIG.longListReservedBufferSize());
+                    DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
+                    4,
+                    DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
             index.updateValidRange(0, 3);
             final long loc1 = DataFileCommon.dataLocation(1, 100);
             final long loc2 = DataFileCommon.dataLocation(1, 200);
@@ -200,7 +199,9 @@ class GarbageScannerDeadAliveRatioTest {
             final DataFileReader file = mockFileReader(1, 0, 4, 1000);
 
             final LongList index = new LongListHeap(
-                    DEFAULT_CONFIG.longListChunkSize(), 4, DEFAULT_CONFIG.longListReservedBufferSize());
+                    DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
+                    4,
+                    DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
             index.updateValidRange(0, 3);
             index.put(0, DataFileCommon.dataLocation(1, 100));
             index.put(1, DataFileCommon.dataLocation(1, 200));
@@ -417,7 +418,8 @@ class GarbageScannerDeadAliveRatioTest {
     }
 
     private static LongList emptyIndex() {
-        return new LongListHeap(DEFAULT_CONFIG.longListChunkSize(), 1, DEFAULT_CONFIG.longListReservedBufferSize());
+        return new LongListHeap(
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(), 1, DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
     }
 
     private static LongList mockIndexWithEntries(final long[]... blocks) {
@@ -427,9 +429,9 @@ class GarbageScannerDeadAliveRatioTest {
         }
 
         final LongList index = new LongListHeap(
-                DEFAULT_CONFIG.longListChunkSize(),
+                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
                 Math.max(1, totalEntries),
-                DEFAULT_CONFIG.longListReservedBufferSize());
+                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
         index.updateValidRange(0, Math.max(0, totalEntries - 1));
 
         long key = 0;

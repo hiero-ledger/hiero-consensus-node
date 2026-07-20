@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -35,7 +34,7 @@ class OrphanBufferEventGraphSourceTest {
 
     @BeforeEach
     void setUp() {
-        context = PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+        context = PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final Roster roster =
                 RandomRosterBuilder.create(new Random(SEED)).withSize(NUM_NODES).build();

@@ -5,10 +5,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
-import com.swirlds.virtualmap.sync.stats.ReconnectMapStats;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
@@ -28,19 +26,6 @@ import org.hiero.base.crypto.Hash;
 public final class LearnerTreeExchanger {
 
     /**
-     * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
-     * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
-     * tree.
-     */
-    private final VirtualMapMetadata originalState;
-
-    /**
-     * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
-     * For the learner, this is the state of the tree being serialized into.
-     */
-    private final VirtualMapMetadata reconnectState;
-
-    /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
     private final VirtualMapLearner vmapLearner;
@@ -50,7 +35,7 @@ public final class LearnerTreeExchanger {
      */
     private final NodeTraversalOrder traversalOrder;
 
-    private final ReconnectMapStats mapStats;
+    private final LearnerSyncMetrics stats;
 
     /**
      * Responses from teacher may come in a different order than they are sent by learner. The order
@@ -67,6 +52,8 @@ public final class LearnerTreeExchanger {
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
+    private VirtualMap.Metadata teacherMetadata = new VirtualMap.Metadata();
+
     /**
      * Create a new {@link LearnerTreeExchanger}.
      *
@@ -74,18 +61,16 @@ public final class LearnerTreeExchanger {
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param traversalOrder
      *      the traversal order defining which paths to request
-     * @param mapStats
+     * @param stats
      *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
-            @NonNull final ReconnectMapStats mapStats) {
+            @NonNull final LearnerSyncMetrics stats) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
-        this.originalState = vmapLearner.getOriginalState();
-        this.reconnectState = vmapLearner.getReconnectState();
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
-        this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
+        this.stats = Objects.requireNonNull(stats, "mapStats is null");
     }
 
     /**
@@ -98,8 +83,13 @@ public final class LearnerTreeExchanger {
         // init with teacher key range
         final long firstLeafPath = rootResponse.firstLeafPath();
         final long lastLeafPath = rootResponse.lastLeafPath();
+        teacherMetadata = new VirtualMap.Metadata(firstLeafPath, lastLeafPath);
+
         traversalOrder.start(
-                originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
+                vmapLearner.getOriginalMetadata().getFirstLeafPath(),
+                vmapLearner.getOriginalMetadata().getLastLeafPath(),
+                firstLeafPath,
+                lastLeafPath);
         vmapLearner.init(firstLeafPath, lastLeafPath);
         handleResponse(rootResponse);
     }
@@ -113,14 +103,13 @@ public final class LearnerTreeExchanger {
     }
 
     /**
-     * Determines if a given path refers to a leaf of the tree.
+     * Determines if a given path refers to a leaf of the teacher tree.
      *
      * @param path a path
-     * @return true if leaf, false if internal
+     * @return true if a leaf path, false if internal node
      */
-    public boolean isLeaf(long path) {
-        assert path <= reconnectState.getLastLeafPath();
-        return path >= reconnectState.getFirstLeafPath();
+    public boolean isLeafOnTeacher(long path) {
+        return teacherMetadata.isLeaf(path);
     }
 
     // This method is called concurrently from multiple threads
@@ -131,7 +120,7 @@ public final class LearnerTreeExchanger {
         }
         final long intPath = traversalOrder.getNextInternalPathToSend();
         if (intPath != Path.INVALID_PATH) {
-            assert (intPath < 0) || !isLeaf(intPath);
+            assert (intPath < 0) || !isLeafOnTeacher(intPath);
             return intPath;
         }
         synchronized (this) {
@@ -142,7 +131,7 @@ public final class LearnerTreeExchanger {
             if (leafPath == Path.INVALID_PATH) {
                 lastLeafSent.set(true);
             } else {
-                assert (leafPath < 0) || isLeaf(leafPath);
+                assert (leafPath < 0) || isLeafOnTeacher(leafPath);
                 if (leafPath > 0) {
                     anticipatedLeafPaths.add(leafPath);
                 }
@@ -151,12 +140,15 @@ public final class LearnerTreeExchanger {
         }
     }
 
+    public void onRequestSend() {
+        stats.incrementTransfersFromLearner();
+    }
+
     // This method is called concurrently from multiple threads and called for non-root nodes (internal and leaves)
     public void responseReceived(final PullVirtualTreeResponse response) {
         final long responsePath = response.path();
-        if (!isLeaf(responsePath)) {
+        if (!isLeafOnTeacher(responsePath)) {
             handleResponse(response);
-            mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
         } else {
             responses.put(responsePath, response);
             // Handle responses in the same order as the corresponding requests were sent to the teacher
@@ -172,7 +164,6 @@ public final class LearnerTreeExchanger {
                 handleResponse(r);
                 anticipatedLeafPaths.remove();
             }
-            mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
         }
     }
 
@@ -180,13 +171,13 @@ public final class LearnerTreeExchanger {
         // Root node was exchanged synchronously in exchangeRootNode() before any tasks started,
         // so by the time this is called from parallel tasks the root has already been processed.
         final long path = response.path();
-        if (reconnectState.getLastLeafPath() <= 0) {
+        if (teacherMetadata.getLastLeafPath() <= 0) {
             return;
         }
         final boolean isClean = response.isClean();
-        final boolean isLeaf = isLeaf(path);
+        final boolean isLeaf = isLeafOnTeacher(path);
         traversalOrder.nodeReceived(path, isClean);
-        mapStats.incrementTransfersFromTeacher();
+        stats.incrementTransfersFromTeacher();
 
         if (isLeaf) {
             if (!isClean) {
@@ -195,20 +186,10 @@ public final class LearnerTreeExchanger {
                 assert path == leaf.path();
                 vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
             }
-            mapStats.incrementLeafData(1, isClean ? 1 : 0);
+            stats.incrementLeafData(isClean);
         } else {
-            mapStats.incrementInternalData(1, isClean ? 1 : 0);
+            stats.incrementInternalHashes(isClean);
         }
-    }
-
-    /**
-     * Returns the ReconnectMapStats object.
-     *
-     * @return the ReconnectMapStats object
-     */
-    @NonNull
-    public ReconnectMapStats getMapStats() {
-        return mapStats;
     }
 
     /**
@@ -223,7 +204,7 @@ public final class LearnerTreeExchanger {
         // method will be made only for the original state from the original tree.
 
         // Make sure the path is valid for the original state
-        if (originalNodePath > originalState.getLastLeafPath()) {
+        if (originalNodePath > vmapLearner.getOriginalMetadata().getLastLeafPath()) {
             return Cryptography.NULL_HASH;
         }
 

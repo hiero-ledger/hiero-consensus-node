@@ -1,26 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import java.util.Arrays;
@@ -37,6 +40,7 @@ import org.junit.jupiter.api.Tag;
  * Integration tests for simple fees congestion pricing.
  */
 @Tag(SIMPLE_FEES)
+@TargetEmbeddedMode(REPEATABLE)
 public class SimpleFeesCongestionPricingTest {
     private static final Logger log = LogManager.getLogger(SimpleFeesCongestionPricingTest.class);
 
@@ -76,7 +80,9 @@ public class SimpleFeesCongestionPricingTest {
               ]
             }""";
 
-    @LeakyHapiTest(overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
+    @LeakyRepeatableHapiTest(
+            value = {MUST_SKIP_INGEST, NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> simpleFeesApplyCongestionMultiplierToTransfers() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong congestedPrice = new AtomicLong();
@@ -99,10 +105,11 @@ public class SimpleFeesCongestionPricingTest {
                 blockingOrder(IntStream.range(0, burstTxns)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
-                            uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
-                                            .payingWith(CIVILIAN_ACCOUNT)
-                                            .txnId("uncheckedTxn" + i))
-                                    .payingWith(GENESIS)
+                            cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
+                                    .payingWith(CIVILIAN_ACCOUNT)
+                                    .txnId("uncheckedTxn" + i)
+                                    .setNode("4") // for skipping ingest
+                                    .hasAnyStatusAtAll()
                                     .noLogging(),
                             sleepFor(125)
                         })
@@ -119,7 +126,7 @@ public class SimpleFeesCongestionPricingTest {
                     log.info("Congested transfer fee: {}", congestionFee);
                     congestedPrice.set(congestionFee);
                 }),
-                withOpContext((spec, opLog) -> Assertions.assertEquals(
+                doingContextual(_ -> Assertions.assertEquals(
                         7.0,
                         (1.0 * congestedPrice.get()) / normalPrice.get(),
                         0.1,

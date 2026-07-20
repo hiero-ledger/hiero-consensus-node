@@ -13,7 +13,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -27,8 +26,6 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Methods for testing {@link VirtualMap}.
@@ -37,17 +34,15 @@ public final class VirtualMapTestUtils {
 
     private VirtualMapTestUtils() {}
 
-    public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(PathsConfig.class)
-            .withConfigDataType(ReconnectConfig.class)
-            .build();
+    public static final Configuration DEFAULT_CONFIGURATION =
+            ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
-    public static final VirtualMapConfig VIRTUAL_MAP_CONFIG = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+    public static final VirtualMapConfig DEFAULT_VIRTUAL_MAP_CONFIG =
+            DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class);
 
     public static VirtualMap createMap() {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        return new VirtualMap(builder, CONFIGURATION);
+        return new VirtualMap(builder, DEFAULT_CONFIGURATION);
     }
 
     public static Hash hash(final long t) {
@@ -130,10 +125,10 @@ public final class VirtualMapTestUtils {
 
         assertEquals(expectedMap.getHash(), actualMap.getHash(), "hash should match");
 
-        final VirtualMapMetadata expectedMetadata = expectedMap.getMetadata();
-        final VirtualMapMetadata actualMetadataMetadata = actualMap.getMetadata();
+        final VirtualMap.Metadata expectedMetadata = expectedMap.getMetadata();
+        final VirtualMap.Metadata actualMetadata = actualMap.getMetadata();
 
-        assertEquals(expectedMetadata, actualMetadataMetadata, "metadata should match");
+        assertEquals(expectedMetadata, actualMetadata, "metadata should match");
 
         for (long i = expectedMetadata.getFirstLeafPath(); i <= expectedMetadata.getLastLeafPath(); i++) {
             assertEquals(

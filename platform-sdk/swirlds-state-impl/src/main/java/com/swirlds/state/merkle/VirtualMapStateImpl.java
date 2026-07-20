@@ -27,9 +27,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
@@ -63,7 +60,6 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -80,7 +76,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
-import org.hiero.base.file.FileSystemManager;
 import org.json.JSONObject;
 
 /**
@@ -117,26 +112,6 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * The state storage
      */
     protected VirtualMap virtualMap;
-
-    /**
-     * Initializes a {@link VirtualMapStateImpl}.
-     *
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     */
-    public VirtualMapStateImpl(
-            @NonNull final Configuration configuration,
-            @NonNull final FileSystemManager fileSystemManager,
-            @NonNull final Metrics metrics) {
-        requireNonNull(configuration);
-        this.metrics = requireNonNull(metrics);
-        final MerkleDbDataSourceBuilder dsBuilder;
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        dsBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, merkleDbConfig.initialCapacity());
-
-        this.virtualMap = new VirtualMap(dsBuilder, configuration);
-        this.virtualMap.registerMetrics(metrics);
-    }
 
     /**
      * Initializes a {@link VirtualMapStateImpl} with the specified {@link VirtualMap}.
@@ -799,11 +774,10 @@ public class VirtualMapStateImpl implements VirtualMapState {
         final JSONObject rootJson = new JSONObject();
 
         final RecordAccessor recordAccessor = virtualMap.getRecords();
-        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
 
         final JSONObject virtualMapMetadataJson = new JSONObject();
-        virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
-        virtualMapMetadataJson.put("lastLeafPath", virtualMapMetadata.getLastLeafPath());
+        virtualMapMetadataJson.put("firstLeafPath", virtualMap.getMetadata().getFirstLeafPath());
+        virtualMapMetadataJson.put("lastLeafPath", virtualMap.getMetadata().getLastLeafPath());
 
         rootJson.put("VirtualMapMetadata", virtualMapMetadataJson);
 

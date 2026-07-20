@@ -2,7 +2,6 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
@@ -11,6 +10,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftw
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
+import static org.hiero.consensus.transaction.handling.TransactionHandlingModule.NO_OP_CONSUMER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -21,9 +21,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
@@ -66,6 +63,9 @@ import org.hiero.consensus.pces.impl.common.PcesMutableFile;
 import org.hiero.consensus.pcli.recovery.internal.EventStreamRoundIterator;
 import org.hiero.consensus.pcli.recovery.internal.StreamedRound;
 import org.hiero.consensus.round.RoundCalculationUtils;
+import org.hiero.consensus.state.SignedStateFileReader;
+import org.hiero.consensus.state.SignedStateFileWriter;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -128,8 +128,8 @@ public final class EventRecoveryWorkflow {
                         platformContext.getConfiguration(),
                         platformContext.getFileSystemManager());
 
-        final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
+                signedStateDir, platformContext.getConfiguration(), stateLifecycleManager);
 
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
@@ -167,7 +167,12 @@ public final class EventRecoveryWorkflow {
             stateLifecycleManager.initWithState(recoveredState.state().get().getState());
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, resultingStateDirectory, recoveredState.state(), stateLifecycleManager);
+                    platformContext.getConfiguration(),
+                    platformContext.getFileSystemManager(),
+                    selfId,
+                    resultingStateDirectory,
+                    recoveredState.state(),
+                    stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 

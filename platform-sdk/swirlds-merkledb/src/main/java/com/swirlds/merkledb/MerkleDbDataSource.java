@@ -17,7 +17,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
@@ -42,7 +41,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
@@ -237,7 +235,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     public MerkleDbDataSource(
             final Path storageDir,
-            final Configuration config,
+            final MerkleDbConfig config,
             final FileSystemManager fileSystemManager,
             final String tableName,
             final boolean compactionEnabled,
@@ -253,7 +251,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * a new empty data source is created with initial capacity as specified.
      *
      * @param storageDir Directory to store data files
-     * @param config Platform configuration
+     * @param config merkle db configuration
      * @param tableName Data source label, used in logs, metrics, etc.
      * @param initialCapacity Initial database capacity. Only used if a new database is created. If
      *                        an existing database is loaded from the storage dir, initial capacity
@@ -265,7 +263,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     public MerkleDbDataSource(
             final Path storageDir,
-            final Configuration config,
+            final MerkleDbConfig config,
             final FileSystemManager fileSystemManager,
             final String tableName,
             final long initialCapacity,
@@ -273,7 +271,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean diskBasedIndices)
             throws IOException {
         this.tableName = tableName;
-        this.merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
+        this.merkleDbConfig = config;
 
         this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
         this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
@@ -357,12 +355,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, config, fileSystemManager)
-                    : new LongListDiskSegment(idToHashChunksFile, hashIndexCapacity, config, fileSystemManager);
+                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager)
+                    : new LongListDiskSegment(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager);
         } else {
             idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(hashIndexCapacity, config, fileSystemManager)
-                    : new LongListDiskSegment(hashIndexCapacity, config, fileSystemManager);
+                    ? new LongListDisk(hashIndexCapacity, merkleDbConfig, fileSystemManager)
+                    : new LongListDiskSegment(hashIndexCapacity, merkleDbConfig, fileSystemManager);
         }
 
         // Hash chunk store (hash chunks)
@@ -380,7 +378,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Try to rebuild hash chunks from legacy hash store RAM / disk. If hash store / disk
             // is used, but the legacy path to hash disk location index file is missing, the method
             // below will throw an exception (even if index rebuilding is forced)
-            rebuildHashChunks(config, fileSystemManager, maxPath + 1, hashesRamToDiskThreshold);
+            rebuildHashChunks(fileSystemManager, maxPath + 1, hashesRamToDiskThreshold);
         } else {
             final LoadedDataCallback hashChunkLoadedCallback;
             // Check if hash chunk index is to be restored: either the index file is missing, or
@@ -511,7 +509,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     private void rebuildHashChunks(
-            final Configuration config,
             final FileSystemManager fileSystemManager,
             final long hashIndexCapacity,
             final long hashesRamToDiskThreshold)
@@ -530,7 +527,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         try {
             if (hashesRamToDiskThreshold > 0) {
                 if (Files.exists(dbPaths.hashStoreRamFile)) {
-                    hashStoreRam = new HashListByteBuffer(dbPaths.hashStoreRamFile, hashesRamToDiskThreshold, config);
+                    hashStoreRam =
+                            new HashListByteBuffer(dbPaths.hashStoreRamFile, hashesRamToDiskThreshold, merkleDbConfig);
                 } else {
                     throw new IOException("Rebuild hash chunks failed: hashStoreRam is missing");
                 }
@@ -544,10 +542,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             ? new LongListDisk(
                                     dbPaths.pathToDiskLocationInternalNodesFile,
                                     hashIndexCapacity,
-                                    config,
+                                    merkleDbConfig,
                                     fileSystemManager)
                             : new LongListDiskSegment(
-                                    dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config, fileSystemManager);
+                                    dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, merkleDbConfig, fileSystemManager);
                 } else {
                     throw new IOException("Rebuild hash chunks failed: pathToDiskLocationInternalNodes is missing");
                 }
@@ -750,6 +748,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     countDownLatch.countDown();
                 }
             });
+
+            // Update valid key range in the metadata file
+            saveMetadata(dbPaths);
 
             // wait for the other threads in the rare case they are not finished yet. We need to
             // have all writing
@@ -1000,7 +1001,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      *     directory
      * @throws IllegalStateException If there is already a snapshot happening
      */
-    @SuppressWarnings("ConstantConditions")
     @Override
     public void snapshot(final Path snapshotDirectory) throws IOException, IllegalStateException {
         // check if another snapshot was running
@@ -1075,6 +1075,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
+                .append("storageDir", dbPaths.storageDir)
                 .append("initialCapacity", initialCapacity)
                 .append("preferDiskBasedIndexes", preferDiskBasedIndices)
                 .append("idToDiskLocationHashChunks.size", idToDiskLocationHashChunks.size())
@@ -1107,8 +1108,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private void saveMetadata(final MerkleDbPaths targetDir) throws IOException {
         final KeyRange leafRange = validLeafPathRange;
         final Path targetFile = targetDir.metadataFile;
-        try (final OutputStream fileOut =
-                Files.newOutputStream(targetFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+        // newOutputStream() overrides the file, if it exists, no need to delete explicitly
+        try (final OutputStream fileOut = Files.newOutputStream(targetFile)) {
             final WritableSequentialData out = new WritableStreamingData(fileOut);
             if (leafRange.getMinValidKey() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MINVALIDKEY);
@@ -1159,7 +1160,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
                 validLeafPathRange = new KeyRange(minValidKey, maxValidKey);
             }
-            Files.delete(sourceFile);
             return true;
         }
         return false;

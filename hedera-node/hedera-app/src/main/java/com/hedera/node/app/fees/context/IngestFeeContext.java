@@ -6,14 +6,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.authorization.Authorizer;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
@@ -53,7 +49,7 @@ public class IngestFeeContext implements FeeContext {
      * @param txInfo the {@link TransactionInfo} of the transaction
      * @param payerKey the {@link Key} of the payer
      * @param payerId the {@link AccountID} of the payer
-     * @param feeManager the {@link FeeManager} to generate a {@link FeeCalculator}
+     * @param feeManager the {@link FeeManager} used for fee calculation
      * @param storeFactory the {@link ReadableStoreFactory} to create readable stores
      * @param numSignatures the number of signatures in the transaction
      * @param transactionDispatcher the {@link TransactionDispatcher} to dispatch child transactions
@@ -94,29 +90,6 @@ public class IngestFeeContext implements FeeContext {
     @Override
     public TransactionBody body() {
         return txInfo.txBody();
-    }
-
-    @NonNull
-    private FeeCalculator createFeeCalculator(@NonNull SubType subType) {
-        // For mono-service compatibility, we treat the sig map size as the number of verifications
-        final var numVerifications = txInfo.signatureMap().sigPair().size();
-        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txInfo.signatureMap());
-        return feeManager.createFeeCalculator(
-                txInfo.txBody(),
-                payerKey,
-                txInfo.functionality(),
-                numVerifications,
-                signatureMapSize,
-                consensusTime,
-                subType,
-                false,
-                storeFactory);
-    }
-
-    @NonNull
-    @Override
-    public FeeCalculatorFactory feeCalculatorFactory() {
-        return this::createFeeCalculator;
     }
 
     @Override

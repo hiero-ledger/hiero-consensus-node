@@ -12,6 +12,7 @@
 #      in resources/0.76|0.77 application.properties (public builds.hedera.com URL); no host-side
 #      pre-download or local nginx server. Per-node download times are reported from hgcaa.log.
 #- [x] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
+#- [x] Optional Step 13: SDK TCK regression suite vs the cutover network (819-call-tck-regression.yaml parity; ENABLE_TCK_TESTS=true)
 
 set -eo pipefail
 set +m
@@ -78,9 +79,6 @@ Environment:
   UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
                             release image (no --local-build-path), so the 0.76 step exercises the
                             tag's own default config. (default: v0.76.0-rc.1)
-  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step.
-                            Must be >= the 0.76 release the network is on, or Solo rejects it as a
-                            downgrade. (default: UPGRADE_076_VERSION, i.e. v0.76.0-rc.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
   SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
@@ -89,10 +87,38 @@ Environment:
                             Matches Solo's own persist-port-forward for the explorer pod (38080 -> 8080),
                             so our forward short-circuits to Solo's auto-managed tunnel when present.
   EXPLORER_INGRESS_SERVICE_NAME Explorer service name (default: hiero-explorer-1-solo)
-  START_STEP                 Step number to resume from (1..12; default: 1).
+  START_STEP                 Step number to resume from (1..13; default: 1).
                             Skips earlier steps; caller is responsible for cluster state matching
                             the end of step (START_STEP - 1). When >1, a resume prelude rebuilds
                             the SDK runtime and re-establishes the CN/mirror port-forwards.
+                            START_STEP=13 implies ENABLE_TCK_TESTS=true unless it was set explicitly.
+  ENABLE_TCK_TESTS           true|false (default: false). Adds Step 13: run the SDK team's TCK suite
+                            (hiero-ledger/hiero-sdk-tck driven through the hiero-sdk-js tck JSON-RPC
+                            server) against the cutover network, replicating the XTS panel in
+                            .github/workflows/819-call-tck-regression.yaml. A TCK failure fails the
+                            script (KEEP_NETWORK semantics still apply, so the network stays up).
+  TCK_REPO_PATH              Existing hiero-sdk-tck checkout to reuse as-is (TCK_VERSION is ignored).
+                            Default: clone into this run's temp WORK_DIR.
+  JS_SDK_REPO_PATH           Existing hiero-sdk-js checkout to reuse as-is (JS_SDK_VERSION is ignored).
+                            NOTE: the tck server setup runs `pnpm add` and rewrites tck/package.json
+                            + lockfile inside that checkout.
+  TCK_VERSION                hiero-sdk-tck tag to clone (default: the tck-version pin in
+                            .github/workflows/support/citr/.citr-env, i.e. what XTS runs;
+                            empty = repo default branch)
+  JS_SDK_VERSION             hiero-sdk-js tag to clone (default: the js-sdk-version pin in the same
+                            .citr-env; empty = repo default branch)
+  TCK_TEST_FILES             Space/comma-separated test files relative to the TCK repo (e.g.
+                            src/tests/crypto-service/test-transfer-hbar-transaction.ts). When set,
+                            runs `npm run test:file <file>` per file instead of the full suite.
+  TCK_TEST_SCRIPT            npm script for the full-suite mode (default: test; e.g. test:serial if
+                            the parallel suite overloads the host)
+  TCK_JSON_RPC_PORT          Local port of the JS-SDK tck JSON-RPC server (default: 8544)
+  MIRROR_GRPC_LOCAL_PORT     Local port forwarded to svc/mirror-1-grpc for MIRROR_NETWORK (default: 5600)
+  MIRROR_RESTJAVA_LOCAL_PORT Local port forwarded to svc/mirror-1-restjava (default: 8084)
+  MIRROR_RESTJAVA_READY_TIMEOUT_SECS
+                            Bound on waiting for the mirror-1-restjava rollout in Step 13 (default: 300)
+  TCK_TEST_TIMEOUT_SECS      Timeout for the full suite / each test:file invocation (default: 3600)
+  TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 13 (default: 900)
 EOF
       exit 0
       ;;
@@ -158,10 +184,6 @@ INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
 UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
 UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
-# The 0.77 upgrade uses the local build, but its --upgrade-version label must be >= the network's
-# current version (now ${UPGRADE_076_VERSION} after the 0.76 step) or Solo rejects it as a downgrade.
-# Default to the 0.76 tag so it tracks automatically if UPGRADE_076_VERSION is bumped.
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-${UPGRADE_076_VERSION}}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -270,6 +292,9 @@ BLOCK_NODE_RELEASE_TAG="${BLOCK_NODE_RELEASE_TAG:-}"
 BLOCK_NODE_IMAGE_TAG="${BLOCK_NODE_IMAGE_TAG:-}"
 BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
+# Per-node budget for the CN to self-download + extract the ~2 GB WRAPS proving key and build
+# its first proof.
+WRAPS_VERIFY_TIMEOUT_SECS="${WRAPS_VERIFY_TIMEOUT_SECS:-600}"
 # BLOCK_NODE_CUTOVER_START_BLOCK is rendered into the BN pod as both
 # BLOCK_NODE_EARLIEST_MANAGED_BLOCK (NodeConfig.earliestManagedBlock) and
 # BACKFILL_START_BLOCK (BackfillConfiguration.startBlock). Together they tell
@@ -303,17 +328,52 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_P
 # Only used on MN >= 0.155 (written as HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION). On 0.154
 # there is no hapiVersion key — leave empty and the importer auto-detects the record→block cutover.
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
-# Mirror node chart version used by `solo mirror node upgrade` in Step 9.
-# Block-cutover env wiring requires MN >= 0.153.1; Solo's default is v0.152.0 which silently ignores the env keys.
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.154.0}"
+# Mirror node chart version pinned for BOTH `solo mirror node add` (Step 3) and `solo mirror node
+# upgrade` (Step 9). Pinning both to one explicit version keeps the upgrade target == the deployed
+# version, satisfying Solo's no-downgrade guard (assertUpgradeVersionNotOlder). Block-cutover env
+# wiring needs MN >= 0.153.1 to honor the HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_* keys; 0.156.0 does.
+# COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
+# currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
+# itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.158.0}"
+
+# --- Step 13: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
+# TCK/JS-SDK version defaults come from the CITR pin file so a default run tests exactly the
+# tags the XTS SDK TCK Regression Panel runs (855-call-extract-citr-vars.yaml reads the same file).
+CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
+TCK_VERSION="${TCK_VERSION:-$({ sed -n 's/^tck-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+JS_SDK_VERSION="${JS_SDK_VERSION:-$({ sed -n 's/^js-sdk-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+TCK_REPO_PATH="${TCK_REPO_PATH:-}"
+JS_SDK_REPO_PATH="${JS_SDK_REPO_PATH:-}"
+TCK_TEST_FILES="${TCK_TEST_FILES:-}"
+TCK_TEST_SCRIPT="${TCK_TEST_SCRIPT:-test}"
+TCK_JSON_RPC_PORT="${TCK_JSON_RPC_PORT:-8544}"
+MIRROR_GRPC_LOCAL_PORT="${MIRROR_GRPC_LOCAL_PORT:-5600}"
+MIRROR_RESTJAVA_LOCAL_PORT="${MIRROR_RESTJAVA_LOCAL_PORT:-8084}"
+MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
+TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
+TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
+# ENABLE_TCK_TESTS is deliberately not defaulted here: the START_STEP block below needs to
+# distinguish "unset" (auto-implied by START_STEP=13) from an explicit false.
 
 # Step at which to start; lower-numbered steps are skipped. Default 1 = full run.
 START_STEP="${START_STEP:-1}"
-if ! [[ "${START_STEP}" =~ ^[1-9]$|^1[012]$ ]]; then
-  echo "START_STEP must be an integer 1..12, got '${START_STEP}'" >&2
+if ! [[ "${START_STEP}" =~ ^[1-9]$|^1[0-3]$ ]]; then
+  echo "START_STEP must be an integer 1..13, got '${START_STEP}'" >&2
   exit 1
 fi
 should_run_step() { (( START_STEP <= $1 )); }
+
+# START_STEP=13 is the standalone-TCK entry point; without ENABLE_TCK_TESTS the run would be a
+# no-op after the resume prelude, so imply it unless the caller set it explicitly.
+if [[ "${START_STEP}" == "13" && -z "${ENABLE_TCK_TESTS:-}" ]]; then
+  echo "START_STEP=13: enabling ENABLE_TCK_TESTS=true (set ENABLE_TCK_TESTS=false explicitly to suppress)"
+  ENABLE_TCK_TESTS=true
+fi
+ENABLE_TCK_TESTS="${ENABLE_TCK_TESTS:-false}"
+if [[ "${START_STEP}" == "13" && "${ENABLE_TCK_TESTS}" != "true" ]]; then
+  echo "WARNING: START_STEP=13 with ENABLE_TCK_TESTS=false — this run will do nothing after the resume prelude" >&2
+fi
 
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
@@ -321,6 +381,7 @@ OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091
 WORK_DIR="$(mktemp -d)"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 NETWORK_PROBE_SCRIPT="${WORK_DIR}/sdk-network-probe.js"
+WRAPS_ENV_VALUES_FILE="${WORK_DIR}/wraps-extra-env-values.yaml"
 JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
 TMP_075_UPGRADE_APP_PROPS="${WORK_DIR}/application-075-jumpstart.properties"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-cutover-values.yaml"
@@ -346,11 +407,24 @@ BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-n
 PORT_FORWARD_WATCHDOG_SCRIPT="${WORK_DIR}/post-run-port-forward-watchdog.sh"
 PORT_FORWARD_WATCHDOG_LOG="${WORK_DIR}/post-run-port-forward-watchdog.log"
 
+# Step 13 (SDK TCK) artifacts. Clones land in WORK_DIR; the mochawesome report is exported to
+# GENERATED_DIR so it survives WORK_DIR removal on a successful non-keep run.
+TCK_CLONE_DIR="${WORK_DIR}/hiero-sdk-tck"
+JS_SDK_CLONE_DIR="${WORK_DIR}/hiero-sdk-js"
+TCK_SDK_SERVER_LOG="${WORK_DIR}/tck-sdk-server.log"
+TCK_REPORT_EXPORT_DIR="${TCK_REPORT_EXPORT_DIR:-${GENERATED_DIR}/tck-report}"
+# Resolved by prepare_tck_repos (either the *_REPO_PATH overrides or the clones above).
+TCK_REPO_DIR=""
+JS_SDK_REPO_DIR=""
+
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
 GRAFANA_PORT_FORWARD_PID=""
 EXPLORER_INGRESS_PORT_FORWARD_PID=""
 PORT_FORWARD_WATCHDOG_PID=""
+MIRROR_GRPC_PORT_FORWARD_PID=""
+MIRROR_RESTJAVA_PORT_FORWARD_PID=""
+TCK_SDK_SERVER_PID=""
 ACTIVE_GRAFANA_SERVICE_NAME="${GRAFANA_SERVICE_NAME}"
 ACTIVE_INGRESS_NAMESPACE="${SOLO_NAMESPACE}"
 ACTIVE_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME}"
@@ -422,11 +496,35 @@ cleanup() {
   # need MinIO back up.
   reconnect_importer_to_minio >/dev/null 2>&1 || true
 
-  if [[ ${exit_code} -ne 0 ]]; then
-    return
+  # Preserve the sdk-server log next to the exported TCK report before killing the server:
+  # WORK_DIR is a temp dir that never reaches CI artifacts, and the log carries the per-request
+  # receipts needed to tell "no receipt from CN" apart from "mirror never showed the update".
+  if [[ -s "${TCK_SDK_SERVER_LOG}" ]]; then
+    mkdir -p "${TCK_REPORT_EXPORT_DIR}" >/dev/null 2>&1 || true
+    cp "${TCK_SDK_SERVER_LOG}" "${TCK_REPORT_EXPORT_DIR}/tck-sdk-server.log" >/dev/null 2>&1 || true
   fi
 
-  if [[ "${KEEP_NETWORK}" == "true" ]]; then
+  # TCK helpers (Step 13) are host-local only — the JSON-RPC sdk-server and the mirror
+  # grpc/restjava forwards exist solely for the TCK client. Kill them regardless of exit
+  # code / KEEP_NETWORK; pnpm spawns nodemon which spawns the node that owns the socket,
+  # so TERM the child tree first, then the pid, then sweep the port for the grandchild.
+  if [[ -n "${TCK_SDK_SERVER_PID}" ]]; then
+    pkill -TERM -P "${TCK_SDK_SERVER_PID}" >/dev/null 2>&1 || true
+    kill "${TCK_SDK_SERVER_PID}" >/dev/null 2>&1 || true
+    kill_processes_on_local_port "${TCK_JSON_RPC_PORT}"
+  fi
+  if [[ -n "${MIRROR_GRPC_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_GRPC_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+
+  if [[ ${exit_code} -ne 0 || "${KEEP_NETWORK}" == "true" ]]; then
+    if [[ "${KEEP_PORT_FORWARD_WATCHDOG}" == "true" && -z "${PORT_FORWARD_WATCHDOG_PID}" ]]; then
+      start_port_forward_watchdog
+      echo "Started port-forward watchdog for the kept network (pid=${PORT_FORWARD_WATCHDOG_PID}, log=${PORT_FORWARD_WATCHDOG_LOG})"
+    fi
     return
   fi
 
@@ -473,9 +571,12 @@ require_cmd() {
 # the protobuf wire format of a block-stream file and slices out the serialized
 # LedgerIdPublicationTransactionBody — exactly the form the Block Node expects at
 # verification.tssParametersFilePath. No protobuf classes / JVM / compile needed: a
-# length-delimited field's value bytes ARE the serialized sub-message, so we navigate by
-# field number  Block.items(1) -> BlockItem.signed_transaction(4) ->
-# SignedTransaction.bodyBytes(1) -> TransactionBody.ledger_id_publication(77).
+# length-delimited field's value bytes ARE the serialized sub-message. The publication is
+# nested differently depending on the stream mode when it was published — records mode
+# (pre-cutover, the usual case here) wraps it in a RecordFileItem, blocks mode carries it as
+# a BlockItem.signed_transaction — so the script walks every sub-message recursively and
+# returns the first field-77 payload that validates as a LedgerIdPublicationTransactionBody
+# rather than hard-coding a single path.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -489,6 +590,8 @@ def read_varint(buf, pos):
     shift = 0
     result = 0
     while True:
+        if pos >= len(buf):
+            raise IndexError("varint past end of buffer")
         b = buf[pos]
         pos += 1
         result |= (b & 0x7F) << shift
@@ -497,51 +600,81 @@ def read_varint(buf, pos):
         shift += 7
 
 
-def iter_fields(msg):
+def parse_fields(msg):
+    # Return [(field_num, wire_type, value), ...] or None if `msg` is not cleanly-framed
+    # protobuf (every byte consumed, no field 0, no length overrun). Used both to walk the
+    # block and to validate candidate sub-messages before descending into them.
     pos = 0
     n = len(msg)
-    while pos < n:
-        key, pos = read_varint(msg, pos)
-        fnum = key >> 3
-        wtype = key & 0x07
-        if wtype == 0:
-            val, pos = read_varint(msg, pos)
-            yield fnum, wtype, val
-        elif wtype == 1:
-            yield fnum, wtype, msg[pos : pos + 8]
-            pos += 8
-        elif wtype == 2:
-            length, pos = read_varint(msg, pos)
-            yield fnum, wtype, msg[pos : pos + length]
-            pos += length
-        elif wtype == 5:
-            yield fnum, wtype, msg[pos : pos + 4]
-            pos += 4
-        else:
-            return
+    out = []
+    try:
+        while pos < n:
+            key, pos = read_varint(msg, pos)
+            fnum = key >> 3
+            wtype = key & 0x07
+            if fnum == 0:
+                return None
+            if wtype == 0:
+                val, pos = read_varint(msg, pos)
+                out.append((fnum, 0, val))
+            elif wtype == 2:
+                length, pos = read_varint(msg, pos)
+                if length < 0 or pos + length > n:
+                    return None
+                out.append((fnum, 2, msg[pos : pos + length]))
+                pos += length
+            elif wtype == 1:
+                pos += 8
+                out.append((fnum, 1, None))
+            elif wtype == 5:
+                pos += 4
+                out.append((fnum, 5, None))
+            else:
+                return None
+    except IndexError:
+        return None
+    return out if pos == n else None
 
 
-def find_field(msg, field_num):
-    for fnum, wtype, val in iter_fields(msg):
-        if fnum == field_num and wtype == 2:
+def is_ledger_id_publication(msg):
+    # A serialized LedgerIdPublicationTransactionBody: cleanly-framed protobuf whose only fields
+    # are ledger_id(1, bytes), history_proof_verification_key(2, bytes) and
+    # node_contributions(3, repeated msg), carrying a plausibly-sized ledger_id. This guards
+    # against a stray field 77 that happens to appear inside unrelated bytes.
+    fields = parse_fields(msg)
+    if not fields:
+        return False
+    has_ledger_id = False
+    for fnum, wtype, val in fields:
+        if fnum not in (1, 2, 3):
+            return False
+        if fnum == 1 and wtype == 2 and 16 <= len(val) <= 64:
+            has_ledger_id = True
+    return has_ledger_id
+
+
+def find_ledger_id_publication(msg, depth=0):
+    # The LedgerIdPublication is nested differently depending on the stream mode when it was
+    # published. Records mode (pre-cutover, the usual case for this seed) wraps it in a record file:
+    #   Block.items(1) -> BlockItem.record_file(10) -> RecordFileItem.record_file_contents(2)
+    #   -> RecordStreamFile.record_stream_items(3) -> RecordStreamItem.transaction(1)
+    #   -> Transaction.signedTransactionBytes(5) -> SignedTransaction.bodyBytes(1)
+    #   -> TransactionBody.ledger_id_publication(77)
+    # Blocks mode uses BlockItem.signed_transaction(4) -> SignedTransaction.bodyBytes(1) -> 77.
+    # Rather than hard-code either path, walk every length-delimited sub-message and return the
+    # first field 77 whose bytes validate as a LedgerIdPublicationTransactionBody.
+    fields = parse_fields(msg)
+    if not fields:
+        return None
+    for fnum, wtype, val in fields:
+        if wtype != 2:
+            continue
+        if fnum == 77 and is_ledger_id_publication(val):
             return val
-    return None
-
-
-def extract_from_block(data):
-    # Block.items = field 1 (repeated). Each item -> BlockItem.
-    for fnum, wtype, val in iter_fields(data):
-        if fnum != 1 or wtype != 2:
-            continue
-        stx = find_field(val, 4)  # BlockItem.signed_transaction
-        if stx is None:
-            continue
-        body = find_field(stx, 1)  # SignedTransaction.bodyBytes
-        if body is None:
-            continue
-        pub = find_field(body, 77)  # TransactionBody.ledger_id_publication
-        if pub is not None:
-            return pub
+        if depth < 12 and len(val) > 0 and parse_fields(val) is not None:
+            found = find_ledger_id_publication(val, depth + 1)
+            if found is not None:
+                return found
     return None
 
 
@@ -555,7 +688,7 @@ def main():
             with open(path, "rb") as f:
                 raw = f.read()
             data = gzip.decompress(raw) if path.endswith(".gz") else raw
-            pub = extract_from_block(data)
+            pub = find_ledger_id_publication(data)
             if pub is not None:
                 with open(out, "wb") as o:
                     o.write(pub)
@@ -587,69 +720,108 @@ EOF
 # and can be deleted.
 #
 # Source: the LedgerIdPublication tx is a synthetic "Ledger id" admin tx in the block
-# stream; we pull .blk.gz from the MinIO solo-streams bucket (the CN block-stream
-# uploader writes them there; gzip, no zstd needed), extract the body, drop it into the
-# BN volume at verification.tssParametersFilePath, then roll the BN so init() loads it.
-seed_block_node_tss_parameters() {
-  local minio_pod creds_tmp u p in_pod_dir bn_pod
-  minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
-    .items[].metadata.name | select(test("^minio-"))' | head -n 1)"
-  if [[ -z "${minio_pod}" ]]; then
-    echo "seed_block_node_tss_parameters: no MinIO pod found in ${MINIO_NAMESPACE}" >&2
-    return 1
-  fi
-
-  creds_tmp="$(mktemp)"
-  if ! minio_discover_pod_credentials "${MINIO_NAMESPACE}" >"${creds_tmp}"; then
-    rm -f "${creds_tmp}"
-    echo "seed_block_node_tss_parameters: could not discover MinIO credentials" >&2
-    return 1
-  fi
-  u="$(sed -n '1p' "${creds_tmp}")"
-  p="$(sed -n '2p' "${creds_tmp}")"
-  rm -f "${creds_tmp}"
-
-  # Copy all block-stream objects out of the bucket via in-pod mc, then kubectl cp the dir.
-  in_pod_dir="/tmp/bn-blk-$$"
-  echo "Copying block-stream files from MinIO ${MINIO_BUCKET}/blockStreams via in-pod mc"
-  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-      "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
-       mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-       mc cp --recursive 'local/${MINIO_BUCKET}/blockStreams/' '${in_pod_dir}/' >/dev/null 2>&1"; then
-    echo "seed_block_node_tss_parameters: in-pod mc cp of blockStreams failed" >&2
-    return 1
-  fi
+# stream. Post-cutover the CN streams blocks to the Block Node (not MinIO), so we pull the
+# block files straight from the BN's own live storage (/opt/hiero/block-node/data/live,
+# zstd-compressed .blk.zstd per the BN's FilesRecentConfig). The publication block is recent
+# and the live retention threshold is large, so it is still in live storage (never archived
+# to the historic zip store). We decompress, extract the body, drop it into the BN volume at
+# verification.tssParametersFilePath, then roll the BN so init() loads it.
+# One attempt to pull the BN's live block files and extract the LedgerIdPublication into
+# BN_TSS_PARAMS_LOCAL. Returns 0 once the publication is found + written; 1 if there are no
+# blocks yet or none of them carry the publication yet (the caller polls). The caller is
+# responsible for python3 + extractor setup. The BN solo-dev image ships findutils + bash (no
+# tar), so we list with find and stream each file out tar-free via `kubectl exec ... cat`.
+pull_bn_blocks_and_extract_ledger_id() {
+  local bn_pod="$1" bn_live_dir="$2"
+  local rel base dest pulled=0 pull_failures=0 bn_block_list="" listed=0
+  echo "Copying block-stream files from Block Node ${bn_pod}:${bn_live_dir}"
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
-  # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
-  # to tar, which the distroless MinIO image does not ship). Stdout without a TTY is a raw
-  # binary stream, so .blk.gz bytes survive intact.
-  local rel base dest pulled=0
+  # Discovery + pull with errexit OFF: under the global `set -e -o pipefail`, a transient
+  # kubectl/find hiccup in a `$(...)`/pipeline would abort the whole scenario with no diagnostic.
+  # Handle errors explicitly and log per-stage counts, then restore errexit.
+  local errexit_was_set=0; [[ $- == *e* ]] && errexit_was_set=1
+  set +e
+  bn_block_list="$(kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- \
+    find "${bn_live_dir}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)"
+  listed="$(printf '%s' "${bn_block_list}" | grep -c . 2>/dev/null)"
+  echo "  BN reports ${listed:-0} block file(s) under ${bn_live_dir}"
   while IFS= read -r rel; do
     [[ -n "${rel}" ]] || continue
     base="$(basename "${rel}")"
     dest="${BN_BLOCK_FILES_DIR}/${base}"
-    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null
-    if [[ -s "${dest}" ]]; then ((pulled++)); else rm -f "${dest}"; fi
-  done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-            "for f in ${in_pod_dir}/*/*.blk.gz ${in_pod_dir}/*.blk.gz; do [ -f \"\$f\" ] && echo \"\$f\"; done" 2>/dev/null)
-  kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
+    if kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- cat "${rel}" > "${dest}" 2>/dev/null && [[ -s "${dest}" ]]; then
+      pulled=$((pulled + 1))
+    else
+      pull_failures=$((pull_failures + 1))
+      echo "  WARN: failed to copy BN block file '${rel}'"
+      rm -f "${dest}"
+    fi
+  done <<< "${bn_block_list}"
+  echo "  pulled ${pulled} block file(s) from BN (pull_failures=${pull_failures})"
+  (( errexit_was_set )) && set -e
 
   local blk_files=()
-  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f -name '*.blk.gz' | sort)
+  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null | sort)
   if [[ "${#blk_files[@]}" -eq 0 ]]; then
-    echo "seed_block_node_tss_parameters: no .blk.gz files retrieved from MinIO (pulled=${pulled})" >&2
+    echo "  no .blk* files retrieved from BN live storage yet (pulled=${pulled}, pull_failures=${pull_failures})"
     return 1
   fi
-  echo "Retrieved ${#blk_files[@]} block-stream files; extracting LedgerIdPublication"
+
+  # Block-stream files are zstd-compressed (.blk.zstd); the extractor reads gzip/raw (not zstd),
+  # so decompress any .blk.zstd to a raw .blk first (system zstd, else the bundled zstd-jni wrapper).
+  if printf '%s\n' "${blk_files[@]}" | grep -q '\.blk\.zstd$'; then
+    ensure_zstd_command_for_block_node || return 1
+    local zi zdst
+    for zi in "${!blk_files[@]}"; do
+      [[ "${blk_files[$zi]}" == *.blk.zstd ]] || continue
+      zdst="${blk_files[$zi]%.zstd}"
+      if zstd -d -c "${blk_files[$zi]}" > "${zdst}" 2>/dev/null && [[ -s "${zdst}" ]]; then
+        blk_files[$zi]="${zdst}"
+      else
+        echo "  WARN: failed to zstd-decompress ${blk_files[$zi]}" >&2
+      fi
+    done
+  fi
+  echo "  scanning ${#blk_files[@]} block-stream file(s) for LedgerIdPublication"
+
+  rm -f "${BN_TSS_PARAMS_LOCAL}"
+  python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}" >/dev/null 2>&1 || return 1
+  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || return 1
+  return 0
+}
+
+seed_block_node_tss_parameters() {
+  local bn_pod="block-node-${BLOCK_NODE_ID}-0"
+  local bn_live_dir="/opt/hiero/block-node/data/live"
 
   require_cmd python3
   write_ledger_id_extractor || return 1
-  rm -f "${BN_TSS_PARAMS_LOCAL}"
-  if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed_block_node_tss_parameters: extractor found no LedgerIdPublication in block stream" >&2
-    return 1
-  fi
-  [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed_block_node_tss_parameters: extracted tss-parameters.bin is empty" >&2; return 1; }
+
+  # Poll for the LedgerIdPublication BEFORE the 0.77 cutover. The ledger id is published
+  # mid-chain only after the TSS history proof finalizes (during/just after the 0.76 step), so it
+  # is typically NOT in a closed, BN-streamed block the instant this runs (observed: the history
+  # proof finalizes ~seconds before this). Re-pull the BN's live blocks and re-extract until the
+  # publication appears; the BN needs it to verify the real-TSS blocks the 0.77 cutover produces.
+  # The network keeps closing blocks on its block-period timer, so the publication lands + streams
+  # to the BN within a few rounds. Pre-cutover it is wrapped in a record file (RecordFileItem), so
+  # the extractor walks the block recursively rather than assuming a native signed_transaction.
+  local deadline=$(( SECONDS + ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300} ))
+  local attempt=0
+  echo "Waiting for the LedgerIdPublication to appear in the Block Node stream (up to ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s) before the 0.77 cutover"
+  while :; do
+    attempt=$(( attempt + 1 ))
+    if pull_bn_blocks_and_extract_ledger_id "${bn_pod}" "${bn_live_dir}"; then
+      echo "Extracted LedgerIdPublication from the BN block stream (attempt ${attempt})"
+      break
+    fi
+    if (( SECONDS >= deadline )); then
+      echo "seed_block_node_tss_parameters: LedgerIdPublication did not appear in the BN block stream within ${LEDGER_ID_PUBLICATION_TIMEOUT_SECS:-300}s (${attempt} attempts)" >&2
+      kubectl -n "${SOLO_NAMESPACE}" exec "${bn_pod}" -- find "${bn_live_dir}" -type f 2>/dev/null | head -n 120 >&2 || true
+      return 1
+    fi
+    echo "  LedgerIdPublication not in the BN stream yet (attempt ${attempt}); re-checking in ${LEDGER_ID_PUBLICATION_POLL_SECS:-10}s..."
+    sleep "${LEDGER_ID_PUBLICATION_POLL_SECS:-10}"
+  done
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"
   echo "Seeding ${bn_pod}:${BN_TSS_PARAMS_CONTAINER_PATH} and rolling the Block Node"
@@ -689,7 +861,9 @@ seed_block_node_tss_parameters() {
   local deadline=$((SECONDS + 180))
   local bn_logs=""
   while (( SECONDS < deadline )); do
-    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
+    # `|| true`: kubectl logs can transiently fail on a pod still transitioning right after the
+    # roll; under set -e a failing `var="$(...)"` would abort instead of letting the loop retry.
+    bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)" || true
     if grep -q "Loaded TSS parameters from file" <<<"${bn_logs}"; then
       echo "Block Node loaded TSS parameters from seeded file — ready to verify real-TSS blocks"
       return 0
@@ -714,7 +888,11 @@ ensure_zstd_command_for_block_node() {
 
   require_cmd java
 
-  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)"
+  # `|| true`: under `set -euo pipefail`, `var="$(find <missing-dir> ... | head)"` aborts the
+  # whole script silently (find exits non-zero on a missing path, pipefail propagates it, and a
+  # failing command substitution trips set -e). Guard it so a missing cache just yields an empty
+  # jar and the explicit check below reports it.
+  zstd_jar="$(find "${HOME}/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni" -name 'zstd-jni-*.jar' 2>/dev/null | head -n 1)" || true
   if [[ -z "${zstd_jar}" || ! -f "${zstd_jar}" ]]; then
     echo "zstd command not found and zstd-jni jar was not found in ~/.gradle cache." >&2
     echo "Install zstd (for example: brew install zstd) or run one block-node tools task once to download zstd-jni, then retry." >&2
@@ -913,6 +1091,8 @@ cleanup_stale_port_forwards() {
   pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/${MIRROR_REST_SERVICE} .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/${EXPLORER_INGRESS_SERVICE_NAME} .*${EXPLORER_INGRESS_LOCAL_PORT}:80" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/mirror-1-grpc .*${MIRROR_GRPC_LOCAL_PORT}:" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/mirror-1-restjava .*${MIRROR_RESTJAVA_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   if [[ "${include_grafana}" == "true" ]]; then
     pkill -f "port-forward svc/.*grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
   fi
@@ -935,7 +1115,7 @@ preflight_kill_stale_port_forwards() {
   # Belt-and-suspenders: free every local port this script forwards to, regardless of how the
   # forward was launched (catches stale forwards whose svc/pattern no longer matches).
   local p
-  for p in "${CN_GRPC_LOCAL_PORT}" "${MIRROR_REST_LOCAL_PORT}" "${EXPLORER_INGRESS_LOCAL_PORT}" "${GRAFANA_LOCAL_PORT}" "${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"; do
+  for p in "${CN_GRPC_LOCAL_PORT}" "${MIRROR_REST_LOCAL_PORT}" "${EXPLORER_INGRESS_LOCAL_PORT}" "${GRAFANA_LOCAL_PORT}" "${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}" "${MIRROR_GRPC_LOCAL_PORT}" "${MIRROR_RESTJAVA_LOCAL_PORT}" "${TCK_JSON_RPC_PORT}"; do
     kill_processes_on_local_port "${p}"
   done
 }
@@ -1096,6 +1276,11 @@ reconnect_importer_to_minio() {
   echo "Scaling ${MINIO_DISCONNECTED_OWNER_KIND}/${MINIO_DISCONNECTED_OWNER_NAME} in namespace ${MINIO_NAMESPACE} back to 1 replica"
   kubectl --request-timeout=30s -n "${MINIO_NAMESPACE}" scale \
     "${MINIO_DISCONNECTED_OWNER_KIND}/${MINIO_DISCONNECTED_OWNER_NAME}" --replicas=1 || true
+  # Give MinIO time to recover before later steps read block-stream objects from the bucket.
+  echo "Waiting up to 180s for minio-pool-1-0 to become Ready after reconnect"
+  if ! kubectl --request-timeout=10s -n "${MINIO_NAMESPACE}" wait --for=condition=ready pod/minio-pool-1-0 --timeout=180s >/dev/null 2>&1; then
+    echo "WARNING: minio-pool-1-0 did not reach Ready within 180s after reconnect; downstream MinIO reads may need retries" >&2
+  fi
   MINIO_DISCONNECTED_OWNER_KIND=""
   MINIO_DISCONNECTED_OWNER_NAME=""
 }
@@ -1121,6 +1306,9 @@ restart_post_upgrade_port_forwards() {
   fi
   if [[ "${cn_ok}" == "true" && "${mirror_ok}" == "true" ]]; then
     echo "  CN gRPC (:${CN_GRPC_LOCAL_PORT}) and Mirror REST (:${MIRROR_REST_LOCAL_PORT}) forwards survived the upgrade; skipping destructive re-establishment"
+    # The explorer UI forward has no in-run healer and upgrade pod churn commonly kills it;
+    # start_explorer_ingress_port_forward is idempotent (no-op while the forward is alive).
+    start_explorer_ingress_port_forward || echo "  WARN: explorer UI port-forward not re-established" >&2
     return 0
   fi
   echo "  Post-upgrade forward health check: cn_ok=${cn_ok} mirror_ok=${mirror_ok} -- a forward is down, re-establishing it"
@@ -1218,6 +1406,8 @@ restart_post_upgrade_port_forwards() {
     tail -n 20 "${mirror_log}" >&2 2>/dev/null || true
     return 1
   fi
+
+  start_explorer_ingress_port_forward || echo "  WARN: explorer UI port-forward not re-established" >&2
 }
 
 minio_discover_service() {
@@ -1785,95 +1975,63 @@ verify_wraps_on_consensus_nodes() {
   echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
 }
 
-# Wraps remedy strategy:
-# 1. Each CN downloads + extracts the WRAPS proving-key archive itself from the
-#    tss.wrapsProvingKeyDownloadUrl set in resources/0.76|0.77 application.properties.
-#    No host-side pre-download or local nginx server is involved; to use a different
-#    URL, point APP_PROPS_076_FILE/APP_PROPS_077_FILE at edited copies.
-# 2. Inject TSS_LIB_WRAPS_ARTIFACTS_PATH directly into each network-nodeX
-#    StatefulSet's container spec via `kubectl set env`. This is the only path
-#    we've confirmed actually reaches the JVM `/proc/$pid/environ`. Solo's
-#    --application-env drops the file at /etc/network-node/env/application.env
-#    but the container entrypoint never sources it. Setting via the spec also
-#    survives subsequent pod restarts (kubectl delete pod, freeze-upgrades,
-#    container crashes), which the ephemeral kubectl-cp + entrypoint patch
-#    approach did NOT survive.
-# 3. After Solo's upgrade returns (success OR timeout), recover any CN that
-#    failed to reach ACTIVE/CHECKING/OBSERVING. Jars + state live on the PVC,
-#    so a `kubectl delete pod` re-rolls the JVM from a settled disk and
-#    sidesteps the "jars still copying" startup race that intermittently kills
-#    one or two nodes per upgrade.
-
-inject_wraps_env_into_statefulsets() {
-  local node sts log_file
-  local wraps_dir nodes=()
+# Build a Solo values file that adds the WRAPS env vars to every consensus node's
+# container spec. Solo reads `defaults.root.extraEnv` from a --values-file and applies
+# it to all nodes unconditionally (independent of the wraps/version gate that guards
+# --wraps-key-path), so it is honored from the genesis deploy onward.
+#
+# WHY we set this at the genesis deploy (Step 2) rather than at Step 10 where WRAPS
+# actually turns on: `solo consensus network upgrade` cannot set container env vars.
+# It has no --values-file/extra-env input, it restarts the JVM in place (so a later
+# `kubectl set env` never reaches the running process), and the chart task that does
+# apply extraEnv runs only in `node add/update`, not in `upgrade`. Injecting the env
+# ourselves at 0.76 therefore means a rolling pod restart of the live 0.75 network;
+# that restart replays the in-flight event stream and, on the cutover binary, diverges
+# into a deterministic network-wide SELF_ISS that leaves Solo's upgrade unable to
+# SDK-ping any node. Baking the env in at deploy sidesteps all of that: Solo's in-place
+# `network upgrade` preserves it (helm --reuse-values), and the 0.73-0.75 binaries simply
+# ignore the unused var until 0.76 reads it. The CN still self-downloads the WRAPS
+# proving-key archive from tss.wrapsProvingKeyDownloadUrl (resources/0.76|0.77
+# application.properties) into ${wraps_dir} at 0.76. This is the cleaner interim approach;
+# revert to a 0.76-time injection once Solo's upgrade command can set extraEnv itself.
+write_wraps_env_values_file() {
+  local wraps_dir
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  log_file="${WORK_DIR}/inject-wraps-env.log"
-  : > "${log_file}"
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=("TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}")
-  if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
-    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
-  fi
-  echo "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
-
-  # `kubectl set env` emits a wave of duplicate-port warnings on every call
-  # because Solo's pod template has `pprof`/`stats` named ports duplicated
-  # across containers — and `kubectl rollout status` chats incrementally. Both
-  # streams are noise the operator can read from the log file if needed; the
-  # script just emits one summary line per node.
-  for node in "${nodes[@]}"; do
-    sts="network-${node}"
-    {
-      echo "=== set env statefulset/${sts} ==="
-      kubectl -n "${SOLO_NAMESPACE}" set env "statefulset/${sts}" -c root-container \
-        "${wraps_env_args[@]}" 2>&1
-    } >> "${log_file}"
-  done
-
-  for node in "${nodes[@]}"; do
-    sts="network-${node}"
-    printf '  injecting env into statefulset/%s... ' "${sts}"
-    if {
-        echo "=== rollout status statefulset/${sts} ==="
-        kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/${sts}" --timeout=600s 2>&1
-      } >> "${log_file}"; then
-      echo "rolled out"
-    else
-      echo "FAILED (see ${log_file})"
-      return 1
+  {
+    echo "defaults:"
+    echo "  root:"
+    echo "    extraEnv:"
+    echo "      - name: TSS_LIB_WRAPS_ARTIFACTS_PATH"
+    echo "        value: ${wraps_dir}"
+    if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "      - name: TSS_LIB_NUM_OF_CORES"
+      echo "        value: \"${WRAPS_NUM_CORES}\""
     fi
-  done
+  } > "${WRAPS_ENV_VALUES_FILE}"
+  echo "Wrote WRAPS extraEnv values file (${WRAPS_ENV_VALUES_FILE}): TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
 }
 
 run_076_upgrade() {
   # The CN pulls the WRAPS proving key itself from the tss.wrapsProvingKeyDownloadUrl in the
   # 0.76 properties (tss.wrapsProvingKeyDownloadEnabled flow).
-
-  # Inject TSS_LIB_WRAPS_ARTIFACTS_PATH into each StatefulSet's container spec
-  # BEFORE Solo's upgrade fires. The rolling restart triggered here runs against
-  # the 0.75 binary, which doesn't use the env var, so it's harmless. Solo's
-  # subsequent freeze-restart is coordinated across all 4 nodes (they all stop
-  # at the same consensus round and resume at the same round) and the env we
-  # pre-injected is preserved through helm's strategic-merge upgrade, so the
-  # 0.76 JVMs all initialize WRAPS in lockstep.
   #
-  # If we instead inject AFTER Solo's upgrade, kubectl set env triggers a
-  # rolling restart on each StatefulSet independently — one pod finishes WRAPS
-  # init and publishes a proof key while others are still on the old config,
-  # which causes a SELF_ISS catastrophic failure on every node.
-  inject_wraps_env_into_statefulsets
-
-  # Note: --wraps-key-path intentionally omitted. Solo only honors it on
-  # `consensus network deploy`; on upgrade it's silently dropped.
+  # No WRAPS env injection here: TSS_LIB_WRAPS_ARTIFACTS_PATH (+ TSS_LIB_NUM_OF_CORES) is
+  # baked into the consensus node container spec at the genesis deploy (Step 2, via
+  # write_wraps_env_values_file) and rides through this in-place upgrade untouched. See
+  # write_wraps_env_values_file for why it cannot be applied at this step.
+  #
+  # Note: --wraps-key-path and --application-env intentionally omitted.
+  # --wraps-key-path is silently dropped on upgrade (Solo only honors it on
+  # `consensus network deploy`). --application-env is a no-op here: Solo drops the
+  # file at /etc/network-node/env/application.env but the container entrypoint
+  # never sources it, and its only var (TSS_LIB_WRAPS_ARTIFACTS_PATH) is now baked
+  # into the pod spec at the genesis deploy (see write_wraps_env_values_file).
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --upgrade-version "${UPGRADE_076_VERSION}"
     --application-properties "${APP_PROPS_076_FILE}"
-    --application-env "${APP_ENV_076_FILE}"
     --quiet-mode
     --force
   )
@@ -1911,7 +2069,7 @@ run_076_upgrade() {
   node "${NODE_SCRIPT}"
 
   echo "--- Step 10 check 4/4: verify WRAPS runtime + proof construction on every consensus node ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
 
   report_wraps_download_times
   echo "--- Step 10 all checks passed ---"
@@ -1959,14 +2117,13 @@ run_077_upgrade() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_077_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_077_FILE}"
     --quiet-mode
     --force
   )
 
-  run_step "Upgrading consensus network to ${UPGRADE_077_VERSION} (local build, 0.77 BLOCKS-only cutover)" \
+  run_step "Upgrading consensus network to the local build (0.77 BLOCKS-only cutover)" \
     run_command_with_timeout "${SOLO_077_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
   echo "--- Step 11 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
@@ -1986,7 +2143,7 @@ run_077_upgrade() {
   node "${NODE_SCRIPT}"
 
   echo "--- Step 11 check 4/4: verify WRAPS runtime + real (non-mock) proof construction ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
   echo "--- Step 11 all checks passed ---"
 }
 
@@ -3120,6 +3277,7 @@ deploy_mirror_node_for_cutover() {
   if run_step "Deploying mirror node" \
     solo mirror node add \
     --deployment "${SOLO_DEPLOYMENT}" \
+    --mirror-node-version "${MIRROR_NODE_VERSION}" \
     --enable-ingress \
     --force-port-forward false \
     --values-file "${MIRROR_NODE_VALUES_FILE}"; then
@@ -3172,7 +3330,6 @@ build_default_block_node_priority_mapping() {
 # Note: nodeId is a STRING and is omitted when 0 (proto default).
 generate_rsa_bootstrap_roster_json() {
   require_cmd openssl
-  require_cmd xxd
   local node node_idx node_id pem hex
   local nodes=()
   local cn_pod="network-node1-0"
@@ -3191,7 +3348,7 @@ generate_rsa_bootstrap_roster_json() {
     hex="$(printf '%s' "${pem}" \
       | openssl x509 -pubkey -noout 2>/dev/null \
       | openssl pkey -pubin -outform DER 2>/dev/null \
-      | xxd -p | tr -d '\n')"
+      | od -An -v -t x1 | tr -d ' \n')"
     if [[ -z "${hex}" ]]; then
       echo "Failed to extract X.509 SPKI hex for node${node_idx}" >&2
       return 1
@@ -3524,7 +3681,11 @@ importer:
       memory: ${MIRROR_IMPORTER_MEMORY_LIMIT}
   env:
     HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'true'
-    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    # Mirror >= 0.157 restructured BlockNodeProperties: nodes[].host/port became a
+    # nodes[].endpoints[] collection; the old flat host key fails Spring binding at startup
+    # (importer CrashLoopBackOff, "elements ... left unbound").
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_PORT: '40840'
 EOF
   if [[ -n "${MIRROR_BLOCK_CUTOVER_HAPIVERSION}" ]]; then
     # 0.155+ only: pin the HAPI version at which to switch from record to block stream.
@@ -3567,6 +3728,356 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
+# ---------- Step 13: SDK TCK regression helpers (819-call-tck-regression.yaml parity) ----------
+
+# pnpm is only needed by the tck server install; require it lazily so runs without
+# ENABLE_TCK_TESTS keep working on hosts that never installed it (819 L142-144 parity).
+ensure_pnpm_available() {
+  if command -v pnpm >/dev/null 2>&1; then
+    return 0
+  fi
+  run_step "Installing pnpm globally (npm install -g pnpm)" npm install -g pnpm || true
+  if command -v pnpm >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "pnpm is required for the TCK sdk-server but could not be installed globally." >&2
+  echo "Install it manually (e.g. 'npm install -g pnpm' with a writable npm prefix, or corepack enable) and re-run." >&2
+  return 1
+}
+
+clone_repo_at_tag() {
+  local url="$1"
+  local dest="$2"
+  local tag="$3"
+  local clone_cmd=(git clone --depth 1)
+  if [[ -n "${tag}" ]]; then
+    clone_cmd+=(--branch "${tag}")
+  fi
+  clone_cmd+=("${url}" "${dest}")
+  rm -rf "${dest}" >/dev/null 2>&1 || true
+  if ! run_step "Cloning ${url} (${tag:-default branch})" "${clone_cmd[@]}"; then
+    echo "Clone failed for ${url} at '${tag:-default branch}' — check that the tag exists and the host has network access" >&2
+    return 1
+  fi
+}
+
+# Resolves TCK_REPO_DIR / JS_SDK_REPO_DIR: reuse the *_REPO_PATH checkouts as-is when given,
+# otherwise clone the *_VERSION tags (default: the XTS pins from .citr-env) into WORK_DIR.
+prepare_tck_repos() {
+  if [[ -n "${TCK_REPO_PATH}" ]]; then
+    if [[ ! -f "${TCK_REPO_PATH}/package.json" ]]; then
+      echo "TCK_REPO_PATH does not look like a hiero-sdk-tck checkout (missing package.json): ${TCK_REPO_PATH}" >&2
+      return 1
+    fi
+    if [[ -n "${TCK_VERSION}" ]]; then
+      echo "NOTE: TCK_REPO_PATH is set; using the checkout as-is (TCK_VERSION=${TCK_VERSION} ignored)"
+    fi
+    TCK_REPO_DIR="${TCK_REPO_PATH}"
+  else
+    clone_repo_at_tag "https://github.com/hiero-ledger/hiero-sdk-tck.git" "${TCK_CLONE_DIR}" "${TCK_VERSION}" || return 1
+    TCK_REPO_DIR="${TCK_CLONE_DIR}"
+  fi
+
+  if [[ -n "${JS_SDK_REPO_PATH}" ]]; then
+    if [[ ! -d "${JS_SDK_REPO_PATH}/tck" ]]; then
+      echo "JS_SDK_REPO_PATH does not look like a hiero-sdk-js checkout (missing tck/ dir): ${JS_SDK_REPO_PATH}" >&2
+      return 1
+    fi
+    if [[ -n "${JS_SDK_VERSION}" ]]; then
+      echo "NOTE: JS_SDK_REPO_PATH is set; using the checkout as-is (JS_SDK_VERSION=${JS_SDK_VERSION} ignored)"
+    fi
+    echo "NOTE: the tck server setup runs 'pnpm add' inside ${JS_SDK_REPO_PATH}/tck and rewrites its package.json + lockfile"
+    JS_SDK_REPO_DIR="${JS_SDK_REPO_PATH}"
+  else
+    clone_repo_at_tag "https://github.com/hiero-ledger/hiero-sdk-js.git" "${JS_SDK_CLONE_DIR}" "${JS_SDK_VERSION}" || return 1
+    if [[ ! -d "${JS_SDK_CLONE_DIR}/tck" ]]; then
+      echo "Cloned hiero-sdk-js has no tck/ directory (does tag '${JS_SDK_VERSION:-default branch}' predate the TCK server?)" >&2
+      return 1
+    fi
+    JS_SDK_REPO_DIR="${JS_SDK_CLONE_DIR}"
+  fi
+  echo "TCK client: ${TCK_REPO_DIR} (${TCK_VERSION:-default branch}); JS-SDK server: ${JS_SDK_REPO_DIR} (${JS_SDK_VERSION:-default branch})"
+}
+
+# run_command_with_timeout backgrounds "$@" in this shell, so plain functions are valid
+# commands for it — these tiny wrappers exist to give the install phases a timeout without
+# quoting gymnastics around cd.
+tck_npm_install() { (cd "${TCK_REPO_DIR}" && npm install --no-fund --no-audit); }
+
+install_tck_client_dependencies() {
+  run_step "Installing TCK client dependencies (npm install in ${TCK_REPO_DIR})" \
+    run_command_with_timeout "${TCK_INSTALL_TIMEOUT_SECS}" tck_npm_install
+}
+
+# Versions pinned into the tck server install, extracted from the JS-SDK checkout's own
+# package.json files (819 L158-176 parity). Globals so the timeout-wrapped install helper
+# can read them.
+TCK_SDK_SERVER_SDK_VERSION=""
+TCK_SDK_SERVER_LONG_VERSION=""
+TCK_SDK_SERVER_PROTO_VERSION=""
+TCK_SDK_SERVER_TS_VERSION=""
+
+tck_sdk_server_pnpm_install() {
+  (
+    cd "${JS_SDK_REPO_DIR}/tck" || exit 1
+    # tck/ is not a member of the sdk repo's pnpm workspace, so give it its own config-only
+    # workspace file (pnpm >= 10 reads build-script approvals from pnpm-workspace.yaml, not
+    # package.json): run dependency build scripts — a plain install fails on pnpm >= 10 with
+    # ERR_PNPM_IGNORED_BUILDS otherwise — but never the browser drivers, which are test-only
+    # deps of the sdk repo, irrelevant to the tck server, and whose postinstalls break on
+    # unpinned transitive drift (chromedriver's install.js dies with ERR_REQUIRE_ESM on node 20).
+    printf 'dangerouslyAllowAllBuilds: true\nignoredBuiltDependencies:\n  - chromedriver\n  - geckodriver\n' > pnpm-workspace.yaml
+    # tck/package.json pins ts-node but not typescript; resolved standalone that floats to the
+    # newest major, which ts-node 10 cannot drive (readConfig fileExists crash on TS 7). Pin the
+    # sdk root's own typescript so the server runs against what the sdk repo develops with.
+    pnpm add "@hiero-ledger/sdk@^${TCK_SDK_SERVER_SDK_VERSION}" "long@${TCK_SDK_SERVER_LONG_VERSION}" "@hiero-ledger/proto@${TCK_SDK_SERVER_PROTO_VERSION}" \
+      && pnpm add -D "typescript@${TCK_SDK_SERVER_TS_VERSION}" \
+      && pnpm install
+  )
+}
+
+start_tck_sdk_server() {
+  local tck_dir="${JS_SDK_REPO_DIR}/tck"
+  if [[ ! -d "${tck_dir}" ]]; then
+    echo "JS-SDK tck server directory not found: ${tck_dir}" >&2
+    return 1
+  fi
+
+  TCK_SDK_SERVER_SDK_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').version)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_LONG_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').dependencies.long)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_PROTO_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../packages/proto/package.json').version)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_TS_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').devDependencies.typescript)" 2>/dev/null || true)"
+  if [[ -z "${TCK_SDK_SERVER_TS_VERSION}" || "${TCK_SDK_SERVER_TS_VERSION}" == "undefined" ]]; then
+    # Known-good with the tck server's ts-node 10 pin; only used if the sdk root drops its own pin.
+    TCK_SDK_SERVER_TS_VERSION="5.9.3"
+  fi
+  if [[ -z "${TCK_SDK_SERVER_SDK_VERSION}" || -z "${TCK_SDK_SERVER_LONG_VERSION}" || "${TCK_SDK_SERVER_LONG_VERSION}" == "undefined" || -z "${TCK_SDK_SERVER_PROTO_VERSION}" ]]; then
+    echo "Could not extract sdk/long/proto versions from the JS-SDK checkout at ${JS_SDK_REPO_DIR}" >&2
+    echo "  sdk='${TCK_SDK_SERVER_SDK_VERSION}' long='${TCK_SDK_SERVER_LONG_VERSION}' proto='${TCK_SDK_SERVER_PROTO_VERSION}'" >&2
+    return 1
+  fi
+
+  run_step "Pinning tck server deps (sdk ^${TCK_SDK_SERVER_SDK_VERSION}, long ${TCK_SDK_SERVER_LONG_VERSION}, proto ${TCK_SDK_SERVER_PROTO_VERSION}, typescript ${TCK_SDK_SERVER_TS_VERSION}) + pnpm install" \
+    run_command_with_timeout "${TCK_INSTALL_TIMEOUT_SECS}" tck_sdk_server_pnpm_install || return 1
+
+  # 819 starts the server with no args (default port 8544). Pass the port only when overridden;
+  # override support depends on the checked-out tck server accepting a port argument.
+  local start_arg=""
+  if [[ "${TCK_JSON_RPC_PORT}" != "8544" ]]; then
+    start_arg="${TCK_JSON_RPC_PORT}"
+  fi
+  kill_processes_on_local_port "${TCK_JSON_RPC_PORT}"
+  echo "Starting TCK JSON-RPC server (pnpm start${start_arg:+ ${start_arg}}) in ${tck_dir} (log: ${TCK_SDK_SERVER_LOG})"
+  TCK_SDK_SERVER_PID="$(
+    cd "${tck_dir}" || exit 1
+    nohup pnpm start ${start_arg:+"${start_arg}"} >"${TCK_SDK_SERVER_LOG}" 2>&1 < /dev/null &
+    echo $!
+  )"
+  if [[ -z "${TCK_SDK_SERVER_PID}" ]]; then
+    echo "Failed to launch the TCK JSON-RPC server (no PID captured)" >&2
+    return 1
+  fi
+
+  if ! wait_for_tcp_open "127.0.0.1" "${TCK_JSON_RPC_PORT}" 60 2 "Waiting for TCK JSON-RPC server on 127.0.0.1:${TCK_JSON_RPC_PORT}"; then
+    echo "TCK JSON-RPC server did not open 127.0.0.1:${TCK_JSON_RPC_PORT}" >&2
+    if ! kill -0 "${TCK_SDK_SERVER_PID}" >/dev/null 2>&1; then
+      echo "  server process ${TCK_SDK_SERVER_PID} already exited" >&2
+    fi
+    if [[ -s "${TCK_SDK_SERVER_LOG}" ]]; then
+      echo "  last server log lines:" >&2
+      tail -n 30 "${TCK_SDK_SERVER_LOG}" | sed 's/^/    /' >&2
+    fi
+    return 1
+  fi
+  echo "TCK JSON-RPC server ready on http://127.0.0.1:${TCK_JSON_RPC_PORT} (pid ${TCK_SDK_SERVER_PID})"
+}
+
+# Bounded rollout wait for a single mirror deployment (wait_for_required_mirror_services_ready
+# covers the required set; TCK additionally needs restjava, which that set tolerates missing).
+wait_for_mirror_deployment_ready() {
+  local deployment="$1"
+  local timeout_secs="$2"
+  local start_ts
+  start_ts="$(date +%s)"
+  while true; do
+    if deployment_ready "${deployment}" 5; then
+      return 0
+    fi
+    if (( $(date +%s) - start_ts >= timeout_secs )); then
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+# Establishes the two forwards only TCK needs (CN gRPC + mirror REST are owned by
+# restart_post_upgrade_port_forwards). Step-scoped: not watchdog-managed, killed
+# unconditionally by cleanup().
+ensure_tck_port_forwards() {
+  # restjava is the one mirror deployment the deploy path tolerates being down (see
+  # mirror_node_failed_only_on_restjava); TCK is the only consumer that REQUIRES it.
+  echo "Waiting for mirror-1-restjava rollout (TCK needs MIRROR_NODE_REST_JAVA_URL; up to ${MIRROR_RESTJAVA_READY_TIMEOUT_SECS}s)"
+  if ! wait_for_mirror_deployment_ready mirror-1-restjava "${MIRROR_RESTJAVA_READY_TIMEOUT_SECS}"; then
+    echo "mirror-1-restjava is not ready — the TCK suite requires the restjava API." >&2
+    echo "The mirror deploy tolerates restjava being down, so the network can look healthy otherwise." >&2
+    echo "Inspect: kubectl -n ${SOLO_NAMESPACE} get deploy mirror-1-restjava (OOMKills are the usual cause);" >&2
+    echo "consider raising MIRROR_RESTJAVA_MEMORY_LIMIT (currently ${MIRROR_RESTJAVA_MEMORY_LIMIT})." >&2
+    return 1
+  fi
+  if ! wait_for_mirror_deployment_ready mirror-1-grpc 120; then
+    echo "mirror-1-grpc deployment is not ready; cannot forward MIRROR_NETWORK for TCK" >&2
+    return 1
+  fi
+
+  local grpc_log="${WORK_DIR}/port-forward-mirror-grpc.log"
+  local restjava_log="${WORK_DIR}/port-forward-mirror-restjava.log"
+
+  if wait_for_tcp_open "127.0.0.1" "${MIRROR_GRPC_LOCAL_PORT}" 1 1; then
+    echo "Mirror gRPC forward already active on localhost:${MIRROR_GRPC_LOCAL_PORT}"
+  else
+    kill_processes_on_local_port "${MIRROR_GRPC_LOCAL_PORT}"
+    echo "Opening mirror gRPC port-forward svc/mirror-1-grpc ${MIRROR_GRPC_LOCAL_PORT}:5600 (kubectl log: ${grpc_log})"
+    nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-grpc "${MIRROR_GRPC_LOCAL_PORT}:5600" >"${grpc_log}" 2>&1 < /dev/null &
+    MIRROR_GRPC_PORT_FORWARD_PID="$!"
+    disown "${MIRROR_GRPC_PORT_FORWARD_PID}" 2>/dev/null || true
+  fi
+
+  if wait_for_tcp_open "127.0.0.1" "${MIRROR_RESTJAVA_LOCAL_PORT}" 1 1; then
+    echo "Mirror restjava forward already active on localhost:${MIRROR_RESTJAVA_LOCAL_PORT}"
+  else
+    kill_processes_on_local_port "${MIRROR_RESTJAVA_LOCAL_PORT}"
+    echo "Opening mirror restjava port-forward svc/mirror-1-restjava ${MIRROR_RESTJAVA_LOCAL_PORT}:http (kubectl log: ${restjava_log})"
+    nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-restjava "${MIRROR_RESTJAVA_LOCAL_PORT}:http" >"${restjava_log}" 2>&1 < /dev/null &
+    MIRROR_RESTJAVA_PORT_FORWARD_PID="$!"
+    disown "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" 2>/dev/null || true
+  fi
+
+  if ! wait_for_tcp_open "127.0.0.1" "${MIRROR_GRPC_LOCAL_PORT}" 20 1 "Waiting for mirror gRPC forward on 127.0.0.1:${MIRROR_GRPC_LOCAL_PORT}"; then
+    echo "Mirror gRPC port-forward did not become reachable on localhost:${MIRROR_GRPC_LOCAL_PORT}" >&2
+    if [[ -s "${grpc_log}" ]]; then
+      tail -n 20 "${grpc_log}" >&2
+    fi
+    return 1
+  fi
+  if ! wait_for_tcp_open "127.0.0.1" "${MIRROR_RESTJAVA_LOCAL_PORT}" 20 1 "Waiting for mirror restjava forward on 127.0.0.1:${MIRROR_RESTJAVA_LOCAL_PORT}"; then
+    echo "Mirror restjava port-forward did not become reachable on localhost:${MIRROR_RESTJAVA_LOCAL_PORT}" >&2
+    if [[ -s "${restjava_log}" ]]; then
+      tail -n 20 "${restjava_log}" >&2
+    fi
+    return 1
+  fi
+}
+
+# CI parity (819 L202-207): create a fresh 1,000,000-hbar account carrying the well-known dev
+# key before the suite. Repeat-safe (a new account per invocation) and doubles as a solo-CLI
+# level liveness check of the post-cutover network. No solo-version gate: this script already
+# depends on the new command tree throughout.
+fund_tck_operator_account() {
+  run_step "Funding TCK operator account via solo ledger account create (1,000,000 hbar, dev key)" \
+    solo ledger account create --dev --ed25519-private-key "${OPERATOR_PRIVATE_KEY}" \
+      --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1000000
+}
+
+# Single place the TCK client env/cwd is defined — the 819 L191-200 values parameterised on
+# this script's local forwards. Process env wins over the repo's .env (dotenv never overrides
+# existing vars), matching CI. Subshell so the cd cannot leak. NODE_ACCOUNT_ID stays 0.0.3
+# because the CN forward always targets haproxy-node1-svc (node1).
+run_tck_npm() {
+  (
+    cd "${TCK_REPO_DIR}" || exit 1
+    OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID}" \
+    OPERATOR_ACCOUNT_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY}" \
+    JSON_RPC_SERVER_URL="http://127.0.0.1:${TCK_JSON_RPC_PORT}" \
+    NODE_IP="127.0.0.1:${CN_GRPC_LOCAL_PORT}" \
+    NODE_ACCOUNT_ID="0.0.3" \
+    NODE_TIMEOUT="30000" \
+    MIRROR_NODE_REST_URL="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}" \
+    MIRROR_NODE_REST_JAVA_URL="http://127.0.0.1:${MIRROR_RESTJAVA_LOCAL_PORT}" \
+    MIRROR_NETWORK="127.0.0.1:${MIRROR_GRPC_LOCAL_PORT}" \
+    npm run "$@"
+  )
+}
+
+run_tck_tests() {
+  if [[ -f "${TCK_REPO_DIR}/.env.custom_node" ]]; then
+    cp "${TCK_REPO_DIR}/.env.custom_node" "${TCK_REPO_DIR}/.env"
+  else
+    echo "WARNING: ${TCK_REPO_DIR}/.env.custom_node not found (older TCK tag?); writing an empty .env — all required config is passed as process env" >&2
+    : > "${TCK_REPO_DIR}/.env"
+  fi
+
+  if [[ -n "${TCK_TEST_FILES}" ]]; then
+    local files_normalized="${TCK_TEST_FILES//,/ }"
+    local f file_rc
+    # shellcheck disable=SC2086 # word splitting of the file list is intended
+    for f in ${files_normalized}; do
+      file_rc=0
+      run_step "TCK test file ${f} (timeout ${TCK_TEST_TIMEOUT_SECS}s)" \
+        run_command_with_timeout "${TCK_TEST_TIMEOUT_SECS}" run_tck_npm test:file "${f}" || file_rc=$?
+      # mochawesome overwrites its report every run — export per file, keep the failed file's report too.
+      export_tck_report "$(basename "${f%.*}")" || true
+      if [[ "${file_rc}" -ne 0 ]]; then
+        return "${file_rc}"
+      fi
+    done
+    return 0
+  fi
+
+  run_step "Running full TCK suite (npm run ${TCK_TEST_SCRIPT}, timeout ${TCK_TEST_TIMEOUT_SECS}s)" \
+    run_command_with_timeout "${TCK_TEST_TIMEOUT_SECS}" run_tck_npm "${TCK_TEST_SCRIPT}"
+}
+
+# Copies mochawesome-report/mochawesome.* (the artifact 819 L212-218 uploads) out of the TCK
+# repo into GENERATED_DIR so it survives WORK_DIR removal; suffix disambiguates per-file runs.
+export_tck_report() {
+  local suffix="${1:-}"
+  local report_dir="${TCK_REPO_DIR}/mochawesome-report"
+  if [[ ! -d "${report_dir}" ]]; then
+    echo "WARNING: no mochawesome report directory at ${report_dir} (test runner crashed before reporting?)" >&2
+    return 1
+  fi
+  mkdir -p "${TCK_REPORT_EXPORT_DIR}"
+  local src base dest exported=0
+  for src in "${report_dir}"/mochawesome*; do
+    [[ -e "${src}" ]] || continue
+    base="$(basename "${src}")"
+    if [[ -n "${suffix}" && "${base}" == *.* ]]; then
+      dest="${TCK_REPORT_EXPORT_DIR}/${base%.*}-${suffix}.${base##*.}"
+    else
+      dest="${TCK_REPORT_EXPORT_DIR}/${base}"
+    fi
+    cp -R "${src}" "${dest}"
+    exported=1
+  done
+  if (( exported == 0 )); then
+    echo "WARNING: no mochawesome report files found under ${report_dir}" >&2
+    return 1
+  fi
+  echo "TCK report exported to ${TCK_REPORT_EXPORT_DIR}"
+}
+
+# Structured recap after the run: per-report stats plus every failed test with its reason.
+# (Live per-test spec output already streamed to the console while the suite ran.)
+print_tck_report_summary() {
+  local json failures found=0
+  echo "--- TCK report summary ---"
+  for json in "${TCK_REPORT_EXPORT_DIR}"/mochawesome*.json; do
+    [[ -e "${json}" ]] || continue
+    found=1
+    echo "$(basename "${json}"): $(jq -r '.stats | "tests=\(.tests) passes=\(.passes) failures=\(.failures) pending=\(.pending) skipped=\(.skipped // 0) duration=\(.duration)ms"' "${json}" 2>/dev/null || echo "unparseable stats")"
+    # mochawesome nests suites arbitrarily deep — recursive descent finds every failed test.
+    failures="$(jq -r '[.. | objects | select(.state? == "failed")] | .[] | "  ✗ \(.fullTitle // .title // "unnamed test") — \((.err.message // "no message") | split("\n")[0])"' "${json}" 2>/dev/null || true)"
+    if [[ -n "${failures}" ]]; then
+      printf '%s\n' "${failures}"
+    fi
+  done
+  if (( found == 0 )); then
+    echo "WARNING: no exported mochawesome JSON under ${TCK_REPORT_EXPORT_DIR} (test runner may have crashed before reporting)" >&2
+    return 0
+  fi
+  echo "Full browsable report(s): ${TCK_REPORT_EXPORT_DIR} (mochawesome*.html)"
+}
+
 # kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
 if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
   require_cmd kind
@@ -3579,6 +4090,16 @@ require_cmd curl
 require_cmd jq
 require_cmd java
 require_cmd grpcurl
+
+# TCK-only tool requirements, checked lazily so runs without ENABLE_TCK_TESTS are unaffected.
+if [[ "${ENABLE_TCK_TESTS}" == "true" ]]; then
+  require_cmd git
+  ensure_pnpm_available || exit 1
+  node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+  if (( node_major < 20 )); then
+    echo "WARNING: node ${node_major}.x detected; TCK CI pins Node 20.18.0 — ts-node/mocha may misbehave on older majors" >&2
+  fi
+fi
 
 if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
   if ! validate_block_node_repo; then
@@ -3615,7 +4136,7 @@ if should_run_step 1; then
   # Full reset: clear ALL stray port-forwards + helper procs left over from previous runs before
   # recreating the cluster (prevents back-to-back accumulation of forwards/watchdogs/FDs).
   preflight_kill_stale_port_forwards
-  print_banner "Step 1/12: Create fresh kind cluster and Solo deployment"
+  print_banner "Step 1/13: Create fresh kind cluster and Solo deployment"
   if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
   fi
@@ -3627,9 +4148,10 @@ if should_run_step 1; then
       kind create cluster -n "${SOLO_CLUSTER_NAME}"
   fi
 
+  # Clear any leftover deployment from a prior aborted run BEFORE connect.
+  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
     solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
-  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   run_step "Attaching cluster to deployment" \
@@ -3649,7 +4171,7 @@ if should_run_step 1; then
     run_step "Installing Solo cluster prerequisites (MinIO only; monitoring disabled)" \
       solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack false
   fi
-  print_step_complete "Step 1/12"
+  print_step_complete "Step 1/13"
 else
   print_banner "Resume mode: START_STEP=${START_STEP}; assuming cluster matches end of step $((START_STEP - 1))"
   prepare_js_sdk_runtime
@@ -3659,27 +4181,33 @@ else
 fi
 
 if should_run_step 2; then
-  print_banner "Step 2/12: Deploy consensus network at ${INITIAL_RELEASE_TAG} (v0.73.0)"
+  print_banner "Step 2/13: Deploy consensus network at ${INITIAL_RELEASE_TAG} (v0.73.0)"
   run_step "Generating consensus keys (gossip + tls)" \
     solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
   # --service-monitor needs the ServiceMonitor CRD, which only exists when the
   # kube-prometheus-stack is installed; gate it on ENABLE_MONITORING.
   service_monitor_flag="false"
   [[ "${ENABLE_MONITORING}" == "true" ]] && service_monitor_flag="true"
-  # Deploy with PVCs on BOTH targets. Step 10 (run_076_upgrade) injects the WRAPS env via
-  # `kubectl set env`, which rolls the consensus StatefulSets BEFORE Solo's upgrade fires. With the
-  # old remote `--pvcs false` (emptyDir), that roll wiped the local-build jars, so the rolled pod
-  # could not restart and Solo's upgrade SDK-ping failed (its retries never found a serving node).
-  # On remote we now use PVCs backed by the local-path StorageClass (made default in
-  # remote_reset_and_prepare_deployment): local-path PVs are node-pinned, so the rolled pod
-  # reschedules to the same node and its data survives the roll. Remote also needs the
-  # scheduling/storage value overrides.
+  # Bake the WRAPS env (TSS_LIB_WRAPS_ARTIFACTS_PATH[, TSS_LIB_NUM_OF_CORES]) into the consensus
+  # node container spec here, at the genesis deploy, via Solo's native extraEnv values file. It
+  # rides through every later in-place `network upgrade` untouched and the 0.73-0.75 binaries
+  # ignore it until 0.76 reads it. See write_wraps_env_values_file for the full rationale (chiefly:
+  # `solo consensus network upgrade` cannot set container env, so injecting at the 0.76 step would
+  # force an unfrozen rolling restart that SELF_ISSes the network).
+  write_wraps_env_values_file
+  network_values_files=("${WRAPS_ENV_VALUES_FILE}")
+  # Deploy with PVCs on BOTH targets so consensus state + jars survive Solo's restarts and the
+  # block-node cutover. On remote, PVCs use the node-pinned local-path StorageClass (made default
+  # in remote_reset_and_prepare_deployment) and the deployment also needs the scheduling/storage
+  # value overrides.
   cutover_deploy=(solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" \
     --application-properties "${APP_PROPS_073_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
     --service-monitor "${service_monitor_flag}" --pod-log true --release-tag "${INITIAL_RELEASE_TAG}" --pvcs true)
   if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-    cutover_deploy+=(--values-file "${REMOTE_CLUSTER_NETWORK_VALUES}")
+    network_values_files+=("${REMOTE_CLUSTER_NETWORK_VALUES}")
   fi
+  # Solo's --values-file takes a single comma-separated list (later files win on conflicts).
+  cutover_deploy+=(--values-file "$(IFS=,; echo "${network_values_files[*]}")")
   run_step "Deploying consensus network at ${INITIAL_RELEASE_TAG}" \
     "${cutover_deploy[@]}"
   run_step "Setting up consensus nodes (${INITIAL_RELEASE_TAG})" \
@@ -3689,11 +4217,11 @@ if should_run_step 2; then
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   [[ "${ENABLE_MONITORING}" == "true" ]] && ensure_solo_service_monitor_for_prometheus
-  print_step_complete "Step 2/12"
+  print_step_complete "Step 2/13"
 fi
 
 if should_run_step 3; then
-  print_banner "Step 3/12: Deploy mirror/explorer and validate baseline transactions"
+  print_banner "Step 3/13: Deploy mirror/explorer and validate baseline transactions"
   deploy_mirror_node_for_cutover
   run_step "Deploying explorer node" \
     solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false
@@ -3710,11 +4238,11 @@ if should_run_step 3; then
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
   sleep 45
-  print_step_complete "Step 3/12"
+  print_step_complete "Step 3/13"
 fi
 
 if should_run_step 4; then
-  print_banner "Step 4/12: Upgrade consensus network to ${UPGRADE_074_RELEASE_TAG} with 0.74 properties"
+  print_banner "Step 4/13: Upgrade consensus network to ${UPGRADE_074_RELEASE_TAG} with 0.74 properties"
   run_step "Upgrading consensus network to ${UPGRADE_074_RELEASE_TAG}" \
     solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_074_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_074_FILE}"
 
@@ -3730,11 +4258,11 @@ if should_run_step 4; then
   node "${NODE_SCRIPT}"
 
   sleep 5
-  print_step_complete "Step 4/12"
+  print_step_complete "Step 4/13"
 fi
 
 if should_run_step 5; then
-  print_banner "Step 5/12: Generate jumpstart data via wrapped record block tooling"
+  print_banner "Step 5/13: Generate jumpstart data via wrapped record block tooling"
   MIRROR_BLOCKS_JSON="$(curl -sf "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?order=desc&limit=1")" || {
     echo "Failed to GET /api/v1/blocks from mirror REST" >&2
     exit 1
@@ -3756,26 +4284,26 @@ if should_run_step 5; then
   else
     export JUMPSTART_BLOCK_NUMBER="${MIRROR_BLOCK_NUMBER}"
   fi
-  print_step_complete "Step 5/12"
+  print_step_complete "Step 5/13"
 fi
 
 if should_run_step 6; then
-  print_banner "Step 6/12: Build temp 0.75 properties from jumpstart.bin and upgrade local build as ${UPGRADE_075_VERSION} (WRB streaming on)"
+  print_banner "Step 6/13: Build temp 0.75 properties from jumpstart.bin and upgrade local build as ${UPGRADE_075_VERSION} (WRB streaming on)"
   create_temp_075_upgrade_properties
   sleep 5
   run_075_upgrade
-  print_step_complete "Step 6/12"
+  print_step_complete "Step 6/13"
 fi
 
 if should_run_step 7; then
-  print_banner "Step 7/12: Deploy Block Node ${BLOCK_NODE_ID} and link to consensus nodes"
+  print_banner "Step 7/13: Deploy Block Node ${BLOCK_NODE_ID} and link to consensus nodes"
   deploy_block_node_for_cutover
   verify_block_node_has_blocks 120
-  print_step_complete "Step 7/12"
+  print_step_complete "Step 7/13"
 fi
 
 if should_run_step 8; then
-  print_banner "Step 8/12: Validate 0.75 jumpstart by replay vs migration vote"
+  print_banner "Step 8/13: Validate 0.75 jumpstart by replay vs migration vote"
   parse_migration_vote_from_hgcaa
   run_replay_wrap_to_075 "${MIRROR_REST_URL}" "${MIGRATION_BLOCK_NUMBER}"
   [[ "${JUMPSTART_BLOCK_NUMBER}" == "${MIGRATION_BLOCK_NUMBER}" ]] || {
@@ -3786,11 +4314,11 @@ if should_run_step 8; then
     echo "Jumpstart validation failed: migration vote does not match offline replay (see ${MIGRATION_COMPARE_LOG})" >&2
     exit 1
   }
-  print_step_complete "Step 8/12"
+  print_step_complete "Step 8/13"
 fi
 
 if should_run_step 9; then
-  print_banner "Step 9/12: Update mirror node to read from block-node-${BLOCK_NODE_ID}"
+  print_banner "Step 9/13: Update mirror node to read from block-node-${BLOCK_NODE_ID}"
   update_mirror_node_for_block_cutover
   echo "Restarting consensus and mirror REST port-forwards"
   restart_post_upgrade_port_forwards
@@ -3826,37 +4354,38 @@ if should_run_step 9; then
     exit "${step9_rc}"
   fi
 
-  print_step_complete "Step 9/12"
+  print_step_complete "Step 9/13"
 fi
 
 # FUTURE enable when TSS support is ready and tested
 if should_run_step 10; then
-  print_banner "Step 10/12: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
+  print_banner "Step 10/13: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
   sleep 5
   # Still streaming WRBs but TSS is enabled, force mock signatures
   run_076_upgrade
-  print_step_complete "Step 10/12"
+  # Bootstrap the Block Node with the network's TSS ledger id BEFORE the 0.77 cutover so it can
+  # verify the real-TSS-signed blocks the cutover starts producing. The ledger id is published
+  # mid-chain during THIS 0.76 step; the BN (deployed mid-chain) never picks it up on its own. We
+  # do it here — after the 0.76 upgrade and before the 0.77 step begins — so the ledger-id check is
+  # part of Step 10, not the 0.77 cutover. See seed_block_node_tss_parameters for why this may
+  # become unnecessary.
+  seed_block_node_tss_parameters
+  # The seed rolled the BN; let it re-catch-up to the live 0.76 stream before Step 11 restarts the
+  # CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the BN stalls
+  # (mirror then can't get the post-cutover blocks).
+  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding to the 0.77 cutover anyway" >&2
+  print_step_complete "Step 10/13"
 fi
 
 if should_run_step 11; then
-  print_banner "Step 11/12: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
+  print_banner "Step 11/13: Upgrade local build with 0.77 properties (BLOCKS-only cutover, real TSS signatures)"
   sleep 5
-  # Pre-cutover: bootstrap the Block Node with the network's TSS ledger id so it can
-  # verify the real-TSS-signed blocks the 0.77 cutover starts producing. The ledger id
-  # was published mid-chain during the 0.76 step; the BN (deployed mid-chain) never
-  # picked it up on its own. See seed_block_node_tss_parameters for why this may become
-  # unnecessary. Run AFTER Step 10 (publication exists) and BEFORE run_077_upgrade.
-  seed_block_node_tss_parameters
-  # The seed rolled the BN; let it re-catch-up to the live stream on 0.76 before run_077_upgrade
-  # restarts the CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the
-  # BN stalls (mirror then can't get the post-cutover blocks).
-  wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding with the 0.77 cutover anyway" >&2
   run_077_upgrade
-  print_step_complete "Step 11/12"
+  print_step_complete "Step 11/13"
 fi
 
 if should_run_step 12; then
-  print_banner "Step 12/12: Post-upgrade readiness and end-to-end transaction verification"
+  print_banner "Step 12/13: Post-upgrade readiness and end-to-end transaction verification"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   restart_post_upgrade_port_forwards
@@ -3865,7 +4394,39 @@ if should_run_step 12; then
   echo "Testing mirror-node readiness via a simple cryptoCreate at end-of-run (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
-  print_step_complete "Step 12/12"
+  print_step_complete "Step 12/13"
+fi
+
+if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
+  print_banner "Step 13/13: SDK TCK regression suite (819-call-tck-regression.yaml parity)"
+  # CN gRPC + Mirror REST forwards: no-op probe if healthy, re-establish if not (covers the
+  # START_STEP=13 standalone path right after the resume prelude).
+  restart_post_upgrade_port_forwards
+  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
+  wait_for_sdk_responsive 180
+
+  prepare_tck_repos
+  install_tck_client_dependencies
+  start_tck_sdk_server
+  ensure_tck_port_forwards
+  fund_tck_operator_account
+
+  tck_rc=0
+  run_tck_tests || tck_rc=$?
+  # Full-suite mode exports here; subset mode already exported per file inside run_tck_tests.
+  if [[ -z "${TCK_TEST_FILES}" ]]; then
+    export_tck_report || true
+  fi
+  print_tck_report_summary || true
+  if (( tck_rc != 0 )); then
+    echo "Step 13 TCK tests FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
+    # Network stays up for debugging: cleanup() early-returns on a non-zero exit code.
+    exit "${tck_rc}"
+  fi
+  print_step_complete "Step 13/13"
+elif should_run_step 13; then
+  echo
+  echo "Step 13/13 (SDK TCK regression suite) skipped — set ENABLE_TCK_TESTS=true to enable."
 fi
 start_post_run_keepalive
 print_end_of_run_diagnostics

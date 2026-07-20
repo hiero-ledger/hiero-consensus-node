@@ -19,7 +19,6 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
@@ -39,13 +38,12 @@ public interface PcesModule {
      * @param recycleBin the recycle bin for deleting old PCES files
      * @param fileSystemManager the file system manager for managing file locations on disk
      * @param startingRound the round from which to start replaying events
-     * @param flushIntake a {@link Runnable} that triggers flushing of the intake wires
-     * @param flushTransactionHandling a {@link Runnable} that triggers flushing of the transaction handling wires
-     * @param latestImmutableStateSupplier a supplier of the latest immutable state
-     * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
+     * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
+     * @param replayProgressSupplier a supplier that returns the current replay progress
      * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
-     * @param stateHasherFlusher a {@link Runnable} that triggers flushing of the state hasher
-     * @param signalEndOfPcesReplay a {@link Runnable} that signals the end of PCES replay to the ISS detector,
+     * @param platformStatusFlusher a {@link Runnable} that triggers flushing of the platform status
+     * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete
+     * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
      */
     void initialize(
             @NonNull WiringModel model,
@@ -56,11 +54,10 @@ public interface PcesModule {
             @NonNull RecycleBin recycleBin,
             @NonNull FileSystemManager fileSystemManager,
             long startingRound,
-            @NonNull Runnable flushIntake,
-            @NonNull Runnable flushTransactionHandling,
-            @NonNull Supplier<ReservedSignedState> latestImmutableStateSupplier,
+            @NonNull Runnable flushPrimaryPipeline,
+            @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
             @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull Runnable stateHasherFlusher,
+            @NonNull Runnable platformStatusFlusher,
             @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);
 
@@ -124,6 +121,13 @@ public interface PcesModule {
     @InputWireLabel("discontinuity")
     @NonNull
     InputWire<Long> discontinuityInputWire();
+
+    /**
+     * Inject the minimum birth round non-ancient for the oldest state on disk.
+     *
+     * @param minimumBirthRoundNonAncientForOldestState the minimum birth round
+     */
+    void injectMinimumBirthRound(long minimumBirthRoundNonAncientForOldestState);
 
     /**
      * Flushes all events of the internal components.

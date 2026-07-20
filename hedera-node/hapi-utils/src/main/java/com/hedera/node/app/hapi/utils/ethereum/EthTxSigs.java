@@ -16,20 +16,39 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Optional;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 public record EthTxSigs(byte[] publicKey, byte[] address) {
+    private static final Logger logger = LogManager.getLogger(EthTxSigs.class);
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
+    // Lower-half boundary (N >> 1) by EIP-2 standard.
+    private static final BigInteger HALF_N = N.shiftRight(1);
 
     public static EthTxSigs extractSignatures(EthTxData ethTx) {
         final var message = calculateSignableMessage(ethTx);
         final var pubKey = extractSig(ethTx.recId(), ethTx.r(), ethTx.s(), message);
         final var address = recoverAddressFromPubKey(pubKey);
-        final var compressedKey = recoverCompressedPubKey(pubKey);
+        final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
         return new EthTxSigs(compressedKey, address);
+    }
+
+    public static Optional<EthTxSigs> extractAuthoritySignature(CodeDelegation codeDelegation) {
+        try {
+            final var message = codeDelegation.calculateSignableMessage();
+            final var pubKey = extractSig(codeDelegation.yParity(), codeDelegation.r(), codeDelegation.s(), message);
+            final var address = recoverAddressFromPubKey(pubKey);
+            final var compressedKey = serializeIntoCompressedKeyBytes(pubKey);
+            return Optional.of(new EthTxSigs(compressedKey, address));
+        } catch (final Exception e) {
+            logger.warn("Exception thrown extracting code delegation authority signatures!", e);
+            return Optional.empty();
+        }
     }
 
     public static byte[] calculateSignableMessage(EthTxData ethTx) {
@@ -37,6 +56,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
             case LEGACY_ETHEREUM -> resolveLegacy(ethTx);
             case EIP1559 -> resolveEIP1559(ethTx);
             case EIP2930 -> resolveEIP2930(ethTx);
+            case EIP7702 -> resolveEIP7702(ethTx);
         };
     }
 
@@ -96,7 +116,26 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         });
     }
 
-    static byte[] recoverCompressedPubKey(LibSecp256k1.secp256k1_pubkey pubKey) {
+    // EIP7702 introduces the authorizationList field, which allows one to specify
+    // a list of EOA addresses (via signatures) that are then associated with the code of a contract
+    // Like EIP1559, it uses maxPriorityGas and maxGas for fee control.
+    // More details: https://eips.ethereum.org/EIPS/eip-7702
+    static byte[] resolveEIP7702(final EthTxData ethTx) {
+        return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
+            ethTx.chainId(),
+            Integers.toBytes(ethTx.nonce()),
+            ethTx.maxPriorityGas(),
+            ethTx.maxGas(),
+            Integers.toBytes(ethTx.gasLimit()),
+            ethTx.to(),
+            Integers.toBytesUnsigned(ethTx.value()),
+            ethTx.callData(),
+            ethTx.accessListAsRlp() != null ? ethTx.accessListAsRlp() : new Object[0],
+            ethTx.authorizationListAsRlp() != null ? ethTx.authorizationListAsRlp() : new Object[0]
+        });
+    }
+
+    static byte[] serializeIntoCompressedKeyBytes(LibSecp256k1.secp256k1_pubkey pubKey) {
         final ByteBuffer recoveredFullKey = ByteBuffer.allocate(33);
         final LongByReference fullKeySize = new LongByReference(recoveredFullKey.limit());
         LibSecp256k1.secp256k1_ec_pubkey_serialize(
@@ -104,15 +143,15 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         return recoveredFullKey.array();
     }
 
-    private static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
+    static LibSecp256k1.secp256k1_pubkey extractSig(int recId, byte[] r, byte[] s, byte[] message) {
         // The only meaningful recovery ids are 0 and 1 (even if the high order bytes
         // were used to encode the chain id, the parity is all that matters here)
         recId = Math.floorMod(recId, 2);
 
         byte[] dataHash = new Keccak.Digest256().digest(message);
 
-        checkInBounds(r);
-        checkInBounds(s);
+        checkInBounds(r, N);
+        checkInBounds(s, HALF_N);
         // The RLP library output won't include leading zeros, which means
         // a simple (r, s) concatenation breaks signature verification below
         byte[] signature = concatLeftPadded(r, s);
@@ -160,6 +199,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     }
 
     @Override
+    @NonNull
     public String toString() {
         return MoreObjects.toStringHelper(this)
                 .add("publicKey", Hex.encodeHexString(publicKey))
@@ -170,13 +210,14 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     /**
      * Returns whether the given curve point is in bounds for the Secp256k1 curve.
      * @param curvePoint the curve point to check
+     * @param upperBound the inclusive maximum: {@code N} for r, {code N>>1} for s per EIP-2.
      */
-    private static void checkInBounds(@NonNull byte[] curvePoint) {
+    private static void checkInBounds(@NonNull byte[] curvePoint, @NonNull final BigInteger upperBound) {
         final var bi = new BigInteger(1, curvePoint);
         if (bi.compareTo(BigInteger.ONE) < 0) {
             throw new IllegalArgumentException("Curve point must be >= 1");
         }
-        if (bi.compareTo(N) >= 0) {
+        if (bi.compareTo(upperBound) >= 0) {
             throw new IllegalArgumentException("Curve point must be < N");
         }
     }

@@ -46,6 +46,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.info.DiskStartupNetworks;
@@ -244,6 +245,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Counter indirectProofCounter;
 
+    private final BlockStreamingObs streamingObs;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -257,7 +260,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final SemanticVersion version,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -282,6 +286,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
+        this.streamingObs = requireNonNull(streamingObs);
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
         indirectProofCounter = requireNonNull(metrics)
@@ -303,17 +308,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
+    public void init(
+            @NonNull final State state, @Nullable final Bytes lastBlockHash, final boolean cutoverSchemaExecuted) {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
 
         // Cutover case
-        if (loadCutoverData(
-                configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .enableCutover(),
-                state)) {
+        if (cutoverSchemaExecuted
+                && loadCutoverData(
+                        configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .enableCutover(),
+                        state)) {
             log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
 
             // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
@@ -508,6 +515,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
+            streamingObs.onBlockInit(blockNumber);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
@@ -780,6 +788,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Write BlockFooter to block stream (last item before BlockProof)
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
+            streamingObs.onBlockFooterCreate(blockNumber);
             worker.addItem(footerItem);
             worker.sync();
 
@@ -881,7 +890,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
                 if (diskNetworkExportTss) {
-                    log.warn("Including dev-only TSS private key material in exported network info");
+                    log.warn("Including dev-only TSS metadata in exported network info; private key "
+                            + "material is embedded only under non-PROD profiles");
                     infoTypes.add(InfoType.TSS);
                 }
                 log.info(
@@ -1038,6 +1048,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
 
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
+            streamingObs.onBlockProofCreate(currentPendingBlock.number());
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first
@@ -1121,18 +1132,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     class BlockStreamManagerTask {
 
+        // First failure seen in this block's hashing pipeline; sync() rethrows it so the handler thread fails fast
+        // instead of deadlocking on join() when a task never completes.
+        final AtomicReference<Throwable> pipelineFailure = new AtomicReference<>();
         SequentialTask prevTask;
         SequentialTask currentTask;
 
         BlockStreamManagerTask() {
             prevTask = null;
-            currentTask = new SequentialTask();
+            currentTask = new SequentialTask(pipelineFailure);
             currentTask.send();
         }
 
         void addItem(BlockItem item) {
-            new ParallelTask(item, currentTask).send();
-            SequentialTask nextTask = new SequentialTask();
+            new ParallelTask(item, currentTask, pipelineFailure).send();
+            SequentialTask nextTask = new SequentialTask(pipelineFailure);
             currentTask.send(nextTask);
             prevTask = currentTask;
             currentTask = nextTask;
@@ -1141,79 +1155,116 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         void sync() {
             if (prevTask != null) {
                 prevTask.join();
+                final var failure = pipelineFailure.get();
+                if (failure != null) {
+                    throw new IllegalStateException("Block stream hashing pipeline failed", failure);
+                }
             }
         }
     }
 
     class ParallelTask extends AbstractTask {
 
+        final AtomicReference<Throwable> pipelineFailure;
         BlockItem item;
         SequentialTask out;
 
-        ParallelTask(BlockItem item, SequentialTask out) {
+        ParallelTask(BlockItem item, SequentialTask out, AtomicReference<Throwable> pipelineFailure) {
             super(executor, 1);
             this.item = item;
             this.out = out;
+            this.pipelineFailure = pipelineFailure;
         }
 
         @Override
         protected boolean onExecute() {
+            byte[] bytes = null;
             try {
-                final byte[] bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                out.send(item, bytes);
-                return true;
-            } catch (Exception e) {
-                log.error("{} - error hashing item {}", ALERT_MESSAGE, item, e);
-                return false;
+                bytes = BlockItem.PROTOBUF.toBytes(item).toByteArray();
+            } catch (final Exception e) {
+                log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, e);
+                pipelineFailure.compareAndSet(null, e);
             }
-        }
-    }
-
-    class SequentialTask extends AbstractTask {
-
-        SequentialTask next;
-        BlockItem item;
-        byte[] serialized;
-
-        SequentialTask() {
-            super(executor, 3);
-        }
-
-        @Override
-        protected boolean onExecute() {
-            final var kind = item.item().kind();
-            switch (kind) {
-                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
-                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
-                case TRANSACTION_RESULT -> {
-                    outputTreeHasher.addLeaf(serialized);
-
-                    // Also update running hashes
-                    final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
-                    runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
-                }
-                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
-                case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
-                case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
-                case BLOCK_FOOTER, BLOCK_PROOF -> {
-                    // BlockFooter and BlockProof are not included in any merkle tree
-                    // They are metadata about the block, not part of the hashed content
-                }
-            }
-
-            final BlockHeader header = item.blockHeader();
-            if (header != null) {
-                writer.openBlock(header.number());
-            }
-            writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
-
-            next.send();
+            // Always hand the item downstream (bytes is null on failure) so the sequential task fires and the chain
+            // keeps advancing; it observes the recorded failure and skips its work.
+            out.send(item, bytes);
             return true;
         }
 
         @Override
         protected void onException(final Throwable t) {
-            log.error("Error occurred while executing task", t);
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute() and slipped past the catch above;
+            // record it and still hand the item downstream so the sequential task fires and sync()/join() does not
+            // hang.
+            log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, t);
+            pipelineFailure.compareAndSet(null, t);
+            out.send(item, null);
+        }
+    }
+
+    class SequentialTask extends AbstractTask {
+
+        final AtomicReference<Throwable> pipelineFailure;
+        SequentialTask next;
+        BlockItem item;
+        byte[] serialized;
+
+        SequentialTask(final AtomicReference<Throwable> pipelineFailure) {
+            super(executor, 3);
+            this.pipelineFailure = pipelineFailure;
+        }
+
+        @Override
+        protected boolean onExecute() {
+            // Skip hashing/writing once the pipeline has failed, but always advance the chain so sync()/join() does
+            // not hang; a failure here is recorded rather than swallowed.
+            if (pipelineFailure.get() == null) {
+                try {
+                    final var kind = item.item().kind();
+                    switch (kind) {
+                        case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(serialized);
+                        case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
+                        case TRANSACTION_RESULT -> {
+                            outputTreeHasher.addLeaf(serialized);
+
+                            // Also update running hashes
+                            final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
+                            runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
+                        }
+                        case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
+                        case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
+                        case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
+                        case BLOCK_FOOTER, BLOCK_PROOF -> {
+                            // BlockFooter and BlockProof are not included in any merkle tree
+                            // They are metadata about the block, not part of the hashed content
+                        }
+                    }
+
+                    final BlockHeader header = item.blockHeader();
+                    if (header != null) {
+                        writer.openBlock(header.number());
+                    }
+                    writer.writePbjItemAndBytes(item, Bytes.wrap(serialized));
+                } catch (final Exception e) {
+                    log.error("{} - error hashing/writing block item {}", ALERT_MESSAGE, item, e);
+                    pipelineFailure.compareAndSet(null, e);
+                }
+            }
+
+            if (next != null) {
+                next.send();
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            // Reached only if a Throwable (e.g. an Error) escaped onExecute(); record it and keep the chain moving.
+            log.error("{} - error executing block item hashing task", ALERT_MESSAGE, t);
+            pipelineFailure.compareAndSet(null, t);
+            if (next != null) {
+                next.send();
+            }
         }
 
         void send(SequentialTask next) {
@@ -1626,20 +1677,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Returns true iff the following conditions are met:
+     * Returns true iff the following persistent-state and configuration safeguards are met:
      * <ul>
      *     <li>The {@code enableCutover} flag is set to true</li>
      *     <li>The preview {@code BlockStreamInfo} object has been overwritten with the real wrapped record
      *     block hash (i.e. cutover) data from {@code BlockInfo}</li>
      *     <li>{@code BlockInfo.previewStreamOverwritten} has been marked as true</li>
-     *     <li>No post-cutover blocks have been produced yet (i.e. {@code BlockStreamInfo.blockNumber}
-     *     is still equal to {@code BlockInfo.lastBlockNumber} following the schema overwrite)</li>
+     *     <li>{@code BlockStreamInfo.blockNumber} is equal to {@code BlockInfo.lastBlockNumber}</li>
      * </ul>
      *
-     * If any of these conditions are not met this method returns false, indicating that cutover logic
-     * should not be executed and the block stream manager should proceed with normal initialization. If
-     * all of these conditions are met this method returns true, signaling that the block stream manager
-     * should initialize with the cutover data from state.
+     * <p>The caller separately requires the authoritative, non-persisted signal that the schema overwrite executed
+     * during this startup. Equal block numbers alone are insufficient because record and block streams can continue
+     * advancing in lockstep after cutover.
+     *
+     * <p>If any of these safeguards are not met this method returns false, indicating that the block stream manager
+     * should proceed with normal initialization.
      */
     private static boolean loadCutoverData(final boolean cutoverEnabled, final @NonNull State state) {
         if (!cutoverEnabled) {
@@ -1650,8 +1702,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
-            // This case also applies _after_ cutover, since future restarts shouldn't ever overwrite a preview block
-            // stream
             log.info(
                     "Preview block stream info not overwritten, skipping cutover init logic (previewStreamOverwritten={})",
                     blockInfo != null ? false : "null");

@@ -20,7 +20,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ProgressReporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -42,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
@@ -225,7 +225,7 @@ public class BlockStreamRecoveryWorkflow {
                             .formatted(targetRound, currentRound.get()));
         }
 
-        // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
+        // To make sure that VirtualMap.Metadata is persisted after all changes from the block stream were applied
         stateLifecycleManager.copyMutableState();
         state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
@@ -247,7 +247,8 @@ public class BlockStreamRecoveryWorkflow {
                         platformContext.getFileSystemManager());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
+                    platformContext.getConfiguration(),
+                    platformContext.getFileSystemManager(),
                     selfId,
                     outputPath,
                     signedState.reserve("BlockStreamWorkflow.applyBlocks()"),
