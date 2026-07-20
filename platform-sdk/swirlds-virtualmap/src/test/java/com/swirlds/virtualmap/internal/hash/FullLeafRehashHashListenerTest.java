@@ -11,7 +11,7 @@ import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.io.IOException;

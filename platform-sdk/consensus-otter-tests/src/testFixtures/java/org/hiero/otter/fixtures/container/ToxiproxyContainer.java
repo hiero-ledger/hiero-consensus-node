@@ -33,7 +33,7 @@ public class ToxiproxyContainer extends GenericContainer<ToxiproxyContainer> {
     /** The control port on which the Toxiproxy server is running. */
     public static final int CONTROL_PORT = 8474;
 
-    private static final DockerImageName TOXIPROXY_IMAGE = DockerImageName.parse("ghcr.io/shopify/toxiproxy");
+    private static final DockerImageName TOXIPROXY_IMAGE = DockerImageName.parse("ghcr.io/shopify/toxiproxy:2.12.0");
 
     /** How long to wait for the control API to serve again after a restart. */
     private static final Duration RESTART_READINESS_TIMEOUT = Duration.ofSeconds(60L);

@@ -120,8 +120,7 @@ public record NetworkPartitionExperiment(
         }
         final double partitionFraction =
                 minPartitionFraction + (randotron.nextDouble() * (maxPartitionFraction - minPartitionFraction));
-        final int partitionSize =
-                Math.clamp((int) Math.round((nodes.size() - 1) * partitionFraction), 1, nodes.size() - 1);
+        final int partitionSize = Math.clamp(Math.round((nodes.size() - 1) * partitionFraction), 1, nodes.size() - 1);
         final List<Node> shuffledNodes = new ArrayList<>(nodes);
         Collections.shuffle(shuffledNodes, randotron);
         final List<Node> partitionNodes = shuffledNodes.subList(0, partitionSize);

@@ -2259,7 +2259,7 @@ class AtomicBatchPrecompileTest {
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.ERC_BALANCE)
                                                 .withBalance(totalSupply))
-                                        .gasUsed(2607L))));
+                                        .gasUsed(1200L))));
     }
 
     /**
