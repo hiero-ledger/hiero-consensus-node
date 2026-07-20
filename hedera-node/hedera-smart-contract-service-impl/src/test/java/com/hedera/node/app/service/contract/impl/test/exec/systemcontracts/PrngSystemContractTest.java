@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -246,6 +247,22 @@ class PrngSystemContractTest {
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
+    }
+
+    @Test
+    void computePrecompileStaticFailedTest() {
+        // given: a static frame whose failure path (insufficient entropy) is reached
+        givenInitialFrame();
+        given(messageFrame.isStatic()).willReturn(true);
+        given(messageFrame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(proxyWorldUpdater.entropy()).willReturn(Bytes.wrap(new byte[16]));
+
+        // when:
+        var actual = subject.computeFully(PRNG_CONTRACT_ID, PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, messageFrame);
+
+        // then: a graceful failed result is returned with static (view) gas and no record is externalized
+        assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, 100L);
+        verifyNoInteractions(systemContractOperations);
     }
 
     @Test
