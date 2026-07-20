@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
@@ -218,11 +219,14 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
         initExistingFileChannel(backingFile);
     }
 
+    private static final AtomicLong newFileIndex = new AtomicLong(0);
+
     private void initNewFileChannel(
             @NonNull final String fileName, @NonNull final FileSystemManager fileSystemManager) {
         assert backingFile == null;
         try {
-            backingFile = fileSystemManager.resolveNewTemp(fileName);
+//            backingFile = fileSystemManager.resolveNewTemp(fileName);
+            backingFile = Path.of("/dev/shm").resolve(newFileIndex.getAndIncrement() + "-" + fileName);
             if (Files.exists(backingFile)) {
                 throw new IOException("File already exists: " + backingFile);
             }
