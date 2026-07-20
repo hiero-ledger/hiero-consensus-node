@@ -56,19 +56,18 @@ public final class ConfigExport {
                 .forEach(name -> nonRecordProperties.put(name, configuration.getValue(name)));
 
         final Set<Object> allConfigValues = combine(recordProperties.values(), nonRecordProperties.values());
-        final int maxValueLength = getMaxPropertyLength(allConfigValues);
 
         // Write all record defined values first, in alphabetical order
         recordProperties.keySet().stream().sorted().forEach(name -> {
             final Object value = recordProperties.get(name);
-            final String line = buildLine(name, value, maxValueLength, "");
+            final String line = buildLine(name, value, "");
             lineConsumer.accept(line);
         });
 
         // Write all values not defined in records next, in alphabetical order
         nonRecordProperties.keySet().stream().sorted().forEach(name -> {
             final Object value = nonRecordProperties.get(name);
-            final String line = buildLine(name, value, maxValueLength, "  [NOT USED IN RECORD]");
+            final String line = buildLine(name, value, "  [NOT USED IN RECORD]");
             lineConsumer.accept(line);
         });
     }
@@ -97,10 +96,9 @@ public final class ConfigExport {
         return Stream.concat(set1.stream(), set2.stream()).collect(Collectors.toSet());
     }
 
-    private static String buildLine(
-            final String name, final Object value, final int maxValueLength, final String suffix) {
+    private static String buildLine(final String name, final Object value, final String suffix) {
         final String valueString = String.valueOf(value);
-        return name + ", " + valueString + createSpaces(valueString, maxValueLength) + suffix;
+        return name + ", " + valueString + suffix;
     }
 
     public static void addConfigContents(
