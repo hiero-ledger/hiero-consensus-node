@@ -156,8 +156,7 @@ public class PlatformWiring {
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
-        consensusRoundOutputWire.solderTo(
-                buildingBlocks.statusMonitorModule().consensusRoundInputWire());
+        consensusRoundOutputWire.solderTo(buildingBlocks.statusMonitorModule().consensusRoundInputWire());
     }
 
     /**
