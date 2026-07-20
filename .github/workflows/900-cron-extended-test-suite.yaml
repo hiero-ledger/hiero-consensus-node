@@ -348,6 +348,7 @@ jobs:
       enable-hammer-test-suite: "true"
       enable-hapi-test-suite: "true"
       enable-otter-test-suite: "true"
+      enable-chaos-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
       enable-block-node-regression-panel: "true"
@@ -393,7 +394,6 @@ jobs:
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (Optional):"
       enable-migration-testing-panel: "true"
-      enable-chaos-otter-test-suite: "true"
       # (FUTURE) Move to xts-execution once the panel proves stable, so failures block build-candidate promotion.
       enable-076-to-077-cutover-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
