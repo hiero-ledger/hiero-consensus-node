@@ -47,7 +47,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                     && (isHook || parts.isTopLevel() || parts.isInnerBatchTxn())) {
                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                 if (executingHookId == null) {
-                                    baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                    baseTranslator.addCreatedIdsTo(derivedBuilder, parts, remainingStateChanges);
                                 } else {
                                     final var hookCreations = requireNonNull(hookMetadata)
                                             .hookCreations()
