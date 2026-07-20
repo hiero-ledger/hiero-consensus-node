@@ -37,8 +37,7 @@ class FrontmatterParserTest {
         assertThat(fm.list("topics")).containsExactly("restart-and-pces", "event-intake");
         assertThat(fm.list("components")).hasSize(2);
         assertThat(fm.list("components").get(0)).endsWith("PlatformCoordinator.java");
-        assertThat(fm.nested("related", "decisions")).containsExactly("ADR-005");
-        assertThat(fm.nested("related", "invariants")).isEmpty();
+        assertThat(fm.nestedMap("related")).containsOnlyKeys("invariants", "decisions");
         assertThat(fm.scalar("source")).contains("Baird, first line").contains("second line");
         assertThat(fm.bodyLine()).isEqualTo(16);
     }

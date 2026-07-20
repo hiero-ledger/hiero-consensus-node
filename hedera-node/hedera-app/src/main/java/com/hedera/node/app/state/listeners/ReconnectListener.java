@@ -4,10 +4,12 @@ package com.hedera.node.app.state.listeners;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
+import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
@@ -61,9 +63,17 @@ public class ReconnectListener implements ReconnectCompleteListener {
         final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         final var freezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
         final var upgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
+        final var upgradeNodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
+        final var upgradeStakingInfoStore = readableStoreFactory.readableStore(ReadableStakingInfoStore.class);
         final var platformStateStore = readableStoreFactory.readableStore(ReadablePlatformStateStore.class);
         final var upgradeActions = new ReadableFreezeUpgradeActions(
-                configProvider.getConfiguration(), freezeStore, executor, upgradeFileStore, entityIdFactory);
+                configProvider.getConfiguration(),
+                freezeStore,
+                executor,
+                upgradeFileStore,
+                upgradeNodeStore,
+                upgradeStakingInfoStore,
+                entityIdFactory);
         try {
             // Because we only leave the latest Dagger infrastructure registered with the platform
             // notification system when the reconnect state is initialized, this platform state

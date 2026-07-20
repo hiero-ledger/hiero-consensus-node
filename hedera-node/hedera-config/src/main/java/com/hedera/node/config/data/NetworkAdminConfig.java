@@ -14,6 +14,7 @@ import java.time.Duration;
  *
  * @param upgradeArtifactsPath path to the location where upgrade files are stored once uncompressed, and upgrade
  *                             marker files are written
+ * @param keysPath path to the generated public key *.pem files during freeze prepare upgrade
  * @param upgradeSysFilesLoc path to the location where post-upgrade system files are located
  * @param upgradeFeeSchedulesFile name of the file containing the post-upgrade fee schedules
  * @param upgradeThrottlesFile name of the file containing the post-upgrade throttles
@@ -25,6 +26,9 @@ import java.time.Duration;
 public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "data/upgrade/current") @NodeProperty
         String upgradeArtifactsPath,
+
+        @ConfigProperty(defaultValue = "data/upgrade/current/data/keys") @NodeProperty
+        String keysPath,
 
         @ConfigProperty(defaultValue = "data/config") String upgradeSysFilesLoc,
         @ConfigProperty(defaultValue = "feeSchedules.json") String upgradeFeeSchedulesFile,

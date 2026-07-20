@@ -337,9 +337,77 @@ class EthTxSigsTest {
         }
     }
 
+    @Test
+    void rejectsHighSValueJustAboveHalfOrder() {
+        // s = (N >> 1) + 1 is malleable and must be rejected per EIP-2
+        final var r = to32Bytes(BigInteger.ONE);
+        final var s = to32Bytes(HALF_N.add(BigInteger.ONE));
+        final var tx = txWithRS(r, s);
+
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(tx));
+    }
+
+    @Test
+    void rejectsSNearCurveOrder() {
+        // s just below N is well above the half-order boundary and must be rejected
+        final var r = to32Bytes(BigInteger.ONE);
+        final var s = to32Bytes(SECP256K1_N.subtract(BigInteger.ONE));
+        final var tx = txWithRS(r, s);
+
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(tx));
+    }
+
+    @Test
+    void rejectsZeroSValue() {
+        // s below the lower bound of 1 must be rejected
+        final var r = to32Bytes(BigInteger.ONE);
+        final var s = new byte[32];
+        final var tx = txWithRS(r, s);
+
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(tx));
+    }
+
     private static final Object[] authListAsObject = new Object[] {
         new Object[] {
             fillBytes(2, 0x01), fillBytes(20, 0x22), new byte[0], new byte[0], fillBytes(32, 0x33), fillBytes(32, 0x44)
         }
     };
+
+    // secp256k1 curve order N and its lower-half boundary (N >> 1) per EIP-2.
+    private static final BigInteger SECP256K1_N =
+            new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141", 16);
+    private static final BigInteger HALF_N = SECP256K1_N.shiftRight(1);
+
+    private static byte[] to32Bytes(final BigInteger value) {
+        final byte[] unsigned = value.toByteArray();
+        final byte[] result = new byte[32];
+        // Drop a potential leading sign byte and right-align into a fixed 32-byte buffer.
+        final int start = Math.max(0, unsigned.length - 32);
+        final int len = unsigned.length - start;
+        System.arraycopy(unsigned, start, result, 32 - len, len);
+        return result;
+    }
+
+    private static EthTxData txWithRS(final byte[] r, final byte[] s) {
+        return new EthTxData(
+                null,
+                LEGACY_ETHEREUM,
+                CHAINID_TESTNET,
+                1,
+                TINYBARS_57_IN_WEIBARS,
+                TINYBARS_2_IN_WEIBARS,
+                TINYBARS_57_IN_WEIBARS,
+                1_000_000L,
+                TRUFFLE1_ADDRESS,
+                BigInteger.ZERO,
+                ZERO_BYTES,
+                ZERO_BYTES,
+                null,
+                null,
+                null,
+                1,
+                new byte[0],
+                r,
+                s);
+    }
 }

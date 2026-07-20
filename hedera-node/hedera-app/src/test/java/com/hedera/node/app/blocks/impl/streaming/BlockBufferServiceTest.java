@@ -647,6 +647,79 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(3L);
     }
 
+    @Test
+    void testUnacknowledgedBlocksWalk() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.maxBlocks", 20)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+
+        // Step 1: produce (open + close) blocks 1..6 without acking -> 6 outstanding.
+        for (long n = 1; n <= 6; n++) {
+            blockBufferService.openBlock(n);
+            blockBufferService.closeBlock(n);
+        }
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(6);
+        assertThat(lastPruningResultRef(blockBufferService).get().numBlocksPendingAck)
+                .isEqualTo(6);
+        reset(blockStreamMetrics);
+
+        // Step 2: acknowledge through block 2 (BlockAcknowledgement) -> outstanding drops to 4.
+        blockBufferService.setLatestAcknowledgedBlock(2L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        reset(blockStreamMetrics);
+
+        // Step 3: acknowledge through block 4 -> outstanding drops to 2 (blocks 5, 6).
+        blockBufferService.setLatestAcknowledgedBlock(4L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(2);
+        reset(blockStreamMetrics);
+
+        // Step 4: a non-acknowledgement handshake event (SkipBlock/ResendBlock/BehindPublisher) repositions the
+        // stream cursor but does not change the buffer's ack watermark, and an in-progress (opened but not yet
+        // closed) block is excluded from the count. Outstanding must stay at 2.
+        blockBufferService.openBlock(7L); // opened, not closed -> in progress, not pending-ack
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(2);
+        reset(blockStreamMetrics);
+
+        // Step 5: complete block 7 and add block 8 -> outstanding grows to 4 (blocks 5, 6, 7, 8).
+        blockBufferService.closeBlock(7L);
+        blockBufferService.openBlock(8L);
+        blockBufferService.closeBlock(8L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(4);
+        reset(blockStreamMetrics);
+
+        // Step 6: acknowledge through block 8 (catch-up) -> nothing outstanding.
+        blockBufferService.setLatestAcknowledgedBlock(8L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        reset(blockStreamMetrics);
+
+        // Step 7: produce blocks 9, 10 then receive an acknowledgement for a block BEYOND the last produced (this
+        // consensus node was behind its peers, so the block node jumps it ahead) -> still nothing outstanding.
+        blockBufferService.openBlock(9L);
+        blockBufferService.closeBlock(9L);
+        blockBufferService.openBlock(10L);
+        blockBufferService.closeBlock(10L);
+        blockBufferService.setLatestAcknowledgedBlock(15L);
+        checkBufferHandle.invoke(blockBufferService);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(0);
+        assertThat(lastPruningResultRef(blockBufferService).get().numBlocksPendingAck)
+                .isZero();
+    }
+
     private void verifyBlockSizingMetrics() {
         verify(blockStreamMetrics, atLeastOnce()).recordBlockItemsPerBlock(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBlockBytes(anyLong());

@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.CODE_TOO_LARGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
@@ -102,6 +104,13 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         }
         if (frame.getRemainingGas() < cost) {
             return new Operation.OperationResult(cost, INSUFFICIENT_GAS);
+        }
+        // EIP-3860: an initcode larger than the configured maximum halts the operation exceptionally,
+        // mirroring the transaction-level limit enforced in HevmTransactionFactory. Stack item 2 is the
+        // initcode size operand for both CREATE (value, offset, size) and CREATE2 (value, offset, size, salt).
+        final long initcodeLength = clampedToLong(frame.getStackItem(2));
+        if (initcodeLength > contractsConfigOf(frame).maxInitcodeSize()) {
+            return new Operation.OperationResult(cost, CODE_TOO_LARGE);
         }
         final var value = Wei.wrap(frame.getStackItem(0));
 

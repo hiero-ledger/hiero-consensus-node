@@ -1006,23 +1006,23 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns an operation that validates that each node's exported <i>candidate-roster.json</i> in its
-     * working directory passes the given validator.
+     * Returns an operation that validates that each node's generated <i>config.txt</i> in its upgrade
+     * artifacts directory passes the given validator.
      *
-     * @param rosterValidator the validator to apply to each node's candidate roster
-     * @return the operation that validates the <i>candidate-roster.json</i> files
+     * @param rosterValidator the validator to apply to each node's <i>config.txt</i>
+     * @return the operation that validates the <i>config.txt</i> files
      */
     public static CandidateRosterValidationOp validateCandidateRoster(@NonNull final Consumer<Roster> rosterValidator) {
         return validateCandidateRoster(NodeSelector.allNodes(), rosterValidator);
     }
 
     /**
-     * Returns an operation that validates that each node's exported <i>candidate-roster.json</i> in its
-     * working directory passes the given validator.
+     * Returns an operation that validates that each node's generated <i>config.txt</i> in its upgrade
+     * artifacts directory passes the given validator.
      *
      * @param selector the selector for the nodes to validate
-     * @param rosterValidator the validator to apply to each node's candidate roster
-     * @return the operation that validates the <i>candidate-roster.json</i> files
+     * @param rosterValidator the validator to apply to each node's <i>config.txt</i>
+     * @return the operation that validates the <i>config.txt</i> files
      */
     public static CandidateRosterValidationOp validateCandidateRoster(
             @NonNull final NodeSelector selector, @NonNull final Consumer<Roster> rosterValidator) {
