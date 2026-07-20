@@ -123,9 +123,20 @@ public class BlockStateProofGenerator {
         // Skip the current block's own siblings (we start from its root hash) and collect siblings for each
         // subsequent indirect block, plus the signed block's siblings and null-hash sentinel
         final var siblings = new ArrayList<SiblingNode>();
-        var currentBlockNum = minBlockNum + 1;
         for (int i = 0; i < numIndirectBlocks - 1; i++) {
-            final var block = allPendingBlocks.get(currentBlockNum++);
+            final long currentBlockNum = minBlockNum + 1 + i;
+            final var block = allPendingBlocks.get(currentBlockNum);
+            // The verifier expects exactly NUM_SIBLINGS_PER_BLOCK sibling hashes per pending block. Fail fast if the
+            // actual count drifts from that assumption, rather than emitting a proof that only remote verifiers can
+            // reject.
+            if (block.siblingHashes().length != BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK) {
+                throw new IllegalStateException(
+                        "Pending block #%d produced %d sibling hashes but exactly %d were expected"
+                                .formatted(
+                                        currentBlockNum,
+                                        block.siblingHashes().length,
+                                        BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+            }
             for (final var s : block.siblingHashes()) {
                 siblings.add(SiblingNode.newBuilder()
                         .isLeft(s.isFirst())
@@ -142,6 +153,15 @@ public class BlockStateProofGenerator {
         // Merkle Path 2 Continued: add sibling hashes for the signed block, then a null-hash sentinel
         // to represent the single-child internal node wrapping (depth2Node2). The timestamp is in mp1.
         final var signedBlock = allPendingBlocks.get(latestSignedBlockNumber);
+        // The verifier expects exactly NUM_SIBLINGS_PER_BLOCK sibling hashes for the signed block too; the
+        // trailing null-hash sentinel below is added separately. Fail fast if the actual count drifts.
+        if (signedBlock.siblingHashes().length != BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK) {
+            throw new IllegalStateException("Signed block #%d produced %d sibling hashes but exactly %d were expected"
+                    .formatted(
+                            latestSignedBlockNumber,
+                            signedBlock.siblingHashes().length,
+                            BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+        }
         for (final var s : signedBlock.siblingHashes()) {
             siblings.add(SiblingNode.newBuilder()
                     .isLeft(s.isFirst())
