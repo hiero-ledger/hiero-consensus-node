@@ -57,7 +57,8 @@ public class BlockNodeSimSuite {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
-                        blockNodePriorities = {0, 1, 2, 3})
+                        blockNodePriorities = {0, 1, 2, 3},
+                        applicationPropertiesOverrides = {"blockStream.writerMode", "FILE_AND_GRPC"})
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
@@ -208,6 +209,8 @@ public class BlockNodeSimSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
                             "blockStream.buffer.maxBlocks",
                             "60",
                             "blockStream.blockPeriod",
@@ -450,6 +453,7 @@ public class BlockNodeSimSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
+                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.globalCoolDownSeconds", "0",
                             "blockNode.basicNodeCoolDownSeconds", "1",
@@ -509,10 +513,8 @@ public class BlockNodeSimSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
-                            "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.highLatencyThreshold", "1s",
                             "blockNode.highLatencyEventsBeforeSwitching", "3",
                             "blockNode.globalCoolDownSeconds", "0",
