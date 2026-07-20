@@ -129,7 +129,10 @@ The split, by consumer:
     out-rank the latest self event;
   - the **`cGen`** topological sort (`LocalConsensusGeneration.assignCGen`), which
     needs only a valid topological order of a round's *already-agreed* consensus
-    set — `nGen` or the sequence number both suffice, and it currently uses `nGen`.
+    set — `nGen` or the sequence number both suffice, and it currently uses `nGen`;
+  - the **developer tools** — the GUI's hashgraph layout reads `nGen` as vertical
+    graph height (`PictureMetadata`, `HashgraphPicture`), and the CLI likewise — so
+    the tools migration (#24885) is dropped and the GUI and CLI keep `nGen`.
 - **Assignment.** `PlatformEvent` carries a `sequenceNumber`, defaulting to
   `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
   `DefaultOrphanBuffer` holds a single `AtomicLong` and, in
@@ -152,8 +155,8 @@ The split, by consumer:
   consensus-order sequence are not confused.
 - **Rollout and current state.** The replacement landed as independent,
   separately reviewable changes. The consensus and `cGen` stages were migrated and
-  then **reverted**, because keying a height-sensitive comparison on a
-  release-order counter broke consensus (SCN-002) and event creation (SCN-003):
+  then **reverted**. Consensus was reverted because keying a height-sensitive comparison on a
+  release-order counter broke consensus (SCN-002). The same reason affected event creation (SCN-003). `cGen` was reverted to make the use of `nGen` consistent in the hashgraph module:
 
   |                      Stage                       |                 Scope                  |      Tracking      |  State   |
   |--------------------------------------------------|----------------------------------------|--------------------|----------|
@@ -163,7 +166,7 @@ The split, by consumer:
   | Consensus-relevant threshold                     | `consensus-hashgraph-impl`             | #24844, #26319     | reverted |
   | `cGen` topological sort                          | `consensus-hashgraph-impl`             | #24883, #26319     | reverted |
   | Event creator `lastSelfEvent`                    | `consensus-event-creator-impl`         | #26376             | reverted |
-  | Tools (GUI, CLI)                                 | `consensus-gui`, `swirlds-cli`         | #24885             | pending  |
+  | Tools (GUI, CLI)                                 | `consensus-gui`, `swirlds-cli`         | #24885             | dropped  |
 
   There is no `nGen`-removal stage: `nGen` is retained indefinitely for the
   height-sensitive consumers above.
@@ -208,12 +211,12 @@ was wrongly substituted for a height:
   latest self event and overwrote it, so the node built on an older self-parent — a
   branch. `nGen`'s one-directional error makes it safe: a graph-lower event can
   never present a higher `nGen`, so the "strictly greater" overwrite guard is
-  never tripped by a stale ancestor. Reverted to `nGen`.
+  never tripped by an ancestor. Reverted to `nGen`.
 
 The `nGen` reset is benign in each retained case: for the threshold it only pushes
 a below-frontier event further below; for `lastSelfEvent` the guard fires only on a
 *higher* value and the reset only lowers; for `cGen` a reset event has all-ancient
-parents, hence no in-set parents, so it is a root of the round's set and its low
+parents, hence no same-round parents, so it is a root of the round's set and its low
 value is correct.
 
 ## Consequences
@@ -248,9 +251,9 @@ value is correct.
 
 - **Some uses of `nGen` are not pure ordering.** The GUI uses `nGen` as actual
   graph **height** to lay out the hashgraph vertically (`PictureMetadata`,
-  `HashgraphPicture`). A sequence number is monotonic but is not a height, so that
-  consumer (tools, #24885) needs its replacement confirmed case by case rather
-  than a blind substitution.
+  `HashgraphPicture`). A sequence number is monotonic but is not a height, so the
+  tools keep `nGen` and the migration stage (#24885) is dropped rather than
+  attempted.
 
 ### Neutral
 
@@ -320,11 +323,16 @@ sequence number where a topological order suffices, `nGen` where height is neede
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
   `sequenceNumber` (#24843).
 - `consensus-gui/.../hashgraph/util/PictureMetadata.java`,
-  `HashgraphPicture.java` — use `nGen` as graph height for layout (#24885).
+  `HashgraphPicture.java` — use `nGen` as graph height for layout; retained (the
+
+  # 24885 migration is dropped).
+
 - `consensus-hashgraph-impl/.../EventImpl.java`, `.../metrics/Sequencer.java` —
   the pre-existing consensus-order `sequence`, renamed `consensusSequence`.
+
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, updated
   to phrase entries as sequence numbers.
+
 - Issues:
   [#24618](https://github.com/hiero-ledger/hiero-consensus-node/issues/24618)
   (umbrella rationale and staged plan, approved as the design ticket),
@@ -334,7 +342,8 @@ sequence number where a topological order suffices, `nGen` where height is neede
   [#24846](https://github.com/hiero-ledger/hiero-consensus-node/issues/24846)
   (the `nGen`-removal stage, now dropped),
   [#24883](https://github.com/hiero-ledger/hiero-consensus-node/issues/24883),
-  [#24885](https://github.com/hiero-ledger/hiero-consensus-node/issues/24885),
+  [#24885](https://github.com/hiero-ledger/hiero-consensus-node/issues/24885)
+  (the tools migration, dropped — GUI and CLI retain `nGen`),
   [#25482](https://github.com/hiero-ledger/hiero-consensus-node/issues/25482)
   (this ADR),
   [#26319](https://github.com/hiero-ledger/hiero-consensus-node/issues/26319)
@@ -352,19 +361,13 @@ sequence number where a topological order suffices, `nGen` where height is neede
   (#24844) and `cGen` (#24883) were migrated and then reverted to `nGen` in #26319
   (2026-07-14) after the sequence-number threshold caused an ISS; the event-creator
   `lastSelfEvent` change was reverted in #26376 (2026-07-15) after it caused
-  branching. Tools (#24885) remain open.
+  branching. The tools stage (#24885) will not be done: the GUI and CLI retain
+  `nGen`.
 - This entry fulfills #25482 ("Create ADR for replacing nGen with sequence
   number"). It superseded an earlier draft scoped to event creation only.
-- 2026-07-17 — revised to the current decision: the migration is a hybrid, not a
-  full `nGen` removal. Recorded that the consensus-relevant threshold, the
-  event-creator `lastSelfEvent`, and `cGen` retain `nGen`; removed the
-  `## Temporary Nature` section and the `nGen`-removal stage; added the
-  graph-height-vs-topological-order distinction to `## Limitations`; retitled the
-  ADR; linked SCN-002, SCN-003, and RUL-005. Dropped the stale `historical:`
-  frontmatter pointer to `NonDeterministicGeneration.java` (no longer slated for
-  removal). Corrected the topological-order scope from "within a single
-  orphan-buffer lifetime" to "between clears": `DefaultOrphanBuffer.clear()`
-  empties the parent maps but does not reset the `AtomicLong`, so the counter — and
-  the buffer object — persist across a reconnect, and the property holds only among
-  events numbered since the last clear (node start or a completed reconnect)
-  — Kelly Greco (@poulok).
+- 2026-07-17 — revised from a full `nGen` removal to a hybrid: `nGen` is retained
+  for the graph-height consumers (consensus-relevant threshold, event-creator
+  `lastSelfEvent`, `cGen`, and the GUI/CLI tools — #24885 dropped), with the
+  sequence number used only where a topological order suffices. Retitled the ADR,
+  added the height-vs-topological-order distinction to `## Limitations`, and linked
+  SCN-002, SCN-003, RUL-005 — Kelly Greco (@poulok).

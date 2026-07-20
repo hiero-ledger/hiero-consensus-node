@@ -250,7 +250,7 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 A per-event count: one plus the maximum parent generation. The paper used a single
 *deterministic* generation as the ancient horizon; current code uses *Birth round* for that
 and keeps three separate generation counters instead, each calculated differently and used
-for a different purpose — *nGen* (local, for topological ordering), *deGen* (deterministic,
+for a different purpose — *nGen* (local, for graph height), *deGen* (deterministic,
 for *Strongly seeing*), and *cGen* (deterministic, for consensus ordering within a
 *Consensus round*).
 See [concepts/birth-round.md](concepts/birth-round.md).
@@ -316,11 +316,12 @@ See [concepts/event-lifecycle.md](concepts/event-lifecycle.md).
 
 ### NGen
 
-*Non-deterministic generation* (`NonDeterministicGeneration`): orders events into one valid
-topological order and answers "higher in the hashgraph" comparisons. Assigned to every
-non-orphan event, locally by each node, so it may differ between nodes; set once at intake and
-then stable. Used throughout the consensus layer. Contrast the deterministic *DeGen* and
-*CGen*; see *Generation*.
+*Non-deterministic generation* (`NonDeterministicGeneration`): a local, per-node approximation of
+an event's height in the hashgraph, so it may differ between nodes. Assigned once to every
+non-orphan event at intake and then stable, but the assigned value resets to 1 when the event's
+parents have already gone ancient — so nGen can under-count an event's height, never over-count.
+Retained for consumers that need graph height rather than a mere ordering — contrast the *Sequence
+number* (ADR-008); the deterministic *DeGen* and *CGen* differ again, see *Generation*.
 See [architecture/topics/event-intake.md](architecture/topics/event-intake.md).
 
 ### Orphan buffer
@@ -472,16 +473,12 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 ### Sequence number
 
 A monotonic counter the *Orphan buffer* stamps on each event as it is released
-(`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between
-nodes. Among events numbered since the buffer was last cleared (node start or a completed
-reconnect) it is a valid topological ordering (an ancestor has a smaller number), but a
-release-order counter, **not** a graph height: unlike *NGen* it never resets — `clear()` does
-not reset it either, so it persists across a reconnect — but a structurally-low event received
-late gets a high number, and across a reconnect a re-ingested event gets a new, higher number
-than its already-numbered descendant.
-Used where only a local topological order is needed — event creation's advancement scoring and
-*Sync* send order — never for cross-node agreement. Consumers that need height keep *NGen*
-(ADR-008, RUL-005).
+(`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between nodes.
+Unlike *NGen* it never resets, but it is a release-order counter, **not** a graph height: among
+events numbered since the buffer was last cleared it gives a valid topological order (an ancestor
+has a smaller number), and no more. Used where only a local topological order is needed — event
+creation's advancement scoring and *Sync* send order — never for cross-node agreement; consumers
+that need height keep *NGen*.
 See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ### Shadowgraph
