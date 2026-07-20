@@ -125,7 +125,7 @@ The split, by consumer:
     `isOlderThanDecidedRoundGeneration`; RUL-005), a graph-height frontier that
     must classify a structurally-below event as below on every node;
   - the **event creator's `lastSelfEvent`** recency check
-    (`TipsetEventCreator.registerEvent`), which must not let a stale self-ancestor
+    (`TipsetEventCreator.registerEvent`), which must not let a self-ancestor
     out-rank the latest self event;
   - the **`cGen`** topological sort (`LocalConsensusGeneration.assignCGen`), which
     needs only a valid topological order of a round's *already-agreed* consensus
@@ -144,7 +144,7 @@ The split, by consumer:
   That monotonicity does **not** survive a reconnect: `clear()` empties the parent
   maps but leaves the `AtomicLong` untouched, so the same counter keeps climbing
   across the clear and a re-received event is re-numbered *upward* — above the
-  number an earlier copy still carries. A stale ancestor can then out-rank a
+  number an earlier copy still carries. An ancestor can then out-rank a
   genuinely later event — the branching bug behind SCN-003, and the reason
   `lastSelfEvent` uses `nGen`. The scope is therefore *between clears*, not the
   buffer object's lifetime: the same `DefaultOrphanBuffer` and its counter persist
