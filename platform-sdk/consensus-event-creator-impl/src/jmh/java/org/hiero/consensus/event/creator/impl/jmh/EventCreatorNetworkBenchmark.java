@@ -85,7 +85,7 @@ public class EventCreatorNetworkBenchmark {
     /** The number of events after which the event window should be updated */
     private long eventWindowUpdateInterval;
 
-    /** Orphan buffer, required to set the sequence number needed by the event creator */
+    /** Orphan buffer, required to set the nGen value needed by the event creator */
     private OrphanBuffer orphanBuffer;
 
     @Setup(Level.Trial)

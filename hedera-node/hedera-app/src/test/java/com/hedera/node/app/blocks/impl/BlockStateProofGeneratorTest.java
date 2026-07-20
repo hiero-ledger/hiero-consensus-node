@@ -4,14 +4,15 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
-import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.ROOT_HASH_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
@@ -33,23 +34,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class BlockStateProofGeneratorTest {
     @Test
     void verifyBlockStateProofs() {
         // Load and verify the pending proofs from resources (precondition)
-        final var pendingBlockInputs = loadPendingProofs().stream()
-                .map(pp -> new PendingBlock(
-                        pp.block(),
-                        null,
-                        pp.blockHash(),
-                        pp.previousBlockHash(),
-                        BlockProof.newBuilder().block(pp.block()),
-                        new NoOpTestWriter(),
-                        pp.blockTimestamp(),
-                        pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
-                .toList();
+        final var pendingBlockInputs = loadPendingBlocks();
         verifyLoadedBlocks(pendingBlockInputs);
         // Load and verify the expected state proofs from resources (precondition)
         final var expectedProofs = loadExpectedStateProofs();
@@ -82,6 +74,152 @@ class BlockStateProofGeneratorTest {
     }
 
     /**
+     * Verifies each generated state proof by following {@link MerklePath#nextPathIndex()} links —
+     * the same traversal strategy the block-node's {@code StateProofVerifier} uses — and confirms
+     * that the recomputed hash equals the signed block's expected root hash.
+     */
+    @Test
+    void verifyStateProofsByTraversal() {
+        final var pendingBlockInputs = loadPendingBlocks();
+
+        final var pendingBlocksByBlockNum =
+                pendingBlockInputs.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
+        final var minBlockNum = pendingBlocksByBlockNum.keySet().stream()
+                .min(Comparator.naturalOrder())
+                .orElseThrow();
+        final var latestSignedBlockTimestamp =
+                pendingBlocksByBlockNum.get(MAX_BLOCK_NUM).blockTimestamp();
+        final var expectedSignedBlockHash = EXPECTED_BLOCK_HASHES.get(MAX_BLOCK_NUM);
+
+        // Blocks [minBlockNum, MAX_BLOCK_NUM-2] produce multi-block proofs (2+ indirect blocks);
+        // block MAX_BLOCK_NUM-1 produces a single-block proof (exactly 1 indirect block).
+        // Both cases must traverse correctly — the assertion message records the indirect-block count.
+        for (long blockNum = minBlockNum; blockNum < MAX_BLOCK_NUM; blockNum++) {
+            final var currentBlock = pendingBlocksByBlockNum.remove(blockNum);
+            final StateProof stateProof = BlockStateProofGenerator.generateStateProof(
+                    currentBlock,
+                    MAX_BLOCK_NUM,
+                    FINAL_SIGNATURE,
+                    latestSignedBlockTimestamp,
+                    pendingBlocksByBlockNum.values().stream());
+
+            final var computedHash = traverseStateProof(stateProof, currentBlock.blockHash());
+            Assertions.assertThat(computedHash)
+                    .as(
+                            "Traversal of state proof for block %d (%d indirect block(s)) must reproduce the signed block's root hash",
+                            blockNum, MAX_BLOCK_NUM - blockNum)
+                    .isEqualTo(expectedSignedBlockHash);
+        }
+    }
+
+    /**
+     * Traverses a {@link StateProof} in depth-first order and returns the recomputed root hash.
+     *
+     * <p>Paths are stored in DFS order so children always precede their parents. Each path's
+     * {@code nextPathIndex} is a parent pointer. A bottom-up scan computes each path's hash
+     * from its already-computed children:
+     * <ul>
+     *   <li>Timestamp leaf: {@code hashLeaf(timestamp)}</li>
+     *   <li>Sibling path (has siblings): accumulate from {@code startHash}; left siblings are
+     *       block timestamps and require {@code hashInternalNodeSingleChild} before combining.</li>
+     *   <li>Internal node (no content): combine the children that point to this path —
+     *       one child → {@code hashInternalNodeSingleChild}; two children →
+     *       {@code hashInternalNode(timestampChild, otherChild)}.</li>
+     * </ul>
+     * The terminal path (last in DFS order, {@code nextPathIndex < 0}) holds the root hash.
+     */
+    private Bytes traverseStateProof(final StateProof stateProof, final Bytes startHash) {
+        final var paths = stateProof.paths();
+        final var pathHashes = new Bytes[paths.size()];
+
+        for (int i = 0; i < paths.size(); i++) {
+            final var path = paths.get(i);
+            if (path.hasTimestampLeaf()) {
+                pathHashes[i] = BlockImplUtils.hashLeaf(path.timestampLeafOrThrow());
+            } else if (!path.siblings().isEmpty()) {
+                // In a valid state proof only mp2 (BLOCK_CONTENTS_PATH_INDEX) carries siblings.
+                // If mp3 or mp4 were to have siblings the hash check below would incorrectly pass
+                // or fail with a confusing message, so assert the path index up front.
+                Assertions.assertThat(i)
+                        .as("Only the block-contents path (index %d) should have siblings", BLOCK_CONTENTS_PATH_INDEX)
+                        .isEqualTo(BLOCK_CONTENTS_PATH_INDEX);
+                Assertions.assertThat(path.hash())
+                        .as("Sibling path hash must equal startHash")
+                        .isEqualTo(startHash);
+                var current = startHash;
+                for (final SiblingNode sibling : path.siblings()) {
+                    if (sibling.hash().length() == 0) {
+                        // Null-hash sentinel: applies the single-child internal node wrap (depth3→depth2).
+                        // Present for every block — intermediate blocks have a timestamp after it;
+                        // the signed block does not (its timestamp is in mp1).
+                        current = BlockImplUtils.hashInternalNodeSingleChild(current);
+                    } else if (sibling.isLeft()) {
+                        // Left sibling is an indirect block's consensus timestamp; the sentinel
+                        // immediately before it has already applied the single-child wrap.
+                        current = BlockImplUtils.hashInternalNode(sibling.hash(), current);
+                    } else {
+                        current = BlockImplUtils.hashInternalNode(current, sibling.hash());
+                    }
+                }
+                pathHashes[i] = current;
+            } else {
+                // Only mp3 (the root path) falls here. Its two children are mp1 (timestamp) and mp2
+                // (block-contents, which already incorporated the single-child wrap via the null sentinel).
+                Bytes timestampChildHash = null;
+                Bytes otherChildHash = null;
+                for (int j = 0; j < i; j++) {
+                    if (paths.get(j).nextPathIndex() == i) {
+                        if (paths.get(j).hasTimestampLeaf()) {
+                            timestampChildHash = pathHashes[j];
+                        } else {
+                            otherChildHash = pathHashes[j];
+                        }
+                    }
+                }
+                if (timestampChildHash != null && otherChildHash != null) {
+                    pathHashes[i] = BlockImplUtils.hashInternalNode(timestampChildHash, otherChildHash);
+                }
+            }
+        }
+
+        // The terminal path is last in DFS order and holds the root hash
+        return pathHashes[paths.size() - 1];
+    }
+
+    /**
+     * Regenerates the golden {@code .proof.json} files under {@code src/test/resources/state-proof/}
+     * from the {@code .pnd.json} input files and the current {@link BlockStateProofGenerator} logic.
+     * Remove {@code @Disabled} and run once whenever the generator's output format changes, then
+     * restore {@code @Disabled} and commit the updated files.
+     */
+    @Test
+    @Disabled("Run manually to regenerate golden proof files after changing BlockStateProofGenerator")
+    void regenerateGoldenFiles() throws Exception {
+        final var pendingBlockInputs = loadPendingBlocks();
+
+        final var pendingBlocksByBlockNum =
+                pendingBlockInputs.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
+        final var minBlockNum = pendingBlocksByBlockNum.keySet().stream()
+                .min(Comparator.naturalOrder())
+                .orElseThrow();
+        final var latestSignedBlockTimestamp =
+                pendingBlocksByBlockNum.get(MAX_BLOCK_NUM).blockTimestamp();
+
+        final var outDir = Path.of("src/test/resources/state-proof");
+        for (long blockNum = minBlockNum; blockNum < MAX_BLOCK_NUM; blockNum++) {
+            final var currentBlock = pendingBlocksByBlockNum.remove(blockNum);
+            final StateProof result = BlockStateProofGenerator.generateStateProof(
+                    currentBlock,
+                    MAX_BLOCK_NUM,
+                    FINAL_SIGNATURE,
+                    latestSignedBlockTimestamp,
+                    pendingBlocksByBlockNum.values().stream());
+            Files.writeString(outDir.resolve(blockNum + ".proof.json"), StateProof.JSON.toJSON(result));
+            System.out.println("Wrote golden file for block " + blockNum);
+        }
+    }
+
+    /**
      * Precondition-checking method that verifies the pending blocks on disk match expectations.
      * @param pendingBlocks the loaded pending blocks
      */
@@ -91,7 +229,7 @@ class BlockStateProofGeneratorTest {
                         pendingBlocks.getFirst().siblingHashes())
                 .map(MerkleSiblingHash::siblingHash)
                 .toList();
-        Assertions.assertThat(actualFirstSiblingHashes.size()).isEqualTo(BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThat(actualFirstSiblingHashes).hasSize(BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
         Assertions.assertThat(actualFirstSiblingHashes)
                 .containsExactlyElementsOf(List.of(EXPECTED_FIRST_SIBLING_HASHES));
 
@@ -136,7 +274,7 @@ class BlockStateProofGeneratorTest {
         final var expectedSignedTsBytes = Timestamp.PROTOBUF.toBytes(expectedSignedTs);
         final var expectedMp1 = MerklePath.newBuilder()
                 .timestampLeaf(expectedSignedTsBytes)
-                .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
+                .nextPathIndex(ROOT_HASH_MERKLE_PATH_INDEX)
                 .build();
         final var expectedMp3 =
                 MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX).build();
@@ -151,54 +289,58 @@ class BlockStateProofGeneratorTest {
             // Verify mp1
             Assertions.assertThat(paths.getFirst()).isEqualTo(expectedMp1);
 
-            // Verify all the sibling hashes in mp2
+            // Verify all the sibling hashes in mp2. Proof starts from the block's own root hash;
+            // siblings begin at the next block. The last sibling is a null-hash sentinel that encodes
+            // the single-child internal node wrapping (depth2Node2) for the signed block.
             final var allMp2Hashes = paths.get(BLOCK_CONTENTS_PATH_INDEX).siblings();
 
-            var sibPerBlockCounter = 0;
-            var finalHash = EXPECTED_PREVIOUS_BLOCK_HASHES.get(outerCurrentBlockNum);
+            var finalHash = EXPECTED_BLOCK_HASHES.get(outerCurrentBlockNum);
             for (int i = 0; i < allMp2Hashes.size(); i++) {
                 if (i % UNSIGNED_BLOCK_SIBLING_COUNT == 0) {
-                    // Verify the hash so far against the expected previous block hash
-                    final var key = ((long) i / (long) UNSIGNED_BLOCK_SIBLING_COUNT) + outerCurrentBlockNum;
+                    // Verify the running hash against the expected previousBlockHash of the next block
+                    final var key = ((long) i / (long) UNSIGNED_BLOCK_SIBLING_COUNT) + outerCurrentBlockNum + 1;
                     final var expectedPrevHash = EXPECTED_PREVIOUS_BLOCK_HASHES.get(key);
                     Assertions.assertThat(finalHash).isEqualTo(expectedPrevHash);
                 }
 
                 final var currentSibling = allMp2Hashes.get(i);
-                sibPerBlockCounter++;
-                if (sibPerBlockCounter == UNSIGNED_BLOCK_SIBLING_COUNT) {
-                    // Hash this node/level as a single child since the reserved roots aren't encoded in the tree
+                if (currentSibling.hash().length() == 0) {
+                    // Null-hash sentinel: single-child wrap (depth3→depth2), present for every block
                     finalHash = BlockImplUtils.hashInternalNodeSingleChild(finalHash);
-                }
-
-                if (currentSibling.isLeft()) {
-                    // Final combination to reach the current (intermediate) block's root hash
+                } else if (currentSibling.isLeft()) {
+                    // Left sibling is an indirect block's consensus timestamp
                     finalHash = BlockImplUtils.hashInternalNode(currentSibling.hash(), finalHash);
-
-                    // Reset sibling counter
-                    sibPerBlockCounter = 0;
                 } else {
                     finalHash = BlockImplUtils.hashInternalNode(finalHash, currentSibling.hash());
                 }
             }
 
-            // Hash the one-child node (depth 3, node 1) one final time before combining with the signed block's
-            // timestamp
-            finalHash = BlockImplUtils.hashInternalNodeSingleChild(finalHash);
-
-            // Combine the hash thus far with the signed block's timestamp to verify the complete path to the signed
-            // block root hash
+            // Combine depth2Node2 with the signed block's timestamp to reach the signed block root hash
             final var expectedHashedTsBytes = BlockImplUtils.hashLeaf(expectedSignedTsBytes);
             finalHash = BlockImplUtils.hashInternalNode(expectedHashedTsBytes, finalHash);
             Assertions.assertThat(finalHash).isEqualTo(expectedFinalBlockHash);
             System.out.println("Verified merkle path two for block " + outerCurrentBlockNum
                     + " produces expected signed block hash " + expectedFinalBlockHash);
 
-            // Verify mp3
+            // Verify mp3 (terminal path)
             Assertions.assertThat(paths.getLast()).isEqualTo(expectedMp3);
 
             System.out.println("Finished verifying loaded state proof file for block " + outerCurrentBlockNum);
         }
+    }
+
+    private List<PendingBlock> loadPendingBlocks() {
+        return loadPendingProofs().stream()
+                .map(pp -> new PendingBlock(
+                        pp.block(),
+                        null,
+                        pp.blockHash(),
+                        pp.previousBlockHash(),
+                        BlockProof.newBuilder().block(pp.block()),
+                        new NoOpTestWriter(),
+                        pp.blockTimestamp(),
+                        pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
+                .toList();
     }
 
     private List<PendingProof> loadPendingProofs() {

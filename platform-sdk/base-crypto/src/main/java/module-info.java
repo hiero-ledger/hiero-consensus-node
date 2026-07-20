@@ -15,17 +15,16 @@ module org.hiero.base.crypto {
     opens org.hiero.base.crypto to
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
-            com.swirlds.platform.core.test.fixtures,
             org.hiero.base.crypto.test.fixtures,
             org.hiero.otter.test,
             com.fasterxml.jackson.databind;
 
+    requires transitive com.hedera.cryptography.libsodium;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
-    requires transitive com.goterl.lazysodium;
     requires com.swirlds.base;
     requires com.sun.jna;
     requires org.apache.logging.log4j;

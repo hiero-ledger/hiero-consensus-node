@@ -38,12 +38,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -54,12 +56,14 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
@@ -831,6 +835,109 @@ class TransactionProcessorTest {
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertResourceExhaustion(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES, result);
+    }
+
+    @Test
+    void senderNonceIncrementedExactlyOnceWithNormalFees() {
+        givenSenderAccount();
+        given(senderAccount.getNonce()).willReturn(NONCE);
+        givenRelayerAccount();
+        givenReceiverAccount();
+        givenAccessTracker(mock(StorageAccessTracker.class));
+
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = wellKnownRelayedHapiCall(0);
+
+        given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
+                .willReturn(CHARGING_RESULT);
+        given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
+        given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(frameBuilder.buildInitialFrameWith(
+                        transaction,
+                        worldUpdater,
+                        context,
+                        config,
+                        opsDurationCounter,
+                        featureFlags,
+                        EIP_1014_ADDRESS,
+                        NON_SYSTEM_LONG_ZERO_ADDRESS,
+                        transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
+                        GAS_CALCULATOR,
+                        List.of()))
+                .willReturn(initialFrame);
+        given(frameRunner.runToCompletion(
+                        eq(GAS_LIMIT),
+                        eq(SENDER_ID),
+                        eq(initialFrame),
+                        eq(tracer),
+                        any(),
+                        eq(contractCreationProcessor),
+                        any(),
+                        any()))
+                .willReturn(SUCCESS_RESULT);
+        given(initialFrame.getSelfDestructs()).willReturn(Set.of());
+
+        subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        verify(senderAccount, times(1)).incrementNonce();
+    }
+
+    @Test
+    void senderNonceIncrementedExactlyOnceWithFreeFees() {
+        // Uses the real CustomGasCharging to verify no double-increment when fees are free.
+        // Before the fix, CustomGasCharging would call incrementNonce() AND TransactionProcessor
+        // would call it again, resulting in a double increment.
+        final var realGasCharging = new CustomGasCharging((HederaGasCalculator) GAS_CALCULATOR);
+        final var processor = new TransactionProcessor(
+                frameBuilder,
+                frameRunner,
+                realGasCharging,
+                messageCallProcessor,
+                contractCreationProcessor,
+                featureFlags,
+                GAS_CALCULATOR,
+                null);
+
+        givenSenderAccount();
+        given(senderAccount.getNonce()).willReturn(NONCE);
+        givenRelayerAccount();
+        givenReceiverAccount();
+        givenAccessTracker(mock(StorageAccessTracker.class));
+        given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
+        given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+
+        final var freeFeesContext = new HederaEvmContext(
+                NETWORK_GAS_PRICE, false, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
+        final var transaction = wellKnownRelayedHapiCall(0);
+
+        given(frameBuilder.buildInitialFrameWith(
+                        eq(transaction),
+                        eq(worldUpdater),
+                        eq(freeFeesContext),
+                        eq(config),
+                        eq(opsDurationCounter),
+                        eq(featureFlags),
+                        eq(EIP_1014_ADDRESS),
+                        eq(NON_SYSTEM_LONG_ZERO_ADDRESS),
+                        anyLong(),
+                        eq(GAS_CALCULATOR),
+                        eq(List.of())))
+                .willReturn(initialFrame);
+        given(frameRunner.runToCompletion(
+                        eq(GAS_LIMIT),
+                        eq(SENDER_ID),
+                        eq(initialFrame),
+                        eq(tracer),
+                        any(),
+                        eq(contractCreationProcessor),
+                        any(),
+                        any()))
+                .willReturn(SUCCESS_RESULT);
+        given(initialFrame.getSelfDestructs()).willReturn(Set.of());
+
+        processor.processTransaction(transaction, worldUpdater, freeFeesContext, tracer, config, opsDurationCounter);
+
+        verify(senderAccount, times(1)).incrementNonce();
     }
 
     private void assertResourceExhaustion(

@@ -361,14 +361,6 @@ class DummyVirtualRoot extends AbstractVirtualRoot {
         return super.isDestroyed();
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {
-        return pipeline == this.pipeline;
-    }
-
     @Override
     protected void destroyNode() {
         pipeline.destroyCopy(this);

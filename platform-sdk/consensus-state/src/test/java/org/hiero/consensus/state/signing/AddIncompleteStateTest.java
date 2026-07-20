@@ -10,8 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
-import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
-
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -34,11 +33,11 @@ public class Tipset {
         this.roster = Objects.requireNonNull(roster);
         tips = new long[roster.rosterEntries().size()];
 
-        Arrays.fill(tips, SEQUENCE_NUMBER_UNDEFINED);
+        Arrays.fill(tips, PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
     }
 
     /**
-     * Build an empty tipset (i.e. where all sequence numbers are {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}) using another
+     * Build an empty tipset (i.e. where all generations are {@link EventConstants#GENERATION_UNDEFINED}) using another
      * tipset as a template.
      *
      * @param tipset the tipset to use as a template
@@ -53,7 +52,7 @@ public class Tipset {
      * Merge a list of tipsets together.
      *
      * <p>
-     * The sequence number for each node ID will be equal to the maximum sequence number found for that node ID from all source
+     * The generation for each node ID will be equal to the maximum generation found for that node ID from all source
      * tipsets.
      * In the case of empty list, a new Tipset instance with the current roster will be returned.
      *
@@ -81,8 +80,8 @@ public class Tipset {
     }
 
     /**
-     * Get the tip sequence number for a given node. If the node is not in the roster or no event from that node is known,
-     * return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
+     * Get the tip generation for a given node. If the node is not in the roster or no event from that node is know,
+     * return {@link EventConstants#GENERATION_UNDEFINED}.
      *
      * @param nodeId the node in question
      * @return the tip generation for the node
@@ -90,7 +89,7 @@ public class Tipset {
     public long getTipSequenceNumberForNode(@NonNull final NodeId nodeId) {
         final int index = RosterUtils.getIndex(roster, nodeId.id());
         if (index == -1) {
-            return SEQUENCE_NUMBER_UNDEFINED;
+            return PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
         }
         return tips[index];
     }
