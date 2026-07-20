@@ -114,6 +114,7 @@ import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -376,17 +377,24 @@ public class BlockStreamBuilder
     @Nullable
     private List<ContractSlotUsage> slotUsages;
 
+    private int contractSlotUsagesTraceDataSize;
+
     /**
      * The contract actions resulting from the transaction.
      */
     @Nullable
     private List<ContractAction> contractActions;
 
+    private int contractActionsTraceDataSize;
+
     /**
      * The contract initcode for this builder's EVM transaction or internal creation.
      */
     @Nullable
     private ExecutedInitcode initcode;
+
+    private final TraceDataSizeLimiter traceDataSizeLimiter;
+    private long estimatedContractBytecodeSize;
 
     /**
      * The hash of the Ethereum payload if relevant to the transaction.
@@ -471,9 +479,26 @@ public class BlockStreamBuilder
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
+        this(reversingBehavior, customizer, category, TraceDataSizeLimiter.NO_LIMIT);
+    }
+
+    public BlockStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final HandleContext.TransactionCategory category,
+            final int maxSerializedTraceDataBytes) {
+        this(reversingBehavior, customizer, category, new TraceDataSizeLimiter(maxSerializedTraceDataBytes));
+    }
+
+    public BlockStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final HandleContext.TransactionCategory category,
+            @NonNull final TraceDataSizeLimiter traceDataSizeLimiter) {
         this.reversingBehavior = requireNonNull(reversingBehavior);
         this.customizer = requireNonNull(customizer);
         this.category = requireNonNull(category);
+        this.traceDataSizeLimiter = requireNonNull(traceDataSizeLimiter);
     }
 
     /**
@@ -629,7 +654,8 @@ public class BlockStreamBuilder
         }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (slotUsages != null || contractActions != null || initcode != null || logs != null) {
+        if (!traceDataSizeLimiter.hasExceededTraceDataSizeLimit()
+                && (slotUsages != null || contractActions != null || (initcode != null && !topLevel) || logs != null)) {
             final var builder = EvmTraceData.newBuilder();
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
@@ -977,9 +1003,16 @@ public class BlockStreamBuilder
         return this;
     }
 
+    /**
+     * If the trace data size limit has already been exceeded, the EVM transaction will be reverted with
+     * {@code INSUFFICIENT_GAS}; so there is no reason to keep holding the log objects here.
+     */
     @NonNull
     @Override
     public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            return this;
+        }
         this.logs = requireNonNull(logs);
         return this;
     }
@@ -1333,7 +1366,14 @@ public class BlockStreamBuilder
     @Override
     public BlockStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
         requireNonNull(slotUsages);
-        this.slotUsages = slotUsages;
+        final var newTraceDataSize = EvmTraceData.PROTOBUF.measureRecord(
+                EvmTraceData.newBuilder().contractSlotUsages(slotUsages).build());
+        if (traceDataSizeLimiter.tryReplace(contractSlotUsagesTraceDataSize, newTraceDataSize)) {
+            this.slotUsages = slotUsages;
+            this.contractSlotUsagesTraceDataSize = newTraceDataSize;
+        } else {
+            clearContractTraceData();
+        }
         return this;
     }
 
@@ -1348,7 +1388,15 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
-        this.contractActions = requireNonNull(actions);
+        requireNonNull(actions);
+        final var newTraceDataSize = EvmTraceData.PROTOBUF.measureRecord(
+                EvmTraceData.newBuilder().contractActions(actions).build());
+        if (traceDataSizeLimiter.tryReplace(contractActionsTraceDataSize, newTraceDataSize)) {
+            this.contractActions = actions;
+            this.contractActionsTraceDataSize = newTraceDataSize;
+        } else {
+            clearContractTraceData();
+        }
         return this;
     }
 
@@ -1364,11 +1412,45 @@ public class BlockStreamBuilder
     @Override
     public BlockStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         requireNonNull(initcode);
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            return this;
+        }
         if (this.initcode != null) {
             log.warn("Overwriting existing initcode {} with new initcode {}", this.initcode, initcode);
         }
         this.initcode = initcode;
+        estimatedContractBytecodeSize = positiveSizeOf(EvmTraceData.PROTOBUF.measureRecord(
+                EvmTraceData.newBuilder().executedInitcode(initcode).build()));
         return this;
+    }
+
+    @Override
+    public boolean hasTraceDataSizeLimitExceeded() {
+        return traceDataSizeLimiter.hasExceededTraceDataSizeLimit();
+    }
+
+    private void clearContractTraceData() {
+        logs = null;
+        slotUsages = null;
+        contractSlotUsagesTraceDataSize = 0;
+        contractActions = null;
+        contractActionsTraceDataSize = 0;
+        initcode = null;
+        estimatedContractBytecodeSize = 0L;
+    }
+
+    @Override
+    public long estimatedContractBytecodeSize() {
+        return estimatedContractBytecodeSize;
+    }
+
+    @Override
+    public boolean ensureTraceDataSizeLimitWithAdditionalBytes(final long additionalBytes) {
+        return traceDataSizeLimiter.ensureWithinLimitWith(additionalBytes);
+    }
+
+    private static long positiveSizeOf(final int measuredSize) {
+        return measuredSize < 0 ? Long.MAX_VALUE : measuredSize;
     }
 
     @Override
@@ -1467,6 +1549,9 @@ public class BlockStreamBuilder
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
         runningHashVersion = 0L;
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            clearContractTraceData();
+        }
     }
 
     @NonNull

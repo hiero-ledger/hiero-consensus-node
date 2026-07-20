@@ -15,6 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTraceData;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -34,6 +37,8 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
@@ -147,6 +152,39 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
+    void exceededContractTraceDataLimitClearsAllEvmTraceData() {
+        final var actions = List.of(
+                ContractAction.newBuilder().callType(ContractActionType.CALL).build());
+        final var usages = List.of(new ContractSlotUsage(
+                ContractID.DEFAULT, new WrittenSlotKeys(List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
+        final var maxTraceDataBytes = EvmTraceData.PROTOBUF.measureRecord(
+                        EvmTraceData.newBuilder().contractSlotUsages(usages).build())
+                + EvmTraceData.PROTOBUF.measureRecord(
+                        EvmTraceData.newBuilder().contractActions(actions).build())
+                - 1;
+        final var logs =
+                List.of(new EvmTransactionLog(ContractID.DEFAULT, Bytes.wrap("log"), List.of(Bytes.wrap("topic"))));
+        final var initcode = ExecutedInitcode.newBuilder()
+                .contractId(ContractID.DEFAULT)
+                .explicitInitcode(Bytes.wrap("too-large"))
+                .build();
+        final var itemsBuilder = createBaseBuilder(maxTraceDataBytes)
+                .functionality(CONTRACT_CALL)
+                .evmCallTransactionResult(EvmTransactionResult.DEFAULT);
+        itemsBuilder.addContractSlotUsages(usages);
+        itemsBuilder.addLogs(logs);
+        itemsBuilder.addActions(actions);
+        itemsBuilder.addInitcode(initcode);
+        itemsBuilder.addActions(actions);
+
+        final var traceItems = itemsBuilder.build(false, null).blockItems().stream()
+                .filter(BlockItem::hasTraceData)
+                .toList();
+        assertTrue(itemsBuilder.hasTraceDataSizeLimitExceeded());
+        assertTrue(traceItems.isEmpty());
+    }
+
+    @Test
     void testBlockItemsWithAdditionalSubmitMsgTraceData() {
         final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
         // set additional trace data
@@ -214,9 +252,13 @@ public class BlockStreamBuilderTest {
     }
 
     private BlockStreamBuilder createBaseBuilder() {
+        return createBaseBuilder(Integer.MAX_VALUE);
+    }
+
+    private BlockStreamBuilder createBaseBuilder(final int maxSerializedTraceDataBytes) {
         final List<TokenTransferList> tokenTransferLists = List.of(tokenTransfer);
         final List<AccountAmount> paidStakingRewards = List.of(accountAmount);
-        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes)
                 .status(status)
                 .consensusTimestamp(CONSENSUS_TIME)
                 .parentConsensus(PARENT_CONSENSUS_TIME)
