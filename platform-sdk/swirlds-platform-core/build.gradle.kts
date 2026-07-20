@@ -3,6 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.benchmark")
+    id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-timing-sensitive")
 }
 
@@ -33,6 +34,7 @@ jmhModuleInfo {
     requires("org.hiero.consensus.pces.impl")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("jmh.core")
+    requires("com.hedera.pbj.runtime")
 }
 
 testModuleInfo {
@@ -47,7 +49,6 @@ testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.concurrent.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
-    requires("org.hiero.consensus.reconnect")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
