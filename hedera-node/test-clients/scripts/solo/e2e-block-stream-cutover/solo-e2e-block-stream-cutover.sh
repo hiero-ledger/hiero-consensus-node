@@ -386,6 +386,11 @@ TX_ID_OUT_FILE="${WORK_DIR}/last-submitted-tx-ids.txt"
 # against the mirror node after the 0.77 cutover (Step 12).
 SUBMITTED_TX_IDS=()
 
+# One line per Step 12 post-cutover validation result (each check appends its
+# own), replayed as a summary block at the very end of the run so a log reader
+# can confirm at a glance which checks ran and what they measured.
+VALIDATION_SUMMARY_LINES=()
+
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
 GRAFANA_PORT_FORWARD_PID=""
@@ -1846,6 +1851,7 @@ verify_record_uploads_ceased_final() {
     return 1
   fi
   echo "Record-file upload cessation confirmed: count ${final} unchanged across the post-cutover validation window"
+  VALIDATION_SUMMARY_LINES+=("✓ Record-file upload cessation: MinIO record-object count stable at ${final} (${RECORD_CESSATION_SETTLE_SECS}s settle check + unchanged across the post-cutover validation traffic)")
 }
 
 local_build_implementation_version() {
@@ -3906,6 +3912,7 @@ verify_mn_blocks_advancing_and_bn_serves() {
     return 1
   fi
   echo "MN top block advanced ${first_top} -> ${cur_top} (+$((cur_top - first_top))) across ${samples} samples with no regression"
+  VALIDATION_SUMMARY_LINES+=("✓ MN block progress: top block advanced ${first_top} -> ${cur_top} (+$((cur_top - first_top))) across ${samples} samples with no regression")
 
   # (b) BN getBlock over the observed span (first_top, cur_top], clamped to the
   # BN's own available range and capped at BN_GET_BLOCK_MAX_PER_CHECK.
@@ -3961,6 +3968,7 @@ verify_mn_blocks_advancing_and_bn_serves() {
         sweep_rc=1
       else
         echo "BN served all ${ok_count} observed blocks (${get_first}..${get_last}) with SUCCESS and non-empty items"
+        VALIDATION_SUMMARY_LINES+=("✓ BN getBlock: served all ${ok_count} observed blocks (${get_first}..${get_last}) with SUCCESS and non-empty items")
       fi
     fi
   fi
@@ -3976,6 +3984,7 @@ verify_submitted_transactions_visible_in_mirror() {
   local total="${#SUBMITTED_TX_IDS[@]}"
   if (( total == 0 )); then
     echo "WARN: no submitted txIds collected in this run (resume from a late step?); skipping the zero-transaction-loss sweep" >&2
+    VALIDATION_SUMMARY_LINES+=("- Zero transaction loss: SKIPPED — no txIds collected this run (resumed from a late step)")
     return 0
   fi
   local mirror_base="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
@@ -4012,6 +4021,25 @@ verify_submitted_transactions_visible_in_mirror() {
     return 1
   fi
   echo "Zero transaction loss: all ${total} submitted txIds visible in the mirror node with result SUCCESS"
+  VALIDATION_SUMMARY_LINES+=("✓ Zero transaction loss: all ${total} submitted txIds (creates + flushes, Steps 3-12) visible in MN with result SUCCESS")
+}
+
+# Replay the Step 12 post-cutover validation results as one block at the very
+# end of the log, so a reader can confirm the checks ran — and what they
+# measured — without scrolling back through the step output. Only reached on a
+# fully green run (a failing check aborts the script at its step).
+print_post_cutover_validation_summary() {
+  echo
+  echo "------------- Post-cutover validation summary (Step 12) -------------"
+  if (( ${#VALIDATION_SUMMARY_LINES[@]} == 0 )); then
+    echo "  (no post-cutover validations recorded this run)"
+  else
+    local line
+    for line in "${VALIDATION_SUMMARY_LINES[@]}"; do
+      echo "  ${line}"
+    done
+  fi
+  echo "----------------------------------------------------------------------"
 }
 
 write_mirror_node_block_cutover_values() {
@@ -4411,4 +4439,5 @@ if should_run_step 12; then
 fi
 start_post_run_keepalive
 print_end_of_run_diagnostics
+print_post_cutover_validation_summary
 print_banner "Completed: block stream cutover scenario finished successfully"
