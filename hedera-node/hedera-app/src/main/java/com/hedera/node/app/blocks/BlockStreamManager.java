@@ -94,7 +94,19 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param state the state to use
      * @param lastBlockHash the hash of the last block
      */
-    void init(@NonNull State state, @Nullable Bytes lastBlockHash);
+    default void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
+        init(state, lastBlockHash, false);
+    }
+
+    /**
+     * Initializes the block stream manager, optionally loading the cutover hash context when the block stream schema
+     * overwrite was executed during this startup.
+     *
+     * @param state the state to use
+     * @param lastBlockHash the hash of the last block
+     * @param cutoverSchemaExecuted whether the cutover schema overwrite was executed during this startup
+     */
+    void init(@NonNull State state, @Nullable Bytes lastBlockHash, boolean cutoverSchemaExecuted);
 
     /**
      * Updates the internal state of the block stream manager to reflect the start of a new round.

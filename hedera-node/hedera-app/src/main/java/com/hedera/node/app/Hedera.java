@@ -1420,7 +1420,9 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
             final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO : null;
-            daggerApp.blockStreamManager().init(state, lastBlockHash);
+            daggerApp
+                    .blockStreamManager()
+                    .init(state, lastBlockHash, blockStreamService.consumeBsiSchemaOverwriteExecuted());
             migrationStateChanges = null;
         }
     }
@@ -1563,13 +1565,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         try {
+            // Capture the freeze block's number here, on the handle thread right after endRound() closed it;
+            // the buffer's lastProducedBlockNumber can still lag behind the freeze block at this point, so
+            // waiting on that watermark instead can resolve vacuously and lose the freeze block (never
+            // delivered to any block node) when connections shut down at FREEZE_COMPLETE.
+            final long freezeBlockNumber = daggerApp.blockStreamManager().blockNo();
             final var blockStreamFuture =
                     requireNonNull(daggerApp.blockStreamManager().pendingBlockProofsFuture());
             final var wrbWritersFuture =
                     requireNonNull(daggerApp.blockRecordManager().noOpenWrbWritersFuture());
             final var signingFuture = CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture);
             final var freezeStateReadyFuture = waitsForBlockNodeAcknowledgements(blockStreamConfig)
-                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round))
+                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round, freezeBlockNumber))
                     : signingFuture;
             logger.info(
                     "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
@@ -1620,7 +1627,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 && daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection();
     }
 
-    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(@NonNull final Round round) {
+    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(
+            @NonNull final Round round, final long freezeBlockNumber) {
         requireNonNull(round);
         if (!daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection()) {
             logger.info(
@@ -1630,14 +1638,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             return completedFuture(null);
         }
         final var blockBufferService = daggerApp.blockBufferService();
-        final var lastProducedBlock = blockBufferService.getLastBlockNumberProduced();
         logger.info(
-                "Freeze round {} block signing completed; waiting for block node acknowledgement through block {}; "
-                        + "highestAckedBlock={}",
+                "Freeze round {} block signing completed; waiting for block node acknowledgement through "
+                        + "freeze block {}; lastProducedBlock={}, highestAckedBlock={}",
                 round.getRoundNum(),
-                lastProducedBlock,
+                freezeBlockNumber,
+                blockBufferService.getLastBlockNumberProduced(),
                 blockBufferService.getHighestAckedBlockNumber());
-        return requireNonNull(blockBufferService.acknowledgedThroughFuture(lastProducedBlock));
+        return requireNonNull(blockBufferService.acknowledgedThroughFuture(freezeBlockNumber));
     }
 
     /**

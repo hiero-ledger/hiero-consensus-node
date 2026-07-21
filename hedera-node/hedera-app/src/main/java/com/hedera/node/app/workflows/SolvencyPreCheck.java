@@ -12,6 +12,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Of
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -39,6 +40,7 @@ import java.time.Instant;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * Determines if the payer account set in the {@code TransactionID} is expected to be both willing and able to pay the
@@ -229,8 +231,14 @@ public class SolvencyPreCheck {
 
     private long estimatedGasPriceInTinybars(
             @NonNull final HederaFunctionality functionality, @NonNull final Instant consensusTime) {
-        final var feeData = feeManager.getFeeData(functionality, consensusTime, SubType.DEFAULT);
-        final long priceInTinyCents = feeData.servicedataOrThrow().gas() / FEE_DIVISOR_FACTOR;
+        final long priceInTinyCents;
+        final var gasExtra = lookupExtraFee(feeManager.getSimpleFeesSchedule(), Extra.GAS);
+        if (gasExtra != null) {
+            priceInTinyCents = gasExtra.fee();
+        } else {
+            final var feeData = feeManager.getFeeData(functionality, consensusTime, SubType.DEFAULT);
+            priceInTinyCents = feeData.servicedataOrThrow().gas() / FEE_DIVISOR_FACTOR;
+        }
         final long priceInTinyBars = exchangeRateManager.getTinybarsFromTinycents(priceInTinyCents, consensusTime);
         return Math.max(priceInTinyBars, 1L);
     }

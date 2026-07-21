@@ -35,7 +35,7 @@ import java.util.stream.IntStream;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
@@ -60,11 +60,8 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(
+                random, nodeCount, evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN);
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
@@ -160,11 +157,8 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(
+                random, nodeCount, evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN);
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
@@ -254,11 +248,8 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(
+                random, nodeCount, evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN);
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
@@ -339,11 +330,8 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(
+                random, nodeCount, evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN);
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
@@ -383,11 +371,8 @@ class StateSigningTests {
         final Random random = getRandomPrintSeed();
 
         final int nodeCount = random.nextInt(10, 20);
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(
+                random, nodeCount, evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN);
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
@@ -438,11 +423,8 @@ class StateSigningTests {
 
         final int nodeCount = random.nextInt(10, 20);
 
-        final Roster tempRoster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
+        final Roster tempRoster = RosterFactory.randomRoster(
+                random, nodeCount, evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN);
 
         // set node to zero weight
         final List<RosterEntry> rosterEntries = IntStream.range(

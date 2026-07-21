@@ -44,6 +44,7 @@ import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import dagger.Binds;
@@ -53,6 +54,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
+import org.hiero.hapi.fees.FeeScheduleUtils;
+import org.hiero.hapi.support.fees.Extra;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
 public interface TransactionModule {
@@ -75,8 +78,20 @@ public interface TransactionModule {
     static TinybarValues provideTinybarValues(
             @TopLevelResourcePrices @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @ChildTransactionResourcePrices @NonNull final FunctionalityResourcePrices childTransactionResourcePrices,
-            @NonNull final ExchangeRate exchangeRate) {
+            @NonNull final ExchangeRate exchangeRate,
+            @NonNull final HandleContext context) {
+        final var gasExtra = FeeScheduleUtils.lookupExtraFee(context.simpleFeesSchedule(), Extra.GAS);
+        if (gasExtra != null) {
+            return TinybarValues.forSimpleFeesTransactionWith(
+                    exchangeRate, gasExtra.fee(), topLevelResourcePrices, childTransactionResourcePrices);
+        }
         return TinybarValues.forTransactionWith(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
+    }
+
+    @Provides
+    @TransactionScope
+    static CanonicalDispatchPrices provideCanonicalDispatchPrices(@NonNull final HandleContext context) {
+        return new CanonicalDispatchPrices(context.simpleFeesSchedule());
     }
 
     @Provides
@@ -136,7 +151,7 @@ public interface TransactionModule {
      * If the top-level transaction is an {@code EthereumTransaction}, provides an ECDSA {@link Key} with
      * the public key of the sender address; otherwise returns {@code null}.
      *
-     * @param ethTxSigsCache the cache of Ethereum transaction signatures
+     * @param ethTxSigsCache    the cache of Ethereum transaction signatures
      * @param hydratedEthTxData the hydrated Ethereum transaction data, if this is an {@code EthereumTransaction}
      * @return the ECDSA {@link Key} with the public key of the sender address, or {@code null}
      */
@@ -165,6 +180,7 @@ public interface TransactionModule {
     @TransactionScope
     static HederaEvmContext provideHederaEvmContext(
             @NonNull final HandleContext context,
+            @NonNull final HederaFunctionality functionality,
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaOperations hederaOperations,
@@ -173,11 +189,22 @@ public interface TransactionModule {
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
                 false,
+                shouldChargeSimpleFees(context, functionality),
                 hederaEvmBlocks,
                 tinybarValues,
                 systemContractGasCalculator,
                 context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class),
                 pendingCreationMetadataRef);
+    }
+
+    private static boolean shouldChargeSimpleFees(HandleContext context, HederaFunctionality functionality) {
+        final var feesConfig = context.configuration().getConfigData(FeesConfig.class);
+        if (feesConfig.simpleFeesAreFree()) {
+            return false;
+        }
+        final var feeSchedule = context.simpleFeesSchedule();
+        final var serviceFee = FeeScheduleUtils.lookupServiceFee(feeSchedule, functionality);
+        return serviceFee == null || !serviceFee.free();
     }
 
     @Provides

@@ -44,20 +44,12 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class AtomicBatchRollbackTest {
 
-    private static final String CONTRACT = "CreateTrivial";
     private static final String LOGGED_CONTRACT = "CreateTrivialLogged";
-    private static final String NESTED_LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
     private static final long GAS_LIMIT_2M = 2_000_000L;
     private static final String INSUFFICIENT_BALANCE_ACCOUNT = "InsufficientBalanceAccount";
 
-    @Contract(contract = CONTRACT, creationGas = 5_000_000)
-    static SpecContract contract;
-
     @Contract(contract = LOGGED_CONTRACT, creationGas = 5_000_000)
     static SpecContract loggedContract;
-
-    @Contract(contract = NESTED_LAZY_CREATE_CONTRACT, creationGas = 2_000_000)
-    static SpecContract nestedLazyCreateContract;
 
     @Account(name = INSUFFICIENT_BALANCE_ACCOUNT)
     static SpecAccount insufficientBalanceAccount;
@@ -67,12 +59,7 @@ public class AtomicBatchRollbackTest {
 
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(
-                contract.getInfo(),
-                loggedContract.getInfo(),
-                nestedLazyCreateContract.getInfo(),
-                insufficientBalanceAccount.getInfo(),
-                relayer.getInfo());
+        lifecycle.doAdhoc(loggedContract.getInfo(), insufficientBalanceAccount.getInfo(), relayer.getInfo());
     }
 
     @LeakyHapiTest
