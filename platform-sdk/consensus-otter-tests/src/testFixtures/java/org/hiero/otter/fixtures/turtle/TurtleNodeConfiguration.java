@@ -11,6 +11,7 @@ import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
@@ -45,5 +46,6 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         this.overrideProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
         this.overrideProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));
         this.overrideProperties.withConfigValue(StateConfig_.SAVE_STATE_ASYNC, false);
+        this.overrideProperties.withConfigValue(ReconnectConfig_.ACTIVE, false);
     }
 }

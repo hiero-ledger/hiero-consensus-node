@@ -1096,7 +1096,11 @@ snyk/
 
 ### AI Helpers Code
 /.claude
+/.codex/
 **/ai.local
+
+### Embedded HAPI Test Runtime Artifacts
+/hedera-node/test-clients/data/keys/tss/
 
 ### Solo Testing Output
 /hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/
