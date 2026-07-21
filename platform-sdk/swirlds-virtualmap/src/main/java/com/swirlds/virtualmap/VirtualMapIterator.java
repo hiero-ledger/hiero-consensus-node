@@ -19,7 +19,6 @@ package com.swirlds.virtualmap;
 
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
@@ -73,9 +72,8 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
      */
     public VirtualMapIterator(@NonNull final VirtualMap map) {
         this.map = Objects.requireNonNull(map);
-        final VirtualMapMetadata metadata = map.getMetadata();
-        this.firstPath = metadata.getFirstLeafPath();
-        this.lastPath = metadata.getLastLeafPath();
+        this.firstPath = map.getMetadata().getFirstLeafPath();
+        this.lastPath = map.getMetadata().getLastLeafPath();
         this.nextPath = this.firstPath;
     }
 

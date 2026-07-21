@@ -13,7 +13,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -126,10 +125,10 @@ public final class VirtualMapTestUtils {
 
         assertEquals(expectedMap.getHash(), actualMap.getHash(), "hash should match");
 
-        final VirtualMapMetadata expectedMetadata = expectedMap.getMetadata();
-        final VirtualMapMetadata actualMetadataMetadata = actualMap.getMetadata();
+        final VirtualMap.Metadata expectedMetadata = expectedMap.getMetadata();
+        final VirtualMap.Metadata actualMetadata = actualMap.getMetadata();
 
-        assertEquals(expectedMetadata, actualMetadataMetadata, "metadata should match");
+        assertEquals(expectedMetadata, actualMetadata, "metadata should match");
 
         for (long i = expectedMetadata.getFirstLeafPath(); i <= expectedMetadata.getLastLeafPath(); i++) {
             assertEquals(

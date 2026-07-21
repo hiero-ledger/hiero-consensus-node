@@ -203,7 +203,7 @@ public class ConsensusNodeManager {
             InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
         }
         // Future work - capture the reconnect module, add a start() method to it, and call it later
-        factory.createReconnectModule(
+        factory.setupReconnectModule(
                 platform,
                 platformCoordinator,
                 buildingBlocks.platformComponents(),

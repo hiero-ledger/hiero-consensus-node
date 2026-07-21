@@ -16,12 +16,13 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Test;
 
-class RandomRosterBuilderTests {
+class RosterFactoryTests {
 
     /**
      * Assert that the given keys are unique.
@@ -52,16 +53,13 @@ class RandomRosterBuilderTests {
         // Only generate small address book (it's expensive to generate signatures)
         final int size = 3;
 
-        final RosterWithKeys rosterWithKeysA = RandomRosterBuilder.create(randotron)
-                .withSize(size)
-                .withRealKeysEnabled(true)
-                .buildWithKeys();
+        final RosterWithKeys rosterWithKeysA =
+                RosterFactory.randomRosterWithKeys(randotron, size, WeightGenerators.GAUSSIAN);
         final Roster rosterA = rosterWithKeysA.getRoster();
 
-        final Roster rosterB = RandomRosterBuilder.create(randotron.copyAndReset())
-                .withSize(size)
-                .withRealKeysEnabled(true)
-                .build();
+        final Roster rosterB = RosterFactory.randomRosterWithKeys(
+                        randotron.copyAndReset(), size, WeightGenerators.GAUSSIAN)
+                .getRoster();
 
         // The address book should be the same (keys should be deterministic)
         assertEquals(RosterUtils.hash(rosterA), RosterUtils.hash(rosterB));

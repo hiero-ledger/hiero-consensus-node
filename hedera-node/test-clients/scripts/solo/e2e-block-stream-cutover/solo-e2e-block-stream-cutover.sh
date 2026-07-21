@@ -12,6 +12,7 @@
 #      in resources/0.76|0.77 application.properties (public builds.hedera.com URL); no host-side
 #      pre-download or local nginx server. Per-node download times are reported from hgcaa.log.
 #- [x] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
+#- [x] Optional Step 13: SDK TCK regression suite vs the cutover network (819-call-tck-regression.yaml parity; ENABLE_TCK_TESTS=true)
 
 set -eo pipefail
 set +m
@@ -78,9 +79,6 @@ Environment:
   UPGRADE_076_VERSION        Solo release tag for the 0.76 upgrade. Upgrades to this published
                             release image (no --local-build-path), so the 0.76 step exercises the
                             tag's own default config. (default: v0.76.0-rc.1)
-  UPGRADE_077_VERSION        Solo upgrade-version label for the local-build 0.77 BLOCKS-only cutover step.
-                            Must be >= the 0.76 release the network is on, or Solo rejects it as a
-                            downgrade. (default: UPGRADE_076_VERSION, i.e. v0.76.0-rc.1)
   SOLO_075_UPGRADE_TIMEOUT_SECS  Timeout for the 0.75 local-build upgrade (default: 900)
   SOLO_076_UPGRADE_TIMEOUT_SECS  Timeout for the 0.76 release upgrade (default: 900)
   SOLO_077_UPGRADE_TIMEOUT_SECS  Timeout for the 0.77 local-build upgrade (default: 900)
@@ -89,10 +87,38 @@ Environment:
                             Matches Solo's own persist-port-forward for the explorer pod (38080 -> 8080),
                             so our forward short-circuits to Solo's auto-managed tunnel when present.
   EXPLORER_INGRESS_SERVICE_NAME Explorer service name (default: hiero-explorer-1-solo)
-  START_STEP                 Step number to resume from (1..12; default: 1).
+  START_STEP                 Step number to resume from (1..13; default: 1).
                             Skips earlier steps; caller is responsible for cluster state matching
                             the end of step (START_STEP - 1). When >1, a resume prelude rebuilds
                             the SDK runtime and re-establishes the CN/mirror port-forwards.
+                            START_STEP=13 implies ENABLE_TCK_TESTS=true unless it was set explicitly.
+  ENABLE_TCK_TESTS           true|false (default: false). Adds Step 13: run the SDK team's TCK suite
+                            (hiero-ledger/hiero-sdk-tck driven through the hiero-sdk-js tck JSON-RPC
+                            server) against the cutover network, replicating the XTS panel in
+                            .github/workflows/819-call-tck-regression.yaml. A TCK failure fails the
+                            script (KEEP_NETWORK semantics still apply, so the network stays up).
+  TCK_REPO_PATH              Existing hiero-sdk-tck checkout to reuse as-is (TCK_VERSION is ignored).
+                            Default: clone into this run's temp WORK_DIR.
+  JS_SDK_REPO_PATH           Existing hiero-sdk-js checkout to reuse as-is (JS_SDK_VERSION is ignored).
+                            NOTE: the tck server setup runs `pnpm add` and rewrites tck/package.json
+                            + lockfile inside that checkout.
+  TCK_VERSION                hiero-sdk-tck tag to clone (default: the tck-version pin in
+                            .github/workflows/support/citr/.citr-env, i.e. what XTS runs;
+                            empty = repo default branch)
+  JS_SDK_VERSION             hiero-sdk-js tag to clone (default: the js-sdk-version pin in the same
+                            .citr-env; empty = repo default branch)
+  TCK_TEST_FILES             Space/comma-separated test files relative to the TCK repo (e.g.
+                            src/tests/crypto-service/test-transfer-hbar-transaction.ts). When set,
+                            runs `npm run test:file <file>` per file instead of the full suite.
+  TCK_TEST_SCRIPT            npm script for the full-suite mode (default: test; e.g. test:serial if
+                            the parallel suite overloads the host)
+  TCK_JSON_RPC_PORT          Local port of the JS-SDK tck JSON-RPC server (default: 8544)
+  MIRROR_GRPC_LOCAL_PORT     Local port forwarded to svc/mirror-1-grpc for MIRROR_NETWORK (default: 5600)
+  MIRROR_RESTJAVA_LOCAL_PORT Local port forwarded to svc/mirror-1-restjava (default: 8084)
+  MIRROR_RESTJAVA_READY_TIMEOUT_SECS
+                            Bound on waiting for the mirror-1-restjava rollout in Step 13 (default: 300)
+  TCK_TEST_TIMEOUT_SECS      Timeout for the full suite / each test:file invocation (default: 3600)
+  TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 13 (default: 900)
 EOF
       exit 0
       ;;
@@ -158,10 +184,6 @@ INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_074_RELEASE_TAG="${UPGRADE_074_RELEASE_TAG:-v0.74.0}"
 UPGRADE_075_VERSION="${UPGRADE_075_VERSION:-v0.75.0-rc.6}"
 UPGRADE_076_VERSION="${UPGRADE_076_VERSION:-v0.76.0-rc.1}"
-# The 0.77 upgrade uses the local build, but its --upgrade-version label must be >= the network's
-# current version (now ${UPGRADE_076_VERSION} after the 0.76 step) or Solo rejects it as a downgrade.
-# Default to the 0.76 tag so it tracks automatically if UPGRADE_076_VERSION is bumped.
-UPGRADE_077_VERSION="${UPGRADE_077_VERSION:-${UPGRADE_076_VERSION}}"
 SOLO_075_UPGRADE_TIMEOUT_SECS="${SOLO_075_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_076_UPGRADE_TIMEOUT_SECS="${SOLO_076_UPGRADE_TIMEOUT_SECS:-900}"
 SOLO_077_UPGRADE_TIMEOUT_SECS="${SOLO_077_UPGRADE_TIMEOUT_SECS:-900}"
@@ -270,6 +292,9 @@ BLOCK_NODE_RELEASE_TAG="${BLOCK_NODE_RELEASE_TAG:-}"
 BLOCK_NODE_IMAGE_TAG="${BLOCK_NODE_IMAGE_TAG:-}"
 BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
+# Per-node budget for the CN to self-download + extract the ~2 GB WRAPS proving key and build
+# its first proof.
+WRAPS_VERIFY_TIMEOUT_SECS="${WRAPS_VERIFY_TIMEOUT_SECS:-600}"
 # BLOCK_NODE_CUTOVER_START_BLOCK is rendered into the BN pod as both
 # BLOCK_NODE_EARLIEST_MANAGED_BLOCK (NodeConfig.earliestManagedBlock) and
 # BACKFILL_START_BLOCK (BackfillConfiguration.startBlock). Together they tell
@@ -310,15 +335,45 @@ MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 # COUPLING: this must stay >= the mirror chart default of the pinned Solo (workflow `solo-version`,
 # currently 0.79.0 -> default 0.156.0). If you bump solo-version, bump this in lockstep or the add
 # itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.156.0}"
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.158.0}"
+
+# --- Step 13: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
+# TCK/JS-SDK version defaults come from the CITR pin file so a default run tests exactly the
+# tags the XTS SDK TCK Regression Panel runs (855-call-extract-citr-vars.yaml reads the same file).
+CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
+TCK_VERSION="${TCK_VERSION:-$({ sed -n 's/^tck-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+JS_SDK_VERSION="${JS_SDK_VERSION:-$({ sed -n 's/^js-sdk-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+TCK_REPO_PATH="${TCK_REPO_PATH:-}"
+JS_SDK_REPO_PATH="${JS_SDK_REPO_PATH:-}"
+TCK_TEST_FILES="${TCK_TEST_FILES:-}"
+TCK_TEST_SCRIPT="${TCK_TEST_SCRIPT:-test}"
+TCK_JSON_RPC_PORT="${TCK_JSON_RPC_PORT:-8544}"
+MIRROR_GRPC_LOCAL_PORT="${MIRROR_GRPC_LOCAL_PORT:-5600}"
+MIRROR_RESTJAVA_LOCAL_PORT="${MIRROR_RESTJAVA_LOCAL_PORT:-8084}"
+MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
+TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
+TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
+# ENABLE_TCK_TESTS is deliberately not defaulted here: the START_STEP block below needs to
+# distinguish "unset" (auto-implied by START_STEP=13) from an explicit false.
 
 # Step at which to start; lower-numbered steps are skipped. Default 1 = full run.
 START_STEP="${START_STEP:-1}"
-if ! [[ "${START_STEP}" =~ ^[1-9]$|^1[012]$ ]]; then
-  echo "START_STEP must be an integer 1..12, got '${START_STEP}'" >&2
+if ! [[ "${START_STEP}" =~ ^[1-9]$|^1[0-3]$ ]]; then
+  echo "START_STEP must be an integer 1..13, got '${START_STEP}'" >&2
   exit 1
 fi
 should_run_step() { (( START_STEP <= $1 )); }
+
+# START_STEP=13 is the standalone-TCK entry point; without ENABLE_TCK_TESTS the run would be a
+# no-op after the resume prelude, so imply it unless the caller set it explicitly.
+if [[ "${START_STEP}" == "13" && -z "${ENABLE_TCK_TESTS:-}" ]]; then
+  echo "START_STEP=13: enabling ENABLE_TCK_TESTS=true (set ENABLE_TCK_TESTS=false explicitly to suppress)"
+  ENABLE_TCK_TESTS=true
+fi
+ENABLE_TCK_TESTS="${ENABLE_TCK_TESTS:-false}"
+if [[ "${START_STEP}" == "13" && "${ENABLE_TCK_TESTS}" != "true" ]]; then
+  echo "WARNING: START_STEP=13 with ENABLE_TCK_TESTS=false — this run will do nothing after the resume prelude" >&2
+fi
 
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
@@ -352,11 +407,24 @@ BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-n
 PORT_FORWARD_WATCHDOG_SCRIPT="${WORK_DIR}/post-run-port-forward-watchdog.sh"
 PORT_FORWARD_WATCHDOG_LOG="${WORK_DIR}/post-run-port-forward-watchdog.log"
 
+# Step 13 (SDK TCK) artifacts. Clones land in WORK_DIR; the mochawesome report is exported to
+# GENERATED_DIR so it survives WORK_DIR removal on a successful non-keep run.
+TCK_CLONE_DIR="${WORK_DIR}/hiero-sdk-tck"
+JS_SDK_CLONE_DIR="${WORK_DIR}/hiero-sdk-js"
+TCK_SDK_SERVER_LOG="${WORK_DIR}/tck-sdk-server.log"
+TCK_REPORT_EXPORT_DIR="${TCK_REPORT_EXPORT_DIR:-${GENERATED_DIR}/tck-report}"
+# Resolved by prepare_tck_repos (either the *_REPO_PATH overrides or the clones above).
+TCK_REPO_DIR=""
+JS_SDK_REPO_DIR=""
+
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
 GRAFANA_PORT_FORWARD_PID=""
 EXPLORER_INGRESS_PORT_FORWARD_PID=""
 PORT_FORWARD_WATCHDOG_PID=""
+MIRROR_GRPC_PORT_FORWARD_PID=""
+MIRROR_RESTJAVA_PORT_FORWARD_PID=""
+TCK_SDK_SERVER_PID=""
 ACTIVE_GRAFANA_SERVICE_NAME="${GRAFANA_SERVICE_NAME}"
 ACTIVE_INGRESS_NAMESPACE="${SOLO_NAMESPACE}"
 ACTIVE_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME}"
@@ -428,11 +496,35 @@ cleanup() {
   # need MinIO back up.
   reconnect_importer_to_minio >/dev/null 2>&1 || true
 
-  if [[ ${exit_code} -ne 0 ]]; then
-    return
+  # Preserve the sdk-server log next to the exported TCK report before killing the server:
+  # WORK_DIR is a temp dir that never reaches CI artifacts, and the log carries the per-request
+  # receipts needed to tell "no receipt from CN" apart from "mirror never showed the update".
+  if [[ -s "${TCK_SDK_SERVER_LOG}" ]]; then
+    mkdir -p "${TCK_REPORT_EXPORT_DIR}" >/dev/null 2>&1 || true
+    cp "${TCK_SDK_SERVER_LOG}" "${TCK_REPORT_EXPORT_DIR}/tck-sdk-server.log" >/dev/null 2>&1 || true
   fi
 
-  if [[ "${KEEP_NETWORK}" == "true" ]]; then
+  # TCK helpers (Step 13) are host-local only — the JSON-RPC sdk-server and the mirror
+  # grpc/restjava forwards exist solely for the TCK client. Kill them regardless of exit
+  # code / KEEP_NETWORK; pnpm spawns nodemon which spawns the node that owns the socket,
+  # so TERM the child tree first, then the pid, then sweep the port for the grandchild.
+  if [[ -n "${TCK_SDK_SERVER_PID}" ]]; then
+    pkill -TERM -P "${TCK_SDK_SERVER_PID}" >/dev/null 2>&1 || true
+    kill "${TCK_SDK_SERVER_PID}" >/dev/null 2>&1 || true
+    kill_processes_on_local_port "${TCK_JSON_RPC_PORT}"
+  fi
+  if [[ -n "${MIRROR_GRPC_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_GRPC_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" ]]; then
+    kill "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+  fi
+
+  if [[ ${exit_code} -ne 0 || "${KEEP_NETWORK}" == "true" ]]; then
+    if [[ "${KEEP_PORT_FORWARD_WATCHDOG}" == "true" && -z "${PORT_FORWARD_WATCHDOG_PID}" ]]; then
+      start_port_forward_watchdog
+      echo "Started port-forward watchdog for the kept network (pid=${PORT_FORWARD_WATCHDOG_PID}, log=${PORT_FORWARD_WATCHDOG_LOG})"
+    fi
     return
   fi
 
@@ -999,6 +1091,8 @@ cleanup_stale_port_forwards() {
   pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/${MIRROR_REST_SERVICE} .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/${EXPLORER_INGRESS_SERVICE_NAME} .*${EXPLORER_INGRESS_LOCAL_PORT}:80" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/mirror-1-grpc .*${MIRROR_GRPC_LOCAL_PORT}:" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/mirror-1-restjava .*${MIRROR_RESTJAVA_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   if [[ "${include_grafana}" == "true" ]]; then
     pkill -f "port-forward svc/.*grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
   fi
@@ -1021,7 +1115,7 @@ preflight_kill_stale_port_forwards() {
   # Belt-and-suspenders: free every local port this script forwards to, regardless of how the
   # forward was launched (catches stale forwards whose svc/pattern no longer matches).
   local p
-  for p in "${CN_GRPC_LOCAL_PORT}" "${MIRROR_REST_LOCAL_PORT}" "${EXPLORER_INGRESS_LOCAL_PORT}" "${GRAFANA_LOCAL_PORT}" "${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}"; do
+  for p in "${CN_GRPC_LOCAL_PORT}" "${MIRROR_REST_LOCAL_PORT}" "${EXPLORER_INGRESS_LOCAL_PORT}" "${GRAFANA_LOCAL_PORT}" "${BLOCK_NODE_GRPC_LOCAL_PORT:-40840}" "${MIRROR_GRPC_LOCAL_PORT}" "${MIRROR_RESTJAVA_LOCAL_PORT}" "${TCK_JSON_RPC_PORT}"; do
     kill_processes_on_local_port "${p}"
   done
 }
@@ -1212,6 +1306,9 @@ restart_post_upgrade_port_forwards() {
   fi
   if [[ "${cn_ok}" == "true" && "${mirror_ok}" == "true" ]]; then
     echo "  CN gRPC (:${CN_GRPC_LOCAL_PORT}) and Mirror REST (:${MIRROR_REST_LOCAL_PORT}) forwards survived the upgrade; skipping destructive re-establishment"
+    # The explorer UI forward has no in-run healer and upgrade pod churn commonly kills it;
+    # start_explorer_ingress_port_forward is idempotent (no-op while the forward is alive).
+    start_explorer_ingress_port_forward || echo "  WARN: explorer UI port-forward not re-established" >&2
     return 0
   fi
   echo "  Post-upgrade forward health check: cn_ok=${cn_ok} mirror_ok=${mirror_ok} -- a forward is down, re-establishing it"
@@ -1309,6 +1406,8 @@ restart_post_upgrade_port_forwards() {
     tail -n 20 "${mirror_log}" >&2 2>/dev/null || true
     return 1
   fi
+
+  start_explorer_ingress_port_forward || echo "  WARN: explorer UI port-forward not re-established" >&2
 }
 
 minio_discover_service() {
@@ -1970,7 +2069,7 @@ run_076_upgrade() {
   node "${NODE_SCRIPT}"
 
   echo "--- Step 10 check 4/4: verify WRAPS runtime + proof construction on every consensus node ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
 
   report_wraps_download_times
   echo "--- Step 10 all checks passed ---"
@@ -2018,14 +2117,13 @@ run_077_upgrade() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_077_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_077_FILE}"
     --quiet-mode
     --force
   )
 
-  run_step "Upgrading consensus network to ${UPGRADE_077_VERSION} (local build, 0.77 BLOCKS-only cutover)" \
+  run_step "Upgrading consensus network to the local build (0.77 BLOCKS-only cutover)" \
     run_command_with_timeout "${SOLO_077_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
 
   echo "--- Step 11 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
@@ -2045,7 +2143,7 @@ run_077_upgrade() {
   node "${NODE_SCRIPT}"
 
   echo "--- Step 11 check 4/4: verify WRAPS runtime + real (non-mock) proof construction ---"
-  verify_wraps_on_consensus_nodes 600
+  verify_wraps_on_consensus_nodes "${WRAPS_VERIFY_TIMEOUT_SECS}"
   echo "--- Step 11 all checks passed ---"
 }
 
@@ -3583,7 +3681,11 @@ importer:
       memory: ${MIRROR_IMPORTER_MEMORY_LIMIT}
   env:
     HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'true'
-    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    # Mirror >= 0.157 restructured BlockNodeProperties: nodes[].host/port became a
+    # nodes[].endpoints[] collection; the old flat host key fails Spring binding at startup
+    # (importer CrashLoopBackOff, "elements ... left unbound").
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_PORT: '40840'
 EOF
   if [[ -n "${MIRROR_BLOCK_CUTOVER_HAPIVERSION}" ]]; then
     # 0.155+ only: pin the HAPI version at which to switch from record to block stream.
@@ -3626,6 +3728,356 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
+# ---------- Step 13: SDK TCK regression helpers (819-call-tck-regression.yaml parity) ----------
+
+# pnpm is only needed by the tck server install; require it lazily so runs without
+# ENABLE_TCK_TESTS keep working on hosts that never installed it (819 L142-144 parity).
+ensure_pnpm_available() {
+  if command -v pnpm >/dev/null 2>&1; then
+    return 0
+  fi
+  run_step "Installing pnpm globally (npm install -g pnpm)" npm install -g pnpm || true
+  if command -v pnpm >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "pnpm is required for the TCK sdk-server but could not be installed globally." >&2
+  echo "Install it manually (e.g. 'npm install -g pnpm' with a writable npm prefix, or corepack enable) and re-run." >&2
+  return 1
+}
+
+clone_repo_at_tag() {
+  local url="$1"
+  local dest="$2"
+  local tag="$3"
+  local clone_cmd=(git clone --depth 1)
+  if [[ -n "${tag}" ]]; then
+    clone_cmd+=(--branch "${tag}")
+  fi
+  clone_cmd+=("${url}" "${dest}")
+  rm -rf "${dest}" >/dev/null 2>&1 || true
+  if ! run_step "Cloning ${url} (${tag:-default branch})" "${clone_cmd[@]}"; then
+    echo "Clone failed for ${url} at '${tag:-default branch}' — check that the tag exists and the host has network access" >&2
+    return 1
+  fi
+}
+
+# Resolves TCK_REPO_DIR / JS_SDK_REPO_DIR: reuse the *_REPO_PATH checkouts as-is when given,
+# otherwise clone the *_VERSION tags (default: the XTS pins from .citr-env) into WORK_DIR.
+prepare_tck_repos() {
+  if [[ -n "${TCK_REPO_PATH}" ]]; then
+    if [[ ! -f "${TCK_REPO_PATH}/package.json" ]]; then
+      echo "TCK_REPO_PATH does not look like a hiero-sdk-tck checkout (missing package.json): ${TCK_REPO_PATH}" >&2
+      return 1
+    fi
+    if [[ -n "${TCK_VERSION}" ]]; then
+      echo "NOTE: TCK_REPO_PATH is set; using the checkout as-is (TCK_VERSION=${TCK_VERSION} ignored)"
+    fi
+    TCK_REPO_DIR="${TCK_REPO_PATH}"
+  else
+    clone_repo_at_tag "https://github.com/hiero-ledger/hiero-sdk-tck.git" "${TCK_CLONE_DIR}" "${TCK_VERSION}" || return 1
+    TCK_REPO_DIR="${TCK_CLONE_DIR}"
+  fi
+
+  if [[ -n "${JS_SDK_REPO_PATH}" ]]; then
+    if [[ ! -d "${JS_SDK_REPO_PATH}/tck" ]]; then
+      echo "JS_SDK_REPO_PATH does not look like a hiero-sdk-js checkout (missing tck/ dir): ${JS_SDK_REPO_PATH}" >&2
+      return 1
+    fi
+    if [[ -n "${JS_SDK_VERSION}" ]]; then
+      echo "NOTE: JS_SDK_REPO_PATH is set; using the checkout as-is (JS_SDK_VERSION=${JS_SDK_VERSION} ignored)"
+    fi
+    echo "NOTE: the tck server setup runs 'pnpm add' inside ${JS_SDK_REPO_PATH}/tck and rewrites its package.json + lockfile"
+    JS_SDK_REPO_DIR="${JS_SDK_REPO_PATH}"
+  else
+    clone_repo_at_tag "https://github.com/hiero-ledger/hiero-sdk-js.git" "${JS_SDK_CLONE_DIR}" "${JS_SDK_VERSION}" || return 1
+    if [[ ! -d "${JS_SDK_CLONE_DIR}/tck" ]]; then
+      echo "Cloned hiero-sdk-js has no tck/ directory (does tag '${JS_SDK_VERSION:-default branch}' predate the TCK server?)" >&2
+      return 1
+    fi
+    JS_SDK_REPO_DIR="${JS_SDK_CLONE_DIR}"
+  fi
+  echo "TCK client: ${TCK_REPO_DIR} (${TCK_VERSION:-default branch}); JS-SDK server: ${JS_SDK_REPO_DIR} (${JS_SDK_VERSION:-default branch})"
+}
+
+# run_command_with_timeout backgrounds "$@" in this shell, so plain functions are valid
+# commands for it — these tiny wrappers exist to give the install phases a timeout without
+# quoting gymnastics around cd.
+tck_npm_install() { (cd "${TCK_REPO_DIR}" && npm install --no-fund --no-audit); }
+
+install_tck_client_dependencies() {
+  run_step "Installing TCK client dependencies (npm install in ${TCK_REPO_DIR})" \
+    run_command_with_timeout "${TCK_INSTALL_TIMEOUT_SECS}" tck_npm_install
+}
+
+# Versions pinned into the tck server install, extracted from the JS-SDK checkout's own
+# package.json files (819 L158-176 parity). Globals so the timeout-wrapped install helper
+# can read them.
+TCK_SDK_SERVER_SDK_VERSION=""
+TCK_SDK_SERVER_LONG_VERSION=""
+TCK_SDK_SERVER_PROTO_VERSION=""
+TCK_SDK_SERVER_TS_VERSION=""
+
+tck_sdk_server_pnpm_install() {
+  (
+    cd "${JS_SDK_REPO_DIR}/tck" || exit 1
+    # tck/ is not a member of the sdk repo's pnpm workspace, so give it its own config-only
+    # workspace file (pnpm >= 10 reads build-script approvals from pnpm-workspace.yaml, not
+    # package.json): run dependency build scripts — a plain install fails on pnpm >= 10 with
+    # ERR_PNPM_IGNORED_BUILDS otherwise — but never the browser drivers, which are test-only
+    # deps of the sdk repo, irrelevant to the tck server, and whose postinstalls break on
+    # unpinned transitive drift (chromedriver's install.js dies with ERR_REQUIRE_ESM on node 20).
+    printf 'dangerouslyAllowAllBuilds: true\nignoredBuiltDependencies:\n  - chromedriver\n  - geckodriver\n' > pnpm-workspace.yaml
+    # tck/package.json pins ts-node but not typescript; resolved standalone that floats to the
+    # newest major, which ts-node 10 cannot drive (readConfig fileExists crash on TS 7). Pin the
+    # sdk root's own typescript so the server runs against what the sdk repo develops with.
+    pnpm add "@hiero-ledger/sdk@^${TCK_SDK_SERVER_SDK_VERSION}" "long@${TCK_SDK_SERVER_LONG_VERSION}" "@hiero-ledger/proto@${TCK_SDK_SERVER_PROTO_VERSION}" \
+      && pnpm add -D "typescript@${TCK_SDK_SERVER_TS_VERSION}" \
+      && pnpm install
+  )
+}
+
+start_tck_sdk_server() {
+  local tck_dir="${JS_SDK_REPO_DIR}/tck"
+  if [[ ! -d "${tck_dir}" ]]; then
+    echo "JS-SDK tck server directory not found: ${tck_dir}" >&2
+    return 1
+  fi
+
+  TCK_SDK_SERVER_SDK_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').version)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_LONG_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').dependencies.long)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_PROTO_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../packages/proto/package.json').version)" 2>/dev/null || true)"
+  TCK_SDK_SERVER_TS_VERSION="$(cd "${tck_dir}" && node -e "console.log(require('../package.json').devDependencies.typescript)" 2>/dev/null || true)"
+  if [[ -z "${TCK_SDK_SERVER_TS_VERSION}" || "${TCK_SDK_SERVER_TS_VERSION}" == "undefined" ]]; then
+    # Known-good with the tck server's ts-node 10 pin; only used if the sdk root drops its own pin.
+    TCK_SDK_SERVER_TS_VERSION="5.9.3"
+  fi
+  if [[ -z "${TCK_SDK_SERVER_SDK_VERSION}" || -z "${TCK_SDK_SERVER_LONG_VERSION}" || "${TCK_SDK_SERVER_LONG_VERSION}" == "undefined" || -z "${TCK_SDK_SERVER_PROTO_VERSION}" ]]; then
+    echo "Could not extract sdk/long/proto versions from the JS-SDK checkout at ${JS_SDK_REPO_DIR}" >&2
+    echo "  sdk='${TCK_SDK_SERVER_SDK_VERSION}' long='${TCK_SDK_SERVER_LONG_VERSION}' proto='${TCK_SDK_SERVER_PROTO_VERSION}'" >&2
+    return 1
+  fi
+
+  run_step "Pinning tck server deps (sdk ^${TCK_SDK_SERVER_SDK_VERSION}, long ${TCK_SDK_SERVER_LONG_VERSION}, proto ${TCK_SDK_SERVER_PROTO_VERSION}, typescript ${TCK_SDK_SERVER_TS_VERSION}) + pnpm install" \
+    run_command_with_timeout "${TCK_INSTALL_TIMEOUT_SECS}" tck_sdk_server_pnpm_install || return 1
+
+  # 819 starts the server with no args (default port 8544). Pass the port only when overridden;
+  # override support depends on the checked-out tck server accepting a port argument.
+  local start_arg=""
+  if [[ "${TCK_JSON_RPC_PORT}" != "8544" ]]; then
+    start_arg="${TCK_JSON_RPC_PORT}"
+  fi
+  kill_processes_on_local_port "${TCK_JSON_RPC_PORT}"
+  echo "Starting TCK JSON-RPC server (pnpm start${start_arg:+ ${start_arg}}) in ${tck_dir} (log: ${TCK_SDK_SERVER_LOG})"
+  TCK_SDK_SERVER_PID="$(
+    cd "${tck_dir}" || exit 1
+    nohup pnpm start ${start_arg:+"${start_arg}"} >"${TCK_SDK_SERVER_LOG}" 2>&1 < /dev/null &
+    echo $!
+  )"
+  if [[ -z "${TCK_SDK_SERVER_PID}" ]]; then
+    echo "Failed to launch the TCK JSON-RPC server (no PID captured)" >&2
+    return 1
+  fi
+
+  if ! wait_for_tcp_open "127.0.0.1" "${TCK_JSON_RPC_PORT}" 60 2 "Waiting for TCK JSON-RPC server on 127.0.0.1:${TCK_JSON_RPC_PORT}"; then
+    echo "TCK JSON-RPC server did not open 127.0.0.1:${TCK_JSON_RPC_PORT}" >&2
+    if ! kill -0 "${TCK_SDK_SERVER_PID}" >/dev/null 2>&1; then
+      echo "  server process ${TCK_SDK_SERVER_PID} already exited" >&2
+    fi
+    if [[ -s "${TCK_SDK_SERVER_LOG}" ]]; then
+      echo "  last server log lines:" >&2
+      tail -n 30 "${TCK_SDK_SERVER_LOG}" | sed 's/^/    /' >&2
+    fi
+    return 1
+  fi
+  echo "TCK JSON-RPC server ready on http://127.0.0.1:${TCK_JSON_RPC_PORT} (pid ${TCK_SDK_SERVER_PID})"
+}
+
+# Bounded rollout wait for a single mirror deployment (wait_for_required_mirror_services_ready
+# covers the required set; TCK additionally needs restjava, which that set tolerates missing).
+wait_for_mirror_deployment_ready() {
+  local deployment="$1"
+  local timeout_secs="$2"
+  local start_ts
+  start_ts="$(date +%s)"
+  while true; do
+    if deployment_ready "${deployment}" 5; then
+      return 0
+    fi
+    if (( $(date +%s) - start_ts >= timeout_secs )); then
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+# Establishes the two forwards only TCK needs (CN gRPC + mirror REST are owned by
+# restart_post_upgrade_port_forwards). Step-scoped: not watchdog-managed, killed
+# unconditionally by cleanup().
+ensure_tck_port_forwards() {
+  # restjava is the one mirror deployment the deploy path tolerates being down (see
+  # mirror_node_failed_only_on_restjava); TCK is the only consumer that REQUIRES it.
+  echo "Waiting for mirror-1-restjava rollout (TCK needs MIRROR_NODE_REST_JAVA_URL; up to ${MIRROR_RESTJAVA_READY_TIMEOUT_SECS}s)"
+  if ! wait_for_mirror_deployment_ready mirror-1-restjava "${MIRROR_RESTJAVA_READY_TIMEOUT_SECS}"; then
+    echo "mirror-1-restjava is not ready — the TCK suite requires the restjava API." >&2
+    echo "The mirror deploy tolerates restjava being down, so the network can look healthy otherwise." >&2
+    echo "Inspect: kubectl -n ${SOLO_NAMESPACE} get deploy mirror-1-restjava (OOMKills are the usual cause);" >&2
+    echo "consider raising MIRROR_RESTJAVA_MEMORY_LIMIT (currently ${MIRROR_RESTJAVA_MEMORY_LIMIT})." >&2
+    return 1
+  fi
+  if ! wait_for_mirror_deployment_ready mirror-1-grpc 120; then
+    echo "mirror-1-grpc deployment is not ready; cannot forward MIRROR_NETWORK for TCK" >&2
+    return 1
+  fi
+
+  local grpc_log="${WORK_DIR}/port-forward-mirror-grpc.log"
+  local restjava_log="${WORK_DIR}/port-forward-mirror-restjava.log"
+
+  if wait_for_tcp_open "127.0.0.1" "${MIRROR_GRPC_LOCAL_PORT}" 1 1; then
+    echo "Mirror gRPC forward already active on localhost:${MIRROR_GRPC_LOCAL_PORT}"
+  else
+    kill_processes_on_local_port "${MIRROR_GRPC_LOCAL_PORT}"
+    echo "Opening mirror gRPC port-forward svc/mirror-1-grpc ${MIRROR_GRPC_LOCAL_PORT}:5600 (kubectl log: ${grpc_log})"
+    nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-grpc "${MIRROR_GRPC_LOCAL_PORT}:5600" >"${grpc_log}" 2>&1 < /dev/null &
+    MIRROR_GRPC_PORT_FORWARD_PID="$!"
+    disown "${MIRROR_GRPC_PORT_FORWARD_PID}" 2>/dev/null || true
+  fi
+
+  if wait_for_tcp_open "127.0.0.1" "${MIRROR_RESTJAVA_LOCAL_PORT}" 1 1; then
+    echo "Mirror restjava forward already active on localhost:${MIRROR_RESTJAVA_LOCAL_PORT}"
+  else
+    kill_processes_on_local_port "${MIRROR_RESTJAVA_LOCAL_PORT}"
+    echo "Opening mirror restjava port-forward svc/mirror-1-restjava ${MIRROR_RESTJAVA_LOCAL_PORT}:http (kubectl log: ${restjava_log})"
+    nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-restjava "${MIRROR_RESTJAVA_LOCAL_PORT}:http" >"${restjava_log}" 2>&1 < /dev/null &
+    MIRROR_RESTJAVA_PORT_FORWARD_PID="$!"
+    disown "${MIRROR_RESTJAVA_PORT_FORWARD_PID}" 2>/dev/null || true
+  fi
+
+  if ! wait_for_tcp_open "127.0.0.1" "${MIRROR_GRPC_LOCAL_PORT}" 20 1 "Waiting for mirror gRPC forward on 127.0.0.1:${MIRROR_GRPC_LOCAL_PORT}"; then
+    echo "Mirror gRPC port-forward did not become reachable on localhost:${MIRROR_GRPC_LOCAL_PORT}" >&2
+    if [[ -s "${grpc_log}" ]]; then
+      tail -n 20 "${grpc_log}" >&2
+    fi
+    return 1
+  fi
+  if ! wait_for_tcp_open "127.0.0.1" "${MIRROR_RESTJAVA_LOCAL_PORT}" 20 1 "Waiting for mirror restjava forward on 127.0.0.1:${MIRROR_RESTJAVA_LOCAL_PORT}"; then
+    echo "Mirror restjava port-forward did not become reachable on localhost:${MIRROR_RESTJAVA_LOCAL_PORT}" >&2
+    if [[ -s "${restjava_log}" ]]; then
+      tail -n 20 "${restjava_log}" >&2
+    fi
+    return 1
+  fi
+}
+
+# CI parity (819 L202-207): create a fresh 1,000,000-hbar account carrying the well-known dev
+# key before the suite. Repeat-safe (a new account per invocation) and doubles as a solo-CLI
+# level liveness check of the post-cutover network. No solo-version gate: this script already
+# depends on the new command tree throughout.
+fund_tck_operator_account() {
+  run_step "Funding TCK operator account via solo ledger account create (1,000,000 hbar, dev key)" \
+    solo ledger account create --dev --ed25519-private-key "${OPERATOR_PRIVATE_KEY}" \
+      --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 1000000
+}
+
+# Single place the TCK client env/cwd is defined — the 819 L191-200 values parameterised on
+# this script's local forwards. Process env wins over the repo's .env (dotenv never overrides
+# existing vars), matching CI. Subshell so the cd cannot leak. NODE_ACCOUNT_ID stays 0.0.3
+# because the CN forward always targets haproxy-node1-svc (node1).
+run_tck_npm() {
+  (
+    cd "${TCK_REPO_DIR}" || exit 1
+    OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID}" \
+    OPERATOR_ACCOUNT_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY}" \
+    JSON_RPC_SERVER_URL="http://127.0.0.1:${TCK_JSON_RPC_PORT}" \
+    NODE_IP="127.0.0.1:${CN_GRPC_LOCAL_PORT}" \
+    NODE_ACCOUNT_ID="0.0.3" \
+    NODE_TIMEOUT="30000" \
+    MIRROR_NODE_REST_URL="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}" \
+    MIRROR_NODE_REST_JAVA_URL="http://127.0.0.1:${MIRROR_RESTJAVA_LOCAL_PORT}" \
+    MIRROR_NETWORK="127.0.0.1:${MIRROR_GRPC_LOCAL_PORT}" \
+    npm run "$@"
+  )
+}
+
+run_tck_tests() {
+  if [[ -f "${TCK_REPO_DIR}/.env.custom_node" ]]; then
+    cp "${TCK_REPO_DIR}/.env.custom_node" "${TCK_REPO_DIR}/.env"
+  else
+    echo "WARNING: ${TCK_REPO_DIR}/.env.custom_node not found (older TCK tag?); writing an empty .env — all required config is passed as process env" >&2
+    : > "${TCK_REPO_DIR}/.env"
+  fi
+
+  if [[ -n "${TCK_TEST_FILES}" ]]; then
+    local files_normalized="${TCK_TEST_FILES//,/ }"
+    local f file_rc
+    # shellcheck disable=SC2086 # word splitting of the file list is intended
+    for f in ${files_normalized}; do
+      file_rc=0
+      run_step "TCK test file ${f} (timeout ${TCK_TEST_TIMEOUT_SECS}s)" \
+        run_command_with_timeout "${TCK_TEST_TIMEOUT_SECS}" run_tck_npm test:file "${f}" || file_rc=$?
+      # mochawesome overwrites its report every run — export per file, keep the failed file's report too.
+      export_tck_report "$(basename "${f%.*}")" || true
+      if [[ "${file_rc}" -ne 0 ]]; then
+        return "${file_rc}"
+      fi
+    done
+    return 0
+  fi
+
+  run_step "Running full TCK suite (npm run ${TCK_TEST_SCRIPT}, timeout ${TCK_TEST_TIMEOUT_SECS}s)" \
+    run_command_with_timeout "${TCK_TEST_TIMEOUT_SECS}" run_tck_npm "${TCK_TEST_SCRIPT}"
+}
+
+# Copies mochawesome-report/mochawesome.* (the artifact 819 L212-218 uploads) out of the TCK
+# repo into GENERATED_DIR so it survives WORK_DIR removal; suffix disambiguates per-file runs.
+export_tck_report() {
+  local suffix="${1:-}"
+  local report_dir="${TCK_REPO_DIR}/mochawesome-report"
+  if [[ ! -d "${report_dir}" ]]; then
+    echo "WARNING: no mochawesome report directory at ${report_dir} (test runner crashed before reporting?)" >&2
+    return 1
+  fi
+  mkdir -p "${TCK_REPORT_EXPORT_DIR}"
+  local src base dest exported=0
+  for src in "${report_dir}"/mochawesome*; do
+    [[ -e "${src}" ]] || continue
+    base="$(basename "${src}")"
+    if [[ -n "${suffix}" && "${base}" == *.* ]]; then
+      dest="${TCK_REPORT_EXPORT_DIR}/${base%.*}-${suffix}.${base##*.}"
+    else
+      dest="${TCK_REPORT_EXPORT_DIR}/${base}"
+    fi
+    cp -R "${src}" "${dest}"
+    exported=1
+  done
+  if (( exported == 0 )); then
+    echo "WARNING: no mochawesome report files found under ${report_dir}" >&2
+    return 1
+  fi
+  echo "TCK report exported to ${TCK_REPORT_EXPORT_DIR}"
+}
+
+# Structured recap after the run: per-report stats plus every failed test with its reason.
+# (Live per-test spec output already streamed to the console while the suite ran.)
+print_tck_report_summary() {
+  local json failures found=0
+  echo "--- TCK report summary ---"
+  for json in "${TCK_REPORT_EXPORT_DIR}"/mochawesome*.json; do
+    [[ -e "${json}" ]] || continue
+    found=1
+    echo "$(basename "${json}"): $(jq -r '.stats | "tests=\(.tests) passes=\(.passes) failures=\(.failures) pending=\(.pending) skipped=\(.skipped // 0) duration=\(.duration)ms"' "${json}" 2>/dev/null || echo "unparseable stats")"
+    # mochawesome nests suites arbitrarily deep — recursive descent finds every failed test.
+    failures="$(jq -r '[.. | objects | select(.state? == "failed")] | .[] | "  ✗ \(.fullTitle // .title // "unnamed test") — \((.err.message // "no message") | split("\n")[0])"' "${json}" 2>/dev/null || true)"
+    if [[ -n "${failures}" ]]; then
+      printf '%s\n' "${failures}"
+    fi
+  done
+  if (( found == 0 )); then
+    echo "WARNING: no exported mochawesome JSON under ${TCK_REPORT_EXPORT_DIR} (test runner may have crashed before reporting)" >&2
+    return 0
+  fi
+  echo "Full browsable report(s): ${TCK_REPORT_EXPORT_DIR} (mochawesome*.html)"
+}
+
 # kind is only needed for the local ephemeral cluster; the remote runner has no kind binary.
 if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
   require_cmd kind
@@ -3638,6 +4090,16 @@ require_cmd curl
 require_cmd jq
 require_cmd java
 require_cmd grpcurl
+
+# TCK-only tool requirements, checked lazily so runs without ENABLE_TCK_TESTS are unaffected.
+if [[ "${ENABLE_TCK_TESTS}" == "true" ]]; then
+  require_cmd git
+  ensure_pnpm_available || exit 1
+  node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+  if (( node_major < 20 )); then
+    echo "WARNING: node ${node_major}.x detected; TCK CI pins Node 20.18.0 — ts-node/mocha may misbehave on older majors" >&2
+  fi
+fi
 
 if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
   if ! validate_block_node_repo; then
@@ -3674,7 +4136,7 @@ if should_run_step 1; then
   # Full reset: clear ALL stray port-forwards + helper procs left over from previous runs before
   # recreating the cluster (prevents back-to-back accumulation of forwards/watchdogs/FDs).
   preflight_kill_stale_port_forwards
-  print_banner "Step 1/12: Create fresh kind cluster and Solo deployment"
+  print_banner "Step 1/13: Create fresh kind cluster and Solo deployment"
   if [[ "${CLUSTER_TARGET}" == "kind" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
   fi
@@ -3686,9 +4148,10 @@ if should_run_step 1; then
       kind create cluster -n "${SOLO_CLUSTER_NAME}"
   fi
 
+  # Clear any leftover deployment from a prior aborted run BEFORE connect.
+  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Connecting Solo to cluster (cluster-ref=${CLUSTER_REF}, context=${KUBE_CONTEXT})" \
     solo cluster-ref config connect --cluster-ref "${CLUSTER_REF}" --context "${KUBE_CONTEXT}"
-  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
   run_step "Creating Solo deployment ${SOLO_DEPLOYMENT}" \
     solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
   run_step "Attaching cluster to deployment" \
@@ -3708,7 +4171,7 @@ if should_run_step 1; then
     run_step "Installing Solo cluster prerequisites (MinIO only; monitoring disabled)" \
       solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack false
   fi
-  print_step_complete "Step 1/12"
+  print_step_complete "Step 1/13"
 else
   print_banner "Resume mode: START_STEP=${START_STEP}; assuming cluster matches end of step $((START_STEP - 1))"
   prepare_js_sdk_runtime
@@ -3718,7 +4181,7 @@ else
 fi
 
 if should_run_step 2; then
-  print_banner "Step 2/12: Deploy consensus network at ${INITIAL_RELEASE_TAG} (v0.73.0)"
+  print_banner "Step 2/13: Deploy consensus network at ${INITIAL_RELEASE_TAG} (v0.73.0)"
   run_step "Generating consensus keys (gossip + tls)" \
     solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
   # --service-monitor needs the ServiceMonitor CRD, which only exists when the
@@ -3754,11 +4217,11 @@ if should_run_step 2; then
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   [[ "${ENABLE_MONITORING}" == "true" ]] && ensure_solo_service_monitor_for_prometheus
-  print_step_complete "Step 2/12"
+  print_step_complete "Step 2/13"
 fi
 
 if should_run_step 3; then
-  print_banner "Step 3/12: Deploy mirror/explorer and validate baseline transactions"
+  print_banner "Step 3/13: Deploy mirror/explorer and validate baseline transactions"
   deploy_mirror_node_for_cutover
   run_step "Deploying explorer node" \
     solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false
@@ -3775,11 +4238,11 @@ if should_run_step 3; then
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
   sleep 45
-  print_step_complete "Step 3/12"
+  print_step_complete "Step 3/13"
 fi
 
 if should_run_step 4; then
-  print_banner "Step 4/12: Upgrade consensus network to ${UPGRADE_074_RELEASE_TAG} with 0.74 properties"
+  print_banner "Step 4/13: Upgrade consensus network to ${UPGRADE_074_RELEASE_TAG} with 0.74 properties"
   run_step "Upgrading consensus network to ${UPGRADE_074_RELEASE_TAG}" \
     solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_074_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_074_FILE}"
 
@@ -3795,11 +4258,11 @@ if should_run_step 4; then
   node "${NODE_SCRIPT}"
 
   sleep 5
-  print_step_complete "Step 4/12"
+  print_step_complete "Step 4/13"
 fi
 
 if should_run_step 5; then
-  print_banner "Step 5/12: Generate jumpstart data via wrapped record block tooling"
+  print_banner "Step 5/13: Generate jumpstart data via wrapped record block tooling"
   MIRROR_BLOCKS_JSON="$(curl -sf "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?order=desc&limit=1")" || {
     echo "Failed to GET /api/v1/blocks from mirror REST" >&2
     exit 1
@@ -3821,26 +4284,26 @@ if should_run_step 5; then
   else
     export JUMPSTART_BLOCK_NUMBER="${MIRROR_BLOCK_NUMBER}"
   fi
-  print_step_complete "Step 5/12"
+  print_step_complete "Step 5/13"
 fi
 
 if should_run_step 6; then
-  print_banner "Step 6/12: Build temp 0.75 properties from jumpstart.bin and upgrade local build as ${UPGRADE_075_VERSION} (WRB streaming on)"
+  print_banner "Step 6/13: Build temp 0.75 properties from jumpstart.bin and upgrade local build as ${UPGRADE_075_VERSION} (WRB streaming on)"
   create_temp_075_upgrade_properties
   sleep 5
   run_075_upgrade
-  print_step_complete "Step 6/12"
+  print_step_complete "Step 6/13"
 fi
 
 if should_run_step 7; then
-  print_banner "Step 7/12: Deploy Block Node ${BLOCK_NODE_ID} and link to consensus nodes"
+  print_banner "Step 7/13: Deploy Block Node ${BLOCK_NODE_ID} and link to consensus nodes"
   deploy_block_node_for_cutover
   verify_block_node_has_blocks 120
-  print_step_complete "Step 7/12"
+  print_step_complete "Step 7/13"
 fi
 
 if should_run_step 8; then
-  print_banner "Step 8/12: Validate 0.75 jumpstart by replay vs migration vote"
+  print_banner "Step 8/13: Validate 0.75 jumpstart by replay vs migration vote"
   parse_migration_vote_from_hgcaa
   run_replay_wrap_to_075 "${MIRROR_REST_URL}" "${MIGRATION_BLOCK_NUMBER}"
   [[ "${JUMPSTART_BLOCK_NUMBER}" == "${MIGRATION_BLOCK_NUMBER}" ]] || {
@@ -3851,11 +4314,11 @@ if should_run_step 8; then
     echo "Jumpstart validation failed: migration vote does not match offline replay (see ${MIGRATION_COMPARE_LOG})" >&2
     exit 1
   }
-  print_step_complete "Step 8/12"
+  print_step_complete "Step 8/13"
 fi
 
 if should_run_step 9; then
-  print_banner "Step 9/12: Update mirror node to read from block-node-${BLOCK_NODE_ID}"
+  print_banner "Step 9/13: Update mirror node to read from block-node-${BLOCK_NODE_ID}"
   update_mirror_node_for_block_cutover
   echo "Restarting consensus and mirror REST port-forwards"
   restart_post_upgrade_port_forwards
@@ -3891,12 +4354,12 @@ if should_run_step 9; then
     exit "${step9_rc}"
   fi
 
-  print_step_complete "Step 9/12"
+  print_step_complete "Step 9/13"
 fi
 
 # FUTURE enable when TSS support is ready and tested
 if should_run_step 10; then
-  print_banner "Step 10/12: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
+  print_banner "Step 10/13: Upgrade to ${UPGRADE_076_VERSION} release image with 0.76 properties"
   sleep 5
   # Still streaming WRBs but TSS is enabled, force mock signatures
   run_076_upgrade
@@ -3911,18 +4374,18 @@ if should_run_step 10; then
   # CN (which resets the CN block buffer), otherwise the gap blocks are orphaned and the BN stalls
   # (mirror then can't get the post-cutover blocks).
   wait_for_block_node_caught_up 180 || echo "WARN: BN not reported in-range within timeout after seeding; proceeding to the 0.77 cutover anyway" >&2
-  print_step_complete "Step 10/12"
+  print_step_complete "Step 10/13"
 fi
 
 if should_run_step 11; then
-  print_banner "Step 11/12: Upgrade local build with 0.77 properties as ${UPGRADE_077_VERSION} (BLOCKS-only cutover, real TSS signatures)"
+  print_banner "Step 11/13: Upgrade local build with 0.77 properties (BLOCKS-only cutover, real TSS signatures)"
   sleep 5
   run_077_upgrade
-  print_step_complete "Step 11/12"
+  print_step_complete "Step 11/13"
 fi
 
 if should_run_step 12; then
-  print_banner "Step 12/12: Post-upgrade readiness and end-to-end transaction verification"
+  print_banner "Step 12/13: Post-upgrade readiness and end-to-end transaction verification"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   restart_post_upgrade_port_forwards
@@ -3931,7 +4394,39 @@ if should_run_step 12; then
   echo "Testing mirror-node readiness via a simple cryptoCreate at end-of-run (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
   export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
   node "${NODE_SCRIPT}"
-  print_step_complete "Step 12/12"
+  print_step_complete "Step 12/13"
+fi
+
+if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
+  print_banner "Step 13/13: SDK TCK regression suite (819-call-tck-regression.yaml parity)"
+  # CN gRPC + Mirror REST forwards: no-op probe if healthy, re-establish if not (covers the
+  # START_STEP=13 standalone path right after the resume prelude).
+  restart_post_upgrade_port_forwards
+  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
+  wait_for_sdk_responsive 180
+
+  prepare_tck_repos
+  install_tck_client_dependencies
+  start_tck_sdk_server
+  ensure_tck_port_forwards
+  fund_tck_operator_account
+
+  tck_rc=0
+  run_tck_tests || tck_rc=$?
+  # Full-suite mode exports here; subset mode already exported per file inside run_tck_tests.
+  if [[ -z "${TCK_TEST_FILES}" ]]; then
+    export_tck_report || true
+  fi
+  print_tck_report_summary || true
+  if (( tck_rc != 0 )); then
+    echo "Step 13 TCK tests FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
+    # Network stays up for debugging: cleanup() early-returns on a non-zero exit code.
+    exit "${tck_rc}"
+  fi
+  print_step_complete "Step 13/13"
+elif should_run_step 13; then
+  echo
+  echo "Step 13/13 (SDK TCK regression suite) skipped — set ENABLE_TCK_TESTS=true to enable."
 fi
 start_post_run_keepalive
 print_end_of_run_diagnostics
