@@ -60,7 +60,6 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -775,11 +774,10 @@ public class VirtualMapStateImpl implements VirtualMapState {
         final JSONObject rootJson = new JSONObject();
 
         final RecordAccessor recordAccessor = virtualMap.getRecords();
-        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
 
         final JSONObject virtualMapMetadataJson = new JSONObject();
-        virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
-        virtualMapMetadataJson.put("lastLeafPath", virtualMapMetadata.getLastLeafPath());
+        virtualMapMetadataJson.put("firstLeafPath", virtualMap.getMetadata().getFirstLeafPath());
+        virtualMapMetadataJson.put("lastLeafPath", virtualMap.getMetadata().getLastLeafPath());
 
         rootJson.put("VirtualMapMetadata", virtualMapMetadataJson);
 

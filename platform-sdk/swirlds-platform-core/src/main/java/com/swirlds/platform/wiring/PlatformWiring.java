@@ -2,14 +2,12 @@
 package com.swirlds.platform.wiring;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -17,7 +15,6 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
@@ -48,6 +45,9 @@ public class PlatformWiring {
 
     /**
      * Wire the components together.
+     *
+     * @param inputs the inputs to the consensus layer
+     * @param buildingBlocks the building blocks of the consensus layer
      */
     public static void wire(
             @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
@@ -156,8 +156,7 @@ public class PlatformWiring {
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
-        consensusRoundOutputWire.solderTo(
-                buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::consensusRound));
+        consensusRoundOutputWire.solderTo(buildingBlocks.statusMonitorModule().consensusRoundInputWire());
     }
 
     /**
@@ -217,7 +216,7 @@ public class PlatformWiring {
 
         final OutputWire<StateSavingResult> stateSavingResultOutputWire = state.stateSavingResultOutputWire();
         stateSavingResultOutputWire.solderTo(
-                buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
+                buildingBlocks.statusMonitorModule().stateWrittenToDiskInputWire());
         stateSavingResultOutputWire
                 .buildTransformer(
                         "stateSavedNotifier",
@@ -236,7 +235,7 @@ public class PlatformWiring {
         final OutputWire<IssNotification> issNotification =
                 buildingBlocks.issDetectionModule().issNotificationOutputWire();
 
-        issNotification.solderTo(buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::issNotification));
+        issNotification.solderTo(buildingBlocks.statusMonitorModule().issNotificationInputWire());
         issNotification.solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
     }
 
@@ -258,7 +257,7 @@ public class PlatformWiring {
     private static void wirePlatformMonitorOutputs(
             @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<PlatformStatus> platformStatus =
-                buildingBlocks.platformMonitorWiring().getOutputWire();
+                buildingBlocks.statusMonitorModule().platformStatusOutputWire();
 
         platformStatus.solderTo(buildingBlocks.eventCreatorModule().platformStatusInputWire());
         platformStatus.solderTo(buildingBlocks.hashgraphModule().platformStatusInputWire(), INJECT);
@@ -279,12 +278,5 @@ public class PlatformWiring {
         healthMonitor.solderTo(buildingBlocks.gossipModule().healthStatusInputWire());
         healthMonitor.solderTo(
                 "executionHealthInput", "healthyDuration", inputs.executionLayer()::reportUnhealthyDuration);
-
-        buildingBlocks
-                .wiringModel()
-                .buildHeartbeatWire(inputs.configuration()
-                        .getConfigData(PlatformStatusConfig.class)
-                        .statusStateMachineHeartbeatPeriod())
-                .solderTo(buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::heartbeat), OFFER);
     }
 }
