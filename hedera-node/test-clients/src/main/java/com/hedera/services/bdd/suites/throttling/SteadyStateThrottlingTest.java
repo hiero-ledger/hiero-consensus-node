@@ -263,7 +263,11 @@ public class SteadyStateThrottlingTest {
                         askedSoFar += burstSize;
                         for (int i = 0; i < burstSize; i++) {
                             var op = (HapiGetAccountBalance) subOps[i];
-                            if (op.getResponse().getCryptogetAccountBalance().getBalance() == 0) {
+                            if (op.getResponse()
+                                            .getAccountDetails()
+                                            .getAccountDetails()
+                                            .getBalance()
+                                    == 0) {
                                 numBusy++;
                             }
                         }
