@@ -8,7 +8,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.annotations.ChildTransactionResourcePrices;
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TopLevelResourcePrices;
@@ -91,8 +90,7 @@ public interface TransactionModule {
 
     @Provides
     @TransactionScope
-    static CanonicalDispatchPrices provideCanonicalDispatchPrices(
-            @NonNull final HandleContext context, @NonNull final AssetsLoader assetsLoader) {
+    static CanonicalDispatchPrices provideCanonicalDispatchPrices(@NonNull final HandleContext context) {
         return new CanonicalDispatchPrices(context.simpleFeesSchedule());
     }
 
