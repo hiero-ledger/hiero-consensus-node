@@ -15,6 +15,7 @@ import com.swirlds.platform.monitor.StatusMonitorWiringConfig;
 import com.swirlds.platform.uptime.UptimeConfig;
 import java.util.Arrays;
 import java.util.Set;
+import org.hiero.consensus.FallenBehindConfig;
 import org.junit.jupiter.api.Test;
 
 class PlatformConfigurationExtensionTests {
@@ -45,6 +46,7 @@ class PlatformConfigurationExtensionTests {
         assertThat(extension.getConfigDataTypes())
                 .containsExactlyInAnyOrderElementsOf(Arrays.asList(
                         ModulesConfig.class,
+                        FallenBehindConfig.class,
                         OSHealthCheckConfig.class,
                         PlatformMetricsConfig.class,
                         StatusMonitorWiringConfig.class,
