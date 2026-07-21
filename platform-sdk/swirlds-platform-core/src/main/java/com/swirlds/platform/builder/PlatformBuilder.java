@@ -47,79 +47,94 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
     private static final Logger logger = LogManager.getLogger(PlatformBuilder.class);
 
+    /**
+     * A record representing the persistence scope, which includes the application name and swirld name.
+     *
+     * @param appName the name of the application
+     * @param swirldName the name of the swirld
+     */
     public record PersistenceScope(
             @NonNull String appName, @NonNull String swirldName) {}
 
+    /** The configuration settings for the platform. */
     protected final Configuration configuration;
+
+    /** The metrics system for monitoring and reporting platform performance. */
     protected final Metrics metrics;
+
+    /** The time source for the platform, used for timestamping events and transactions. */
     protected final Time time;
 
-    /**
-     * A RosterHistory that allows one to lookup a roster for a given round, or get the active/previous roster.
-     */
+    /** The roster history provided by the application to use at startup. */
     protected final RosterHistory rosterHistory;
 
+    /** The unique identifier of this node within the network. */
     protected final NodeId selfId;
 
-    /**
-     * This node's cryptographic keys.
-     */
+    /** This node's cryptographic keys, used for signing and verifying messages. */
     protected final KeysAndCerts keysAndCerts;
 
+    /** The file system manager responsible for handling file operations. */
     protected final FileSystemManager fileSystemManager;
 
+    /** The recycle bin, which stores deleted files before they are permanently deleted. */
     protected final RecycleBin recycleBin;
 
+    /** The execution layer called for application-specific processing. */
     protected final ExecutionLayer executionLayer;
 
+    /** The handler for processing consensus-related events. */
     protected final ConsensusStateEventHandler consensusStateEventHandler;
 
+    /** The initial state supplied by the application. */
     protected final ReservedSignedState initialState;
 
+    /** The lifecycle manager for managing state transitions. */
     protected final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
+    /** The software version of the application. */
     protected final SemanticVersion softwareVersion;
 
+    /** The name of the application, currently used for deciding where to store states on disk */
     protected final String appName;
 
+    /** The name of the swirld, currently used for deciding where to store states on disk */
     protected final String swirldName;
 
-    /**
-     * A consensusEventStreamName for DefaultConsensusEventStream. See javadoc and comments in
-     * AddressBookUtils.formatConsensusEventStreamName() for more details.
-     */
+    /** A part of the name of the directory where the consensus event stream is written. */
     protected final String consensusEventStreamName;
 
+    /** The nanosecond offset added to the first transaction's timestamp in each event. */
     protected final long transactionOffsetNanos;
 
+    /** A callback that is called when a stale self event is detected. */
     protected StaleEventConsumer staleEventConsumer;
 
+    /** The building blocks used to construct the consensus layer. */
     protected ConsensusLayerBuildingBlocks buildingBlocks;
 
-    /**
-     * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
-     */
+    /** False if this builder has not yet been used to build a platform, true if it has. */
     private boolean used = false;
 
     /**
      * Constructs a PlatformBuilder instance with the specified configuration and components.
      *
-     * @param configuration The system configuration to use for the platform.
-     * @param metrics The metrics registry used for tracking performance and statistics.
-     * @param time The time provider for managing timestamps and time-sensitive operations.
-     * @param rosterHistory The history of the network roster for the platform.
-     * @param keysAndCerts The cryptographic keys and certificates for securing platform operations.
-     * @param selfId The unique identifier of the node within the platform.
-     * @param recycleBin The recycle bin for managing discarded resources and metadata.
+     * @param configuration The configuration settings for the platform.
+     * @param metrics The metrics system for monitoring and reporting platform performance.
+     * @param time The time source for the platform, used for timestamping events and transactions.
+     * @param rosterHistory The roster history provided by the application to use at startup.
+     * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
+     * @param selfId The unique identifier of the node within the network.
+     * @param recycleBin The recycle bin, which stores deleted files before they are permanently deleted.
      * @param fileSystemManager The file system manager responsible for handling file operations.
-     * @param executionLayer The execution layer responsible for application-specific processing.
+     * @param executionLayer The execution layer called for application-specific processing.
      * @param consensusStateEventHandler The handler for processing consensus-related events.
-     * @param initialState The initial state of the platform.
+     * @param initialState The initial state supplied by the application.
      * @param stateLifecycleManager The lifecycle manager for managing state transitions.
-     * @param softwareVersion The version of the software being executed on the platform.
-     * @param persistenceScope The scope for persisted data used by the platform.
-     * @param consensusEventStreamName The name of the consensus event stream for logging purposes.
-     * @param transactionOffsetNanos The offset in nanoseconds for transaction timestamps.
+     * @param softwareVersion The software version of the application.
+     * @param persistenceScope The application name and swirld name for determining where to store states on disk.
+     * @param consensusEventStreamName A part of the name of the directory where the consensus event stream is written.
+     * @param transactionOffsetNanos The nanosecond offset added to the first transaction's timestamp in each event.
      */
     public PlatformBuilder(
             @NonNull final Configuration configuration,
@@ -162,6 +177,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", rosterHistory);
     }
+
     /**
      * Build a platform. Platform is not started.
      *

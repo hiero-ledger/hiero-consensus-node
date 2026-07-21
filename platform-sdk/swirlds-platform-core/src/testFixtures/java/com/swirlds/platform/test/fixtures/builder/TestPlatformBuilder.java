@@ -42,24 +42,24 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
     private GossipModule gossipModuleOverride;
 
     /**
-     * Constructs a PlatformBuilder instance with the specified configuration and components.
+     * Constructs a TestPlatformBuilder instance with the specified configuration and components.
      *
-     * @param configuration The system configuration to use for the platform.
-     * @param metrics The metrics registry used for tracking performance and statistics.
-     * @param time The time provider for managing timestamps and time-sensitive operations.
-     * @param rosterHistory The history of the network roster for the platform.
-     * @param keysAndCerts The cryptographic keys and certificates for securing platform operations.
-     * @param selfId The unique identifier of the node within the platform.
-     * @param recycleBin The recycle bin for managing discarded resources and metadata.
+     * @param configuration The configuration settings for the platform.
+     * @param metrics The metrics system for monitoring and reporting platform performance.
+     * @param time The time source for the platform, used for timestamping events and transactions.
+     * @param rosterHistory The roster history provided by the application to use at startup.
+     * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
+     * @param selfId The unique identifier of the node within the network.
+     * @param recycleBin The recycle bin, which stores deleted files before they are permanently deleted.
      * @param fileSystemManager The file system manager responsible for handling file operations.
-     * @param executionLayer The execution layer responsible for application-specific processing.
+     * @param executionLayer The execution layer called for application-specific processing.
      * @param consensusStateEventHandler The handler for processing consensus-related events.
-     * @param initialState The initial state of the platform.
+     * @param initialState The initial state supplied by the application.
      * @param stateLifecycleManager The lifecycle manager for managing state transitions.
-     * @param softwareVersion The version of the software being executed on the platform.
-     * @param persistenceScope The scope for persisted data used by the platform.
-     * @param consensusEventStreamName The name of the consensus event stream for logging purposes.
-     * @param transactionOffsetNanos The offset in nanoseconds for transaction timestamps.
+     * @param softwareVersion The software version of the application.
+     * @param persistenceScope The application name and swirld name for determining where to store states on disk.
+     * @param consensusEventStreamName A part of the name of the directory where the consensus event stream is written.
+     * @param transactionOffsetNanos The nanosecond offset added to the first transaction's timestamp in each event.
      */
     public TestPlatformBuilder(
             @NonNull final Configuration configuration,
