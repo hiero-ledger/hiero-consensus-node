@@ -249,12 +249,6 @@ value is correct.
   remain in the codebase for good; a consumer that reads the wrong one, or
   compares the two, is a live hazard — no longer a transitional one.
 
-- **Some uses of `nGen` are not pure ordering.** The GUI uses `nGen` as actual
-  graph **height** to lay out the hashgraph vertically (`PictureMetadata`,
-  `HashgraphPicture`). A sequence number is monotonic but is not a height, so the
-  tools keep `nGen` and the migration stage (#24885) is dropped rather than
-  attempted.
-
 ### Neutral
 
 - Three similarly named ordering fields coexist permanently — `nGen` (graph

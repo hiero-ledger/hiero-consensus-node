@@ -48,11 +48,19 @@ orphan buffer was cleared on reconnect.
 
 ## Sequence
 
-1. `registerEvent` overwrites `lastSelfEvent` only when a registered self event's
-   key is **strictly greater** (TipsetEventCreator.java:173–174). (observed — code)
-2. `lastSelfEvent` is the same `PlatformEvent` instance from creation onward; the
-   orphan buffer stamps its sequence number (and nGen) onto it later, so
-   `hasSequenceNumber()` becomes true with timing rather than at creation.
+1. `registerEvent` overwrites `lastSelfEvent` only when `lastSelfEvent == null`, or
+   `lastSelfEvent` **already carries an ordering key** *and* the registered self
+   event's key is **strictly greater** — `lastSelfEvent.hasSequenceNumber() &&
+   lastSelfEvent.getSequenceNumber() < event.getSequenceNumber()` pre-#26376,
+   `hasNGen()` / `getNGen()` after (TipsetEventCreator.java:173–174).
+   (observed — code)
+2. A freshly created self event has no ordering key yet — the orphan buffer assigns
+   it — so right after creation `lastSelfEvent.hasSequenceNumber()` is false, the
+   `&&` short-circuits, and `lastSelfEvent` cannot be overwritten. That safeguard is
+   only temporary: `lastSelfEvent` is the same `PlatformEvent` instance from creation
+   onward, so once the orphan buffer stamps the key onto that instance
+   `hasSequenceNumber()` flips to true, the guard stops short-circuiting, and from
+   then on the strictly-greater comparison governs every registered self event.
    (observed)
 3. The node barely falls behind and reconnects; the orphan buffer is cleared. The
    event creator is not reset, so `lastSelfEvent` still points at the graph-latest
@@ -116,3 +124,8 @@ guard: `ReconnectTest.testSyntheticBottleneckReconnect`.
   and the reproducing otter test; `(reasoned)` steps from the sequence-number
   re-release argument. Why nGen is the safe key lives in RUL-006 — Kelly Greco
   (@poulok).
+- 2026-07-21 — made the overwrite guard explicit in steps 1–2: the
+  `hasSequenceNumber()`/`hasNGen()` operand short-circuits only until the orphan
+  buffer stamps the held self event's key, after which the strictly-greater
+  comparison governs — so it delays the overwrite rather than preventing it
+  — Kelly Greco (@poulok).
