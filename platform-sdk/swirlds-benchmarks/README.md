@@ -44,16 +44,34 @@ Benchmarks:
 
 Builds learner and teacher virtual map states with configurable differences,
 then measures reconnect synchronization between them over a real loopback TCP
-connection. The socket connection can run unpaced or with read-side latency and
-bandwidth pacing.
+connection. Its refined-A1 profile observes bounded compressed-payload ranges at
+the sender and gates the opposite socket input by sender-relative one-way latency
+and progressive payload bandwidth. Real socket buffers remain the only capacity
+and backpressure mechanism; there is no software `W / RTT` window.
+
+The benchmark provides three comparison profiles:
+
+- `REALISTIC` applies refined-A1 latency and bandwidth visibility scheduling.
+- `INSTRUMENTED_LOOPBACK` uses the same observers, receiver gates, metadata, and
+  target-derived range splitting with timing disabled, isolating instrumentation
+  overhead while retaining the target values for write-duration diagnostics.
+- `LOOPBACK` is the raw, uninstrumented socket-floor control.
+
+All profiles use the production `SyncInputStream` and `SyncOutputStream`
+factories, including production stream buffering, optional compression, and
+compressed socket-payload counters. Refined A1 does not emulate a real remote
+TCP path: payload and ACK/window traffic still enter and traverse the loopback
+kernel stack before application visibility is gated. The connection is also
+plain TCP rather than production TLS.
 
 Benchmarks:
 
 - `ReconnectBench.reconnect`: runs reconnect synchronization from the learner
   state to the teacher state.
 
-See [docs/ReconnectBench.md](docs/ReconnectBench.md) for the socket profiles,
-parameters, diagnostics, and run examples.
+See [docs/ReconnectBench.md](docs/ReconnectBench.md) for the exact timing model,
+calibrated release/range granularity, honest limitations, parameters,
+diagnostics, and run examples.
 
 ## Run with Gradle
 

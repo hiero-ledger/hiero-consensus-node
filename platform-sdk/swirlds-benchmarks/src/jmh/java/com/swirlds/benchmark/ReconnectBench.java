@@ -50,7 +50,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Param({"0.40"})
     public double teacherModifyProbability;
 
-    /** Selects whether socket read shaping is applied ({@code REALISTIC}) or disabled ({@code LOOPBACK}). */
+    /** Selects refined-A1 shaping, its instrumented pass-through control, or raw loopback sockets. */
     @Param({"REALISTIC"})
     public NetworkProfile networkProfile;
 
@@ -207,10 +207,14 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 teacherModifyProbability);
         logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
-                "ReconnectBench socket network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}",
+                "ReconnectBench socket network profile={}, configuredLatencyNanos={}, configuredBandwidthBytesPerSecond={}, modeledLatencyNanos={}, modeledBandwidthBytesPerSecond={}, releaseQuantumNanos={}, maxObservedRangeBytes={}",
                 networkConfig.profile(),
-                networkConfig.latencyNanos(),
-                networkConfig.bandwidthBytesPerSecond());
+                networkConfig.configuredLatencyNanos(),
+                networkConfig.configuredBandwidthBytesPerSecond(),
+                networkConfig.modeledLatencyNanos(),
+                networkConfig.modeledBandwidthBytesPerSecond(),
+                networkConfig.releaseQuantumNanos(),
+                networkConfig.maxObservedRangeBytes());
 
         reconnectResult =
                 MerkleBenchmarkUtils.hashAndTestSynchronization(learnerMap, teacherMap, networkConfig, configuration);

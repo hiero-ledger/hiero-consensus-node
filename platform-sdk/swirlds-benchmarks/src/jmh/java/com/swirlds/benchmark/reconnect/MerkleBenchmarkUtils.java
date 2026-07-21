@@ -72,14 +72,18 @@ public class MerkleBenchmarkUtils {
                 workGroup.fork(
                         "learning-synchronizer-main",
                         () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
-                workGroup.join();
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new MerkleSynchronizationException("Reconnect benchmark was interrupted", e);
+                try {
+                    workGroup.join();
+                } catch (final InterruptedException e) {
+                    // Unblock synchronizers that may still be waiting in socket I/O before close() waits for them.
+                    streams.disconnect();
+                    Thread.currentThread().interrupt();
+                    throw new MerkleSynchronizationException("Reconnect benchmark was interrupted", e);
+                }
             }
 
-            // Live-W readout: what the kernel actually granted per pacing window (autotuning included).
-            streams.pacingSummary().ifPresent(summary -> logger.info("Socket read pacing: {}", summary));
+            streams.complete();
+            streams.visibilitySummary().ifPresent(summary -> logger.info("Socket visibility scheduling: {}", summary));
 
             return new ReconnectBenchmarkResult(
                     syncMapContainer.get(),

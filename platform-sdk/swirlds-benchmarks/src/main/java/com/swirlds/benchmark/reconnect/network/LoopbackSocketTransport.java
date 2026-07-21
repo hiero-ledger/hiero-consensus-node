@@ -8,13 +8,14 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
@@ -23,14 +24,15 @@ import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * Real loopback TCP transport for ReconnectBench, with sockets configured through the production
- * {@link SocketFactory}.
+ * One production-option-configured, full-duplex loopback TCP connection for {@code ReconnectBench}.
  *
- * <p>Under {@link NetworkProfile#REALISTIC}, shaping is applied entirely on the <b>read side</b> by a
- * {@link PacingInputStream} per direction (see the socket-buffer read-pacing design). The write path is raw in all
- * profiles: write-side shaping would meter bytes before they reach the socket and keep the kernel send buffer
- * starved, hiding the very buffer behavior this transport exists to measure. Under {@link NetworkProfile#LOOPBACK}
- * both directions are completely unshaped (raw floor).
+ * <p>{@link NetworkProfile#REALISTIC} installs refined-A1 below the production sync/compression streams: an output
+ * observer publishes bounded compressed-payload ranges immediately before each raw socket write, and the opposite
+ * input gate consumes only ranges whose sender-relative latency/bandwidth schedule is eligible. The controller owns
+ * metadata only; the real socket remains the payload store and the capacity/backpressure authority.
+ *
+ * <p>{@link NetworkProfile#INSTRUMENTED_LOOPBACK} installs identical observer/gate/range plumbing without timing
+ * waits. {@link NetworkProfile#LOOPBACK} installs no refined-A1 components and remains the raw socket floor.
  */
 public final class LoopbackSocketTransport implements AutoCloseable {
 
@@ -40,11 +42,9 @@ public final class LoopbackSocketTransport implements AutoCloseable {
     private final ServerSocket serverSocket;
     private final Socket teacherSocket;
     private final Socket learnerSocket;
-
-    /** Read-side pacers; {@code null} when the profile is {@link NetworkProfile#LOOPBACK} (raw floor). */
-    private final PacingInputStream teacherToLearnerPacer;
-
-    private final PacingInputStream learnerToTeacherPacer;
+    private final SocketVisibilityController teacherToLearnerController;
+    private final SocketVisibilityController learnerToTeacherController;
+    private final AtomicBoolean connectionTerminated = new AtomicBoolean();
 
     private final SyncOutputStream teacherSyncOutput;
     private final SyncInputStream teacherSyncInput;
@@ -63,66 +63,85 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         Objects.requireNonNull(configuration, "configuration must not be null");
 
         final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
-        serverSocket = new ServerSocket();
-        SocketFactory.configureAndBind(BENCHMARK_NODE_ID, serverSocket, socketConfig, emptyGossipConfig(), 0);
+        // Validate and construct metadata-only controllers before acquiring socket resources.
+        teacherToLearnerController =
+                config.visibilitySchedulingActive() ? new SocketVisibilityController(config) : null;
+        learnerToTeacherController =
+                config.visibilitySchedulingActive() ? new SocketVisibilityController(config) : null;
 
-        teacherSocket = new Socket();
-        SocketFactory.configureAndConnect(teacherSocket, socketConfig, LOOPBACK_HOST, serverSocket.getLocalPort());
+        final ConnectedSockets sockets = ConnectedSockets.open(socketConfig);
+        serverSocket = sockets.serverSocket();
+        teacherSocket = sockets.teacherSocket();
+        learnerSocket = sockets.learnerSocket();
 
-        learnerSocket = serverSocket.accept();
-        learnerSocket.setTcpNoDelay(socketConfig.tcpNoDelay());
-        learnerSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
-        // The accepted socket's send buffer is deliberately NOT set, matching production SocketFactory behavior
-        // (recorded decision 5 of the read-pacing design).
+        try {
+            final OutputStream rawTeacherOutput = teacherSocket.getOutputStream();
+            final OutputStream teacherTransportOutput = teacherToLearnerController == null
+                    ? rawTeacherOutput
+                    : new ObservedSocketOutputStream(
+                            rawTeacherOutput, teacherToLearnerController, this::abortConnection);
+            teacherSyncOutput = SyncOutputStream.createSyncOutputStream(
+                    configuration, teacherTransportOutput, socketConfig.bufferSize());
+            teacherOutput = new DataOutputStream(teacherSyncOutput);
 
-        // Write path: raw socket output in all profiles (see class javadoc).
-        teacherSyncOutput = SyncOutputStream.createSyncOutputStream(
-                configuration, teacherSocket.getOutputStream(), socketConfig.bufferSize());
-        teacherOutput = new DataOutputStream(teacherSyncOutput);
+            final InputStream rawTeacherToLearnerInput = learnerSocket.getInputStream();
+            final InputStream learnerTransportInput = teacherToLearnerController == null
+                    ? rawTeacherToLearnerInput
+                    : new ScheduledSocketInputStream(
+                            rawTeacherToLearnerInput,
+                            learnerSocket,
+                            socketConfig.timeoutSyncClientSocket(),
+                            teacherToLearnerController,
+                            this::abortConnection);
+            learnerSyncInput = SyncInputStream.createSyncInputStream(
+                    configuration, learnerTransportInput, socketConfig.bufferSize());
+            learnerInput = new DataInputStream(learnerSyncInput);
 
-        // Read path: the pacer is the bottom-most wrapper, directly on the raw socket input, so bytes it
-        // withholds stay in the kernel receive buffer. The effective window of a direction is the remote
-        // sender's send buffer plus the local receiver's receive buffer, read live each window.
-        final InputStream rawTeacherToLearner = learnerSocket.getInputStream();
-        teacherToLearnerPacer = maybePace(
-                rawTeacherToLearner,
-                config,
-                () -> teacherSocket.getSendBufferSize() + learnerSocket.getReceiveBufferSize());
-        final InputStream teacherToLearnerInput =
-                teacherToLearnerPacer != null ? teacherToLearnerPacer : rawTeacherToLearner;
-        learnerSyncInput =
-                SyncInputStream.createSyncInputStream(configuration, teacherToLearnerInput, socketConfig.bufferSize());
-        learnerInput = new DataInputStream(learnerSyncInput);
+            final OutputStream rawLearnerOutput = learnerSocket.getOutputStream();
+            final OutputStream learnerTransportOutput = learnerToTeacherController == null
+                    ? rawLearnerOutput
+                    : new ObservedSocketOutputStream(
+                            rawLearnerOutput, learnerToTeacherController, this::abortConnection);
+            learnerSyncOutput = SyncOutputStream.createSyncOutputStream(
+                    configuration, learnerTransportOutput, socketConfig.bufferSize());
+            learnerOutput = new DataOutputStream(learnerSyncOutput);
 
-        learnerSyncOutput = SyncOutputStream.createSyncOutputStream(
-                configuration, learnerSocket.getOutputStream(), socketConfig.bufferSize());
-        learnerOutput = new DataOutputStream(learnerSyncOutput);
+            final InputStream rawLearnerToTeacherInput = teacherSocket.getInputStream();
+            final InputStream teacherTransportInput = learnerToTeacherController == null
+                    ? rawLearnerToTeacherInput
+                    : new ScheduledSocketInputStream(
+                            rawLearnerToTeacherInput,
+                            teacherSocket,
+                            socketConfig.timeoutSyncClientSocket(),
+                            learnerToTeacherController,
+                            this::abortConnection);
+            teacherSyncInput = SyncInputStream.createSyncInputStream(
+                    configuration, teacherTransportInput, socketConfig.bufferSize());
+            teacherInput = new DataInputStream(teacherSyncInput);
 
-        final InputStream rawLearnerToTeacher = teacherSocket.getInputStream();
-        learnerToTeacherPacer = maybePace(
-                rawLearnerToTeacher,
-                config,
-                () -> learnerSocket.getSendBufferSize() + teacherSocket.getReceiveBufferSize());
-        final InputStream learnerToTeacherInput =
-                learnerToTeacherPacer != null ? learnerToTeacherPacer : rawLearnerToTeacher;
-        teacherSyncInput =
-                SyncInputStream.createSyncInputStream(configuration, learnerToTeacherInput, socketConfig.bufferSize());
-        teacherInput = new DataInputStream(teacherSyncInput);
-
-        diagnostics = new SocketTransportDiagnostics(
-                config.profile(),
-                isLatencyShapingActive(config),
-                isBandwidthShapingActive(config),
-                config.latencyNanos(),
-                config.bandwidthBytesPerSecond(),
-                socketConfig.bufferSize(),
-                serverSocket.getReceiveBufferSize(),
-                teacherSocket.getSendBufferSize(),
-                teacherSocket.getReceiveBufferSize(),
-                learnerSocket.getSendBufferSize(),
-                learnerSocket.getReceiveBufferSize(),
-                teacherSocket.getTcpNoDelay(),
-                learnerSocket.getTcpNoDelay());
+            diagnostics = new SocketTransportDiagnostics(
+                    config.profile(),
+                    config.visibilitySchedulingActive(),
+                    config.latencyShapingActive(),
+                    config.bandwidthShapingActive(),
+                    config.configuredLatencyNanos(),
+                    config.configuredBandwidthBytesPerSecond(),
+                    config.modeledLatencyNanos(),
+                    config.modeledBandwidthBytesPerSecond(),
+                    config.releaseQuantumNanos(),
+                    config.maxObservedRangeBytes(),
+                    socketConfig.bufferSize(),
+                    serverSocket.getReceiveBufferSize(),
+                    teacherSocket.getSendBufferSize(),
+                    teacherSocket.getReceiveBufferSize(),
+                    learnerSocket.getSendBufferSize(),
+                    learnerSocket.getReceiveBufferSize(),
+                    teacherSocket.getTcpNoDelay(),
+                    learnerSocket.getTcpNoDelay());
+        } catch (final IOException | RuntimeException e) {
+            abortConnection(new IOException("Unable to construct loopback socket transport streams", e));
+            throw e;
+        }
     }
 
     public DataOutputStream getTeacherOutput() {
@@ -157,77 +176,130 @@ public final class LoopbackSocketTransport implements AutoCloseable {
         return diagnostics;
     }
 
-    /**
-     * End-of-run read-pacing summary: per-direction window count, last live window {@code W}, and total parked time.
-     * Empty when pacing is inactive (LOOPBACK profile). The last window bytes are the live-{@code W} readout showing
-     * what the kernel, including autotuning, actually granted during the run.
-     */
-    public Optional<String> pacingSummary() {
-        if (teacherToLearnerPacer == null) {
-            return Optional.empty();
-        }
-        return Optional.of("teacherToLearner=" + format(teacherToLearnerPacer.stats()) + ", learnerToTeacher="
-                + format(learnerToTeacherPacer.stats()));
+    /** Returns directional refined-A1 diagnostics, or empty for the raw {@code LOOPBACK} profile. */
+    public Optional<SocketVisibilityStats> teacherToLearnerVisibilityStats() {
+        return teacherToLearnerController == null ? Optional.empty() : Optional.of(teacherToLearnerController.stats());
     }
 
+    /** Returns directional refined-A1 diagnostics, or empty for the raw {@code LOOPBACK} profile. */
+    public Optional<SocketVisibilityStats> learnerToTeacherVisibilityStats() {
+        return learnerToTeacherController == null ? Optional.empty() : Optional.of(learnerToTeacherController.stats());
+    }
+
+    /** Compact end-of-run controller summary for benchmark logs. */
+    public Optional<String> visibilitySummary() {
+        if (teacherToLearnerController == null) {
+            return Optional.empty();
+        }
+        return Optional.of("teacherToLearner=" + teacherToLearnerController.stats()
+                + ", learnerToTeacher=" + learnerToTeacherController.stats()
+                + ", endSocketBuffers=" + currentSocketBufferSummary());
+    }
+
+    /** Marks a successful protocol run complete before its final diagnostics snapshot is logged. */
+    public void complete() {
+        beginControllerCleanup();
+    }
+
+    /** Aborts both directions and physically closes the one full-duplex connection. */
     public void disconnect() {
-        closeQuietly(teacherSocket);
-        closeQuietly(learnerSocket);
-        closeQuietly(serverSocket);
+        abortConnection(new IOException("Reconnect benchmark requested socket disconnect"));
     }
 
     @Override
     public void close() {
+        if (connectionTerminated.compareAndSet(false, true)) {
+            beginControllerCleanup();
+            closeRawConnection();
+        }
+        // Raw closure happens first so a blocked write cannot make compression/output cleanup hang.
         closeQuietly(teacherOutput);
         closeQuietly(learnerOutput);
         closeQuietly(teacherInput);
         closeQuietly(learnerInput);
+    }
+
+    private void abortConnection(final IOException failure) {
+        if (!connectionTerminated.compareAndSet(false, true)) {
+            return;
+        }
+        // Fixed order; never hold both controller locks at once.
+        if (teacherToLearnerController != null) {
+            teacherToLearnerController.abort(failure);
+        }
+        if (learnerToTeacherController != null) {
+            learnerToTeacherController.abort(failure);
+        }
+        closeRawConnection();
+    }
+
+    private void beginControllerCleanup() {
+        if (teacherToLearnerController != null) {
+            teacherToLearnerController.beginCleanup();
+        }
+        if (learnerToTeacherController != null) {
+            learnerToTeacherController.beginCleanup();
+        }
+    }
+
+    private void closeRawConnection() {
         closeQuietly(teacherSocket);
         closeQuietly(learnerSocket);
         closeQuietly(serverSocket);
+    }
+
+    private String currentSocketBufferSummary() {
+        try {
+            return "[teacherSend=" + teacherSocket.getSendBufferSize()
+                    + ", teacherReceive=" + teacherSocket.getReceiveBufferSize()
+                    + ", learnerSend=" + learnerSocket.getSendBufferSize()
+                    + ", learnerReceive=" + learnerSocket.getReceiveBufferSize()
+                    + "]";
+        } catch (final IOException e) {
+            return "unavailable:" + e.getMessage();
+        }
     }
 
     private static GossipConfig emptyGossipConfig() {
         return new GossipConfig(List.of(), List.of(), 5, Duration.ofSeconds(60));
     }
 
-    /** Whether read-side latency pacing (RTT-windowed release) is active. */
-    private static boolean isLatencyShapingActive(final SocketNetworkConfig config) {
-        return config.profile() == NetworkProfile.REALISTIC && config.latencyNanos() > 0;
-    }
-
-    /** Whether read-side bandwidth pacing (release-then-wait cursor) is active. */
-    private static boolean isBandwidthShapingActive(final SocketNetworkConfig config) {
-        return config.profile() == NetworkProfile.REALISTIC && config.bandwidthBytesPerSecond() != Long.MAX_VALUE;
-    }
-
-    /**
-     * Wraps the raw socket input in a {@link PacingInputStream} under {@link NetworkProfile#REALISTIC}; returns
-     * {@code null} under {@link NetworkProfile#LOOPBACK} so the raw floor stays byte-identical to an unshaped socket.
-     * RTT is two times the configured one-way latency (a released window is "un-acked" for one round trip).
-     */
-    private static PacingInputStream maybePace(
-            final InputStream raw,
-            final SocketNetworkConfig config,
-            final PacingInputStream.WindowSupplier windowSupplier) {
-        if (config.profile() != NetworkProfile.REALISTIC) {
-            return null;
-        }
-        return new PacingInputStream(
-                raw, Math.multiplyExact(2L, config.latencyNanos()), config.bandwidthBytesPerSecond(), windowSupplier);
-    }
-
-    private static String format(final PacingInputStream.PacingStats stats) {
-        return "[windowsOpened=" + stats.windowsOpened()
-                + ", lastWindowBytes=" + stats.lastWindowBytes()
-                + ", totalParkedMillis=" + TimeUnit.NANOSECONDS.toMillis(stats.totalParkedNanos())
-                + "]";
-    }
-
     private static void closeQuietly(final Closeable closeable) {
+        if (closeable == null) {
+            return;
+        }
         try {
             closeable.close();
         } catch (final IOException ignored) {
+            // Connection shutdown is best effort and deliberately idempotent.
+        }
+    }
+
+    /** Owns partial-construction cleanup while establishing the production-configured socket pair. */
+    private record ConnectedSockets(ServerSocket serverSocket, Socket teacherSocket, Socket learnerSocket) {
+
+        private static ConnectedSockets open(final SocketConfig socketConfig) throws IOException {
+            ServerSocket server = null;
+            Socket teacher = null;
+            Socket learner = null;
+            try {
+                server = new ServerSocket();
+                SocketFactory.configureAndBind(BENCHMARK_NODE_ID, server, socketConfig, emptyGossipConfig(), 0);
+
+                teacher = new Socket();
+                SocketFactory.configureAndConnect(teacher, socketConfig, LOOPBACK_HOST, server.getLocalPort());
+
+                learner = server.accept();
+                learner.setTcpNoDelay(socketConfig.tcpNoDelay());
+                learner.setSoTimeout(socketConfig.timeoutSyncClientSocket());
+                // Deliberately do not set the accepted socket's send buffer, matching production SocketFactory.
+                return new ConnectedSockets(server, teacher, learner);
+            } catch (final IOException | RuntimeException e) {
+                closeQuietly(teacher);
+                closeQuietly(learner);
+                closeQuietly(server);
+                throw e;
+            }
         }
     }
 }
