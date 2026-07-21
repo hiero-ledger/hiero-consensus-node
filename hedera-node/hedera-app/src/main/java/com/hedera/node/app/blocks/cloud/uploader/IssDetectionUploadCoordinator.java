@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -172,8 +173,8 @@ public class IssDetectionUploadCoordinator {
             if (uploadedRounds.contains(round)) {
                 return;
             }
-            // Offload the blocking work (resolveWithWait polls disk up to captureTimeout; uploadBounded blocks up to
-            // uploadTimeout) off the ORDERED async ISS-notification dispatcher: blocking it would stall later ISS
+            // Offload the blocking work (resolveWithWait polls disk up to captureTimeout; uploadIssBlockBounded blocks
+            // up to uploadTimeout) off the ORDERED async ISS-notification dispatcher: blocking it would stall later ISS
             // notifications, and could even let a subsequent ISS's block be pruned before its own capture ran.
             captureExecutor.execute(() -> doCaptureAndUpload(config, issType, round, incidentFolder));
         } catch (final Throwable t) {
@@ -293,13 +294,15 @@ public class IssDetectionUploadCoordinator {
         if (!uploadInProgressRounds.add(round)) {
             return;
         }
-        boolean uploaded = false;
         try {
             if (uploadedRounds.contains(round)) {
                 return; // completed by the other path between the check above and our claim
             }
-            uploaded = !uploadBounded(config, incidentFolder, files).isEmpty();
-            if (uploaded) {
+            // Mark the round done ONLY when the exact ISS block is confirmed uploaded. Both the disk resolver and the
+            // buffer reader order blocks oldest→newest, so the ISS block is the last entry and any earlier entries are
+            // best-effort preceding context. If a context block uploads but the ISS block fails, the round must stay
+            // unmarked so the CATASTROPHIC_FAILURE path can still retry the exact block.
+            if (uploadIssBlockBounded(config, incidentFolder, files)) {
                 uploadedRounds.add(round);
             }
         } finally {
@@ -374,10 +377,20 @@ public class IssDetectionUploadCoordinator {
         return contents;
     }
 
-    private List<String> uploadBounded(
+    /**
+     * Uploads the ISS-round block and any preceding context blocks to {@code iss/} on a bounded worker (one hard
+     * {@code uploadTimeout} for the whole operation), and returns whether the <b>exact ISS block</b> was uploaded. The
+     * ISS block (the last entry, blocks being ordered oldest→newest) is uploaded FIRST so it gets the timeout budget
+     * ahead of the best-effort context, and its result is recorded before the context upload — so even if the context
+     * upload is abandoned at the deadline, a successful ISS-block upload is still reported. Best-effort; never throws.
+     */
+    private boolean uploadIssBlockBounded(
             @NonNull final FailureBlockUploadConfig config,
             @NonNull final String incidentFolder,
             @NonNull final List<Path> files) {
+        final Path issBlock = files.get(files.size() - 1);
+        final List<Path> precedingContext = files.subList(0, files.size() - 1);
+        final AtomicBoolean issBlockUploaded = new AtomicBoolean(false);
         // Deliberately not try-with-resources: ExecutorService.close() blocks awaiting the running task, which would
         // defeat the hard uploadTimeout. We shutdownNow() in the finally to ABANDON a slow upload so the caller (the
         // ordered notification dispatcher, or the shutting-down node) is freed.
@@ -388,15 +401,23 @@ public class IssDetectionUploadCoordinator {
             return thread;
         });
         try {
-            final Future<List<String>> future =
-                    executor.submit(() -> uploader.uploadBlockFiles(UploadCategory.ISS, incidentFolder, files));
-            final List<String> uploaded = future.get(config.uploadTimeout().toMillis(), TimeUnit.MILLISECONDS);
-            if (uploaded.isEmpty()) {
-                log.warn("ISS block upload produced no objects from {} file(s); see prior errors", files.size());
-            } else {
-                log.warn("ISS block upload complete: {} object(s) uploaded to {}", uploaded.size(), uploaded);
-            }
-            return uploaded;
+            final Future<?> future = executor.submit(() -> {
+                // The ISS block first, so it is preserved even if the best-effort context upload later runs long.
+                final List<String> issUris =
+                        uploader.uploadBlockFiles(UploadCategory.ISS, incidentFolder, List.of(issBlock));
+                issBlockUploaded.set(!issUris.isEmpty());
+                if (issUris.isEmpty()) {
+                    log.warn("ISS block {} was NOT uploaded to iss/; see prior errors", issBlock.getFileName());
+                } else {
+                    log.warn("ISS block upload complete: {}", issUris);
+                }
+                if (!precedingContext.isEmpty()) {
+                    final List<String> contextUris =
+                            uploader.uploadBlockFiles(UploadCategory.ISS, incidentFolder, precedingContext);
+                    log.info("Uploaded {} preceding context object(s) to iss/", contextUris.size());
+                }
+            });
+            future.get(config.uploadTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final TimeoutException e) {
             log.error("ISS block upload exceeded {}; abandoning it so the node can continue", config.uploadTimeout());
         } catch (final InterruptedException e) {
@@ -407,6 +428,6 @@ public class IssDetectionUploadCoordinator {
         } finally {
             executor.shutdownNow();
         }
-        return List.of();
+        return issBlockUploaded.get();
     }
 }

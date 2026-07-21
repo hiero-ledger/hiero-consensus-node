@@ -9,13 +9,16 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.hedera.bucky.RetryPolicy;
 import com.hedera.bucky.S3Client;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.config.data.FailureBlockUploadConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,14 +58,17 @@ class BuckyBlockUploaderTest {
     }
 
     @Test
-    void backoffIsPositiveAndCappedEvenForLargeAttemptCounts() {
-        // Regression: a large maxRetries must not overflow the backoff shift into a negative (throwing) sleep.
-        for (int attempt = 1; attempt <= 100; attempt++) {
-            assertThat(BuckyBlockUploader.backoffMillis(attempt))
-                    .as("attempt %d", attempt)
-                    .isPositive()
-                    .isLessThanOrEqualTo(20_000L);
-        }
+    void buildsRetryPolicyFromConfig() {
+        when(config.uploadTimeout()).thenReturn(Duration.ofSeconds(45));
+
+        // maxRetries is 2 (see setUp), so the policy allows 3 attempts (the initial try plus 2 retries).
+        final RetryPolicy policy = BuckyBlockUploader.retryPolicyFor(config);
+
+        assertThat(policy.maxAttempts()).isEqualTo(3);
+        assertThat(policy.baseDelayMs()).isEqualTo(200L);
+        assertThat(policy.maxDelayMs()).isEqualTo(20_000L);
+        assertThat(policy.totalTimeoutMs()).isEqualTo(45_000L);
+        assertThat(policy.requestTimeoutMs()).isZero();
     }
 
     @Test
@@ -116,19 +122,18 @@ class BuckyBlockUploaderTest {
     }
 
     @Test
-    void retriesOnFailureThenSucceeds() throws Exception {
+    void skipsFileWhenUploadUltimatelyFails() throws Exception {
+        // Retry now lives inside bucky's S3Client (the RetryPolicy); when uploadFile still throws after bucky has
+        // exhausted it, the uploader issues exactly one call, logs, and skips the file — no hand-rolled retry loop.
         final Path iss = tempDir.resolve(FileBlockItemWriter.longToFileName(2L) + ".iss.gz");
         Files.write(iss, new byte[] {9});
-        doThrow(new IOException("transient"))
-                .doNothing()
-                .when(s3)
-                .uploadFile(anyString(), anyString(), any(), anyString());
+        doThrow(new IOException("exhausted")).when(s3).uploadFile(anyString(), anyString(), any(), anyString());
         final var uploader = new BuckyBlockUploader(config, "0.0.3", credentialsFile(), (c, cr) -> s3);
 
         final List<String> uris = uploader.uploadBlockFiles(UploadCategory.ISS, INCIDENT, List.of(iss));
 
-        verify(s3, times(2)).uploadFile(anyString(), anyString(), any(), anyString());
-        assertThat(uris).hasSize(1);
+        verify(s3, times(1)).uploadFile(anyString(), anyString(), any(), anyString());
+        assertThat(uris).isEmpty();
     }
 
     @Test

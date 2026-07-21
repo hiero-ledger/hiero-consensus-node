@@ -345,6 +345,36 @@ class IssDetectionUploadCoordinatorTest {
     }
 
     @Test
+    void partialUploadOfOnlyAPrecedingBlockDoesNotMarkTheRoundDone() {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(issConfig.precedingBlocks()).thenReturn(1);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+
+        final Path precedingGz =
+                issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(6L) + ".iss.gz");
+        final Path issGz =
+                issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.gz");
+        // The buffer capture returns the preceding context block then the ISS block (oldest→newest).
+        when(bufferReader.captureToDir(eq(9L), eq(1), any())).thenReturn(List.of(precedingGz, issGz));
+        // The preceding context block uploads successfully...
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(precedingGz))))
+                .thenReturn(List.of("uriPreceding"));
+        // ...but the EXACT ISS block fails on the detection attempt, then succeeds on the CATASTROPHIC_FAILURE attempt.
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(issGz))))
+                .thenReturn(List.of())
+                .thenReturn(List.of("uriIss"));
+
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+        // A context block succeeding while the ISS block failed must NOT mark the round done, so the authoritative
+        // failure path still retries the exact ISS block.
+        subject.uploadDetectedIssOnFailure();
+
+        // The ISS block was attempted on BOTH paths (it would be attempted only once had the partial detection upload
+        // wrongly marked the round complete and suppressed the failure-path retry).
+        verify(uploader, times(2)).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(issGz)));
+    }
+
+    @Test
     void twoDistinctConcurrentRoundsAreBothUploaded() {
         when(issConfig.issBlockUploadEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);

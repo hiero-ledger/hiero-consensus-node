@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.cloud.uploader;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.bucky.RetryPolicy;
 import com.hedera.bucky.S3Client;
 import com.hedera.bucky.S3ClientInitializationException;
 import com.hedera.node.config.data.FailureBlockUploadConfig;
@@ -29,9 +30,11 @@ import org.apache.logging.log4j.Logger;
  * already compressed, so they are uploaded verbatim).
  *
  * <p>The {@link S3Client} is created lazily through {@link S3ClientFactory} — a seam that lets tests supply a stub
- * client without reaching a real bucket. Each file is retried up to {@code maxRetries} times with exponential backoff.
- * The overall hard deadline is enforced by the calling coordinator (which runs this on a bounded worker), so
- * this class does not time-box itself. All failures are logged and swallowed (the caller is on the shutdown path).
+ * client without reaching a real bucket. Transient-failure retry (bounded attempts with exponential backoff) is
+ * delegated to bucky via a {@link RetryPolicy} built from config ({@code maxRetries}, {@code uploadTimeout}) and
+ * passed to the {@link S3Client}, which retries each underlying multipart operation internally. The overall hard
+ * deadline is also enforced by the calling coordinator (which runs this on a bounded worker), so this class does not
+ * time-box itself. All failures are logged and swallowed (the caller is on the shutdown path).
  *
  * <p>Object keys are {@code {prefix}/{node}/{category}/{incidentFolder}/{paddedBlockNumber}/{fileName}}: {@code category}
  * is {@code iss} or {@code triage}, {@code incidentFolder} groups all blocks from one event, and the padded block
@@ -42,9 +45,9 @@ class BuckyBlockUploader implements BlockUploader {
 
     /** Chunk size used to stream a file into the multipart upload. */
     private static final int CHUNK_SIZE = 1024 * 1024;
-    /** Base backoff between upload retries; doubles each attempt, capped at {@link #MAX_BACKOFF_MS}. */
+    /** Base backoff for bucky's {@link RetryPolicy}; it grows exponentially per retry, capped at {@link #MAX_BACKOFF_MS}. */
     private static final long BASE_BACKOFF_MS = 200;
-    /** Upper cap on the per-retry backoff. */
+    /** Upper cap on bucky's retry backoff. */
     private static final long MAX_BACKOFF_MS = 20_000;
     /** Block-file extensions, longest first, stripped to recover the padded block number used as the key folder. */
     private static final List<String> EXTENSIONS = List.of(".pnd.json", ".open.gz", ".iss.gz", ".pnd.gz", ".blk.gz");
@@ -103,13 +106,13 @@ class BuckyBlockUploader implements BlockUploader {
         final List<String> uploaded = new ArrayList<>();
         try (final S3Client s3 = clientFactory.create(config, credentials)) {
             for (final Path contents : contentsFiles) {
-                final String uri = uploadWithRetry(s3, category, incidentFolder, contents);
+                final String uri = uploadOne(s3, category, incidentFolder, contents);
                 if (uri != null) {
                     uploaded.add(uri);
                 }
                 final Path sidecar = proofSidecarOf(contents);
                 if (sidecar != null && Files.exists(sidecar)) {
-                    final String sidecarUri = uploadWithRetry(s3, category, incidentFolder, sidecar);
+                    final String sidecarUri = uploadOne(s3, category, incidentFolder, sidecar);
                     if (sidecarUri != null) {
                         uploaded.add(sidecarUri);
                     }
@@ -121,56 +124,32 @@ class BuckyBlockUploader implements BlockUploader {
         return uploaded;
     }
 
+    /**
+     * Uploads a single file to its object key. Transient-failure retry (bounded attempts with exponential backoff) is
+     * handled inside bucky's {@link S3Client} per the {@link RetryPolicy} it was built with, so this issues exactly one
+     * {@code uploadFile} call. Returns the object URI, or {@code null} if the upload ultimately failed.
+     */
     @Nullable
-    private String uploadWithRetry(
+    private String uploadOne(
             @NonNull final S3Client s3,
             @NonNull final UploadCategory category,
             @NonNull final String incidentFolder,
             @NonNull final Path file) {
-        final int attempts = Math.max(1, config.maxRetries() + 1);
         final String objectKey = objectKeyFor(category, incidentFolder, file);
-        Exception last = null;
-        for (int attempt = 1; attempt <= attempts; attempt++) {
-            try (final InputStream in = new BufferedInputStream(Files.newInputStream(file))) {
-                s3.uploadFile(objectKey, config.storageClass(), new ChunkedIterator(in), contentTypeFor(file));
-                final String uri = uriFor(objectKey);
-                log.warn(
-                        "Uploaded ISS block file {} to {} (bucket={}, key={})",
-                        file.getFileName(),
-                        uri,
-                        config.bucketName(),
-                        objectKey);
-                return uri;
-            } catch (final Exception e) {
-                last = e;
-                if (attempt >= attempts) {
-                    break;
-                }
-                try {
-                    Thread.sleep(backoffMillis(attempt));
-                } catch (final InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
+        try (final InputStream in = new BufferedInputStream(Files.newInputStream(file))) {
+            s3.uploadFile(objectKey, config.storageClass(), new ChunkedIterator(in), contentTypeFor(file));
+            final String uri = uriFor(objectKey);
+            log.warn(
+                    "Uploaded ISS block file {} to {} (bucket={}, key={})",
+                    file.getFileName(),
+                    uri,
+                    config.bucketName(),
+                    objectKey);
+            return uri;
+        } catch (final Exception e) {
+            log.error("Failed to upload ISS block file {} (key={})", file.getFileName(), objectKey, e);
+            return null;
         }
-        log.error(
-                "Failed to upload ISS block file {} after {} attempt(s) (key={})",
-                file.getFileName(),
-                attempts,
-                objectKey,
-                last);
-        return null;
-    }
-
-    /**
-     * Exponential backoff for retry {@code attempt} (1-based): {@code BASE_BACKOFF_MS * 2^(attempt-1)}, capped at
-     * {@link #MAX_BACKOFF_MS}. The shift is clamped so a large {@code maxRetries} cannot overflow the {@code long} to a
-     * negative value (which would make {@link Thread#sleep(long)} throw {@link IllegalArgumentException}).
-     */
-    static long backoffMillis(final int attempt) {
-        final int shift = Math.min(attempt - 1, 30);
-        return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS << shift);
     }
 
     private String objectKeyFor(
@@ -221,6 +200,21 @@ class BuckyBlockUploader implements BlockUploader {
         return "application/octet-stream";
     }
 
+    /**
+     * Builds bucky's {@link RetryPolicy} from config: {@code maxRetries + 1} attempts (the initial try plus each
+     * retry), exponential backoff between {@link #BASE_BACKOFF_MS} and {@link #MAX_BACKOFF_MS}, a total retry budget of
+     * {@code uploadTimeout} (the same hard deadline the coordinator enforces around the whole upload), and no
+     * per-request timeout (the coordinator's bounded worker is the outer deadline).
+     */
+    static RetryPolicy retryPolicyFor(@NonNull final FailureBlockUploadConfig config) {
+        return new RetryPolicy(
+                Math.max(1, config.maxRetries() + 1),
+                BASE_BACKOFF_MS,
+                MAX_BACKOFF_MS,
+                config.uploadTimeout().toMillis(),
+                0L);
+    }
+
     @NonNull
     private static S3Client newS3Client(
             @NonNull final FailureBlockUploadConfig config, @NonNull final BucketCredentials credentials)
@@ -230,7 +224,8 @@ class BuckyBlockUploader implements BlockUploader {
                 config.endpoint(),
                 config.bucketName(),
                 credentials.accessKey(),
-                credentials.secretKey());
+                credentials.secretKey(),
+                retryPolicyFor(config));
     }
 
     /** Streams a file as a sequence of fixed-size byte arrays; the underlying stream is closed by the caller. */

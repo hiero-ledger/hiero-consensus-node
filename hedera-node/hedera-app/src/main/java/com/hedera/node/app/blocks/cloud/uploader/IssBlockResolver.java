@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,6 +69,9 @@ public class IssBlockResolver {
      */
     private final Map<Long, Long> firstRoundByBlockNumber = new ConcurrentHashMap<>();
 
+    /** Memoized last-round-per-block-number, used only to confirm the newest block actually contains the ISS round. */
+    private final Map<Long, Long> lastRoundByBlockNumber = new ConcurrentHashMap<>();
+
     @Inject
     public IssBlockResolver(
             @NonNull final ConfigProvider configProvider,
@@ -110,6 +114,7 @@ public class IssBlockResolver {
             currentNumbers.add(bf.blockNumber());
         }
         firstRoundByBlockNumber.keySet().retainAll(currentNumbers);
+        lastRoundByBlockNumber.keySet().retainAll(currentNumbers);
 
         // Find the block containing the round: the rightmost block whose first round is <= round (first round
         // increases monotonically with block number). Scan from the newest end so a recent ISS — the common case — is
@@ -141,6 +146,27 @@ public class IssBlockResolver {
                     round,
                     oldestReadableRound);
             return List.of();
+        }
+
+        // The loop picks the rightmost block whose FIRST round <= the ISS round: proof only that the round is in that
+        // block OR a later one. A later LISTED block would have bounded it (its first round > round), but when the pick
+        // is the NEWEST listed block the round may instead be in the still-open block — written as an unmarked
+        // ".blk.gz" and excluded by the ".mf" gate above. Returning this preceding block would upload the wrong one and
+        // let the coordinator mark the round done, so confirm the round is actually within the newest block
+        // (round <= its LAST round); if not, keep polling (return empty) until the open block closes or is flushed. An
+        // unreadable ".open.gz" skipped above stays in the list, leaving issIndex < size-1, so the best-effort fallback
+        // for a dropped-writes open block is untouched.
+        if (issIndex == blocks.size() - 1) {
+            final OptionalLong lastRound = cachedLastRound(blocks.get(issIndex), maxReadDepth, maxReadSize);
+            if (lastRound.isEmpty() || lastRound.getAsLong() < round) {
+                log.info(
+                        "ISS round {} is beyond the newest durable block #{} (last round {}); it is still in the open "
+                                + "block — waiting for it to become durable before uploading",
+                        round,
+                        blocks.get(issIndex).blockNumber(),
+                        lastRound.isEmpty() ? "unreadable" : String.valueOf(lastRound.getAsLong()));
+                return List.of();
+            }
         }
 
         final int firstIndex = Math.max(0, issIndex - Math.max(0, precedingBlocks));
@@ -225,28 +251,36 @@ public class IssBlockResolver {
         return firstRound;
     }
 
-    /** Parses {@code contents} and returns the round number of its first {@code RoundHeader} item, if present. */
-    static OptionalLong firstRoundOf(@NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
-        final BlockBytes blockBytes;
-        // Parse into raw per-item bytes (BlockBytes is wire-identical to a Block, as in IssBufferBlockReader) rather
-        // than the full Block object graph, then deserialize items one at a time only until the first RoundHeader —
-        // usually the second item — so a large block is not fully materialized just to read one round number. The gzip
-        // is streamed straight in (no intermediate decompressed byte[]) and the parse stays bounded by maxReadSize.
-        // Each stream stage is its own resource: GZIPInputStream's constructor eagerly reads the gzip header and can
-        // throw on an empty/truncated/corrupt file, so nesting the constructors would leak the already-opened
-        // Files.newInputStream file descriptor (try-with-resources would have nothing to close).
+    /**
+     * Parses {@code contents} into raw per-item {@link BlockBytes} (wire-identical to a {@code Block}, as in
+     * {@code IssBufferBlockReader}) rather than the full {@code Block} object graph, so callers can deserialize items
+     * one at a time. The gzip is streamed straight in (no intermediate decompressed {@code byte[]}), bounded by
+     * {@code maxReadSize}. Each stream stage is its own resource: {@link GZIPInputStream}'s constructor eagerly reads
+     * the gzip header and can throw on an empty/truncated/corrupt file, so nesting the constructors would leak the
+     * already-opened {@link Files#newInputStream} descriptor. Empty if the file cannot be read or parsed.
+     */
+    private static Optional<BlockBytes> parseBlockBytes(
+            @NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
         try (final var fileIn = Files.newInputStream(contents);
                 final var gzipIn = new GZIPInputStream(fileIn);
                 final ReadableStreamingData in = new ReadableStreamingData(gzipIn)) {
-            blockBytes = BlockBytes.PROTOBUF.parse(in, false, false, maxReadDepth, maxReadSize);
+            return Optional.of(BlockBytes.PROTOBUF.parse(in, false, false, maxReadDepth, maxReadSize));
         } catch (final IOException e) {
             log.warn("Failed to read block file {}", contents, e);
-            return OptionalLong.empty();
         } catch (final ParseException e) {
             log.warn("Failed to parse block file {}", contents, e);
+        }
+        return Optional.empty();
+    }
+
+    /** Returns the round number of {@code contents}'s first {@code RoundHeader} — usually its second item — if present. */
+    static OptionalLong firstRoundOf(@NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
+        final Optional<BlockBytes> parsed = parseBlockBytes(contents, maxReadDepth, maxReadSize);
+        if (parsed.isEmpty()) {
             return OptionalLong.empty();
         }
-        for (final Bytes itemBytes : blockBytes.items()) {
+        // Deserialize items one at a time only until the first RoundHeader, so a large block is not fully materialized.
+        for (final Bytes itemBytes : parsed.get().items()) {
             try {
                 final BlockItem item = BlockItem.PROTOBUF.parse(itemBytes);
                 if (item.hasRoundHeader()) {
@@ -258,6 +292,45 @@ public class IssBlockResolver {
             }
         }
         return OptionalLong.empty();
+    }
+
+    /** {@link #lastRoundOf} with per-block-number memoization (a durable block's last round is invariant too). */
+    private OptionalLong cachedLastRound(
+            @NonNull final BlockFile block, final int maxReadDepth, final int maxReadSize) {
+        final Long cached = lastRoundByBlockNumber.get(block.blockNumber());
+        if (cached != null) {
+            return OptionalLong.of(cached);
+        }
+        final OptionalLong lastRound = lastRoundOf(block.contents(), maxReadDepth, maxReadSize);
+        lastRound.ifPresent(r -> lastRoundByBlockNumber.put(block.blockNumber(), r));
+        return lastRound;
+    }
+
+    /**
+     * Returns the round number of {@code contents}'s last {@code RoundHeader}, if present. Unlike {@link #firstRoundOf}
+     * this scans every item, so it is used only to confirm the newest block contains the ISS round. A truncated final
+     * item in a flushed open block is tolerated: the last fully-parsed round is returned (a round's {@code RoundHeader}
+     * is written before its body, so even a partial final round is counted).
+     */
+    static OptionalLong lastRoundOf(@NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
+        final Optional<BlockBytes> parsed = parseBlockBytes(contents, maxReadDepth, maxReadSize);
+        if (parsed.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        long lastRound = 0;
+        boolean found = false;
+        for (final Bytes itemBytes : parsed.get().items()) {
+            try {
+                final BlockItem item = BlockItem.PROTOBUF.parse(itemBytes);
+                if (item.hasRoundHeader()) {
+                    lastRound = item.roundHeaderOrThrow().roundNumber();
+                    found = true;
+                }
+            } catch (final ParseException e) {
+                break;
+            }
+        }
+        return found ? OptionalLong.of(lastRound) : OptionalLong.empty();
     }
 
     private enum BlockKind {
