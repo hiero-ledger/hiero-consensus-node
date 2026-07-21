@@ -393,16 +393,17 @@ public class ConsensusImplDAB implements Consensus {
                 if (results != null) {
                     return results;
                 }
+            } else {
+                // Only remove consensus (and ancient) events once the birth round is lower that the previous
+                // round's minimum judge birth round - these events never need to have update called on them again,
+                // but we might need to look them up in the memos map if they reach consensus in the future. Therefore,
+                // we only remove events once they are below the birth round threshold AND are consensus or ancient.
+                if (insertedEvent.isConsensus() || ancient(insertedEvent)) {
+                    iterator.remove();
+                    memosEventMap.remove(insertedEvent.getEventInfo());
+                }
             }
 
-            // Only remove consensus (and ancient) events if update did not result in a round reaching consensus.
-            // The events that just reached consensus could include one of the judges for the round, and that judge
-            // must have update called on it when calculating the next round. So it must not be removed from the
-            // list of recent events yet.
-            if (insertedEvent.isConsensus() || ancient(insertedEvent)) {
-                iterator.remove();
-                memosEventMap.remove(insertedEvent.getEventInfo());
-            }
         }
         return null;
     }
