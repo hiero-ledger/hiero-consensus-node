@@ -21,7 +21,6 @@ import org.hiero.base.Copyable;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Boilerplate getters, setters, and configuration for basic thread configuration.
@@ -42,7 +41,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     /**
      * The ID of the node that is running the thread.
      */
-    private NodeId nodeId;
+    private String nodeId;
 
     /**
      * The name of the component with which this thread is associated.
@@ -64,7 +63,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * The ID of the other node if this thread is responsible for a task associated with a
      * particular node.
      */
-    private NodeId otherNodeId;
+    private String otherNodeId;
 
     /**
      * The thread group that will contain new threads.
@@ -470,7 +469,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * Get the node ID that will run threads created by this object.
      */
     @NonNull
-    public NodeId getNodeId() {
+    public String getNodeId() {
         return nodeId;
     }
 
@@ -480,7 +479,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * @return this object
      */
     @SuppressWarnings("unchecked")
-    public C setNodeId(@NonNull final NodeId nodeId) {
+    public C setNodeId(@NonNull final String nodeId) {
         throwIfImmutable();
         Objects.requireNonNull(nodeId, "nodeId must not be null");
 
@@ -558,7 +557,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * Get the node ID of the other node (if created threads will be dealing with a task related to a specific node).
      */
     @NonNull
-    public NodeId getOtherNodeId() {
+    public String getOtherNodeId() {
         return otherNodeId;
     }
 
@@ -569,7 +568,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * @return this object
      */
     @SuppressWarnings("unchecked")
-    public C setOtherNodeId(@NonNull final NodeId otherNodeId) {
+    public C setOtherNodeId(@NonNull final String otherNodeId) {
         throwIfImmutable();
         Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
 

@@ -128,7 +128,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
                     EventStreamType.getInstance());
 
             writeQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager())
-                    .setNodeId(selfId)
+                    .setNodeId(selfId.toString())
                     .setComponent("event-stream")
                     .setThreadName("write-queue")
                     .setCapacity(eventStreamQueueCapacity)
@@ -154,7 +154,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
         // runningHashCalculator
         final HashCalculatorForStream<CesEvent> hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
         hashQueueThread = new QueueThreadObjectStreamConfiguration<CesEvent>(getStaticThreadManager())
-                .setNodeId(selfId)
+                .setNodeId(selfId.toString())
                 .setComponent("event-stream")
                 .setThreadName("hash-queue")
                 .setCapacity(eventStreamQueueCapacity)

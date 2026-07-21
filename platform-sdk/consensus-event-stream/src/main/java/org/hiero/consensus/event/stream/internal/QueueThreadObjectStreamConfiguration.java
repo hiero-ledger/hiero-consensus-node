@@ -7,7 +7,6 @@ import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Configures and builds {@link QueueThreadObjectStream} instances.
@@ -182,7 +181,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * Get the node ID that will run threads created by this object.
      */
     @NonNull
-    public NodeId getNodeId() {
+    public String getNodeId() {
         return queueThreadConfiguration.getNodeId();
     }
 
@@ -192,7 +191,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * @return this object
      */
     @NonNull
-    public QueueThreadObjectStreamConfiguration<T> setNodeId(@NonNull final NodeId nodeId) {
+    public QueueThreadObjectStreamConfiguration<T> setNodeId(@NonNull final String nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
         queueThreadConfiguration.setNodeId(nodeId);
         return this;
@@ -236,7 +235,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      * Set the node ID of the other node (if created threads will be dealing with a task related to a specific node).
      */
     @NonNull
-    public NodeId getOtherNodeId() {
+    public String getOtherNodeId() {
         return queueThreadConfiguration.getOtherNodeId();
     }
 
@@ -245,7 +244,7 @@ public class QueueThreadObjectStreamConfiguration<T extends RunningHashable> {
      *
      * @return this object
      */
-    public QueueThreadObjectStreamConfiguration<T> setOtherNodeId(@NonNull final NodeId otherNodeId) {
+    public QueueThreadObjectStreamConfiguration<T> setOtherNodeId(@NonNull final String otherNodeId) {
         Objects.requireNonNull(otherNodeId, "otherNodeId must not be null");
         queueThreadConfiguration.setOtherNodeId(otherNodeId);
         return this;

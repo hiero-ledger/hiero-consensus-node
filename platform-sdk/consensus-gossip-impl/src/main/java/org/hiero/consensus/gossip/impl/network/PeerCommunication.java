@@ -122,7 +122,7 @@ public class PeerCommunication implements ConnectionTracker {
 
         this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
                 .setPriority(gossipConfig.connectionServerThreadPriority())
-                .setNodeId(selfId)
+                .setNodeId(selfId.toString())
                 .setComponent(PLATFORM_THREAD_POOL_NAME)
                 .setThreadName("connectionServer")
                 .setWork(connectionServer)
@@ -261,9 +261,9 @@ public class PeerCommunication implements ConnectionTracker {
                     otherId,
                     new StoppableThreadConfiguration<>(threadManager)
                             .setPriority(Thread.NORM_PRIORITY)
-                            .setNodeId(selfId)
+                            .setNodeId(selfId.toString())
                             .setComponent(PLATFORM_THREAD_POOL_NAME)
-                            .setOtherNodeId(otherId)
+                            .setOtherNodeId(otherId.toString())
                             .setThreadName("SyncProtocolWith" + otherId)
                             .setHangingThreadPeriod(hangingThreadDuration)
                             .setWork(new ProtocolNegotiatorThread(

@@ -91,7 +91,7 @@ class AbstractQueueThreadConfigurationTest {
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
                         threadManager)
-                .setNodeId(NODE_ID)
+                .setNodeId(NODE_ID.toString())
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -99,7 +99,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setHandler(handler);
 
         // then
-        assertThat(configuration.getNodeId()).isEqualTo(NODE_ID);
+        assertThat(configuration.getNodeId()).isEqualTo(NODE_ID.toString());
         assertThat(configuration.getComponent()).isEqualTo(THREAD_POOL_NAME);
         assertThat(configuration.getThreadName()).isEqualTo(THREAD_NAME);
         assertThat(configuration.getMaxBufferSize()).isEqualTo(MAX_BUFFER_SIZE);
@@ -117,7 +117,7 @@ class AbstractQueueThreadConfigurationTest {
         final InterruptableRunnable waitForItemRunnable = mock(InterruptableRunnable.class);
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
                         threadManager)
-                .setNodeId(NODE_ID)
+                .setNodeId(NODE_ID.toString())
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -128,7 +128,7 @@ class AbstractQueueThreadConfigurationTest {
         final DummyQueueThreadConfiguration<String> copied = new DummyQueueThreadConfiguration<>(configuration);
 
         // then
-        assertThat(configuration.getNodeId()).isEqualTo(copied.getNodeId());
+        assertThat(configuration.getNodeId()).isEqualTo(copied.getNodeId().toString());
         assertThat(configuration.getComponent()).isEqualTo(copied.getComponent());
         assertThat(configuration.getThreadName()).isEqualTo(copied.getThreadName());
         assertThat(configuration.getMaxBufferSize()).isEqualTo(copied.getMaxBufferSize());
@@ -148,7 +148,7 @@ class AbstractQueueThreadConfigurationTest {
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
                         threadManager)
-                .setNodeId(NODE_ID)
+                .setNodeId(NODE_ID.toString())
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -175,7 +175,7 @@ class AbstractQueueThreadConfigurationTest {
                 .thenReturn(new Thread());
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
                         threadManager)
-                .setNodeId(NODE_ID)
+                .setNodeId(NODE_ID.toString())
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -201,7 +201,7 @@ class AbstractQueueThreadConfigurationTest {
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
                         threadManager)
-                .setNodeId(NODE_ID)
+                .setNodeId(NODE_ID.toString())
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -239,7 +239,7 @@ class AbstractQueueThreadConfigurationTest {
         // when
         final DummyQueueThreadConfiguration<String> configuration = new DummyQueueThreadConfiguration<String>(
                         threadManager)
-                .setNodeId(NODE_ID)
+                .setNodeId(NODE_ID.toString())
                 .setComponent(THREAD_POOL_NAME)
                 .setThreadName(THREAD_NAME)
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -286,7 +286,7 @@ class AbstractQueueThreadConfigurationTest {
 
         // then
         assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager)
-                        .setNodeId(NODE_ID)
+                        .setNodeId(NODE_ID.toString())
                         .setComponent(THREAD_POOL_NAME)
                         .setThreadName(THREAD_NAME)
                         .setMaxBufferSize(MAX_BUFFER_SIZE)
@@ -297,7 +297,7 @@ class AbstractQueueThreadConfigurationTest {
                 .isInstanceOf(NullPointerException.class);
 
         assertThatThrownBy(() -> new DummyQueueThreadConfiguration<String>(threadManager)
-                        .setNodeId(NODE_ID)
+                        .setNodeId(NODE_ID.toString())
                         .setComponent(THREAD_POOL_NAME)
                         .setThreadName(THREAD_NAME)
                         .setMaxBufferSize(MAX_BUFFER_SIZE)

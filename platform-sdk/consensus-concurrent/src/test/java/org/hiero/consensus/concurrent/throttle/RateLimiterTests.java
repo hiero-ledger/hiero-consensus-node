@@ -7,9 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.Time;
 import java.time.Duration;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -65,6 +67,27 @@ class RateLimiterTests {
         }
 
         assertEquals(limit.toMillis() / periodMs, count);
+    }
+
+    @Test
+    void realFrequencyTest() {
+        var time = Time.getCurrent();
+
+        final RateLimiter rateLimiter = new RateLimiter(time, 5000);
+
+        long start = time.nanoTime();
+
+        int counter = 5000;
+        while (true) {
+            if (rateLimiter.requestAndTrigger()) {
+                counter--;
+                if (counter <= 0) {
+                    break;
+                }
+            }
+        }
+
+        System.out.println("Elapsed: " + (time.nanoTime() - start) / 1_000_000.0 + " ms");
     }
 
     @ParameterizedTest
