@@ -115,7 +115,7 @@ round-by-round internal equality.
 
 ## Verification
 
-`test-reproduced`. `MinConsensusRelevantThresholdTest` (swirlds-cli) was built
+`test-reproduced`. `MinConsensusRelevantThresholdTest` (consensus-hashgraph) was built
 from the healthy node's and the ISS node's captured PCES; it fails when the
 threshold is keyed on the sequence number and passes on nGen. The underlying ISS
 was also observed in a live run from genesis before the fix.
