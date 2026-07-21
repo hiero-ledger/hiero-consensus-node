@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: ""
+      cutover-enable-tck:
+        description: "[Cutover] Run the SDK TCK regression suite before post-cutover validation."
+        required: true
+        type: boolean
+        default: true
       tss-starting-tag:
         description: "[075-to-076-tss] Consensus-node release tag for the initial 0.75 network deploy. Leave blank to default to v0.75.0-rc.6."
         required: false
@@ -444,7 +449,7 @@ jobs:
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
-              ENABLE_TCK_TESTS="true" \
+              ENABLE_TCK_TESTS="${{ inputs.cutover-enable-tck }}" \
             "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
