@@ -46,12 +46,12 @@ class ConfigExportTest {
                 .isNotNull()
                 .isNotEmpty()
                 // Verify properties in file are listed
-                .anySatisfy(value -> assertThat(value).matches("^property, value\\s*$"))
-                .anySatisfy(value -> assertThat(value).matches("^prefix.property, anotherValue\\s*$"))
+                .anySatisfy(value -> assertThat(value).matches("^property, value$"))
+                .anySatisfy(value -> assertThat(value).matches("^prefix.property, anotherValue$"))
                 // Verify properties not in file are listed (spot check only)
+                .anySatisfy(value ->
+                        assertThat(value).matches("^prefix.unmappedProperty, notPresentValue  \\[NOT USED IN RECORD]$"))
                 .anySatisfy(value -> assertThat(value)
-                        .matches("^prefix.unmappedProperty, notPresentValue\\s*\\[NOT USED IN RECORD]$"))
-                .anySatisfy(value -> assertThat(value)
-                        .matches("^unmappedProperty, anotherNotPresentValue\\s*\\[NOT USED IN RECORD]$"));
+                        .matches("^unmappedProperty, anotherNotPresentValue  \\[NOT USED IN RECORD]$"));
     }
 }
