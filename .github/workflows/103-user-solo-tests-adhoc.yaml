@@ -111,6 +111,11 @@ jobs:
       # the default "solo". This job-level override also applies to the diagnostics/cleanup steps.
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -310,6 +315,11 @@ jobs:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -520,6 +530,11 @@ jobs:
     env:
       SOLO_CLUSTER_NAME: "tss-075-to-076"
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -668,6 +683,11 @@ jobs:
     env:
       SOLO_CLUSTER_NAME: "cutover-076-to-077"
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -811,6 +831,11 @@ jobs:
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 150
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -905,6 +930,11 @@ jobs:
     env:
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
