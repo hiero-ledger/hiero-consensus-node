@@ -202,7 +202,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         final boolean reconnectActive =
                 configuration.getConfigData(ReconnectConfig.class).active();
         if (reconnectActive) {
-            factory.createReconnectModule(
+            factory.setupReconnectModule(
                     platform,
                     platformCoordinator,
                     buildingBlocks.platformComponents(),

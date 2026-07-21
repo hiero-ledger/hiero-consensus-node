@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.merkle;
+package com.swirlds.virtualmap.internal;
 
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.IntegerAccumulator;
