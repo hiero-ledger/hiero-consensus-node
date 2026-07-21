@@ -30,6 +30,7 @@ import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PingResponse;
+import org.hiero.otter.fixtures.container.proto.ThreadDumpResponse;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -238,5 +239,71 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 .build());
         responseObserver.onCompleted();
         log.debug("Ping response sent");
+    }
+
+    /**
+     * Captures a JVM thread dump of the consensus node process for diagnostics (for example, to investigate a node
+     * that failed to recover after chaos). The dump is produced by {@code jcmd} attaching to the child process, so it
+     * works even when the node's own threads are wedged. This is best-effort: on any failure, or if the process is not
+     * alive, a short explanatory message is returned instead of a dump and the RPC still succeeds.
+     *
+     * @param request An empty request.
+     * @param responseObserver The observer used to receive the thread dump.
+     */
+    @Override
+    public void dumpThreads(
+            @NonNull final Empty request, @NonNull final StreamObserver<ThreadDumpResponse> responseObserver) {
+        log.info("Received thread dump request");
+        final Process nodeProcess;
+        synchronized (this) {
+            nodeProcess = process;
+        }
+        final String threadDump;
+        if (nodeProcess == null || !nodeProcess.isAlive()) {
+            threadDump = "(consensus node process is not alive)";
+        } else {
+            threadDump = captureThreadDump(nodeProcess.pid());
+        }
+        responseObserver.onNext(
+                ThreadDumpResponse.newBuilder().setThreadDump(threadDump).build());
+        responseObserver.onCompleted();
+        log.info("Thread dump request completed");
+    }
+
+    /**
+     * Runs {@code jcmd <pid> Thread.print -l} against the consensus node process and returns its combined output.
+     *
+     * @param pid the process ID of the consensus node process to dump
+     * @return the thread dump text, or a short explanatory message if the dump could not be captured
+     */
+    private static String captureThreadDump(final long pid) {
+        final String jcmd =
+                Path.of(System.getProperty("java.home"), "bin", "jcmd").toString();
+        Path output = null;
+        try {
+            output = Files.createTempFile("thread-dump-" + pid + "-", ".txt");
+            final Process dump = new ProcessBuilder(jcmd, Long.toString(pid), "Thread.print", "-l")
+                    .redirectErrorStream(true)
+                    .redirectOutput(output.toFile())
+                    .start();
+            if (!dump.waitFor(30, TimeUnit.SECONDS)) {
+                dump.destroyForcibly();
+                return "(thread dump timed out after 30s for pid " + pid + ")";
+            }
+            return Files.readString(output);
+        } catch (final IOException e) {
+            return "(thread dump failed for pid " + pid + ": " + e + ")";
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "(thread dump interrupted for pid " + pid + ")";
+        } finally {
+            if (output != null) {
+                try {
+                    Files.deleteIfExists(output);
+                } catch (final IOException e) {
+                    log.warn("Failed to delete temporary thread dump file {}", output, e);
+                }
+            }
+        }
     }
 }

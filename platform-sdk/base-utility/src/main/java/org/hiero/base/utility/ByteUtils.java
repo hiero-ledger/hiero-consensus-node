@@ -4,7 +4,9 @@ package org.hiero.base.utility;
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_INT;
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_LONG;
 import static com.swirlds.base.units.UnitConstants.BYTES_PER_SHORT;
+import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -227,5 +229,34 @@ public final class ByteUtils {
             data[data.length - i - 1] = temp;
         }
         return data;
+    }
+
+    /**
+     * Pads the given bytes to 32 bytes by left-padding with zeros.
+     * @param bytes the bytes to pad
+     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
+     * @throws IllegalArgumentException if the bytes are more than 32 bytes long
+     */
+    public static Bytes leftPad32(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        final int n = (int) bytes.length();
+        if (n > 32) {
+            throw new IllegalArgumentException("Expected at most 32 bytes!");
+        }
+        if (n == 32) {
+            return bytes;
+        }
+        final var padded = new byte[32];
+        bytes.getBytes(0, padded, 32 - n, n);
+        return Bytes.wrap(padded);
+    }
+
+    public static boolean isEmptyOrAllZeros(@NonNull final Bytes bytes) {
+        for (long i = 0; i < bytes.length(); i++) {
+            if (bytes.getByte(i) != 0x00) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -9,10 +9,13 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 
@@ -28,6 +31,8 @@ public record HederaEvmTransaction(
         long offeredGasPrice,
         long maxGasAllowance,
         @Nullable ContractCreateTransactionBody hapiCreation,
+        @Nullable List<AccessListItem> accessLists,
+        @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
         @Nullable HookDispatchTransactionBody hookDispatch) {
     public static final long NOT_APPLICABLE = -1L;
@@ -88,10 +93,6 @@ public record HederaEvmTransaction(
         return Wei.of(value);
     }
 
-    public long gasAvailable(final long intrinsicGas) {
-        return gasLimit - intrinsicGas;
-    }
-
     public long upfrontCostGiven(final long gasPrice) {
         final var gasCost = gasCostGiven(gasPrice);
         return gasCost == Long.MAX_VALUE ? Long.MAX_VALUE : gasCost + value;
@@ -138,9 +139,12 @@ public record HederaEvmTransaction(
                 this.offeredGasPrice,
                 this.maxGasAllowance,
                 this.hapiCreation,
+                this.accessLists,
+                this.codeDelegations,
                 exception,
                 this.hookDispatch);
     }
+
     /**
      * @return the hook id, or null if this is not a hook dispatch
      */

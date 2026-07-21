@@ -15,17 +15,16 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.test.fixtures.builder.TestPlatformBuilder;
 import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
@@ -34,6 +33,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
@@ -115,7 +115,7 @@ public class ConsensusNodeManager {
 
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
-        final StateLifecycleManager stateLifecycleManager =
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         otterApp = new OtterApp(platformConfig, version);
@@ -144,34 +144,33 @@ public class ConsensusNodeManager {
 
         final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
-        final PlatformBuilder builder = PlatformBuilder.create(
-                        OtterApp.APP_NAME,
-                        OtterApp.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        otterApp,
-                        selfId,
-                        Long.toString(selfId.id()),
-                        rosterHistory,
-                        stateLifecycleManager)
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionCallback)
-                .withTransactionOffsetNanos(OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
 
-        // Build the platform component builder
-        final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
-        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
+        final TestPlatformBuilder builder = new TestPlatformBuilder(
+                platformConfig,
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                keysAndCerts,
+                selfId,
+                platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
+                executionCallback,
+                otterApp,
+                initialState,
+                stateLifecycleManager,
+                version,
+                new PersistenceScope(OtterApp.APP_NAME, OtterApp.SWIRLD_NAME),
+                Long.toString(selfId.id()),
+                OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
+
+        platform = builder.build();
 
         // Wiring: Forward consensus rounds to registered listeners
-        final PlatformComponents platformComponents = blocks.platformComponents();
-        platformComponents
+        final ConsensusLayerBuildingBlocks buildingBlocks = builder.buildingBlocks();
+        buildingBlocks
                 .hashgraphModule()
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
-
-        platform = componentBuilder.build();
     }
 
     /**

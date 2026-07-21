@@ -94,9 +94,7 @@ public class CryptoCreateSimpleFeesTest {
     private static final String cryptoCreatetxn = "cryptoCreatetxn";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("CryptoCreate Simple Fees Positive Test Cases")

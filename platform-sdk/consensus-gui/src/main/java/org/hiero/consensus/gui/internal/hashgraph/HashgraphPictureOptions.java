@@ -46,6 +46,11 @@ public interface HashgraphPictureOptions {
     boolean writeNGen();
 
     /**
+     * @return should the sequence number be written for every event
+     */
+    boolean writeSeqNum();
+
+    /**
      * @return should the birth round be written for every event
      */
     boolean writeBirthRound();

@@ -4,4 +4,4 @@
 # be mounted read-only (Kubernetes `image:` volume source, or copied out of by an
 # init container). See README.md for provenance and build instructions.
 FROM scratch
-COPY decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin /
+COPY decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin wraps.sha384 /

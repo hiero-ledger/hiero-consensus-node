@@ -2,6 +2,7 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
+import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -13,6 +14,11 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.monitor.StatusMonitorModule;
+import com.swirlds.platform.reconnect.ReconnectModule;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -38,22 +44,37 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
+import org.hiero.consensus.iss.detection.FatalErrorConsumer;
+import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesReplayProgress;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.SavedStateController;
+import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LatestCompleteStateNexus;
+import org.hiero.consensus.state.nexus.LockFreeStateNexus;
+import org.hiero.consensus.state.nexus.SignedStateNexus;
+import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
+/**
+ * A factory class for creating no-op instances of various consensus modules.
+ */
 public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link EventCreatorModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code EventCreatorModule}
      */
@@ -81,7 +102,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link EventIntakeModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code EventIntakeModule}
      */
@@ -114,7 +135,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link PcesModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code PcesModule}
      */
@@ -127,11 +148,10 @@ public class ConsensusNoOpModules {
         final RecycleBin recycleBin = new SimpleRecycleBin();
         final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
-        final Runnable flushIntake = () -> {};
-        final Runnable flushTransactionHandling = () -> {};
-        final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
+        final Runnable flushPrimaryPipeline = () -> {};
+        final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
         final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
-        final Runnable stateHasherFlusher = () -> {};
+        final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
@@ -146,11 +166,10 @@ public class ConsensusNoOpModules {
                 recycleBin,
                 fileSystemManager,
                 startingRound,
-                flushIntake,
-                flushTransactionHandling,
-                latestImmutableStateSupplier,
+                flushPrimaryPipeline,
+                replayProgressSupplier,
                 statusActionConsumer,
-                stateHasherFlusher,
+                platformStatusFlusher,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;
@@ -159,7 +178,7 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link HashgraphModule}.
      *
-     * @param model the wiring model
+     * @param model         the wiring model
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code HashgraphModule}
      */
@@ -180,8 +199,8 @@ public class ConsensusNoOpModules {
     /**
      * Create and initialize a no-op instance of the {@link GossipModule}.
      *
-     * @param model the wiring model
-     * @param configuration the configuration
+     * @param model             the wiring model
+     * @param configuration     the configuration
      * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code GossipModule}
      */
@@ -209,7 +228,7 @@ public class ConsensusNoOpModules {
         final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics, selfId);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
@@ -228,5 +247,172 @@ public class ConsensusNoOpModules {
                 fallenBehindMonitor,
                 stateLifecycleManager);
         return gossipModule;
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link IssDetectionModule}.
+     *
+     * @param model             the wiring model
+     * @param configuration     the configuration
+     * @param fileSystemManager the file system manager
+     * @return an initialized no-op instance of {@code IssDetectionModule}
+     */
+    @NonNull
+    public static IssDetectionModule createNoOpIssDetectionModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final long initialStateRound = 0L;
+        final long latestFreezeRound = 0L;
+        final FatalErrorConsumer fatalErrorConsumer = (_, _, _) -> {};
+
+        return new IssDetectionModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                roster,
+                selfId,
+                fileSystemManager,
+                initialStateRound,
+                latestFreezeRound,
+                fatalErrorConsumer);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link TransactionHandlingModule}.
+     *
+     * @param model             the wiring model
+     * @param configuration     the configuration
+     * @param fileSystemManager the file system manager
+     * @return an initialized no-op instance of {@code TransactionHandlingModule}
+     */
+    @NonNull
+    public static TransactionHandlingModule createNoOpTransactionHandlingModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final StatusActionSubmitter statusActionSubmitter = action -> {};
+        final SemanticVersion appVersion = SemanticVersion.DEFAULT;
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final long transactionOffsetNanos = 0L;
+
+        return new TransactionHandlingModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                latestImmutableStateNexus,
+                NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
+                stateLifecycleManager,
+                statusActionSubmitter,
+                appVersion,
+                selfId,
+                transactionOffsetNanos);
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link StateModule}.
+     *
+     * @param model             the wiring model
+     * @param configuration     the configuration
+     * @param fileSystemManager the file system manager
+     * @return an initialized no-op instance of {@code StateModule}
+     */
+    @NonNull
+    public static StateModule createNoOpStateManagementModule(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final KeysAndCerts keysAndCerts;
+        try {
+            keysAndCerts = KeysAndCertsGenerator.generate(selfId);
+        } catch (final Exception e) {
+            throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
+        }
+        final String mainClassName = "mainClassName";
+        final String swirldName = "swirldName";
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final LatestCompleteStateNexus latestCompleteStateNexus =
+                new DefaultLatestCompleteStateNexus(configuration, metrics);
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+
+        return new StateModule(
+                model,
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                keysAndCerts,
+                mainClassName,
+                selfId,
+                swirldName,
+                stateLifecycleManager,
+                latestCompleteStateNexus,
+                savedStateController);
+    }
+
+    public static ReconnectModule createNoOpReconnectModule(
+            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
+        final Time time = Time.getCurrent();
+        final Metrics metrics = new NoOpMetrics();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final PlatformComponents platformComponents = null;
+        final PlatformCoordinator platformCoordinator = null;
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
+        final ConsensusStateEventHandler consensusStateEventHandler = NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
+        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
+                new BlockingResourceProvider<>();
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
+
+        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
+        reconnectModule.initialize(
+                configuration,
+                time,
+                roster,
+                platformComponents,
+                null,
+                platformCoordinator,
+                stateLifecycleManager,
+                savedStateController,
+                consensusStateEventHandler,
+                reservedSignedStateResultPromise,
+                selfId,
+                fallenBehindMonitor);
+        return reconnectModule;
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link StatusMonitorModule}.
+     *
+     * @param model the {@link WiringModel}
+     * @param configuration the {@link Configuration}
+     * @return the no-op {@link StatusMonitorModule}
+     */
+    public static StatusMonitorModule createNoOpStatusMonitorModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+
+        return new StatusMonitorModule(model, configuration, metrics, time, selfId);
     }
 }

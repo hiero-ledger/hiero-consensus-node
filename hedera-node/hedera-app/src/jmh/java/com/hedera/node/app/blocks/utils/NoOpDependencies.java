@@ -26,7 +26,6 @@ import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -114,6 +113,9 @@ public final class NoOpDependencies {
 
         @Override
         public void flushPendingBlock(@NonNull PendingProof pendingProof) {}
+
+        @Override
+        public void flushIncompleteBlock() {}
     }
 
     /** No-op StoreMetricsService - can be used with real BoundaryStateChangeListener */
@@ -144,11 +146,6 @@ public final class NoOpDependencies {
         @Override
         public @NonNull NodeId getSelfId() {
             throw new UnsupportedOperationException("NoOpPlatform.getSelfId() not implemented");
-        }
-
-        @Override
-        public @NonNull <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull String reason) {
-            throw new UnsupportedOperationException("NoOpPlatform.getLatestImmutableState() not implemented");
         }
 
         @Override
@@ -333,7 +330,8 @@ public final class NoOpDependencies {
                 .withValue("networkAdmin.diskNetworkExportFile", "/tmp/benchmark-network-export")
                 .withValue("version.hapiVersion", "0.56.0")
                 .withValue("staking.periodMins", "1440")
-                .withValue("blockRecordStream.numOfBlockHashesInState", "256");
+                .withValue("blockRecordStream.numOfBlockHashesInState", "256")
+                .withValue("blockStream.enhancedObservabilityEnabled", "false");
 
         return ConfigurationBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)

@@ -15,7 +15,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CryptoDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -81,13 +80,6 @@ public class HapiCryptoDelete extends HapiTxnOp<HapiCryptoDelete> {
     public HapiCryptoDelete purging() {
         shouldPurge = true;
         return this;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.CryptoDelete, cryptoFees::getCryptoDeleteTxFeeMatrices, txn, numPayerKeys);
     }
 
     @Override

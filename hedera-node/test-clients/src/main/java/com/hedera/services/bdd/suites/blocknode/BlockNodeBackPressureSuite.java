@@ -56,7 +56,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(1)
@@ -93,7 +99,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(2)
@@ -147,7 +159,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -161,7 +179,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -175,7 +199,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -189,7 +219,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(3)
@@ -261,7 +297,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode",
                             "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false"
+                            "false",
+                            "blockStream.enableCutover",
+                            "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
                         })
             })
     @Order(4)

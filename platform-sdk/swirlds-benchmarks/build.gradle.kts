@@ -15,27 +15,28 @@ jmhModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions")
-    requires("com.swirlds.metrics.api")
     requires("com.swirlds.merkledb")
+    requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
-    requires("org.hiero.base.crypto")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.concurrent")
-    requires("org.hiero.consensus.gossip")
-    requires("org.hiero.consensus.gossip.impl")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
-    requires("org.hiero.consensus.reconnect")
     requires("org.hiero.consensus.utility")
+    requires("awaitility")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")
+
     runtimeOnly("com.swirlds.config.impl")
-    requires("awaitility")
 }
 
-fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
+fun jmhParamProperty(name: String, defaultValue: String) =
+    objects
+        .listProperty<String>()
+        .value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
 
 // ── Benchmark run configurations ─────────────────────────────────────
 // Gradle JMH tasks are intended for regular benchmark runs.
@@ -59,8 +60,42 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
+// Defaults are based on the large-state local calibration profile documented in
+// docs/ReconnectBench.md.
 tasks.register<JMHTask>("jmhReconnect") {
     includes.set(listOf("ReconnectBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
+    benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
+    benchmarkParameters.put(
+        "networkLatencyMicroseconds",
+        jmhParamProperty("networkLatencyMicroseconds", "270"),
+    )
+    benchmarkParameters.put(
+        "networkBandwidthMegabitsPerSecond",
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "200"),
+    )
+    benchmarkParameters.put(
+        "networkInflightBytesLimit",
+        jmhParamProperty("networkInflightBytesLimit", "134217728"),
+    )
+    benchmarkParameters.put("randomSeed", jmhParamProperty("randomSeed", "9823452658"))
+    benchmarkParameters.put(
+        "teacherAddProbability",
+        jmhParamProperty("teacherAddProbability", "0.09"),
+    )
+    benchmarkParameters.put(
+        "teacherRemoveProbability",
+        jmhParamProperty("teacherRemoveProbability", "0.0"),
+    )
+    benchmarkParameters.put(
+        "teacherModifyProbability",
+        jmhParamProperty("teacherModifyProbability", "0.40"),
+    )
+    benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "7500"))
+    benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "10000"))
+    benchmarkParameters.put("maxKey", jmhParamProperty("maxKey", "10000000"))
+    benchmarkParameters.put("keySize", jmhParamProperty("keySize", "32"))
+    benchmarkParameters.put("recordSize", jmhParamProperty("recordSize", "128"))
+    benchmarkParameters.put("numThreads", jmhParamProperty("numThreads", "32"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+    jvmArgs.set(listOf("-Xms24g", "-Xmx24g", "-XX:+AlwaysPreTouch"))
 }

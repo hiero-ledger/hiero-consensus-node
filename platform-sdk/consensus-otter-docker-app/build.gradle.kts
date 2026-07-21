@@ -7,14 +7,27 @@ plugins {
 
 description = "Otter Docker App"
 
+@Suppress("UnstableApiUsage")
+testing {
+    suites.named<JvmTestSuite>("test") {
+        javaModuleTesting.whitebox(this) { sourcesUnderTest = sourceSets.testFixtures }
+    }
+}
+
+testModuleInfo {
+    requires("org.assertj.core")
+    requires("org.junit.jupiter.api")
+    requiresStatic("com.github.spotbugs.annotations")
+}
+
 testFixturesModuleInfo {
-    runtimeOnly("io.netty.transport.epoll.linux.x86_64")
-    runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
+    runtimeOnly("io.grpc.netty.shaded")
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
-    runtimeOnly("io.grpc.netty.shaded")
-    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
+    runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
+    runtimeOnly("io.netty.transport.epoll.linux.x86_64")
 }
 
 // This should probably not be necessary (Log4j issue?)

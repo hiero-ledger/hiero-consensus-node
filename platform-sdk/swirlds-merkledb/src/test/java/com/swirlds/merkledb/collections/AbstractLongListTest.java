@@ -18,10 +18,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -40,7 +39,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
-import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -79,7 +77,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
 
     // Factory methods for creating different configurations of LongList instances
 
-    protected abstract T createLongList(final long capacity, final Configuration config);
+    protected abstract T createLongList(final long capacity, final MerkleDbConfig config);
 
     protected abstract T createLongList(final int longsPerChunk, final long capacity, final long reservedBufferLength);
 
@@ -222,12 +220,12 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
 
     @Test
     void testParamsFromConfig() {
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(PathsConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "12000"))
-                .withSource(new SimpleConfigSource("merkleDb.longListReservedBufferSize", "1111"))
-                .build();
+        final MerkleDbConfig config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "12000")
+                .withValue(MerkleDbConfig_.LONG_LIST_RESERVED_BUFFER_SIZE, "1111")
+                .build()
+                .getConfigData(MerkleDbConfig.class);
         final long capacity = 12345;
         try (final AbstractLongList<?> longList = createLongList(capacity, config)) {
             assertEquals(capacity, longList.capacity());

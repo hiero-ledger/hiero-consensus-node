@@ -30,9 +30,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -41,11 +43,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -54,8 +56,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_B
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyLabels;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -274,11 +278,11 @@ public class CryptoUpdateSuite {
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
                 getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(-1),
-                validateFees(baseTxn, baseFeeWithExpiry, CRYPTO_UPDATE_FEE),
-                validateFees(plusOneTxn, baseFee, CRYPTO_UPDATE_FEE),
-                validateFees(plusTenTxn, baseFee, CRYPTO_UPDATE_FEE),
-                validateFees(plusFiveKTxn, baseFee, CRYPTO_UPDATE_FEE),
-                validateFees(validNegativeTxn, baseFee, CRYPTO_UPDATE_FEE));
+                validateChargedUsdWithin(baseTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusOneTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusTenTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusFiveKTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(validNegativeTxn, CRYPTO_UPDATE_FEE, 0.1));
     }
 
     @HapiTest
@@ -499,5 +503,31 @@ public class CryptoUpdateSuite {
         return hapiTest(
                 cryptoCreate(account).declinedReward(false),
                 cryptoUpdate(account).payingWith(DEFAULT_PAYER).expiring(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    final Stream<DynamicTest> updateAccountWithDelegationAddress() {
+        final var accountTotest = "accountToTest";
+        final var longZeroAddress = ByteString.fromHex("0000000000000000000000000000000fffffffff");
+        final var zeroAddress = ByteString.fromHex("0000000000000000000000000000000000000000");
+        final var emptyAddress = ByteString.empty();
+        final var badAddress = ByteString.fromHex("0fffffffff");
+        return hapiTest(
+                overriding("contracts.codeDelegations.enabled", "true"),
+                cryptoCreate(accountTotest).balance(ONE_HUNDRED_HBARS),
+                // Delegation is initially empty
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                // Submitting a regular address (here long-zero) works as expected
+                cryptoUpdate(accountTotest).delegationAddress(longZeroAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+
+                // Submitting empty delegationAddress is a no-op
+                cryptoUpdate(accountTotest).delegationAddress(emptyAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+
+                // Submitting 0x00..00 clears the delegation (sets to empty)
+                cryptoUpdate(accountTotest).delegationAddress(zeroAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                cryptoUpdate(accountTotest).delegationAddress(badAddress).hasPrecheck(INVALID_CONTRACT_ID));
     }
 }

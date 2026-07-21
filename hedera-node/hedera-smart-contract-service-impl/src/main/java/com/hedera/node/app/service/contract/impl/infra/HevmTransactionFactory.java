@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_VALUE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -34,10 +35,10 @@ import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
-import static org.apache.tuweni.bytes.Bytes.EMPTY;
 
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -52,6 +53,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.annotations.InitialState;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
@@ -72,8 +74,8 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import javax.inject.Inject;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 @TransactionScope
 public class HevmTransactionFactory {
@@ -82,7 +84,7 @@ public class HevmTransactionFactory {
     private final LedgerConfig ledgerConfig;
     private final HederaConfig hederaConfig;
     private final FeatureFlags featureFlags;
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final ContractsConfig contractsConfig;
     private final EntitiesConfig entitiesConfig;
     private final HooksConfig hooksConfig;
@@ -102,7 +104,7 @@ public class HevmTransactionFactory {
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final ContractsConfig contractsConfig,
             @NonNull final EntitiesConfig entitiesConfig,
             @Nullable final HydratedEthTxData hydratedEthTxData,
@@ -158,19 +160,22 @@ public class HevmTransactionFactory {
     private HederaEvmTransaction fromHapiCreate(
             @NonNull final AccountID payer, @NonNull final ContractCreateTransactionBody body) {
         assertValidCreation(body);
-        final var payload = initcodeFor(body);
+        final var initcode = initcodeFor(body);
+        assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 payer,
                 null,
                 null,
                 NOT_APPLICABLE,
-                payload,
+                initcode,
                 null,
                 body.initialBalance(),
                 body.gas(),
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
                 body,
+                null,
+                null,
                 null,
                 null);
     }
@@ -200,6 +205,8 @@ public class HevmTransactionFactory {
                 NOT_APPLICABLE,
                 null,
                 null,
+                null,
+                null,
                 body);
     }
 
@@ -217,6 +224,8 @@ public class HevmTransactionFactory {
                 body.gas(),
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
+                null,
+                null,
                 null,
                 null,
                 null);
@@ -249,6 +258,8 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 null,
+                ethTxData.extractAccessList(),
+                ethTxData.extractCodeDelegations(),
                 null,
                 null);
     }
@@ -258,18 +269,22 @@ public class HevmTransactionFactory {
             @NonNull final AccountID senderId,
             @NonNull final EthTxData ethTxData,
             final long maxGasAllowance) {
+        final var initcode = Bytes.wrap(ethTxData.callData());
+        assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 senderId,
                 relayerId,
                 null,
                 ethTxData.nonce(),
-                Bytes.wrap(ethTxData.callData()),
+                initcode,
                 Bytes.wrap(ethTxData.chainId()),
                 ethTxData.effectiveTinybarValue(),
                 ethTxData.gasLimit(),
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
+                ethTxData.extractAccessList(),
+                ethTxData.extractCodeDelegations(),
                 null,
                 null);
     }
@@ -285,16 +300,21 @@ public class HevmTransactionFactory {
             @NonNull final TransactionBody body, @NonNull final HandleException exception) {
         AccountID sender = null;
         AccountID relayer = null;
+        ContractID contractId = null;
 
         final var gasLimit =
                 switch (body.data().kind()) {
                     case CONTRACT_CREATE_INSTANCE ->
                         body.contractCreateInstanceOrThrow().gas();
-                    case CONTRACT_CALL -> body.contractCallOrThrow().gas();
+                    case CONTRACT_CALL -> {
+                        final var contractCall = body.contractCallOrThrow();
+                        contractId = contractCall.contractID();
+                        yield contractCall.gas();
+                    }
                     case ETHEREUM_TRANSACTION -> {
                         final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
                         sender = asAliasedSender(ethTxData);
-                        relayer = body.transactionID().accountID();
+                        relayer = body.transactionIDOrThrow().accountID();
                         yield ethTxData.gasLimit();
                     }
                     case HOOK_DISPATCH ->
@@ -308,7 +328,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 sender == null ? AccountID.DEFAULT : sender,
                 relayer,
-                null,
+                contractId,
                 NOT_APPLICABLE,
                 Bytes.EMPTY,
                 null,
@@ -316,6 +336,8 @@ public class HevmTransactionFactory {
                 gasLimit,
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
+                null,
+                null,
                 null,
                 exception,
                 body.hookDispatch());
@@ -409,10 +431,16 @@ public class HevmTransactionFactory {
     private void assertValidGasAndAmount(@NonNull final HederaEvmTransaction hederaEvmTxn) {
         final var minGasLimit = Math.max(
                 ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
-                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
+                gasCalculator
+                        .transactionGasRequirements(0, 0, false, List.of(), List.of())
+                        .intrinsicGas());
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+    }
+
+    private void assertInitcodeSize(@NonNull final Bytes initcode) {
+        validateTrue(initcode.length() <= contractsConfig.maxInitcodeSize(), CONTRACT_SIZE_LIMIT_EXCEEDED);
     }
 
     private Bytes initcodeFor(@NonNull final ContractCreateTransactionBody body) {

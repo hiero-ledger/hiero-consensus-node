@@ -23,6 +23,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.E
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -38,13 +39,17 @@ import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
@@ -83,7 +88,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -171,7 +175,7 @@ class EthereumTransactionHandlerTest {
     private AbstractMutableEvmAccount senderAccount;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock
     private EthTxData ethTxDataReturned;
@@ -277,13 +281,15 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(callRecordBuilder);
+        givenNoTraceDataSizeLimitExceededForCall();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -335,7 +341,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
@@ -346,6 +353,7 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
+        givenNoTraceDataSizeLimitExceededForCreate();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -383,7 +391,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.evmCallTransactionResult(any())).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -430,7 +439,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
@@ -681,8 +691,10 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
+            GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                    .willReturn(gasCharges);
             given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
         }
@@ -739,8 +751,10 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
+            GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                    .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
             assertEquals(INSUFFICIENT_GAS, exception.responseCode());
@@ -754,9 +768,13 @@ class EthereumTransactionHandlerTest {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
-            given(ethTxDataReturned.hasToAddress()).willReturn(false);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
+            GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                    .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
             assertEquals(INSUFFICIENT_GAS, exception.responseCode());
@@ -764,8 +782,59 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
+    void validatePureChecksIncorrectAccessList() {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.extractAccessList()).willCallRealMethod();
+            given(ethTxDataReturned.accessList()).willReturn(new byte[] {1, 2});
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        }
+    }
+
+    @Test
+    void validatePureChecksNonEmptyAuthorizationListForType4() {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP7702);
+            given(ethTxDataReturned.authorizationList()).willReturn(new byte[0]);
+            given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[0]);
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        }
+    }
+
+    @Test
+    void validatePureChecksIfParsingInnerThrowsException() {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP7702);
+            given(ethTxDataReturned.authorizationList()).willReturn(new byte[1]);
+            given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[0]);
+            given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[] {});
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        }
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
-    void handleSetsNewSenderNonceWhenPresent() {
+    void handleSetsRollbackCallback() {
         given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.hydratedEthTxData())
@@ -797,7 +866,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
@@ -807,6 +877,7 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
+        givenNoTraceDataSizeLimitExceededForCreate();
 
         // Mock the dispatch metadata with a callback
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
@@ -841,5 +912,15 @@ class EthereumTransactionHandlerTest {
     void givenSenderAccountWithNonce(final long nonce) {
         given(baseProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(senderAccount.getNonce()).willReturn(nonce);
+    }
+
+    private void givenNoTraceDataSizeLimitExceededForCall() {
+        given(callRecordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(callRecordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
+    }
+
+    private void givenNoTraceDataSizeLimitExceededForCreate() {
+        given(createRecordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(createRecordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
     }
 }

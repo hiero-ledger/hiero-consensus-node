@@ -29,7 +29,7 @@ public class ThrottleMetrics {
     private static final Logger log = LogManager.getLogger(ThrottleMetrics.class);
 
     private static final String GAS_THROTTLE_ID = "<GAS>";
-    private static final String BYTES_THROTTLE_ID = "<GAS>";
+    private static final String BYTES_THROTTLE_ID = "<BYTES>";
     private static final String OPS_DURATION_ID = "<OPS_DURATION>";
 
     private final Metrics metrics;
@@ -38,6 +38,7 @@ public class ThrottleMetrics {
     private final Function<StatsConfig, List<String>> throttlesToSampleSupplier;
     private List<MetricPair> liveMetricPairs = List.of();
     private MetricPair gasThrottleMetricPair;
+    private MetricPair bytesThrottleMetricPair;
     private MetricPair opsDurationThrottleMetricPair;
 
     /**
@@ -75,8 +76,8 @@ public class ThrottleMetrics {
         // If there is a configured throttle to sample, that doesn't have a corresponding
         // DeterministicThrottle live metric created (not sure when would that be the case?) we add it
         // as an "inert" metric, that never changes.
-        // Unless it's a GAS or OPS_DURATION throttle - we don't include those.
-        final var throttlesExcludedFromInertMetrics = Set.of(GAS_THROTTLE_ID, OPS_DURATION_ID);
+        // Unless it's a GAS, BYTES or OPS_DURATION throttle - we don't include those.
+        final var throttlesExcludedFromInertMetrics = Set.of(GAS_THROTTLE_ID, BYTES_THROTTLE_ID, OPS_DURATION_ID);
         final var throttleNames =
                 throttles.stream().map(DeterministicThrottle::name).collect(Collectors.toSet());
         throttlesToSample.stream()
@@ -109,7 +110,7 @@ public class ThrottleMetrics {
         final var statsConfig = configuration.getConfigData(StatsConfig.class);
         final var throttlesToSample = throttlesToSampleSupplier.apply(statsConfig);
 
-        gasThrottleMetricPair =
+        bytesThrottleMetricPair =
                 throttlesToSample.contains(BYTES_THROTTLE_ID) ? setupLiveMetricPair(bytesThrottle) : null;
     }
 
@@ -131,6 +132,11 @@ public class ThrottleMetrics {
         }
         if (gasThrottleMetricPair != null) {
             gasThrottleMetricPair.gauge().set(gasThrottleMetricPair.throttle().instantaneousPercentUsed());
+        }
+        if (bytesThrottleMetricPair != null) {
+            bytesThrottleMetricPair
+                    .gauge()
+                    .set(bytesThrottleMetricPair.throttle().instantaneousPercentUsed());
         }
         if (opsDurationThrottleMetricPair != null) {
             opsDurationThrottleMetricPair

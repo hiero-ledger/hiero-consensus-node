@@ -34,7 +34,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +56,7 @@ public class RpcPeerProtocolTests {
         final ParallelExecutor executor = new CachedPoolParallelExecutor(getStaticThreadManager(), "a name");
         executor.start();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(2).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 2);
 
         final NoOpMetrics metrics = new NoOpMetrics();
 

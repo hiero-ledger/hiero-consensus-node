@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -50,32 +49,6 @@ public interface FeatureFlags {
      */
     default boolean isAllowCallsToNonContractAccountsEnabled(
             @NonNull final ContractsConfig config, @Nullable Long possiblyGrandFatheredEntityNum) {
-        return false;
-    }
-
-    /**
-     *  If true, charge intrinsic gas for calls that fail with a pre-EVM exception.
-     * @param config the active configuration
-     * @return true whether to  charge intrinsic gas for calls that fail with a pre-EVM exception.
-     */
-    default boolean isChargeGasOnPreEvmException(@NonNull Configuration config) {
-        return false;
-    }
-
-    /**
-     *  If true, enable calls to the Hedera Account Service system contract
-     * @param config the active configuration
-     * @return true whether calls to Hedera Account Service system contract are enabled.
-     */
-    default boolean isHederaAccountServiceEnabled(@NonNull Configuration config) {
-        return false;
-    }
-
-    /**
-     * @param config the active configuration
-     * @return true whether authorized raw method is enabled.
-     */
-    default boolean isAuthorizedRawMethodEnabled(@NonNull Configuration config) {
         return false;
     }
 }

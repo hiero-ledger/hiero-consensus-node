@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.utils;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
@@ -35,6 +37,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.nu
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -52,13 +55,22 @@ import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
-import com.hedera.node.app.hapi.utils.contracts.HookUtils;
+import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
+import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
@@ -68,12 +80,15 @@ import java.util.stream.IntStream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.log.LogsBloomFilter;
+import org.hyperledger.besu.datatypes.Hash;
+import org.hyperledger.besu.datatypes.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -83,9 +98,78 @@ class ConversionUtilsTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private HederaOperations hederaOperations;
+
+    @Mock
+    private ContractCallStreamBuilder contractCallStreamBuilder;
+
+    @Mock
+    private ContractCreateStreamBuilder contractCreateStreamBuilder;
+
+    @Mock
+    private HandleContext handleContext;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
+
+    @Mock
+    private RootProxyWorldUpdater updater;
+
     private static final com.hedera.pbj.runtime.io.buffer.Bytes FULL_32 =
             com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(32));
     private static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+
+    @Test
+    void unsuccessfulCallThrowsInsufficientGasWhenTraceDataLimitExceeded() {
+        given(contractCallStreamBuilder.hasTraceDataSizeLimitExceeded()).willReturn(true);
+        final var outcome = successfulOutcome();
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> throwIfUnsuccessfulCall(
+                        outcome,
+                        new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), updater),
+                        contractCallStreamBuilder,
+                        handleContext));
+
+        assertEquals(INSUFFICIENT_GAS, exception.getStatus());
+    }
+
+    @Test
+    void unsuccessfulCreateThrowsInsufficientGasWhenTraceDataLimitExceeded() {
+        given(contractCreateStreamBuilder.hasTraceDataSizeLimitExceeded()).willReturn(true);
+        final var outcome = successfulOutcome();
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> throwIfUnsuccessfulCall(
+                        outcome,
+                        new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), updater),
+                        contractCreateStreamBuilder,
+                        handleContext));
+
+        assertEquals(INSUFFICIENT_GAS, exception.getStatus());
+    }
+
+    @Test
+    void unsuccessfulCreateThrowsInsufficientGasWhenEstimatedBytecodeExceedsTraceDataLimit() {
+        given(contractCreateStreamBuilder.estimatedContractBytecodeSize()).willReturn(123L);
+        given(contractCreateStreamBuilder.ensureTraceDataSizeLimitWithAdditionalBytes(123L))
+                .willReturn(false);
+        given(handleContext.savepointStack()).willReturn(savepointStack);
+        final var outcome = successfulOutcome();
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> throwIfUnsuccessfulCall(
+                        outcome,
+                        new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), updater),
+                        contractCreateStreamBuilder,
+                        handleContext));
+
+        assertEquals(INSUFFICIENT_GAS, exception.getStatus());
+    }
 
     @CsvSource({"0", "7", "23", "31", "32"})
     @ParameterizedTest
@@ -93,8 +177,24 @@ class ConversionUtilsTest {
         final var start = n == 0
                 ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
                 : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
-        final var padded = HookUtils.leftPad32(start);
+        final var padded = ByteUtils.leftPad32(start);
         assertEquals(FULL_32, padded);
+    }
+
+    private static CallOutcome successfulOutcome() {
+        return new CallOutcome(
+                ContractFunctionResult.DEFAULT,
+                SUCCESS,
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                null,
+                null,
+                EvmTransactionResult.DEFAULT,
+                null,
+                null,
+                null,
+                null);
     }
 
     @CsvSource({"00", "1107", "005423", "000031", "0000000000000000000000000000000000000000000000000000000000000000"})
@@ -116,7 +216,7 @@ class ConversionUtilsTest {
                 .mapToObj(i -> com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("12".repeat(i)))
                 .toList();
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> somePaddedTopics =
-                someStrippedTopics.stream().map(HookUtils::leftPad32).toList();
+                someStrippedTopics.stream().map(ByteUtils::leftPad32).toList();
         final var data = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("DATA");
         final var conciseLog = new EvmTransactionLog(CALLED_CONTRACT_ID, data, someStrippedTopics);
         final var besuLog = ConversionUtils.asBesuLog(conciseLog, somePaddedTopics);
@@ -150,7 +250,7 @@ class ConversionUtilsTest {
 
     @Test
     void wrapsExpectedHashPrefix() {
-        assertEquals(Bytes32.leftPad(Bytes.EMPTY, (byte) 0), ConversionUtils.ethHashFrom(ZERO_ENTROPY));
+        assertEquals(Hash.wrap(Bytes32.leftPad(Bytes.EMPTY, (byte) 0)), ConversionUtils.ethHashFrom(ZERO_ENTROPY));
     }
 
     @Test
@@ -172,7 +272,8 @@ class ConversionUtilsTest {
     @Test
     void returnsMissingIfSmallLongZeroAddressIsMissing() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
+        final var address =
+                asHeadlongAddress(Address.fromHexString("0x1234").getBytes().toArray());
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(MISSING_ENTITY_NUMBER, actual);
     }
@@ -199,7 +300,8 @@ class ConversionUtilsTest {
 
     @Test
     void returnsNonCanonicalRefIfSmallLongZeroAddressRefersToAliasedAccount() {
-        final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
+        final var address =
+                asHeadlongAddress(Address.fromHexString("0x1234").getBytes().toArray());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var actual = accountNumberForEvmReference(address, nativeOperations);
@@ -226,8 +328,8 @@ class ConversionUtilsTest {
     @Test
     void returnsMissingOnAbsentAliasReference() {
         given(nativeOperations.configuration()).willReturn(configuration);
-        final var address =
-                asHeadlongAddress(Address.fromHexString("0x010000000000000000").toArray());
+        final var address = asHeadlongAddress(
+                Address.fromHexString("0x010000000000000000").getBytes().toArray());
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
         final var actual = ConversionUtils.accountNumberForEvmReference(address, nativeOperations);
         assertEquals(-1L, actual);
@@ -298,6 +400,19 @@ class ConversionUtilsTest {
                 .build();
         final var actualPbj = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
         assertEquals(expectedPbj, actualPbj);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void combinedPbjStorageConversionMatchesSeparateCalls(final boolean traceExplicitWrites) {
+        final var combined = Objects.requireNonNull(
+                ConversionUtils.asPbjStateChangesAndSlotUsages(SOME_STORAGE_ACCESSES, traceExplicitWrites));
+        assertEquals(
+                Objects.requireNonNull(ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES)),
+                combined.stateChanges());
+        assertEquals(
+                Objects.requireNonNull(ConversionUtils.asPbjSlotUsages(SOME_STORAGE_ACCESSES, traceExplicitWrites)),
+                combined.slotUsages());
     }
 
     @Test
@@ -384,6 +499,6 @@ class ConversionUtilsTest {
     }
 
     private byte[] bloomFor() {
-        return LogsBloomFilter.builder().insertLog(BESU_LOG).build().toArray();
+        return LogsBloomFilter.builder().insertLog(BESU_LOG).build().getBytes().toArray();
     }
 }

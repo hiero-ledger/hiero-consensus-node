@@ -330,7 +330,7 @@ class WritableHistoryStoreImplTest {
                         .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
                         .size());
 
-        final var updated = subject.restartWrapsSigning(123L, Set.of(1L, 2L));
+        final var updated = subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)));
 
         assertEquals(2, updated.wrapsRetryCount());
         assertFalse(updated.hasFailureReason());
@@ -380,6 +380,45 @@ class WritableHistoryStoreImplTest {
                 state.getWritableStates(HistoryService.NAME)
                         .get(PROOF_KEY_SETS_STATE_ID)
                         .size());
+    }
+
+    @Test
+    void forceHandoffStillRefusesIncompleteConstructionWithMismatchedRosterHash() {
+        final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+        final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(456L)
+                .targetRosterHash(C_ROSTER_HASH)
+                .build();
+        setConstructions(activeConstruction, nextConstruction);
+
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, true));
+        assertSame(activeConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
+        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
+    }
+
+    @Test
+    void forceHandoffAllowsCompleteConstructionWithMismatchedRosterHash() {
+        final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+        final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(456L)
+                .targetRosterHash(C_ROSTER_HASH)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        setConstructions(activeConstruction, nextConstruction);
+
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, true));
+        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
+        assertEquals(
+                HistoryProofConstruction.DEFAULT,
+                this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
     }
 
     @Test

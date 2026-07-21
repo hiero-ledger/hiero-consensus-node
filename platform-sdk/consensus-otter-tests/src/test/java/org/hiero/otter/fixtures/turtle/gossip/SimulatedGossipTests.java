@@ -33,7 +33,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
@@ -64,8 +64,7 @@ class SimulatedGossipTests {
 
         final FakeTime time = new FakeTime();
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, networkSize);
         final List<NodeId> nodeIds = roster.rosterEntries().stream()
                 .map(RosterUtils::getNodeId)
                 .sorted()

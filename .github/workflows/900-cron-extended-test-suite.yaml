@@ -45,10 +45,39 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  verify-citr-vars:
+    name: Verify CITR vars
+    needs:
+      - extract-citr-vars
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check outputs
+        id: check-outputs
+        run: |
+          if [[ "${{ needs.extract-citr-vars.outputs.citr-solo-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.tck-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.js-sdk-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.bn-release-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}" == "" || \
+            "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}" == "" ]]; then
+            echo "::error::One or more required CITR variables are missing. Failing the job."
+            exit 1
+          else
+            echo "All required CITR variables are present."
+          fi
+
   compute-solo-ge-0440:
     name: Compute solo-ge-0440
     needs:
       - extract-citr-vars
+      - verify-citr-vars
     uses: ./.github/workflows/856-call-solo-ge044.yaml
     with:
       solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
@@ -58,6 +87,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - extract-citr-vars
+      - verify-citr-vars
       - compute-solo-ge-0440
     outputs:
       solo-ge-0440: ${{ needs.compute-solo-ge-0440.outputs.solo-ge-0440 }}
@@ -65,7 +95,7 @@ jobs:
       helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
 
       - name: Set Parameters
         id: set-parameters
@@ -97,7 +127,7 @@ jobs:
     name: Fetch XTS Candidate Tag
     runs-on: hl-cn-default-lin-sm
     outputs:
-      xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
+      xts-proceed: ${{ steps.check-tags-exist.outputs.xts-proceed }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
       xts-tag-short-commit: ${{ steps.check-tags-exist.outputs.xts-tag-short-commit }}
       xts-commit-branch: ${{ steps.check-tags-exist.outputs.xts-commit-branch }}
@@ -107,7 +137,7 @@ jobs:
       commit-list: ${{ steps.check-tags-exist.outputs.commit-list }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "main"
@@ -132,15 +162,19 @@ jobs:
           echo "::group::Check for XTS Candidate Tag"
           if [[ -n "${RC_TAG}" ]]; then
             echo "::group::Use RC Tag"
-            echo "::debug::Using RC Tag: ${RC_TAG}"
+            echo "Using RC Tag: ${RC_TAG}"
+            set +e
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
-              echo "::debug::Tag ${RC_TAG} not found. Cancelling out."
-              gh run cancel ${{ github.run_id }}
+              echo "Tag ${RC_TAG} not found. No XTS execution will be performed."
+              echo "xts-proceed=false" >> "${GITHUB_OUTPUT}"
+              echo "### No RC Tag Found" >> "${GITHUB_STEP_SUMMARY}"
+              echo "Tag \`${RC_TAG}\` was not found. No XTS execution will be performed." >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
             fi
 
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
@@ -152,10 +186,13 @@ jobs:
             XTS_COMMIT_FOUND="${?}"
             set -e
 
-            # Cancel out if the tag does not exist
+            # Skip to report-failure if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
-              echo "::debug::Tag ${XTS_CANDIDATE_TAG} not found. Cancelling out."
-              gh run cancel ${{ github.run_id }}
+              echo "Tag '${XTS_CANDIDATE_TAG}' not found. No XTS execution will be performed."
+              echo "xts-proceed=false" >> "${GITHUB_OUTPUT}"
+              echo "### No XTS Candidate Found" >> "${GITHUB_STEP_SUMMARY}"
+              echo "Tag \`${XTS_CANDIDATE_TAG}\` was not found. No XTS execution will be performed." >> "${GITHUB_STEP_SUMMARY}"
+              exit 0
             fi
 
             # Check if this commit has already been tagged xts-pass-* or build-*
@@ -166,14 +203,17 @@ jobs:
 
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
             if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
-              echo "::debug::Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. Cancelling out."
+              echo "Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. No XTS execution will be performed."
               gh run cancel ${{ github.run_id }}
+              exit 0
             fi
 
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
+            set +e
             LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
             LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
+            set -e
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
               echo "::debug::Using latest xts-pass tag"
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
@@ -191,13 +231,16 @@ jobs:
 
           echo "::group::Check if XTS COMMIT is on default branch"
           # Determine which branch the commit belongs to
+          set +e
           XTS_COMMIT_BRANCHES="$(git branch -r --contains "${XTS_COMMIT}" | sed 's/^[ *]*//')"
+          set -e
           echo "::debug::XTS_COMMIT_BRANCHES=${XTS_COMMIT_BRANCHES}"
 
           XTS_COMMIT_BRANCH="${DEFAULT_BRANCH_NAME}"
           COMMIT_ON_DEFAULT_BRANCH=0
 
           # Check if the commit on the default branch
+          set +e
           if echo "${XTS_COMMIT_BRANCHES}" | grep -qE "(^|/)${DEFAULT_BRANCH_NAME}$"; then
             echo "::debug::Commit ${XTS_COMMIT} found on main branch."
           else
@@ -209,6 +252,7 @@ jobs:
               | sed 's/~.*//'
             )"
           fi
+          set -e
 
           # Print branch debug info
           echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
@@ -230,7 +274,7 @@ jobs:
           # Otherwise cancel out
           if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
             # GitHub Outputs
-            echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
+            echo "xts-proceed=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
@@ -269,6 +313,7 @@ jobs:
           else
             echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
             gh run cancel "${{ github.run_id }}"
+            exit 0
           fi
           echo "::endgroup::" # Set Outputs
 
@@ -276,7 +321,7 @@ jobs:
     name: Build & Publish Hedera State Validator Uber JAR
     needs:
       - fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
     uses: ./.github/workflows/816-call-build-publish-state-validator.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -289,7 +334,8 @@ jobs:
       - state-validator-uberjar
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+      - verify-citr-vars
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -302,21 +348,27 @@ jobs:
       enable-hammer-test-suite: "true"
       enable-hapi-test-suite: "true"
       enable-otter-test-suite: "true"
+      enable-chaos-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
+      enable-block-node-regression-panel: "true"
+      enable-mirror-node-regression-panel: "true"
+      enable-rpc-relay-regression-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
+      bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      json-rpc-relay-version: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      platform-access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      platform-access-token: ${{ secrets.JRS_GH_ACCESS_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
       gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
       jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
       jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
       slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
@@ -331,7 +383,8 @@ jobs:
       - state-validator-uberjar
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+      - verify-citr-vars
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
     uses: ./.github/workflows/815-call-xts-tests.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -339,15 +392,10 @@ jobs:
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
-      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
       custom-job-label: "XTS (Optional):"
-      enable-mirror-node-regression-panel: "true"
-      enable-rpc-relay-regression-panel: "true"
-      enable-block-node-regression-panel: "true"
       enable-migration-testing-panel: "true"
-      enable-chaos-otter-test-suite: "true"
-      # (FUTURE) Revert once production transitions to BLOCKS and MATS runs BLOCKS natively.
-      enable-hapi-tests-blocks-suite: "true"
+      # (FUTURE) Move to xts-execution once the panel proves stable, so failures block build-candidate promotion.
+      enable-076-to-077-cutover-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
@@ -366,7 +414,7 @@ jobs:
     if: ${{ needs.xts-execution.result == 'success' }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -433,7 +481,7 @@ jobs:
       !cancelled() }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: main
@@ -455,7 +503,7 @@ jobs:
         run: gomplate -f .github/workflows/templates/slack-xts-success-detailed.json.tpl -o slack_payload.json
 
       - name: Report Success (slack)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -475,7 +523,7 @@ jobs:
 
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: main
@@ -487,7 +535,8 @@ jobs:
         id: report-category
         run: |
           if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
-            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]] \
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "success" && "${{ needs.fetch-xts-candidate.outputs.xts-proceed }}" != "true" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
@@ -609,7 +658,7 @@ jobs:
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
-          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info  || ''}}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
@@ -617,6 +666,7 @@ jobs:
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
           COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           COMMIT_LIST: ${{ needs.fetch-xts-candidate.outputs.commit-list }}
@@ -625,10 +675,11 @@ jobs:
       - name: Build Environment Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'environment' }}
         env:
-          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info || '' }}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: gomplate -f .github/workflows/templates/slack-xts-env-failure-detailed.json.tpl -o slack_payload.json
 
@@ -642,15 +693,16 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         env:
           SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled${{ needs.fetch-xts-candidate.outputs.xts-info != '' && format(' ({0})', needs.fetch-xts-candidate.outputs.xts-info) || '' }} — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+          XTS_PROCEED: "${{needs.fetch-xts-candidate.outputs.xts-proceed}}"
         run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
       # Notification routing:
       #   test failures       -> citr-operations (detailed)
       #   environment         -> citr-operations (summary) + citr-failures (detailed)
-      #   canceled            -> citr-operations (summary) + citr-failures (summary)
+      #   canceled            -> citr-operations (summary)
       - name: Notify test failure detailed (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -659,7 +711,7 @@ jobs:
 
       - name: Notify environment failure summary (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'environment' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -668,7 +720,7 @@ jobs:
 
       - name: Notify environment failure detailed (citr-failures)
         if: ${{ steps.report-category.outputs.category == 'environment' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -677,18 +729,9 @@ jobs:
 
       - name: Notify cancelled summary (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload_summary.json
-
-      - name: Notify cancelled summary (citr-failures)
-        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json

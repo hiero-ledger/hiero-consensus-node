@@ -30,7 +30,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -91,11 +91,8 @@ public class EventCreatorNetworkBenchmark {
     @Setup(Level.Trial)
     public void setupTrial() {
         // Build a roster with real keys
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .withRealKeysEnabled(true);
-        roster = rosterBuilder.build();
+        roster = RosterFactory.randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
+                .getRoster();
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 

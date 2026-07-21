@@ -2,7 +2,7 @@
 type: glossary
 title: Glossary
 description: Canonical one-line definitions for vocabulary used across the consensus-layer KB, with disambiguation for overloaded terms (round, ancient, stale, falling behind).
-last_reviewed: 2026-06-08
+last_reviewed: 2026-06-30
 ---
 
 # Glossary
@@ -336,8 +336,8 @@ See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Other-parent
 
-A parent edge to an event by a different creator. The data model allows several; the current
-default caps it at one (`maxOtherParents`). Contrast *Self-parent*.
+A parent edge to an event by a different creator. The data model allows several; the number an event
+uses is bounded by the `maxOtherParents` tunable (TUN-140). Contrast *Self-parent*.
 See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
 
 ### Parent
@@ -468,6 +468,16 @@ See [architecture/topics/event-creator.md](architecture/topics/event-creator.md)
 The parent edge to the creator's own previous event; an honest creator's events form a
 single chain under self-parent edges. Contrast *Other-parent*.
 See [concepts/hashgraph-dag.md](concepts/hashgraph-dag.md).
+
+### Sequence number
+
+A monotonic counter the *Orphan buffer* stamps on each event as it is released
+(`PlatformEvent.sequenceNumber`), assigned locally by each node so it may differ between
+nodes. The canonical local ordering key — used for "higher in the hashgraph" comparisons by
+event creation, *Sync*, and the consensus algorithm (e.g. `consensusRelevantSeqNum`). Unlike
+*NGen* it never resets, even when an event's parents have gone ancient, and it is never used
+for cross-node agreement.
+See [decisions/ADR-008-replace-ngen-with-sequence-number.md](decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ### Shadowgraph
 

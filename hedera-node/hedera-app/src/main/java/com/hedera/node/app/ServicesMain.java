@@ -12,12 +12,12 @@ import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
-import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
@@ -55,6 +55,7 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -241,24 +242,28 @@ public class ServicesMain {
         hedera.setTxnOffsetNanos(transactionOffsetNanos);
         logger.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
 
+        final var persistenceScope = new PersistenceScope(Hedera.APP_NAME, Hedera.SWIRLD_NAME);
+
         // --- Now build the platform and start it ---
-        final var platformBuilder = PlatformBuilder.create(
-                        Hedera.APP_NAME,
-                        Hedera.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        consensusStateEventHandler,
-                        selfId,
-                        consensusEventStreamName,
+        final var platform = new PlatformBuilder<>(
+                        platformConfig,
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
                         rosterHistory,
-                        hedera.getStateLifecycleManager())
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(hedera)
+                        keysAndCerts,
+                        selfId,
+                        platformContext.getRecycleBin(),
+                        platformContext.getFileSystemManager(),
+                        hedera,
+                        consensusStateEventHandler,
+                        initialState,
+                        hedera.getStateLifecycleManager(),
+                        version,
+                        persistenceScope,
+                        consensusEventStreamName,
+                        transactionOffsetNanos)
                 .withStaleEventConsumer(hedera)
-                .withTransactionOffsetNanos(transactionOffsetNanos);
-        final var platform = platformBuilder.build();
+                .build();
 
         platform.start();
         hedera.run();

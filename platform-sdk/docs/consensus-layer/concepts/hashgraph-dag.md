@@ -13,10 +13,8 @@ vertices are events and whose edges are parent references. Each event
 has at most one *self-parent* (the previous event by the same
 creator) and zero or more *other-parents* (events by peers that the
 creator just gossiped with). The data model supports an arbitrary
-number of other-parents; the current default configuration caps it at
-one (`EventCreationConfig.maxOtherParents` defaults to `1`), but the
-limit is a config knob that is expected to be raised in the future to
-allow events to reference multiple other-parents. Either kind of
+number of other-parents; how many an event actually references is
+bounded by the `maxOtherParents` tunable (TUN-140). Either kind of
 parent may be absent for the very first event a creator ever makes.
 
 In the rest of these docs, the structure is just called *the
@@ -37,12 +35,13 @@ that has already been added.
 
 Four nodes A, B, C, D. A creates `a₀` with no parents (A's first
 event). After A gossips with B, B creates `b₁` whose self-parent is
-B's prior event and whose other-parent is `a₀`. Continuing across the
-four nodes, every new event has at most one self-parent edge and (in
-the current default configuration) at most one other-parent edge; if
-`maxOtherParents` is raised, an event may carry several other-parent
-edges at once. The union of all events and parent edges is the
-hashgraph.
+B's prior event and whose other-parent is `a₀`. An event can fan in
+from several peers at once: after C gossips with both A and B it may
+create `c₁` whose other-parents are `a₀` and `b₁`. So every new event
+has at most one self-parent edge and up to `maxOtherParents`
+other-parent edges. The union of all events and parent edges is the
+hashgraph. Denser other-parent linking lets each event see more of the
+graph sooner, speeding the progression to consensus.
 
 ## In current code
 
@@ -53,8 +52,8 @@ descriptors travel with each event via `PlatformEvent.getAllParents()`
 ([`PlatformEvent.java`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/PlatformEvent.java)).
 The other-parent count is bounded by
 `EventCreationConfig.maxOtherParents`
-([`EventCreationConfig.java`](../../../consensus-event-creator/src/main/java/org/hiero/consensus/event/creator/config/EventCreationConfig.java),
-default `1`) and applied at parent selection in
+([`EventCreationConfig.java`](../../../consensus-event-creator/src/main/java/org/hiero/consensus/event/creator/config/EventCreationConfig.java))
+and applied at parent selection in
 [`TipsetEventCreator`](../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java).
 The hashgraph itself — the in-memory map of non-ancient events — is
 held by
@@ -67,4 +66,5 @@ held by
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`birth-round.md`](birth-round.md).
+- Invariants: INV-001 (voting round is monotonic along ancestry), INV-011 (birth round is monotonic along ancestry).
 - Glossary entry: [`../glossary.md`](../glossary.md).

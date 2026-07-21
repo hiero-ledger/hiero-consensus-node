@@ -5,12 +5,9 @@
 open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap;
     exports com.swirlds.virtualmap.datasource;
-    // Currently, exported only for tests.
-    exports com.swirlds.virtualmap.internal.merkle;
     exports com.swirlds.virtualmap.config;
     exports com.swirlds.virtualmap.sync;
     exports com.swirlds.virtualmap.sync.streams;
-    exports com.swirlds.virtualmap.sync.stats;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
@@ -20,8 +17,6 @@ open module com.swirlds.virtualmap {
             com.swirlds.state.impl,
             com.hedera.state.validator,
             com.hedera.node.app;
-    exports com.swirlds.virtualmap.internal.pipeline to
-            com.swirlds.merkledb;
     exports com.swirlds.virtualmap.internal.cache to
             com.swirlds.virtualmap.test.fixtures;
     exports com.swirlds.virtualmap.internal.reconnect to
@@ -38,9 +33,11 @@ open module com.swirlds.virtualmap {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
-    requires transitive org.hiero.consensus.reconnect;
     requires com.swirlds.logging;
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.swirlds.virtualmap.config.VirtualMapConfigExtension;
 }

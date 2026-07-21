@@ -11,6 +11,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.junit.jupiter.api.Test;
 
@@ -38,5 +40,20 @@ class CustomExceptionalHaltReasonTest {
     @Test
     void usesToStringForErrorMessages() {
         assertEquals("INVALID_SOLIDITY_ADDRESS", CustomExceptionalHaltReason.errorMessageFor(INVALID_SOLIDITY_ADDRESS));
+    }
+
+    @Test
+    void preservesStatusOfHandleExceptionHaltReason() {
+        final var reason = new HandleExceptionHaltReason(ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
+        assertEquals(ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE, statusFor(reason));
+        assertEquals("INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE", reason.name());
+    }
+
+    @Test
+    void usesHexEncodedStatusNameAsErrorMessageForHandleExceptionHaltReason() {
+        final var reason = new HandleExceptionHaltReason(ResponseCodeEnum.INVALID_SIGNATURE);
+        assertEquals(
+                Bytes.of(ResponseCodeEnum.INVALID_SIGNATURE.name().getBytes()).toHexString(),
+                CustomExceptionalHaltReason.errorMessageFor(reason));
     }
 }
