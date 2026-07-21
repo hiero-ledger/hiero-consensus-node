@@ -12,10 +12,10 @@
 #      in resources/0.76|0.77 application.properties (public builds.hedera.com URL); no host-side
 #      pre-download or local nginx server. Per-node download times are reported from hgcaa.log.
 #- [x] Upgrade to v0.77.0 -> Block Stream Cutover w/TSS (BLOCKS only, GRPC writer, real signatures, state proofs on)
-#- [x] Post-cutover validation (Step 12): MinIO record-object count stable (record-file uploads ceased),
+#- [x] Optional Step 12: SDK TCK regression suite vs the cutover network (819-call-tck-regression.yaml parity; ENABLE_TCK_TESTS=true)
+#- [x] Post-cutover validation (Step 13): MinIO record-object count stable (record-file uploads ceased),
 #      MN top block strictly advancing, BN getBlock serves the observed span (SUCCESS + non-empty items),
 #      and every txId submitted across all phases is visible in the mirror node (zero transaction loss)
-#- [x] Optional Step 13: SDK TCK regression suite vs the cutover network (819-call-tck-regression.yaml parity; ENABLE_TCK_TESTS=true)
 
 set -eo pipefail
 set +m
@@ -90,21 +90,21 @@ Environment:
                             Matches Solo's own persist-port-forward for the explorer pod (38080 -> 8080),
                             so our forward short-circuits to Solo's auto-managed tunnel when present.
   EXPLORER_INGRESS_SERVICE_NAME Explorer service name (default: hiero-explorer-1-solo)
-  START_STEP                 Step number to resume from (1..13; default: 1).
-  MN_BLOCK_PROGRESS_MIN_DELTA    Step 12: required cumulative advance of the mirror node's top
+  MN_BLOCK_PROGRESS_MIN_DELTA    Step 13: required cumulative advance of the mirror node's top
                             block number during the post-cutover watch (default: 3)
-  MN_BLOCK_PROGRESS_TIMEOUT_SECS Step 12: max seconds to wait for that advance (default: 180)
-  MN_BLOCK_PROGRESS_POLL_SECS    Step 12: poll interval of the top-block watch (default: 5)
-  BN_GET_BLOCK_MAX_PER_CHECK     Step 12: cap on blocks fetched via Block Node getBlock when
+  MN_BLOCK_PROGRESS_TIMEOUT_SECS Step 13: max seconds to wait for that advance (default: 180)
+  MN_BLOCK_PROGRESS_POLL_SECS    Step 13: poll interval of the top-block watch (default: 5)
+  BN_GET_BLOCK_MAX_PER_CHECK     Step 13: cap on blocks fetched via Block Node getBlock when
                             verifying the observed span (default: 25)
-  RECORD_CESSATION_SETTLE_SECS   Step 12: gap between the two MinIO record-object counts that
+  RECORD_CESSATION_SETTLE_SECS   Step 13: gap between the two MinIO record-object counts that
                             establish record-file uploads have ceased (default: 15)
-  START_STEP                 Step number to resume from (1..12; default: 1).
+  START_STEP                 Step number to resume from (1..13; default: 1).
                             Skips earlier steps; caller is responsible for cluster state matching
                             the end of step (START_STEP - 1). When >1, a resume prelude rebuilds
                             the SDK runtime and re-establishes the CN/mirror port-forwards.
-                            START_STEP=13 implies ENABLE_TCK_TESTS=true unless it was set explicitly.
-  ENABLE_TCK_TESTS           true|false (default: false). Adds Step 13: run the SDK team's TCK suite
+                            START_STEP=12 implies ENABLE_TCK_TESTS=true unless it was set explicitly;
+                            START_STEP=13 runs only the post-cutover validations.
+  ENABLE_TCK_TESTS           true|false (default: false). Enables Step 12: run the SDK team's TCK suite
                             (hiero-ledger/hiero-sdk-tck driven through the hiero-sdk-js tck JSON-RPC
                             server) against the cutover network, replicating the XTS panel in
                             .github/workflows/819-call-tck-regression.yaml. A TCK failure fails the
@@ -128,9 +128,9 @@ Environment:
   MIRROR_GRPC_LOCAL_PORT     Local port forwarded to svc/mirror-1-grpc for MIRROR_NETWORK (default: 5600)
   MIRROR_RESTJAVA_LOCAL_PORT Local port forwarded to svc/mirror-1-restjava (default: 8084)
   MIRROR_RESTJAVA_READY_TIMEOUT_SECS
-                            Bound on waiting for the mirror-1-restjava rollout in Step 13 (default: 300)
+                            Bound on waiting for the mirror-1-restjava rollout in Step 12 (default: 300)
   TCK_TEST_TIMEOUT_SECS      Timeout for the full suite / each test:file invocation (default: 3600)
-  TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 13 (default: 900)
+  TCK_INSTALL_TIMEOUT_SECS   Timeout for each npm/pnpm install phase of Step 12 (default: 900)
 EOF
       exit 0
       ;;
@@ -349,7 +349,7 @@ MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
 # itself can deploy a newer default than this pin and the Step 9 upgrade then reads as a downgrade.
 MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.158.0}"
 
-# --- Step 13: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
+# --- Step 12: SDK TCK regression configuration (819-call-tck-regression.yaml parity) ---
 # TCK/JS-SDK version defaults come from the CITR pin file so a default run tests exactly the
 # tags the XTS SDK TCK Regression Panel runs (855-call-extract-citr-vars.yaml reads the same file).
 CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
@@ -366,9 +366,9 @@ MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
 TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
 TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
 # ENABLE_TCK_TESTS is deliberately not defaulted here: the START_STEP block below needs to
-# distinguish "unset" (auto-implied by START_STEP=13) from an explicit false.
+# distinguish "unset" (auto-implied by START_STEP=12) from an explicit false.
 
-# Step 12 post-cutover validation knobs.
+# Step 13 post-cutover validation knobs.
 # MN top-block watch: require a cumulative advance of MIN_DELTA blocks (no
 # regressions) within TIMEOUT_SECS, sampling every POLL_SECS.
 MN_BLOCK_PROGRESS_MIN_DELTA="${MN_BLOCK_PROGRESS_MIN_DELTA:-3}"
@@ -388,16 +388,13 @@ if ! [[ "${START_STEP}" =~ ^[1-9]$|^1[0-3]$ ]]; then
 fi
 should_run_step() { (( START_STEP <= $1 )); }
 
-# START_STEP=13 is the standalone-TCK entry point; without ENABLE_TCK_TESTS the run would be a
-# no-op after the resume prelude, so imply it unless the caller set it explicitly.
-if [[ "${START_STEP}" == "13" && -z "${ENABLE_TCK_TESTS:-}" ]]; then
-  echo "START_STEP=13: enabling ENABLE_TCK_TESTS=true (set ENABLE_TCK_TESTS=false explicitly to suppress)"
+# START_STEP=12 is the standalone-TCK entry point, so imply ENABLE_TCK_TESTS unless the caller
+# explicitly disabled it. START_STEP=13 intentionally skips TCK and runs validation only.
+if [[ "${START_STEP}" == "12" && -z "${ENABLE_TCK_TESTS:-}" ]]; then
+  echo "START_STEP=12: enabling ENABLE_TCK_TESTS=true (set ENABLE_TCK_TESTS=false explicitly to suppress)"
   ENABLE_TCK_TESTS=true
 fi
 ENABLE_TCK_TESTS="${ENABLE_TCK_TESTS:-false}"
-if [[ "${START_STEP}" == "13" && "${ENABLE_TCK_TESTS}" != "true" ]]; then
-  echo "WARNING: START_STEP=13 with ENABLE_TCK_TESTS=false — this run will do nothing after the resume prelude" >&2
-fi
 
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
@@ -437,15 +434,15 @@ TX_ID_OUT_FILE="${WORK_DIR}/last-submitted-tx-ids.txt"
 
 # Every mirror-format transactionId submitted by this run's SDK verifier
 # invocations (creates + flushes), accumulated across all phases and verified
-# against the mirror node after the 0.77 cutover (Step 12).
+# against the mirror node after the 0.77 cutover (Step 13).
 SUBMITTED_TX_IDS=()
 
-# One line per Step 12 post-cutover validation result (each check appends its
+# One line per Step 13 post-cutover validation result (each check appends its
 # own), replayed as a summary block at the very end of the run so a log reader
 # can confirm at a glance which checks ran and what they measured.
 VALIDATION_SUMMARY_LINES=()
 
-# Step 13 (SDK TCK) artifacts. Clones land in WORK_DIR; the mochawesome report is exported to
+# Step 12 (SDK TCK) artifacts. Clones land in WORK_DIR; the mochawesome report is exported to
 # GENERATED_DIR so it survives WORK_DIR removal on a successful non-keep run.
 TCK_CLONE_DIR="${WORK_DIR}/hiero-sdk-tck"
 JS_SDK_CLONE_DIR="${WORK_DIR}/hiero-sdk-js"
@@ -454,6 +451,8 @@ TCK_REPORT_EXPORT_DIR="${TCK_REPORT_EXPORT_DIR:-${GENERATED_DIR}/tck-report}"
 # Resolved by prepare_tck_repos (either the *_REPO_PATH overrides or the clones above).
 TCK_REPO_DIR=""
 JS_SDK_REPO_DIR=""
+# Filled by print_tck_report_summary after aggregating every exported report.
+TCK_STATS_SUMMARY=""
 
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
@@ -542,7 +541,7 @@ cleanup() {
     cp "${TCK_SDK_SERVER_LOG}" "${TCK_REPORT_EXPORT_DIR}/tck-sdk-server.log" >/dev/null 2>&1 || true
   fi
 
-  # TCK helpers (Step 13) are host-local only — the JSON-RPC sdk-server and the mirror
+  # TCK helpers (Step 12) are host-local only — the JSON-RPC sdk-server and the mirror
   # grpc/restjava forwards exist solely for the TCK client. Kill them regardless of exit
   # code / KEEP_NETWORK; pnpm spawns nodemon which spawns the node that owns the socket,
   # so TERM the child tree first, then the pid, then sweep the port for the grandchild.
@@ -1790,7 +1789,7 @@ download_solo_minio_record_streams() {
   rm -f "${names_file}"
 }
 
-# Pinned in-pod mc context for the Step 12 record-object counts. Discovered
+# Pinned in-pod mc context for the Step 13 record-object counts. Discovered
 # once (pod + endpoint + credentials, same fallback order as the record-stream
 # downloader) and reused for every count so all samples measure the same
 # endpoint with the same credentials.
@@ -1911,7 +1910,7 @@ minio_record_object_count_with_retries() {
   return 1
 }
 
-# Gap check (Step 12, part 1): after the 0.77 BLOCKS-only cutover no NEW record
+# Gap check (Step 13, part 1): after the 0.77 BLOCKS-only cutover no NEW record
 # objects may appear in MinIO. Pre-cutover phases legitimately filled the
 # bucket, so the assert is stability, not emptiness: two samples
 # RECORD_CESSATION_SETTLE_SECS apart must match (and be > 0 — zero would mean
@@ -1938,7 +1937,7 @@ verify_record_uploads_ceased_baseline() {
   echo "Record-object count stable at ${RECORD_OBJECT_COUNT_BASELINE} post-cutover (pre-cutover records are expected to remain)"
 }
 
-# Gap check (Step 12, part 2): re-count after the post-cutover validation
+# Gap check (Step 13, part 2): re-count after the post-cutover validation
 # traffic (cryptoCreate + block watch + txId sweep). Any growth means a
 # record-file writer/uploader survived the BLOCKS-only cutover.
 verify_record_uploads_ceased_final() {
@@ -3902,9 +3901,9 @@ wait_for_block_node_caught_up() {
   return 1
 }
 
-# --- Step 12 post-cutover validation helpers ---------------------------------
+# --- Step 13 post-cutover validation helpers ---------------------------------
 
-# Explicit start/stop pair for a BN gRPC port-forward, shared by the Step 12
+# Explicit start/stop pair for a BN gRPC port-forward, shared by the Step 13
 # checks (the ad-hoc forwards in verify_block_node_has_blocks /
 # wait_for_block_node_caught_up stay as they are).
 BN_CHECK_PORT_FORWARD_PID=""
@@ -3957,7 +3956,7 @@ bn_grpc_call() {
 # (b) the Block Node serves every block of the observed span via
 # BlockAccessService/getBlock with status SUCCESS and a non-empty item list.
 # In BLOCKS mode the CN closes blocks on its block-period timer, so the top
-# advances even without fresh transactions (and the Step 12 cryptoCreate just
+# advances even without fresh transactions (and the Step 13 cryptoCreate just
 # provided some anyway).
 verify_mn_blocks_advancing_and_bn_serves() {
   local blocks_url="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1&order=desc"
@@ -4076,7 +4075,7 @@ verify_mn_blocks_advancing_and_bn_serves() {
 # Post-0.77 zero-transaction-loss sweep: every txId collected in
 # SUBMITTED_TX_IDS across the run's phases must be visible in the mirror node
 # with result SUCCESS. One full pass, then up to two retry passes over the
-# misses (recent Step 12 ids may need a few seconds of ingestion lag).
+# misses (recent Step 13 ids may need a few seconds of ingestion lag).
 verify_submitted_transactions_visible_in_mirror() {
   local total="${#SUBMITTED_TX_IDS[@]}"
   if (( total == 0 )); then
@@ -4118,16 +4117,16 @@ verify_submitted_transactions_visible_in_mirror() {
     return 1
   fi
   echo "Zero transaction loss: all ${total} submitted txIds visible in the mirror node with result SUCCESS"
-  VALIDATION_SUMMARY_LINES+=("✓ Zero transaction loss: all ${total} submitted txIds (creates + flushes, Steps 3-12) visible in MN with result SUCCESS")
+  VALIDATION_SUMMARY_LINES+=("✓ Zero transaction loss: all ${total} submitted txIds (creates + flushes through final validation) visible in MN with result SUCCESS")
 }
 
-# Replay the Step 12 post-cutover validation results as one block at the very
+# Replay the Step 13 post-cutover validation results as one block at the very
 # end of the log, so a reader can confirm the checks ran — and what they
 # measured — without scrolling back through the step output. Only reached on a
 # fully green run (a failing check aborts the script at its step).
 print_post_cutover_validation_summary() {
   echo
-  echo "------------- Post-cutover validation summary (Step 12) -------------"
+  echo "------------- Post-cutover validation summary (Steps 12-13) -------------"
   if (( ${#VALIDATION_SUMMARY_LINES[@]} == 0 )); then
     echo "  (no post-cutover validations recorded this run)"
   else
@@ -4208,7 +4207,7 @@ update_mirror_node_for_block_cutover() {
   "${upgrade_args[@]}"
 }
 
-# ---------- Step 13: SDK TCK regression helpers (819-call-tck-regression.yaml parity) ----------
+# ---------- Step 12: SDK TCK regression helpers (819-call-tck-regression.yaml parity) ----------
 
 # pnpm is only needed by the tck server install; require it lazily so runs without
 # ENABLE_TCK_TESTS keep working on hosts that never installed it (819 L142-144 parity).
@@ -4539,12 +4538,28 @@ export_tck_report() {
 # Structured recap after the run: per-report stats plus every failed test with its reason.
 # (Live per-test spec output already streamed to the console while the suite ran.)
 print_tck_report_summary() {
-  local json failures found=0
+  local json failures stats found=0 report_count=0
+  local total_tests=0 total_passes=0 total_failures=0 total_pending=0 total_skipped=0 total_duration_ms=0
+  TCK_STATS_SUMMARY=""
   echo "--- TCK report summary ---"
   for json in "${TCK_REPORT_EXPORT_DIR}"/mochawesome*.json; do
     [[ -e "${json}" ]] || continue
     found=1
-    echo "$(basename "${json}"): $(jq -r '.stats | "tests=\(.tests) passes=\(.passes) failures=\(.failures) pending=\(.pending) skipped=\(.skipped // 0) duration=\(.duration)ms"' "${json}" 2>/dev/null || echo "unparseable stats")"
+    stats="$(jq -r '.stats | [(.tests // 0), (.passes // 0), (.failures // 0), (.pending // 0), (.skipped // 0), (.duration // 0)] | @tsv' "${json}" 2>/dev/null || true)"
+    if [[ "${stats}" =~ ^[0-9]+$'\t'[0-9]+$'\t'[0-9]+$'\t'[0-9]+$'\t'[0-9]+$'\t'[0-9]+$ ]]; then
+      local tests passes failed pending skipped duration_ms
+      IFS=$'\t' read -r tests passes failed pending skipped duration_ms <<< "${stats}"
+      echo "$(basename "${json}"): tests=${tests} passes=${passes} failures=${failed} pending=${pending} skipped=${skipped} duration=${duration_ms}ms"
+      total_tests=$((total_tests + tests))
+      total_passes=$((total_passes + passes))
+      total_failures=$((total_failures + failed))
+      total_pending=$((total_pending + pending))
+      total_skipped=$((total_skipped + skipped))
+      total_duration_ms=$((total_duration_ms + duration_ms))
+      report_count=$((report_count + 1))
+    else
+      echo "$(basename "${json}"): unparseable stats"
+    fi
     # mochawesome nests suites arbitrarily deep — recursive descent finds every failed test.
     failures="$(jq -r '[.. | objects | select(.state? == "failed")] | .[] | "  ✗ \(.fullTitle // .title // "unnamed test") — \((.err.message // "no message") | split("\n")[0])"' "${json}" 2>/dev/null || true)"
     if [[ -n "${failures}" ]]; then
@@ -4554,6 +4569,9 @@ print_tck_report_summary() {
   if (( found == 0 )); then
     echo "WARNING: no exported mochawesome JSON under ${TCK_REPORT_EXPORT_DIR} (test runner may have crashed before reporting)" >&2
     return 0
+  fi
+  if (( report_count > 0 )); then
+    TCK_STATS_SUMMARY="tests=${total_tests} passes=${total_passes} failures=${total_failures} pending=${total_pending} skipped=${total_skipped} duration=$(((total_duration_ms + 999) / 1000))s (${report_count} report(s))"
   fi
   echo "Full browsable report(s): ${TCK_REPORT_EXPORT_DIR} (mochawesome*.html)"
 }
@@ -4867,44 +4885,10 @@ if should_run_step 11; then
   print_step_complete "Step 11/13"
 fi
 
-if should_run_step 12; then
-  print_banner "Step 12/13: Post-upgrade readiness and end-to-end transaction verification"
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  restart_post_upgrade_port_forwards
-  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
-  wait_for_sdk_responsive 180
-
-  # The baseline count is taken BEFORE the final cryptoCreate so the re-count
-  # in check 5/5 brackets all the post-cutover validation traffic: were a
-  # record-file writer/uploader still alive, the new blocks produced in
-  # between would surface as new .rcd* objects.
-  echo "--- Step 12 check 1/5: record-object count in MinIO is stable post-cutover ---"
-  verify_record_uploads_ceased_baseline
-
-  echo "--- Step 12 check 2/5: submit final cryptoCreate and confirm mirror sees the new account ---"
-  echo "Testing mirror-node readiness via a simple cryptoCreate at end-of-run (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
-  export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
-  node "${NODE_SCRIPT}"
-  collect_submitted_tx_ids
-
-  echo "--- Step 12 check 3/5: MN top block advancing + BN getBlock serves the observed span ---"
-  verify_mn_blocks_advancing_and_bn_serves
-
-  echo "--- Step 12 check 4/5: zero transaction loss — all submitted txIds visible in MN ---"
-  verify_submitted_transactions_visible_in_mirror
-
-  echo "--- Step 12 check 5/5: record-object count unchanged after post-cutover traffic ---"
-  verify_record_uploads_ceased_final
-
-  print_step_complete "Step 12/12"
-  print_step_complete "Step 12/13"
-fi
-
-if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
-  print_banner "Step 13/13: SDK TCK regression suite (819-call-tck-regression.yaml parity)"
+if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 12; then
+  print_banner "Step 12/13: SDK TCK regression suite (819-call-tck-regression.yaml parity)"
   # CN gRPC + Mirror REST forwards: no-op probe if healthy, re-establish if not (covers the
-  # START_STEP=13 standalone path right after the resume prelude).
+  # START_STEP=12 standalone path right after the resume prelude).
   restart_post_upgrade_port_forwards
   wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
   wait_for_sdk_responsive 180
@@ -4923,14 +4907,53 @@ if [[ "${ENABLE_TCK_TESTS}" == "true" ]] && should_run_step 13; then
   fi
   print_tck_report_summary || true
   if (( tck_rc != 0 )); then
-    echo "Step 13 TCK tests FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
+    echo "Step 12 TCK tests FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
     # Network stays up for debugging: cleanup() early-returns on a non-zero exit code.
     exit "${tck_rc}"
   fi
-  print_step_complete "Step 13/13"
-elif should_run_step 13; then
+  if [[ -n "${TCK_STATS_SUMMARY}" ]]; then
+    VALIDATION_SUMMARY_LINES+=("✓ TCK regression suite: ${TCK_STATS_SUMMARY}")
+  else
+    VALIDATION_SUMMARY_LINES+=("✓ TCK regression suite: PASSED (report statistics unavailable)")
+  fi
+  print_step_complete "Step 12/13"
+elif should_run_step 12; then
   echo
-  echo "Step 13/13 (SDK TCK regression suite) skipped — set ENABLE_TCK_TESTS=true to enable."
+  echo "Step 12/13 (SDK TCK regression suite) skipped — set ENABLE_TCK_TESTS=true to enable."
+  VALIDATION_SUMMARY_LINES+=("- TCK regression suite: SKIPPED (ENABLE_TCK_TESTS=false)")
+fi
+
+if should_run_step 13; then
+  print_banner "Step 13/13: Post-TCK readiness and end-to-end transaction verification"
+  wait_for_consensus_pods_ready 600
+  wait_for_haproxy_ready 600
+  restart_post_upgrade_port_forwards
+  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
+  wait_for_sdk_responsive 180
+
+  # The baseline count is taken BEFORE the final cryptoCreate so the re-count
+  # in check 5/5 brackets all the post-TCK validation traffic: were a
+  # record-file writer/uploader still alive, the new blocks produced in
+  # between would surface as new .rcd* objects.
+  echo "--- Step 13 check 1/5: record-object count in MinIO is stable post-cutover ---"
+  verify_record_uploads_ceased_baseline
+
+  echo "--- Step 13 check 2/5: submit final cryptoCreate and confirm mirror sees the new account ---"
+  echo "Testing mirror-node readiness via a simple cryptoCreate after TCK (wait up to ${MIRROR_ACCOUNT_WAIT_MS:-180000}ms)"
+  export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-180000}"
+  node "${NODE_SCRIPT}"
+  collect_submitted_tx_ids
+
+  echo "--- Step 13 check 3/5: MN top block advancing + BN getBlock serves the observed span ---"
+  verify_mn_blocks_advancing_and_bn_serves
+
+  echo "--- Step 13 check 4/5: zero transaction loss — all submitted txIds visible in MN ---"
+  verify_submitted_transactions_visible_in_mirror
+
+  echo "--- Step 13 check 5/5: record-object count unchanged after post-TCK validation traffic ---"
+  verify_record_uploads_ceased_final
+
+  print_step_complete "Step 13/13"
 fi
 start_post_run_keepalive
 print_end_of_run_diagnostics
