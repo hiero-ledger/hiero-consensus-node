@@ -14,7 +14,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import java.io.IOException;
@@ -50,9 +49,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @DisplayName("Test rehash is skipped if first leaf hash matches")
     void testRehashSkippedIfHashMatches() throws IOException {
         VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
-        VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setLastLeafPath(1);
-        metadata.setFirstLeafPath(1);
+        vm.getMetadata().setPaths(1, 1);
 
         final VirtualDataSource dataSource = vm.getDataSource();
         // Prepare data in data source
@@ -73,9 +70,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @DisplayName("Test rehash is triggered if first leaf hash does not match")
     void testRehashTriggeredIfHashMismatches() throws IOException {
         VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
-        VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setLastLeafPath(2);
-        metadata.setFirstLeafPath(1);
+        vm.getMetadata().setPaths(1, 2);
 
         final VirtualDataSource dataSource = vm.getDataSource();
         // Prepare data in a data source with a wrong hash
@@ -124,9 +119,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
                 .withValue(VirtualMapConfig_.FULL_REHASH_TIMEOUT_MS, "0")
                 .build();
         VirtualMap vm = new VirtualMap(builder, configuration);
-        VirtualMapMetadata metadata = vm.getMetadata();
-        metadata.setLastLeafPath(1);
-        metadata.setFirstLeafPath(1);
+        vm.getMetadata().setPaths(1, 1);
 
         final VirtualDataSource dataSource = vm.getDataSource();
         final int chunkHeight = dataSource.getHashChunkHeight();

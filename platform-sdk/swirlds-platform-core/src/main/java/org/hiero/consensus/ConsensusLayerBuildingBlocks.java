@@ -7,7 +7,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,7 +21,6 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.SavedStateController;
@@ -43,7 +42,7 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         @NonNull ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         @NonNull ComponentWiring<AppNotifier, Void> notifierWiring,
-        @NonNull ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
+        @NonNull StatusMonitorModule statusMonitorModule,
         @NonNull NotificationEngine notificationEngine,
         @NonNull SavedStateController savedStateController,
         @NonNull PlatformComponents platformComponents,
