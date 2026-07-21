@@ -73,6 +73,7 @@ import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
@@ -450,13 +451,15 @@ public class ParentTxnFactory {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
         return SavepointStackImpl.newRootStack(
                 state,
                 consensusConfig.handleMaxPrecedingRecords(),
                 consensusConfig.handleMaxFollowingRecords(),
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
-                blockStreamConfig.streamMode());
+                blockStreamConfig.streamMode(),
+                contractsConfig.maxSerializedTraceDataBytes());
     }
 
     /**

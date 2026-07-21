@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.GaussianWeightGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.junit.jupiter.api.DisplayName;
@@ -251,10 +251,7 @@ class RoundHashValidatorTests {
     void selfSignatureLastTest(final HashValidityStatus expectedStatus) {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
@@ -297,10 +294,7 @@ class RoundHashValidatorTests {
     void selfSignatureFirstTest(final HashValidityStatus expectedStatus) {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
@@ -341,10 +335,7 @@ class RoundHashValidatorTests {
     void selfSignatureInMiddleTest(final HashValidityStatus expectedStatus) {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, expectedStatus, 0);
         final NodeHashInfo thisNode = chooseSelfNode(random, hashGenerationData, expectedStatus);
@@ -391,10 +382,7 @@ class RoundHashValidatorTests {
     void timeoutSelfHashTest() {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
 
@@ -423,10 +411,7 @@ class RoundHashValidatorTests {
     void timeoutSelfHashAndSignaturesTest() {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
@@ -462,10 +447,7 @@ class RoundHashValidatorTests {
     void timeoutSignaturesTest() {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         final HashGenerationData hashGenerationData = generateNodeHashes(random, roster, HashValidityStatus.VALID, 0);
@@ -505,10 +487,7 @@ class RoundHashValidatorTests {
     void timeoutWithSuperMajorityTest() {
         final Random random = getRandomPrintSeed();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         final HashGenerationData hashGenerationData =

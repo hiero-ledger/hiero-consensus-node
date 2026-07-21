@@ -60,7 +60,7 @@ public class PcesGraphSlicerTest {
         final PlatformContext context =
                 PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
-        final Roster roster = RosterFactory.generateRoster(keysAndCertsMap);
+        final Roster roster = RosterFactory.rosterOf(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, 5000);
     }
 

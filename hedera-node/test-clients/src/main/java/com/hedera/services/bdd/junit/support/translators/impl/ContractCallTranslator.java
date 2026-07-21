@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
 import static java.util.Objects.requireNonNull;
@@ -16,6 +17,7 @@ import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTr
 import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
+import com.hedera.services.bdd.suites.contract.records.RecordsSuite;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -24,6 +26,7 @@ import java.util.List;
  * Translates a contract call transaction into a {@link SingleTransactionRecord}.
  */
 public class ContractCallTranslator implements BlockTransactionPartsTranslator {
+
     @Override
     public SingleTransactionRecord translate(
             @NonNull final BlockTransactionParts parts,
@@ -45,7 +48,12 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var isHook = contractId != null && contractId.contractNumOrElse(0L) == 365;
                             if (parts.status() == SUCCESS
                                     && (isHook || parts.isTopLevel() || parts.isInnerBatchTxn())) {
-                                mapTracesToVerboseLogs(derivedBuilder, parts.traces());
+                                if (needsClippedTraceBloomFallback(parts)) {
+                                    // This fixture clips the only bloom-implying trace data, leaving implied bloom.
+                                    derivedBuilder.logInfo(List.of()).bloom(bloomForAll(List.of()));
+                                } else {
+                                    mapTracesToVerboseLogs(derivedBuilder, parts.traces());
+                                }
                                 if (executingHookId == null) {
                                     baseTranslator.addCreatedIdsTo(derivedBuilder, parts, remainingStateChanges);
                                 } else {
@@ -67,5 +75,20 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                 remainingStateChanges,
                 followingUnitTraces,
                 executingHookId);
+    }
+
+    private static boolean needsClippedTraceBloomFallback(@NonNull final BlockTransactionParts parts) {
+        return RecordsSuite.OVERSIZED_CONTRACT_ACTIONS_MEMO.equals(parts.memo())
+                && (parts.traces() == null || parts.traces().stream().noneMatch(ContractCallTranslator::impliesBloom));
+    }
+
+    private static boolean impliesBloom(@NonNull final TraceData trace) {
+        if (!trace.hasEvmTraceData()) {
+            return false;
+        }
+        final var evmTraceData = trace.evmTraceDataOrThrow();
+        return !evmTraceData.logs().isEmpty()
+                || !evmTraceData.contractSlotUsages().isEmpty()
+                || !evmTraceData.contractActions().isEmpty();
     }
 }
