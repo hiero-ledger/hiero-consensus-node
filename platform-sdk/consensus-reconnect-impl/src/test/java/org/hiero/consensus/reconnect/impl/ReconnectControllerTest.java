@@ -52,7 +52,7 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -114,11 +114,10 @@ class ReconnectControllerTest {
         final Random random = getRandomPrintSeed();
 
         // Create roster
-        roster = RandomRosterBuilder.create(random)
-                .withSize(NUM_NODES)
-                .withWeightGenerator(
-                        (l, i) -> WeightGenerators.balancedNodeWeights(NUM_NODES, WEIGHT_PER_NODE * NUM_NODES))
-                .build();
+        roster = RosterFactory.randomRoster(
+                random,
+                NUM_NODES,
+                (l, i) -> WeightGenerators.balancedNodeWeights(NUM_NODES, WEIGHT_PER_NODE * NUM_NODES));
 
         nodeIds = roster.rosterEntries().stream()
                 .map(it -> NodeId.of(it.nodeId()))
