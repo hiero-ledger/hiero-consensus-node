@@ -9,7 +9,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.*;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -59,24 +59,20 @@ public class OpsDurationThrottleTest {
                 restoreDefault(OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND));
     }
 
-    @LeakyHapiTest
-    @Order(1)
-    @DisplayName("ops duration throttle can overfill but does not exceed a reasonable threshold")
-    public Stream<DynamicTest> overfillOpsDuration() {
+    private Stream<DynamicTest> overfillOpsDuration(long gas, final ResponseCodeEnum expectedStatus) {
         return hapiTest(
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 450)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "run")
-                                            .gas(200_000L)
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "run")
+                                            .gas(gas)
                                             .hasKnownStatusFrom(
-                                                    ResponseCodeEnum.SUCCESS,
-                                                    ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
+                                                    expectedStatus, ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
@@ -87,8 +83,25 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
+    @HapiTest
+    @Order(1)
+    @DisplayName("ops duration throttle can overfill but does not exceed a reasonable threshold")
+    public Stream<DynamicTest> overfillOpsDuration() {
+        return overfillOpsDuration(200_000, ResponseCodeEnum.SUCCESS);
+    }
+
+    @HapiTest
     @Order(2)
+    @DisplayName("ops duration throttle can overfill with InsufficientGas but does not exceed a reasonable threshold")
+    public Stream<DynamicTest> overfillOpsDurationWithInsufficientGasTransactions() {
+        // providing gas a bit more than intrinsic gus, but less than needed for execution (113_000)
+        // we are getting CONTRACT_REVERT_EXECUTED because contract is reverting when child call receives
+        // INSUFFICIENT_GAS
+        return overfillOpsDuration(30_000, ResponseCodeEnum.CONTRACT_REVERT_EXECUTED);
+    }
+
+    @HapiTest
+    @Order(3)
     @DisplayName("call function to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedOpsDuration() {
         return hapiTest(
@@ -96,7 +109,7 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(spec, contractCall(OPS_DURATION_THROTTLE, "run").gas(200_000L));
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
@@ -107,8 +120,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(3)
+    @HapiTest
+    @Order(4)
     @DisplayName("call system contract to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedDurationThrottleWithSystemContract() {
         return hapiTest(
@@ -126,7 +139,7 @@ public class OpsDurationThrottleTest {
                         .addTokenAllowance(SENDER, TOKEN, SYSTEM_CONTRACT_TRANSFER, 1_000_000L)
                         .signedByPayerAnd(SENDER),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     final var tokenAddress = HapiParserUtil.asHeadlongAddress(
                             asAddress(spec.registry().getTokenID(TOKEN)));
                     final var senderAddress = HapiParserUtil.asHeadlongAddress(
@@ -136,7 +149,7 @@ public class OpsDurationThrottleTest {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 600)
-                                    .mapToObj(i -> sourcing(() -> contractCall(
+                                    .mapToObj(_ -> sourcing(() -> contractCall(
                                                     SYSTEM_CONTRACT_TRANSFER,
                                                     "htsTransferFrom",
                                                     tokenAddress,
@@ -157,8 +170,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(4)
+    @HapiTest
+    @Order(5)
     @DisplayName("call system contract that won't exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedDurationThrottleWithSystemContract() {
         return hapiTest(
@@ -176,7 +189,7 @@ public class OpsDurationThrottleTest {
                         .addTokenAllowance(SENDER, TOKEN, SYSTEM_CONTRACT_TRANSFER, 1_000_000L)
                         .signedByPayerAnd(SENDER),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     final var tokenAddress = HapiParserUtil.asHeadlongAddress(
                             asAddress(spec.registry().getTokenID(TOKEN)));
                     final var senderAddress = HapiParserUtil.asHeadlongAddress(
@@ -186,7 +199,7 @@ public class OpsDurationThrottleTest {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 5)
-                                    .mapToObj(i -> sourcing(() -> contractCall(
+                                    .mapToObj(_ -> sourcing(() -> contractCall(
                                                     SYSTEM_CONTRACT_TRANSFER,
                                                     "htsTransferFrom",
                                                     tokenAddress,
@@ -204,8 +217,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(5)
+    @HapiTest
+    @Order(6)
     @DisplayName("call create opcode to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCode() {
         return hapiTest(
@@ -213,11 +226,11 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 2000)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRun")
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRun")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
                                                     ResponseCodeEnum.SUCCESS,
@@ -232,8 +245,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(6)
+    @HapiTest
+    @Order(7)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedThrottleWithOpCode() {
         return hapiTest(
@@ -241,11 +254,11 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 10)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRun")
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRun")
                                             .gas(400_000L)))
                                     .toArray(HapiSpecOperation[]::new)));
                     // Let the metrics update
@@ -257,8 +270,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(7)
+    @HapiTest
+    @Order(8)
     @DisplayName("call create opcode with expected revert to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCodeReverts() {
         return hapiTest(
@@ -266,11 +279,11 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 2000)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunRevert")
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunRevert")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
                                                     ResponseCodeEnum.CONTRACT_REVERT_EXECUTED,
@@ -285,8 +298,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(8)
+    @HapiTest
+    @Order(9)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedThrottleWithOpCodeReverts() {
         return hapiTest(
@@ -294,11 +307,11 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 10)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunRevert")
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunRevert")
                                             .gas(400_000L)
                                             .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)))
                                     .toArray(HapiSpecOperation[]::new)));
@@ -311,8 +324,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(9)
+    @HapiTest
+    @Order(10)
     @DisplayName("call create opcode with expected halt to exceed ops duration throttle")
     public Stream<DynamicTest> doExceedThrottleWithOpCodeHalts() {
         return hapiTest(
@@ -320,11 +333,11 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 2000)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunHalt")
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunHalt")
                                             .gas(400_000L)
                                             .hasKnownStatusFrom(
                                                     ResponseCodeEnum.CONTRACT_REVERT_EXECUTED,
@@ -339,8 +352,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(10)
+    @HapiTest
+    @Order(11)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
     public Stream<DynamicTest> doNotExceedThrottleWithOpCodeHalts() {
         return hapiTest(
@@ -348,11 +361,11 @@ public class OpsDurationThrottleTest {
                 uploadInitCode(OPS_DURATION_THROTTLE),
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 10)
-                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunHalt")
+                                    .mapToObj(_ -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunHalt")
                                             .gas(400_000L)
                                             .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)))
                                     .toArray(HapiSpecOperation[]::new)));
@@ -365,8 +378,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(11)
+    @HapiTest
+    @Order(12)
     @DisplayName("call nested function to exceed ops duration throttle")
     public Stream<DynamicTest> nestedExceedOpsDuration() {
         return hapiTest(
@@ -375,7 +388,7 @@ public class OpsDurationThrottleTest {
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 // Let's add some initial capacity, but don't free any units once exhausted
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             // First a success that doesn't overflow the ops duration limit
@@ -394,8 +407,8 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-    @LeakyHapiTest
-    @Order(11)
+    @HapiTest
+    @Order(13)
     @DisplayName("account creation consumes ops duration")
     public Stream<DynamicTest> accountCreationConsumesOpsDuration() {
         final var payer = "payer";
@@ -405,7 +418,7 @@ public class OpsDurationThrottleTest {
                 contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
                 cryptoCreate(payer).balance(ONE_HUNDRED_HBARS),
                 enableDefaultOpsDurationThrottleNoRefill(),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     allRunFor(
                             spec,
                             // This call is going to make 25 transfers to subsequent accounts starting at address 10^48

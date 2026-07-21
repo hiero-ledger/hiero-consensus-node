@@ -268,7 +268,8 @@ public class ConsensusLayerFactory {
                 notifierWiring,
                 platformMonitorWiring);
         final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
-        initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
+        initializePcesModule(
+                pcesModule, platformCoordinator, latestImmutableStateNexus, issDetectionModule, eventPipelineTracker);
 
         doStaticSetup(configuration);
 
@@ -497,6 +498,7 @@ public class ConsensusLayerFactory {
             @NonNull final PcesModule module,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
+            @NonNull final IssDetectionModule issDetectionModule,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
         final Supplier<PcesReplayProgress> replayProgressSupplier =
                 createPcesReplayProgressSupplier(latestImmutableStateNexus);
@@ -513,11 +515,11 @@ public class ConsensusLayerFactory {
                 replayProgressSupplier,
                 platformCoordinator::submitStatusAction,
                 platformCoordinator::flushPlatformStatus,
-                platformCoordinator::signalEndOfPcesReplay,
+                issDetectionModule::signalEndOfPcesReplay,
                 eventPipelineTracker);
     }
 
-    @NonNull
+    @Nullable
     private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
         final boolean eventPipelineMetricsEnabled =
                 configuration.getConfigData(PlatformMetricsConfig.class).eventPipelineMetricsEnabled();

@@ -22,12 +22,18 @@ import org.hiero.otter.fixtures.exceptions.NetworkControlUnavailableException;
  * A client for interacting with the Toxiproxy control server REST API.
  * This client allows creating and updating proxies to simulate network conditions.
  *
- * <p>Toxiproxy wraps its whole REST API in Go's {@code http.TimeoutHandler} with a 25-second limit and returns an
- * empty {@code 503} when a request does not finish in time (a toxic update can wedge past that limit when a link is
- * backpressured). Such a 503 describes a transient, self-healing condition rather than a permanent failure, so every
- * request is given a per-request timeout that sits deliberately <em>above</em> Toxiproxy's internal limit and is
- * retried with exponential backoff on {@code 5xx} responses and {@link IOException}s. A {@code 4xx} response signals a
- * fixture logic bug and fails fast without retrying.
+ * <p>Toxiproxy wraps its whole REST API in Go's {@code http.TimeoutHandler} with a 25-second limit and returns an empty
+ * {@code 503} when a request does not finish in time. This happens when a toxic update gets stuck interrupting a toxic
+ * goroutine that is wedged on a backpressured link: the update holds the proxy's {@code ToxicCollection} lock, and every
+ * later toxic- or proxy-update on that proxy then blocks on it too. The wedge cannot be cleared in place at all &ndash;
+ * even deleting the proxy can hang and, because that runs under a collection-wide lock, freeze the whole control plane.
+ * Retrying therefore does not help (each attempt simply wedges for another 25 seconds), so a {@code 5xx} is surfaced
+ * immediately as a {@link NetworkControlUnavailableException}: the caller treats that proxy as temporarily unmodifiable
+ * and skips the step, and the wedge is only truly cleared by bouncing the Toxiproxy process (done once at restore). A
+ * genuinely transient {@link IOException} (for example the control server briefly unreachable) is retried with
+ * exponential backoff, and a {@code 4xx} response signals a fixture logic bug and fails fast. The per-request timeout
+ * sits deliberately <em>above</em> Toxiproxy's internal 25-second limit so a wedge surfaces as its {@code 503} rather
+ * than as a client-side timeout that would be mistaken for a transient {@link IOException}.
  */
 public class ToxiproxyClient {
 
@@ -174,9 +180,10 @@ public class ToxiproxyClient {
     }
 
     /**
-     * Sends a request, retrying on {@code 5xx} responses and {@link IOException}s with exponential backoff, and returns
-     * the successful ({@code 2xx}) response. A {@code 4xx} response signals a fixture logic bug and fails fast without
-     * retrying.
+     * Sends a request and returns the successful ({@code 2xx}) response. A {@code 5xx} (a wedged control plane) is
+     * surfaced immediately as a {@link NetworkControlUnavailableException} without retrying, because retrying only
+     * re-wedges; an {@link IOException} (a genuinely transient failure) is retried with exponential backoff; and a
+     * {@code 4xx} response signals a fixture logic bug and fails fast.
      *
      * <p>When {@code earlierSuccess} is {@link EarlierSuccess#ACCEPTED} and a retried request comes back reporting the
      * resource already exists ({@code 409}), an earlier attempt succeeded on the server but its response was lost; that
@@ -187,7 +194,8 @@ public class ToxiproxyClient {
      * @param earlierSuccess whether a repeat reporting the work was already done should be accepted as success
      * @return the successful ({@code 2xx}), or accepted already-done, response
      * @throws AssertionError if the server returns an unaccepted {@code 4xx} response
-     * @throws NetworkControlUnavailableException if the request keeps failing after {@link #MAX_ATTEMPTS} attempts
+     * @throws NetworkControlUnavailableException if the server returns a {@code 5xx}, or an {@link IOException} keeps
+     *     recurring after {@link #MAX_ATTEMPTS} attempts
      */
     @NonNull
     private HttpResponse<String> send(
@@ -210,15 +218,12 @@ public class ToxiproxyClient {
                     throw new AssertionError(
                             "Failed to process request with error code %d: %s".formatted(status, request));
                 }
-                // A 5xx server error (e.g. Toxiproxy's 25-second TimeoutHandler) is transient. Retry. A retry that
-                // eventually succeeds is normal operation, so this is only logged at DEBUG; a permanent failure is
-                // surfaced by the NetworkControlUnavailableException thrown once all attempts are exhausted.
-                log.debug(
-                        "Toxiproxy request failed with status {} (attempt {}/{}): {}",
-                        status,
-                        attempt,
-                        MAX_ATTEMPTS,
-                        request);
+                // A 5xx (Toxiproxy's 25-second TimeoutHandler firing) means this proxy's control plane is wedged: a
+                // toxic update is stuck on a backpressured link and holds the proxy's ToxicCollection lock. Retrying
+                // only re-wedges for another 25 seconds, so surface it immediately; the caller skips the step, and the
+                // wedge is cleared only by bouncing the Toxiproxy process at restore.
+                throw new NetworkControlUnavailableException(
+                        "Toxiproxy returned status %d (control plane wedged): %s".formatted(status, request));
             } catch (final IOException e) {
                 lastException = e;
                 log.debug("Toxiproxy request failed (attempt {}/{}): {}", attempt, MAX_ATTEMPTS, request, e);

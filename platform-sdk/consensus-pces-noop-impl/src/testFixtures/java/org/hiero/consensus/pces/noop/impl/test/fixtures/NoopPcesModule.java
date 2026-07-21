@@ -166,6 +166,11 @@ public class NoopPcesModule implements PcesModule {
         return requireNonNull(discontinuityInputWire, "Not initialized");
     }
 
+    @Override
+    public void injectMinimumBirthRound(final long minimumBirthRoundNonAncientForOldestState) {
+        // no-op
+    }
+
     /**
      * {@inheritDoc}
      */
