@@ -18,6 +18,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -65,7 +66,8 @@ public final class DefaultGossipModule implements GossipModule {
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
         }

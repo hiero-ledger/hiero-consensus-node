@@ -22,6 +22,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -301,7 +302,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
                 staleEventConsumer,
                 null,
                 null,
-                null);
+                Map.of());
     }
 
     /**
