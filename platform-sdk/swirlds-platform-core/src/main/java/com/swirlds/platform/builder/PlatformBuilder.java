@@ -89,7 +89,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /** The initial state supplied by the application. */
     protected final ReservedSignedState initialState;
 
-    /** The lifecycle manager for managing state transitions. */
+    /** The lifecycle manager for managing the state lifecycle. */
     protected final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     /** The software version of the application. */
@@ -130,7 +130,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
      * @param executionLayer The execution layer called for application-specific processing.
      * @param consensusStateEventHandler The handler for processing consensus-related events.
      * @param initialState The initial state supplied by the application.
-     * @param stateLifecycleManager The lifecycle manager for managing state transitions.
+     * @param stateLifecycleManager The lifecycle manager for managing the state lifecycle.
      * @param softwareVersion The software version of the application.
      * @param persistenceScope The application name and swirld name for determining where to store states on disk.
      * @param consensusEventStreamName A part of the name of the directory where the consensus event stream is written.
