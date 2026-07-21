@@ -5,7 +5,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
-import org.hiero.consensus.config.BasicConfig_;
+import org.hiero.consensus.BasicConfig_;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
