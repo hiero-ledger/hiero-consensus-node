@@ -81,6 +81,7 @@ module com.swirlds.platform.core {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.reconnect;
     requires java.scripting;
     requires jdk.management;
     requires org.apache.logging.log4j;
