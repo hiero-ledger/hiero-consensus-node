@@ -9,6 +9,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgr
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatusMonitorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -28,8 +29,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig;
+import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -51,7 +51,6 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
@@ -176,9 +175,8 @@ public final class DiagramCommand extends AbstractCommand {
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
         final StateModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
 
-        final PlatformSchedulersConfig platformSchedulersConfig =
-                configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
@@ -188,8 +186,6 @@ public final class DiagramCommand extends AbstractCommand {
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
-                new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
@@ -206,7 +202,7 @@ public final class DiagramCommand extends AbstractCommand {
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
                 notifierWiring,
-                platformMonitorWiring,
+                statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 null,
                 null,

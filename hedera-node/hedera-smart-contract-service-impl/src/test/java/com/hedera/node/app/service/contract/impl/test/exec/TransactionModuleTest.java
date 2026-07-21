@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.TransactionModule;
@@ -75,9 +74,6 @@ class TransactionModuleTest {
 
     @Mock
     private CanonicalDispatchPrices canonicalDispatchPrices;
-
-    @Mock
-    private AssetsLoader assetsLoader;
 
     @Mock
     private ExpiryValidator expiryValidator;

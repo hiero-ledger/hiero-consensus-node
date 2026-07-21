@@ -22,7 +22,7 @@ import org.hiero.consensus.gossip.impl.test.fixtures.network.TestConnectionManag
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -40,7 +40,7 @@ class DynamicConnectionManagersTest {
     @MethodSource("topologicalVariations")
     void testShouldConnectToMe(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
-        final Roster roster = RandomRosterBuilder.create(r).withSize(numNodes).build();
+        final Roster roster = RosterFactory.randomRoster(r, numNodes);
         final NodeId selfId =
                 NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
 
@@ -88,7 +88,7 @@ class DynamicConnectionManagersTest {
     @MethodSource("topologicalVariations")
     void testShouldConnectTo(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
-        final Roster roster = RandomRosterBuilder.create(r).withSize(numNodes).build();
+        final Roster roster = RosterFactory.randomRoster(r, numNodes);
         final NodeId selfId =
                 NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
