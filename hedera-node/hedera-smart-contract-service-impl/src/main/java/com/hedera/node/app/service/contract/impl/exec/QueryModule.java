@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.ExchangeRate;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -43,8 +42,7 @@ public interface QueryModule {
 
     @Provides
     @QueryScope
-    static CanonicalDispatchPrices provideCanonicalDispatchPrices(
-            @NonNull final QueryContext context, @NonNull final AssetsLoader assetsLoader) {
+    static CanonicalDispatchPrices provideCanonicalDispatchPrices(@NonNull final QueryContext context) {
         return new CanonicalDispatchPrices(context.simpleFeesSchedule());
     }
 

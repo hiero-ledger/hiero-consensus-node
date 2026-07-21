@@ -11,6 +11,7 @@ import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -194,8 +195,12 @@ public class WrappedRecordBlockHashMigration {
 
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
         final var loadedBytes = Files.readAllBytes(recentHashesPath);
-        final var allRecentWrappedRecordHashes =
-                WrappedRecordFileBlockHashesLog.PROTOBUF.parseStrict(Bytes.wrap(loadedBytes));
+        final var allRecentWrappedRecordHashes = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(loadedBytes).toReadableSequentialData(),
+                true,
+                false,
+                Codec.DEFAULT_MAX_DEPTH,
+                loadedBytes.length + loadedBytes.length / 10);
         if (allRecentWrappedRecordHashes.entries().isEmpty()) {
             log.error("Recent wrapped record hashes file contains no entries. {}", RESUME_MESSAGE);
             return null;

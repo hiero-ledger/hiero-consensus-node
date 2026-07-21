@@ -13,7 +13,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +28,7 @@ class BranchReporterTests {
 
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
@@ -72,7 +72,7 @@ class BranchReporterTests {
     void doesNotThrowLargeAncientWindow() {
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
@@ -110,7 +110,7 @@ class BranchReporterTests {
     void eventWindowMustBeSetTest() {
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 

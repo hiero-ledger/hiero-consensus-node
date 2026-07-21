@@ -1,5 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.sloth.fixtures {
+    exports org.hiero.sloth.fixtures.exceptions;
+    exports org.hiero.sloth.fixtures.junit;
+    exports org.hiero.sloth.fixtures.logging;
+    exports org.hiero.sloth.fixtures.network.transactions;
+    exports org.hiero.sloth.fixtures.network;
+    exports org.hiero.sloth.fixtures.result;
+    exports org.hiero.sloth.fixtures.specs;
+    exports org.hiero.sloth.fixtures.util;
+    exports org.hiero.sloth.fixtures;
+    exports org.hiero.sloth.fixtures.app to
+            org.hiero.sloth.test.performance,
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl;
+    exports org.hiero.sloth.fixtures.container to
+            com.swirlds.config.impl;
+    exports org.hiero.sloth.fixtures.container.proto to
+            org.hiero.sloth.test.performance;
+    exports org.hiero.sloth.fixtures.container.utils to
+            org.hiero.sloth.test.performance;
+    exports org.hiero.sloth.fixtures.internal to
+            com.swirlds.config.impl;
+    exports org.hiero.sloth.fixtures.internal.helpers to
+            org.hiero.sloth.test.performance;
+    exports org.hiero.sloth.fixtures.logging.internal to
+            org.hiero.sloth.test.performance;
+    exports org.hiero.sloth.fixtures.remote to
+            com.swirlds.config.impl;
+
+    opens org.hiero.sloth.fixtures.container.proto to
+            com.google.protobuf;
+    opens org.hiero.sloth.fixtures.network.transactions to
+            com.google.protobuf;
+
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
@@ -26,6 +59,7 @@ module org.hiero.sloth.fixtures {
     requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
+    requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
@@ -43,37 +77,4 @@ module org.hiero.sloth.fixtures {
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
-
-    exports org.hiero.sloth.fixtures;
-    exports org.hiero.sloth.fixtures.exceptions;
-    exports org.hiero.sloth.fixtures.junit;
-    exports org.hiero.sloth.fixtures.logging;
-    exports org.hiero.sloth.fixtures.network;
-    exports org.hiero.sloth.fixtures.network.transactions;
-    exports org.hiero.sloth.fixtures.result;
-    exports org.hiero.sloth.fixtures.specs;
-    exports org.hiero.sloth.fixtures.util;
-    exports org.hiero.sloth.fixtures.app to
-            org.hiero.sloth.test.performance,
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl;
-    exports org.hiero.sloth.fixtures.container to
-            com.swirlds.config.impl;
-    exports org.hiero.sloth.fixtures.remote to
-            com.swirlds.config.impl;
-    exports org.hiero.sloth.fixtures.container.proto to
-            org.hiero.sloth.test.performance;
-    exports org.hiero.sloth.fixtures.container.utils to
-            org.hiero.sloth.test.performance;
-    exports org.hiero.sloth.fixtures.internal to
-            com.swirlds.config.impl;
-    exports org.hiero.sloth.fixtures.internal.helpers to
-            org.hiero.sloth.test.performance;
-    exports org.hiero.sloth.fixtures.logging.internal to
-            org.hiero.sloth.test.performance;
-
-    opens org.hiero.sloth.fixtures.container.proto to
-            com.google.protobuf;
-    opens org.hiero.sloth.fixtures.network.transactions to
-            com.google.protobuf;
 }

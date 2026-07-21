@@ -32,7 +32,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
@@ -127,8 +127,7 @@ class TipsetWeightCalculatorTests {
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
 
         final Map<NodeId, Long> weightMap = new HashMap<>();
         long totalWeight = 0;
@@ -273,10 +272,7 @@ class TipsetWeightCalculatorTests {
     @DisplayName("Selfish Node Test")
     public void selfishNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -488,10 +484,7 @@ class TipsetWeightCalculatorTests {
     public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
         // In this test, we simulate from the perspective of node A.
         // All nodes have 1 weight except for D, which has 0 weight.
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -586,10 +579,7 @@ class TipsetWeightCalculatorTests {
     public void ancientParentTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
         final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());

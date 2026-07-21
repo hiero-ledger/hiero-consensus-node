@@ -16,7 +16,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -55,7 +55,7 @@ class BranchDetectorTests {
     @Test
     void requiresEventWindow() {
         final Randotron randotron = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 8);
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
                 .setCreatorId(NodeId.of(roster.rosterEntries().get(0).nodeId()))
@@ -74,8 +74,7 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
@@ -129,8 +128,7 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
@@ -225,8 +223,7 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
@@ -301,8 +298,7 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
@@ -378,8 +374,7 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
@@ -450,8 +445,7 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 

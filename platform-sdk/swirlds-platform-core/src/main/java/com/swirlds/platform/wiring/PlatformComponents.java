@@ -6,7 +6,7 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
@@ -15,7 +15,6 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -37,4 +36,4 @@ public record PlatformComponents(
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
-        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring) {}
+        StatusMonitorModule statusMonitorModule) {}
