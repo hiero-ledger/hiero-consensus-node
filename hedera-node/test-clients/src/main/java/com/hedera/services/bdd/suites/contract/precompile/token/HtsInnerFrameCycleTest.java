@@ -13,6 +13,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -23,11 +24,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThrottleTest.OPS_DURATION_THROTTLE_CAPACITY;
 import static com.hedera.services.bdd.suites.contract.opsduration.OpsDurationThrottleTest.OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND;
@@ -68,16 +69,21 @@ public class HtsInnerFrameCycleTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> innerFrameCycleTest() {
-        return hapiTest(withOpContext((spec, opLog) -> {
-            transferTokensFloodParallelLowGasChildFrames(spec);
-        }));
+    public Stream<DynamicTest> innerFrameCycleZeroGasTest() {
+        return Stream.of(
+//                        0 // minimum gas
+//                        1, // low gas
+//                        10000, // some gas, but less than required
+                        20000 // enough gas
+                )
+                .map(gas -> namedHapiTest("innerFrameCycl gas=" + gas, doingContextual(e -> transferTokensCycleFrames(e, gas))));
     }
 
-    public void transferTokensFloodParallelLowGasChildFrames(HapiSpec spec) {
-        final int entryCount = 2;
+    public void transferTokensCycleFrames(HapiSpec spec, final int childGas) {
+        final int entryCount = 20;
         final int repetitions = 60;
-        final int childGas = 1;
+        final int expectedGasUsedForCycle = 15284;
+        final int expectedCycles = 20;
         final var op = contractCall(
                 CONTRACT,
                 "transferTokensCycle",
@@ -89,11 +95,17 @@ public class HtsInnerFrameCycleTest {
                 .via(ATTACK_TXN)
                 .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, INSUFFICIENT_GAS)
                 .noLogging()
-                .gas(15_000_000);
+                .gas(expectedGasUsedForCycle * (expectedCycles + 1));
         allRunFor(
                 spec, op
                 , getTxnRecord(ATTACK_TXN).logged()
-                        .exposingAllTo(e -> System.out.println("Got records: " + e.size()))
+                        .exposingAllTo(e -> {
+                            //TODO Glib:
+                            System.out.printf("!!!!!!!!!!!!! %s Got records:%s\n", e.getFirst()
+                                    .getReceipt()
+                                    .getStatus(), e.size());
+                            Assertions.assertEquals(expectedCycles, e.size());
+                        })
                         .andAllChildRecords());
     }
 }

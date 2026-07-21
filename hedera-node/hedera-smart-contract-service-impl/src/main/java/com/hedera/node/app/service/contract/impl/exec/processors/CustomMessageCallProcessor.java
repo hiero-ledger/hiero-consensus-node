@@ -30,10 +30,14 @@ import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
@@ -155,10 +159,11 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
     /**
      * Constructor.
-     * @param evm the evm to use in this call
-     * @param featureFlags current evm module feature flags
-     * @param precompiles the present precompiles
-     * @param addressChecks checks against addresses reserved for Hedera
+     *
+     * @param evm             the evm to use in this call
+     * @param featureFlags    current evm module feature flags
+     * @param precompiles     the present precompiles
+     * @param addressChecks   checks against addresses reserved for Hedera
      * @param systemContracts the Hedera system contracts
      */
     public CustomMessageCallProcessor(
@@ -190,7 +195,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      *     <li>An existing account.</li>
      * </ol>
      *
-     * @param frame the frame to start
+     * @param frame  the frame to start
      * @param tracer the operation tracer
      */
     @Override
@@ -256,7 +261,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * the call to computePrecompile. Thus, the logic for checking for sufficient gas must be done in a different
      * order vs normal precompiles.
      *
-     * @param context the current call context
+     * @param context        the current call context
      * @param systemContract the system contract to execute
      */
     private void doExecuteSystemContract(
@@ -286,7 +291,21 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                         systemContractAddress.getBytes().toHexString(),
                         opsDurationCost);
 
+        // TODO Glib:
+        AtomicInteger i = new AtomicInteger(0);
+        System.out.println("!!!!!!!!!!!!!!!!! " + frame.getMessageFrameStack()
+                .stream()
+                .map(e -> "Frame[%s] gas:%s".formatted(i.getAndIncrement(), e.getRemainingGas()))
+                .collect(Collectors.joining("->")));
+
         if (frame.getRemainingGas() < gasRequirement) {
+            // TODO Glib: charge gasRequirement from parentFrame if parent frame exists?
+            if (frame.getMessageFrameStack().size() > 1) {
+                MessageFrame parentFrame = FrameUtils.parentFrameOf(frame);
+                if (parentFrame != null && !fullResult.isRefundGas()) {
+                    parentFrame.decrementRemainingGas(gasRequirement - frame.getRemainingGas());
+                }
+            }
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             if (!fullResult.isRefundGas()) {
@@ -415,7 +434,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * the allowance hook address
      *
      * @param codeAddress the address of the precompile to check
-     * @param frame the current message frame
+     * @param frame       the current message frame
      * @return true if the frame is executing a hook dispatch and the code address is the allowance hook
      * address, false otherwise
      */
