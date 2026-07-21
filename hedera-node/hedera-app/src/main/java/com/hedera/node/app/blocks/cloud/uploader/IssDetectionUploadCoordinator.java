@@ -20,7 +20,9 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -56,8 +58,10 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  *   race-free, with no indefinite wait (bounded by {@code uploadTimeout}).</li>
  * </ol>
  *
- * <p>The two paths de-duplicate via {@link #uploadedRounds}: whichever uploads the round first marks it, and the other
- * skips. The captured block is staged under a per-incident timestamp dir of the node-local {@code issBlockDir} (kept
+ * <p>The two paths de-duplicate via {@link #uploadedRounds}: whichever uploads the round first marks it. On a
+ * concurrent attempt for the SAME round, the detection path skips, while the failure path — the authoritative,
+ * last-chance capture — awaits the in-flight outcome (bounded) and retries itself if that attempt failed. The
+ * captured block is staged under a per-incident timestamp dir of the node-local {@code issBlockDir} (kept
  * for local triage, mirroring the {@code iss/{timestamp}/} cloud layout). This is distinct from
  * {@code TriageBlockUploadCoordinator}, which uploads the whole flushed open/pending set to the {@code triage/} folder.
  * Best-effort throughout; never throws.
@@ -98,11 +102,13 @@ public class IssDetectionUploadCoordinator {
     /** ISS rounds already uploaded to {@code iss/}, so the detection and failure paths never double-upload a round. */
     private final Set<Long> uploadedRounds = ConcurrentHashMap.newKeySet();
     /**
-     * ISS rounds whose upload is currently in flight, each claimed by the first path to reach it so the detection and
-     * failure paths never upload the SAME round concurrently. A per-round set (not a single slot) so two DISTINCT ISS
-     * rounds detected close together are both uploaded rather than one being silently dropped.
+     * The in-flight upload attempt per round, claimed by the first path to reach it so the detection and failure paths
+     * never upload the SAME round concurrently; the future completes with whether the exact ISS block was uploaded, so
+     * the failure path can await a concurrent detection attempt's outcome instead of silently deferring to it. Keyed
+     * per round (not a single slot) so two DISTINCT ISS rounds detected close together are both uploaded rather than
+     * one being silently dropped.
      */
-    private final Set<Long> uploadInProgressRounds = ConcurrentHashMap.newKeySet();
+    private final Map<Long, CompletableFuture<Boolean>> inFlightUploads = new ConcurrentHashMap<>();
 
     private record RecordedIss(
             @NonNull IssType issType, long round, @NonNull String incidentFolder) {}
@@ -210,7 +216,7 @@ public class IssDetectionUploadCoordinator {
                         // minAckedBlocksToBuffer), so no wait is needed.
                         case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
                     };
-            uploadAndMark(config, round, incidentFolder, files);
+            uploadAndMark(config, round, incidentFolder, files, false);
         } catch (final Throwable t) {
             log.error("ISS detection-time block capture/upload failed for round {}", round, t);
         }
@@ -256,11 +262,12 @@ public class IssDetectionUploadCoordinator {
                         // the call must precede blockNodeConnectionManager.shutdown() (which clears the buffer).
                         case GRPC -> bufferReader.captureToDir(iss.round(), config.precedingBlocks(), incidentDir);
                     };
-            uploadAndMark(config, iss.round(), iss.incidentFolder(), files);
+            final boolean preserved = uploadAndMark(config, iss.round(), iss.incidentFolder(), files, true);
             // This is the authoritative, last-chance capture for a halting ISS. If the round is still not preserved
-            // (neither this path nor the detection path uploaded it), surface it as ONE distinct high-severity signal
-            // an operator can alert on — instead of only the routine-looking WARNs emitted by the individual steps.
-            if (!uploadedRounds.contains(iss.round())) {
+            // (neither this path nor an awaited in-flight detection attempt uploaded it), surface it as ONE distinct
+            // high-severity signal an operator can alert on — instead of only the routine-looking WARNs emitted by
+            // the individual steps.
+            if (!preserved) {
                 log.fatal(
                         "ISS block for round {} was NOT preserved to iss/ (writerMode={}); the exact ISS block may be "
                                 + "unavailable for triage",
@@ -273,43 +280,69 @@ public class IssDetectionUploadCoordinator {
     }
 
     /**
-     * Uploads the staged files to {@code iss/} (bounded) and records the round as done. The round is claimed atomically
-     * so the concurrent detection and failure paths never upload it twice; the loser returns. On failure the claim is
-     * released so the other (e.g. the authoritative failure) path can still try. Best-effort.
+     * Uploads the staged files to {@code iss/} (bounded), records the round as done, and returns whether the round is
+     * now uploaded. The round is claimed atomically via {@link #inFlightUploads} so the concurrent detection and
+     * failure paths never upload it twice. When the claim is already held by the other path, the detection path just
+     * skips (its outcome no longer matters), but the failure path ({@code awaitInFlight}) — the authoritative,
+     * last-chance capture, whose caller decides between silence and a "NOT preserved" FATAL — awaits the in-flight
+     * attempt (bounded by {@code uploadTimeout}) and retries with its own staged files if that attempt failed. So a
+     * lost claim race can neither fire a false FATAL nor silently drop the upload. Best-effort.
      */
-    private void uploadAndMark(
+    private boolean uploadAndMark(
             @NonNull final FailureBlockUploadConfig config,
             final long round,
             @NonNull final String incidentFolder,
-            @NonNull final List<Path> files) {
+            @NonNull final List<Path> files,
+            final boolean awaitInFlight) {
         if (files.isEmpty()) {
             log.warn("No ISS block located for round {}; skipping iss/ upload", round);
-            return;
+            return uploadedRounds.contains(round);
         }
-        if (uploadedRounds.contains(round)) {
-            return;
-        }
-        // Claim the round; if the other path already claimed it, return without uploading so it is never uploaded
-        // twice. add() returns false when the round is already in flight.
-        if (!uploadInProgressRounds.add(round)) {
-            return;
-        }
-        try {
+        while (true) {
             if (uploadedRounds.contains(round)) {
-                return; // completed by the other path between the check above and our claim
+                return true;
             }
-            // Mark the round done ONLY when the exact ISS block is confirmed uploaded. Both the disk resolver and the
-            // buffer reader order blocks oldest→newest, so the ISS block is the last entry and any earlier entries are
-            // best-effort preceding context. If a context block uploads but the ISS block fails, the round must stay
-            // unmarked so the CATASTROPHIC_FAILURE path can still retry the exact block.
-            if (uploadIssBlockBounded(config, incidentFolder, files)) {
-                uploadedRounds.add(round);
+            // Claim the round; if the other path already claimed it, its future carries the outcome so the round is
+            // never uploaded twice.
+            final var ourAttempt = new CompletableFuture<Boolean>();
+            final CompletableFuture<Boolean> inFlight = inFlightUploads.putIfAbsent(round, ourAttempt);
+            if (inFlight == null) {
+                boolean uploaded = false;
+                try {
+                    // Mark the round done ONLY when the exact ISS block is confirmed uploaded. Both the disk resolver
+                    // and the buffer reader order blocks oldest→newest, so the ISS block is the last entry and any
+                    // earlier entries are best-effort preceding context. If a context block uploads but the ISS block
+                    // fails, the round must stay unmarked so the CATASTROPHIC_FAILURE path can still retry the exact
+                    // block.
+                    uploaded = uploadIssBlockBounded(config, incidentFolder, files);
+                    if (uploaded) {
+                        uploadedRounds.add(round);
+                    }
+                    return uploaded;
+                } finally {
+                    // Release the claim first (so an awaiting failure path that sees a failed outcome can immediately
+                    // re-claim and retry), then publish the outcome. A completed round stays guarded by uploadedRounds.
+                    inFlightUploads.remove(round, ourAttempt);
+                    ourAttempt.complete(uploaded);
+                }
             }
-        } finally {
-            // Release the claim (even on success — a completed round stays guarded by uploadedRounds) so a later,
-            // distinct ISS round can still be uploaded, and so a failed upload does not permanently block a retry by
-            // the other path.
-            uploadInProgressRounds.remove(round);
+            if (!awaitInFlight) {
+                // Detection path: the failure path is uploading this round and checks the outcome itself.
+                return false;
+            }
+            try {
+                if (Boolean.TRUE.equals(inFlight.get(config.uploadTimeout().toMillis(), TimeUnit.MILLISECONDS))) {
+                    return true;
+                }
+                // The in-flight (detection) attempt failed; loop to claim the round and retry with our staged files.
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return uploadedRounds.contains(round);
+            } catch (final Exception e) {
+                // Timed out (the in-flight upload is still running) or failed exceptionally; report the current state
+                // rather than stacking another upload behind one that may still be holding the connection.
+                return uploadedRounds.contains(round);
+            }
         }
     }
 
@@ -349,30 +382,57 @@ public class IssDetectionUploadCoordinator {
 
     /**
      * Copies each resolved block's on-disk files (the contents file plus any {@code .pnd.json} proof sidecar) into
-     * {@code issDir}, and returns the copied <b>contents</b> paths. Sidecar discovery is intentionally left to the
-     * {@link BlockUploader}: it uploads each proof sidecar by resolving the sibling in the contents file's directory —
-     * which is exactly where this method places it (see {@code BuckyBlockUploader.proofSidecarOf}). Centralizing that in
-     * the uploader lets the triage path — which passes flushed files it did not copy here — share the same contract.
+     * {@code issDir}, and returns the copied <b>contents</b> paths. Per-block best-effort: a preceding context block
+     * (or a sidecar) that can no longer be copied — e.g. deleted by block retention cleanup between resolve and copy —
+     * is skipped rather than aborting the capture; but if the ISS block itself (the last entry) cannot be copied, the
+     * whole capture is discarded so the caller never uploads a context block in its place and never marks the round
+     * done without the exact ISS block. Sidecar discovery is intentionally left to the {@link BlockUploader}: it
+     * uploads each proof sidecar by resolving the sibling in the contents file's directory — which is exactly where
+     * this method places it (see {@code BuckyBlockUploader.proofSidecarOf}). Centralizing that in the uploader lets
+     * the triage path — which passes flushed files it did not copy here — share the same contract.
      */
-    private List<Path> materializeFromDisk(@NonNull final List<IssBlockRef> refs, @NonNull final Path issDir)
-            throws IOException {
+    private List<Path> materializeFromDisk(@NonNull final List<IssBlockRef> refs, @NonNull final Path issDir) {
         if (refs.isEmpty()) {
             return List.of();
         }
-        Files.createDirectories(issDir);
+        try {
+            Files.createDirectories(issDir);
+        } catch (final IOException e) {
+            log.warn("Cannot create ISS staging dir {}; nothing to upload", issDir, e);
+            return List.of();
+        }
         final List<Path> contents = new ArrayList<>(refs.size());
-        for (final IssBlockRef ref : refs) {
-            Path copiedContents = null;
-            for (final Path file : ref.files()) {
-                final Path dest = issDir.resolve(file.getFileName().toString());
-                Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
-                if (copiedContents == null) {
-                    copiedContents = dest; // the contents file is first; any .pnd.json sidecar follows
+        for (int i = 0; i < refs.size(); i++) {
+            final IssBlockRef ref = refs.get(i);
+            final List<Path> files = ref.files();
+            final Path contentsSrc = files.get(0); // the contents file is first; any .pnd.json sidecar follows
+            final Path contentsDest = issDir.resolve(contentsSrc.getFileName().toString());
+            try {
+                Files.copy(contentsSrc, contentsDest, StandardCopyOption.REPLACE_EXISTING);
+            } catch (final IOException e) {
+                if (i == refs.size() - 1) {
+                    log.warn(
+                            "ISS block #{} could not be staged from {}; discarding the capture",
+                            ref.blockNumber(),
+                            contentsSrc,
+                            e);
+                    return List.of();
+                }
+                log.warn("Skipping preceding context block #{}: could not stage {}", ref.blockNumber(), contentsSrc, e);
+                continue;
+            }
+            for (int j = 1; j < files.size(); j++) {
+                final Path sidecar = files.get(j);
+                try {
+                    Files.copy(
+                            sidecar,
+                            issDir.resolve(sidecar.getFileName().toString()),
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (final IOException e) {
+                    log.warn("Skipping sidecar {} of block #{}", sidecar, ref.blockNumber(), e);
                 }
             }
-            if (copiedContents != null) {
-                contents.add(copiedContents);
-            }
+            contents.add(contentsDest);
         }
         return contents;
     }

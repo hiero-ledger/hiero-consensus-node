@@ -108,6 +108,24 @@ class IssBufferBlockReaderTest {
     }
 
     @Test
+    void discardsContextOnlyCaptureWhenTheIssBlockVanishesMidScan() {
+        givenBuffer(1, 2);
+        givenBlock(1, 1);
+        // Block 2 (containing ISS round 6) is present for the locate scan, then pruned before the write pass.
+        final BlockState state2 = new BlockState(2);
+        state2.addItem(BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(5).build())
+                .build());
+        when(blockBufferService.getBlockState(2L)).thenReturn(state2).thenReturn(null);
+
+        final List<Path> written = subject.captureToDir(6, 1, tempDir);
+
+        // The ISS block itself was not captured; returning the context block (block 1) would let the caller upload it
+        // AS the ISS block and wrongly mark the round done — so the whole capture must be discarded.
+        assertThat(written).isEmpty();
+    }
+
+    @Test
     void returnsEmptyWhenRoundPrecedesEarliestBufferedBlock() {
         givenBuffer(10, 11);
         givenBlock(10, 100);

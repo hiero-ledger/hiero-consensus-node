@@ -55,7 +55,8 @@ public class IssBufferBlockReader {
      * @param round the ISS round to locate
      * @param precedingBlocks how many preceding blocks to also capture (clamped to the earliest buffered block)
      * @param targetDir the directory to write the {@code .iss.gz} artifact(s) into
-     * @return the written files ordered oldest→newest; empty if the round is not in the buffer or nothing was written
+     * @return the written files ordered oldest→newest, the ISS-round block always last; empty if the round is not in
+     * the buffer or the ISS-round block itself could not be written (a context-only capture is discarded)
      */
     @NonNull
     public List<Path> captureToDir(final long round, final int precedingBlocks, @NonNull final Path targetDir) {
@@ -94,6 +95,7 @@ public class IssBufferBlockReader {
 
         final long firstBlockNumber = Math.max(earliest, issBlockNumber - Math.max(0, precedingBlocks));
         final List<Path> written = new ArrayList<>();
+        Path issBlockPath = null;
         for (long n = firstBlockNumber; n <= issBlockNumber; n++) {
             final BlockState state = blockBufferService.getBlockState(n);
             if (state == null) {
@@ -103,12 +105,26 @@ public class IssBufferBlockReader {
                 final Path path = reconstruct(n, state, targetDir);
                 if (path != null) {
                     written.add(path);
+                    if (n == issBlockNumber) {
+                        issBlockPath = path;
+                    }
                 }
             } catch (final IOException e) {
                 log.warn("Failed to write buffered ISS block #{} to {}", n, targetDir, e);
             }
         }
-        final int found = written.isEmpty() ? 0 : written.size() - 1;
+        // The caller treats the LAST returned file as the exact ISS block (earlier entries are best-effort context).
+        // If the ISS block itself was not captured (pruned mid-scan, empty, or unwritable), discard the capture rather
+        // than let a context block be uploaded — and the round marked done — in its place; any context files already
+        // written stay on disk for local triage.
+        if (issBlockPath == null) {
+            log.warn(
+                    "ISS-round block #{} for round {} could not be captured from the buffer; discarding the capture",
+                    issBlockNumber,
+                    round);
+            return List.of();
+        }
+        final int found = written.size() - 1;
         if (found < Math.max(0, precedingBlocks)) {
             log.info(
                     "Requested {} preceding context block(s) for ISS round {} but only {} are buffered",

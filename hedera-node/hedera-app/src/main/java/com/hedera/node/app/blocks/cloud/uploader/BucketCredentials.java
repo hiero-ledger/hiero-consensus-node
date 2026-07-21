@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.function.UnaryOperator;
 
 /**
  * Bucket access credentials for ISS block upload (an access key / secret key pair).
@@ -46,7 +47,14 @@ public record BucketCredentials(
      */
     @NonNull
     public static BucketCredentials load(@NonNull final Path credentialsFile) {
+        return load(credentialsFile, System::getenv);
+    }
+
+    // visible for testing: lets tests exercise the environment-variable overrides without mutating the JVM's env
+    @NonNull
+    static BucketCredentials load(@NonNull final Path credentialsFile, @NonNull final UnaryOperator<String> env) {
         requireNonNull(credentialsFile);
+        requireNonNull(env);
         String accessKey = null;
         String secretKey = null;
         if (Files.isRegularFile(credentialsFile)) {
@@ -59,11 +67,11 @@ public record BucketCredentials(
             accessKey = trimToNull(props.getProperty(PROP_ACCESS_KEY));
             secretKey = trimToNull(props.getProperty(PROP_SECRET_KEY));
         }
-        final String envAccess = trimToNull(System.getenv(ENV_ACCESS_KEY));
+        final String envAccess = trimToNull(env.apply(ENV_ACCESS_KEY));
         if (envAccess != null) {
             accessKey = envAccess;
         }
-        final String envSecret = trimToNull(System.getenv(ENV_SECRET_KEY));
+        final String envSecret = trimToNull(env.apply(ENV_SECRET_KEY));
         if (envSecret != null) {
             secretKey = envSecret;
         }

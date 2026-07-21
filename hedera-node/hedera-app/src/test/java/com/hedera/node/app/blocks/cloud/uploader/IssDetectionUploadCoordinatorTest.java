@@ -32,6 +32,8 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -371,6 +373,109 @@ class IssDetectionUploadCoordinatorTest {
 
         // The ISS block was attempted on BOTH paths (it would be attempted only once had the partial detection upload
         // wrongly marked the round complete and suppressed the failure-path retry).
+        verify(uploader, times(2)).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(issGz)));
+    }
+
+    @Test
+    void missingPrecedingContextBlockDoesNotAbortTheIssBlockCapture() throws IOException {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(issConfig.precedingBlocks()).thenReturn(1);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+
+        final String issBase = FileBlockItemWriter.longToFileName(7L);
+        // The context block was resolved but has since vanished (e.g. deleted by retention cleanup); only the ISS
+        // block's file exists.
+        final Path missingContext = tempDir.resolve(FileBlockItemWriter.longToFileName(6L) + ".blk.gz");
+        final Path sourceBlk = Files.write(tempDir.resolve(issBase + ".blk.gz"), new byte[] {1, 2, 3});
+        when(diskResolver.resolve(IssType.SELF_ISS, 9, 1))
+                .thenReturn(List.of(
+                        new IssBlockRef(IssType.SELF_ISS, 9, 6, List.of(missingContext)),
+                        new IssBlockRef(IssType.SELF_ISS, 9, 7, List.of(sourceBlk))));
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), any()))
+                .thenReturn(List.of("uri"));
+
+        subject.captureAndUpload(IssType.SELF_ISS, 9);
+
+        // The unreadable context block is skipped, not fatal: the ISS block itself must still be staged and uploaded.
+        verify(uploader).uploadBlockFiles(eq(UploadCategory.ISS), eq(EXPECTED_FOLDER), filesCaptor.capture());
+        final Path copied = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve(EXPECTED_FOLDER)
+                .resolve("detect")
+                .resolve(issBase + ".blk.gz");
+        assertThat(filesCaptor.getValue()).containsExactly(copied);
+    }
+
+    @Test
+    void failurePathAwaitsAnInFlightDetectionUploadOfTheSameRound() throws Exception {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        final Path issGz =
+                issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.gz");
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of(issGz));
+        final CountDownLatch uploadEntered = new CountDownLatch(1);
+        final CountDownLatch releaseUpload = new CountDownLatch(1);
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(issGz))))
+                .thenAnswer(inv -> {
+                    uploadEntered.countDown();
+                    releaseUpload.await(5, TimeUnit.SECONDS);
+                    return List.of("uri");
+                });
+
+        // The detection path claims round 9 and blocks inside the upload...
+        final Thread detection = new Thread(() -> subject.captureAndUpload(IssType.SELF_ISS, 9));
+        detection.start();
+        assertThat(uploadEntered.await(5, TimeUnit.SECONDS)).isTrue();
+
+        // ...while the CATASTROPHIC_FAILURE path arrives for the SAME round. It must AWAIT the in-flight outcome
+        // rather than return instantly (which used to fire a false "NOT preserved" FATAL).
+        final Thread failure = new Thread(subject::uploadDetectedIssOnFailure);
+        failure.start();
+        failure.join(300);
+        assertThat(failure.isAlive()).isTrue();
+
+        releaseUpload.countDown();
+        failure.join(5_000);
+        detection.join(5_000);
+        assertThat(failure.isAlive()).isFalse();
+        // The detection upload succeeded, so the awaiting failure path must not upload the round a second time.
+        verify(uploader, times(1)).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), any());
+    }
+
+    @Test
+    void failurePathRetriesWhenAnInFlightDetectionUploadFails() throws Exception {
+        when(issConfig.issBlockUploadEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
+        final Path issGz =
+                issBlockDir.resolve("block-0.0.3").resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.gz");
+        when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of(issGz));
+        final CountDownLatch uploadEntered = new CountDownLatch(1);
+        final CountDownLatch releaseUpload = new CountDownLatch(1);
+        when(uploader.uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(issGz))))
+                // The in-flight detection upload ultimately FAILS (empty result)...
+                .thenAnswer(inv -> {
+                    uploadEntered.countDown();
+                    releaseUpload.await(5, TimeUnit.SECONDS);
+                    return List.of();
+                })
+                // ...and the failure path's retry succeeds.
+                .thenReturn(List.of("uri"));
+
+        final Thread detection = new Thread(() -> subject.captureAndUpload(IssType.SELF_ISS, 9));
+        detection.start();
+        assertThat(uploadEntered.await(5, TimeUnit.SECONDS)).isTrue();
+
+        final Thread failure = new Thread(subject::uploadDetectedIssOnFailure);
+        failure.start();
+        failure.join(300);
+        assertThat(failure.isAlive()).isTrue();
+
+        releaseUpload.countDown();
+        failure.join(5_000);
+        detection.join(5_000);
+        assertThat(failure.isAlive()).isFalse();
+        // The failure path observed the failed in-flight attempt and retried with its own staged files (it would have
+        // uploaded only once had the failure path silently deferred to the doomed detection attempt).
         verify(uploader, times(2)).uploadBlockFiles(eq(UploadCategory.ISS), anyString(), eq(List.of(issGz)));
     }
 

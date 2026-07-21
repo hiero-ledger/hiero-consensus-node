@@ -56,10 +56,13 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 - Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
 - A periodic pruning mechanism removes acknowledged and expired entries.
 - When backpressure is enabled, pruning also enforces a soft retention floor configured by
-  `blockStream.buffer.minAckedBlocksToBuffer` (default `10`): at least this many of the most recent acknowledged
+  `blockStream.buffer.minAckedBlocksToBuffer` (default `27`): at least this many of the most recent acknowledged
   blocks are retained (those above `highestBlockAcked - minAckedBlocksToBuffer`); older acknowledged blocks are
   dropped even while the buffer is below `maxBlocks`. This keeps steady-state memory low when the block node is
-  healthy while still preserving a small window of acknowledged blocks in case the block node re-requests one.
+  healthy while still preserving a window of acknowledged blocks in case the block node re-requests one. The
+  default is sized so the block containing an ISS round is still buffered when the asynchronous ISS detection
+  fires — up to `consensus.roundsNonAncient` (26) rounds after the offending round, plus one round of dispatch
+  margin — so it can be captured for upload (see the ISS block upload design doc).
   The soft limit is overridden by `maxBlocks` when the buffer is dominated by unacknowledged blocks — under that
   pressure, acknowledged blocks within the floor may still be evicted to make room.
 - The buffer size is monitored to apply backpressure when needed.
