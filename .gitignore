@@ -1099,7 +1099,7 @@ snyk/
 /.codex/
 **/ai.local
 
-### Solo Test-Clients Runtime Keys
+### Embedded HAPI Test Runtime Artifacts
 /hedera-node/test-clients/data/keys/tss/
 
 ### Solo Testing Output
