@@ -83,7 +83,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -95,7 +95,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(2)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -107,7 +107,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(3)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(1).startImmediately(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(

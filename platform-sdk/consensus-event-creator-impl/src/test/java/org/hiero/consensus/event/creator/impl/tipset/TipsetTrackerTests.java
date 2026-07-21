@@ -25,7 +25,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,8 +56,7 @@ class TipsetTrackerTests {
         final Random random = getRandomPrintSeed();
 
         final int nodeCount = random.nextInt(10, 20);
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
         final NodeId selfId = NodeId.of(random.nextLong(nodeCount));
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();

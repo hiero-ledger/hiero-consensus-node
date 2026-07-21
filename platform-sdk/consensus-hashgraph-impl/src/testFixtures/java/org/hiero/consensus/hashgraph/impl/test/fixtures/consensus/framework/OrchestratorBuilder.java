@@ -24,7 +24,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEv
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
@@ -95,10 +95,7 @@ public class OrchestratorBuilder {
         final long shuffler1Seed = random.nextLong();
         final long shuffler2Seed = random.nextLong();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(numberOfNodes)
-                .withWeightGenerator(weightGenerator)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, numberOfNodes, weightGenerator);
 
         final List<Long> weights =
                 roster.rosterEntries().stream().map(RosterEntry::weight).toList();
