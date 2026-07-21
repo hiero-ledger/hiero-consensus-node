@@ -4,11 +4,6 @@ name: "833: [CALL] CITR Exec SDLT"
 on:
   workflow_call:
     inputs:
-      test-asset:
-        required: true
-        default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
-        type: string
       ref:
         required: true
         default: "main"
@@ -39,6 +34,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      duration-minutes:
+        required: false
+        default: 720
+        description: "Expected duration of all tests in minutes"
+        type: number
       reconnect-uptime:
         required: true
         default: "600"
@@ -60,6 +60,12 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      chewie-host:
+        required: true
+        description: "Chewie Host"
+      chewie-id-key:
+        required: true
+        description: "Chewie Identity Key"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -81,16 +87,49 @@ env:
   NLG_VERSION: 0.14.3
 
 jobs:
-  acquire-kubernetes-resources:
-    # TODO: This will use the chewie-action as chewie develops.
-    name: Acquire Kubernetes Resources
-    uses: ./.github/workflows/834-call-read-chewie-response.yaml
+  get-chewie-jwt:
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.chewie-id-key }}
+      chewie-host: ${{ secrets.chewie-host }}
+
+  get-sdlt-config:
+    uses: ./.github/workflows/861-call-get-test-config.yaml
+    with:
+      test-type: "sdlt"
+      ref: ${{ inputs.ref }}
+    secrets:
+      checkout-token: ${{ secrets.github-token }}
+
+  validate-chewie-jwt:
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
     with:
       ref: ${{ inputs.ref }}
-      test-asset: ${{ inputs.test-asset }}
-      test-type: "sdlt"
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.github-token }}
+
+  acquire-kubernetes-resources:
+    needs:
+      - validate-chewie-jwt
+      - get-chewie-jwt
+      - get-sdlt-config
+    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    with:
+      instances-cn-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-qty) }}
+      instances-cn-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-cpu-request) }}
+      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-mem-request-mb) }}
+      instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
+      instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
+      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
+      duration-minutes: ${{ inputs.duration-minutes }}
+      token-expiry: ${{ needs.get-chewie-jwt.outputs.expiration }}
     secrets:
       github-token: ${{ secrets.github-token }}
+      chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      chewie-host: ${{ secrets.chewie-host }}
 
   longevity-tests-start:
     name: Start
@@ -234,6 +273,9 @@ jobs:
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
