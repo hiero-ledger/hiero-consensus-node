@@ -51,7 +51,7 @@ public class ReconnectCoordinator {
      * @see StatusStateMachine#submitStatusAction
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        platformCoordinator.submitStatusAction(action);
+        components.statusMonitorModule().submitStatusAction(action);
     }
 
     /**
@@ -66,7 +66,7 @@ public class ReconnectCoordinator {
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        components.platformMonitorWiring().flush();
+        components.statusMonitorModule().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
@@ -132,7 +132,7 @@ public class ReconnectCoordinator {
      * @param signedState the signed state to load into the platform
      */
     public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
-        platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+        components.issDetectionModule().overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
         components
                 .transactionHandlingModule()
@@ -141,12 +141,12 @@ public class ReconnectCoordinator {
         // this will log the state and send it to the signature collector which will send it to be written to disk.
         // in the future, we might not send it to the collector because it already has all the signatures
         // if this is the case, we must make sure to send it to the writer directly
-        platformCoordinator.sendStateToStateManagement(signedState);
+        components.stateModule().sendState(signedState);
 
         final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
-        platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
+        components.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
 
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
@@ -159,7 +159,7 @@ public class ReconnectCoordinator {
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
-        platformCoordinator.updateRunningHash(runningEventHashOverride);
+        components.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
     }
 

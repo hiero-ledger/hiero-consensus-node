@@ -113,7 +113,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -268,6 +268,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload WRB Failure Artifacts
@@ -296,14 +303,16 @@ jobs:
       - extract-jdk-version
     if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
     runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
-    timeout-minutes: 180
+    # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
+    # needs extra headroom, so both the step and job budgets are widened below.
+    timeout-minutes: 210
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -427,7 +436,7 @@ jobs:
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
-          timeout --signal=SIGINT --kill-after=5m 150m \
+          timeout --signal=SIGINT --kill-after=5m 175m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               UPGRADE_075_VERSION="${UPGRADE_075_VERSION}" \
@@ -435,6 +444,7 @@ jobs:
               KUBE_CONTEXT="${KUBE_CONTEXT}" \
               SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
               KEEP_NETWORK="false" \
+              ENABLE_TCK_TESTS="true" \
             "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
 
       - name: Collect Diagnostics On Failure
@@ -456,11 +466,30 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
               "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
               > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+            # Staged-build layout: shows exactly which jars solo left in data/apps + data/lib,
+            # to diagnose local-build staging failures (e.g. NoClassDefFoundError at startup).
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "ls -la /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib" \
+              > "${OUT_DIR}/${pod}-staged-build-listing.txt" 2>&1
+          done
+
+          # Mirror-node logs (importer above all) — needed to trace BN-fed ingestion gaps
+          # such as token-supply updates or the address book not surfacing in mirror REST.
+          for mn_dep in mirror-1-importer mirror-1-rest mirror-1-restjava mirror-1-grpc; do
+            kubectl -n "${SOLO_NAMESPACE}" logs "deployment/${mn_dep}" --all-containers --tail=-1 \
+              > "${OUT_DIR}/${mn_dep}.log" 2>&1
           done
 
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload Cutover Failure Artifacts
@@ -493,7 +522,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -601,6 +630,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload 075-to-076 TSS Failure Artifacts
@@ -634,7 +670,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -647,6 +683,8 @@ jobs:
           gradle-cache-read-only: "false"
           setup-node: "true"
           node-version: "22"
+          setup-go: "true"
+          go-version: "1.26.4"
 
       - name: Checkout Block Node (main)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -693,9 +731,7 @@ jobs:
 
       - name: Install grpcurl
         run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
+          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
@@ -737,10 +773,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
-            # Exclude the WRAPS proving key from the logs artifact: solo's per-node log-config
-            # bundles carry the key (~4 GB/node), and the logs they contain are already
-            # captured above via kubectl.
-            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' -delete || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload 076-to-077 Cutover Failure Artifacts
@@ -774,7 +813,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # v1.1.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -868,7 +907,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -1016,6 +1055,13 @@ jobs:
           if [[ -d "${HOME}/.solo/logs" ]]; then
             mkdir -p "${OUT_DIR}/solo-logs"
             cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
+            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
+            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
+            # the proving key is a reproducible ~4 GB download, not a log.
+            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
+              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
+            done
           fi
 
       - name: Upload WRB Streaming Failure Artifacts

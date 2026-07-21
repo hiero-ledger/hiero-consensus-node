@@ -632,6 +632,33 @@ class EthTxDataTest {
     }
 
     @Test
+    void encodeRlpListEncodesAccessListItemWithThreeEmptyNestedLists() {
+        final Object[] encodedAccessList = new Object[] {
+            new Object[] {
+                new Object[] {new Object[] {RLPEncoder.list("invalid_key".getBytes(), "invalid_value".getBytes())}}
+            }
+        };
+        final var oneByte = new byte[] {1};
+        final byte[] raw = RLPEncoder.sequence(
+                Integers.toBytes(0x02),
+                List.of(
+                        oneByte,
+                        oneByte,
+                        oneByte,
+                        oneByte,
+                        Integers.toBytes(100),
+                        oneByte,
+                        Integers.toBytesUnsigned(BigInteger.ZERO),
+                        new byte[] {},
+                        encodedAccessList,
+                        Integers.toBytes(27),
+                        oneByte,
+                        oneByte));
+
+        assertNull(EthTxData.populateEthTxData(raw));
+    }
+
+    @Test
     void maxGasIsPositive() {
         final var oneByte = new byte[] {1};
         // high bit of most significant byte is zero

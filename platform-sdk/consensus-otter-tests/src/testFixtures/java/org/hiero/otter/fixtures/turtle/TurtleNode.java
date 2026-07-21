@@ -7,6 +7,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -24,9 +25,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.builder.InitialStateLoader;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -63,6 +66,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -319,14 +323,33 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
             buildingBlocks
-                    .platformMonitorWiring()
-                    .getOutputWire()
+                    .statusMonitorModule()
+                    .platformStatusOutputWire()
                     .solderTo(
                             "nodePlatformStatusCollector",
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
-            platform = new SwirldsPlatform(inputs, factoryOutput.platformCoordinator(), buildingBlocks);
+            final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
+
+            try (final ReservedSignedState ignoredInitialState = initialState) {
+                final SignedState initialSignedState = initialState.get();
+                final boolean startedFromGenesis = initialSignedState.isGenesisState();
+
+                if (startedFromGenesis) {
+                    platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+                } else {
+                    final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
+                    platform = new SwirldsPlatform(
+                            inputs,
+                            platformCoordinator,
+                            buildingBlocks,
+                            initialAncientThreshold,
+                            initialSignedState.getRound());
+                }
+                InitialStateLoader.initializeModulesWithInitialState(
+                        platform, inputs, buildingBlocks, platformCoordinator);
+            }
             getMetricsProvider().start();
             platformStatus = PlatformStatus.STARTING_UP;
 
@@ -603,5 +626,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void stopProfiling() {
         throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Thread dump is not supported in the Turtle environment.
+     *
+     * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
+     */
+    @Override
+    @NonNull
+    public String dumpThreads() {
+        throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
     }
 }

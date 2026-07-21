@@ -128,12 +128,6 @@ on:
       gradle-cache-password:
         description: "Gradle Cache Password"
         required: false
-      grafana-agent-username:
-        description: "Grafana Agent Username"
-        required: false
-      grafana-agent-password:
-        description: "Grafana Agent Password"
-        required: false
       jrs-ssh-user-name:
         description: "JRS SSH User Name"
         required: false
@@ -178,7 +172,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -252,9 +246,7 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
-      # (FUTURE) Flip to "true" once the hl-cn-hapi-wraps-lin-lg runner pool exists with
-      # the WRAPS proving-key artifacts mounted at /opt/wraps-v1.0.0
-      enable-hapi-tests-wraps: "false"
+      enable-hapi-tests-wraps: "true"
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
@@ -271,7 +263,7 @@ jobs:
     uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       enable-full-otter-tests: true
-      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
+      enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
@@ -321,8 +313,6 @@ jobs:
       slack-api-token: ${{ secrets.slack-api-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
@@ -489,7 +479,7 @@ jobs:
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
