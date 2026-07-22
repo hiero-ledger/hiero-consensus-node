@@ -8,21 +8,15 @@ import java.util.Objects;
 import org.hiero.base.utility.DurationUtils;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#ACTIVE} status.
  */
-public class ActiveStatusLogic implements PlatformStatusLogic {
+public class ActiveStatusLogic extends AbstractStatusLogic {
     /**
      * The platform status config
      */
@@ -44,137 +38,60 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
             @NonNull final Instant lastWallClockTimeSelfEventReachedConsensus,
             @NonNull final PlatformStatusConfig config) {
 
+        super(PlatformStatus.ACTIVE);
         this.lastWallClockTimeSelfEventReachedConsensus =
                 Objects.requireNonNull(lastWallClockTimeSelfEventReachedConsensus);
         this.config = Objects.requireNonNull(config);
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * {@link PlatformStatus#ACTIVE} status unconditionally transitions to {@link PlatformStatus#CATASTROPHIC_FAILURE}
-     * when a {@link CatastrophicFailureAction} is processed.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processCatastrophicFailureAction(@NonNull final CatastrophicFailureAction action) {
-        return new CatastrophicFailureStatusLogic();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link DoneReplayingEventsAction} while in {@link PlatformStatus#ACTIVE} throws an exception, since
-     * this is not conceivable in standard operation.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processDoneReplayingEventsAction(@NonNull final DoneReplayingEventsAction action) {
-        Objects.requireNonNull(action);
-
-        throw new IllegalPlatformStatusException(action, getStatus());
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
      * {@link PlatformStatus#ACTIVE} status unconditionally transitions to {@link PlatformStatus#BEHIND} when a
      * {@link FallenBehindAction} is processed.
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processFallenBehindAction(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
         return new BehindStatusLogic(config);
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
      * {@link PlatformStatus#ACTIVE} status unconditionally transitions to {@link PlatformStatus#FREEZING} when a
      * {@link FreezePeriodEnteredAction} is processed.
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processFreezePeriodEnteredAction(@NonNull final FreezePeriodEnteredAction action) {
-        Objects.requireNonNull(action);
-
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
         return new FreezingStatusLogic(action.freezeRound());
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link ReconnectCompleteAction} while in {@link PlatformStatus#ACTIVE} throws an exception, since
-     * this is not conceivable in standard operation.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processReconnectCompleteAction(@NonNull final ReconnectCompleteAction action) {
-        Objects.requireNonNull(action);
-
-        throw new IllegalPlatformStatusException(action, getStatus());
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
      * Receiving a {@link SelfEventReachedConsensusAction} while in {@link PlatformStatus#ACTIVE} doesn't ever result in
      * a status transition, but this logic method does record the wall clock time the event reached consensus.
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processSelfEventReachedConsensusAction(
-            @NonNull final SelfEventReachedConsensusAction action) {
-
+    protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusAction action) {
         lastWallClockTimeSelfEventReachedConsensus = action.wallClockTime();
         return this;
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link StartedReplayingEventsAction} while in {@link PlatformStatus#ACTIVE} throws an exception,
-     * since this is not conceivable in standard operation.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processStartedReplayingEventsAction(@NonNull final StartedReplayingEventsAction action) {
-        Objects.requireNonNull(action);
-
-        throw new IllegalPlatformStatusException(action, getStatus());
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link StateWrittenToDiskAction} while in {@link PlatformStatus#ACTIVE} causes a transition to
-     * {@link PlatformStatus#FREEZE_COMPLETE} if it's a freeze state.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processStateWrittenToDiskAction(@NonNull final StateWrittenToDiskAction action) {
-        Objects.requireNonNull(action);
-
-        return action.isFreezeState() ? new FreezeCompleteStatusLogic() : this;
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, this method evaluates
-     * whether the platform should transition to {@link PlatformStatus#CHECKING} based on two timing conditions:
+     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, this method evaluates whether
+     * the platform should transition to {@link PlatformStatus#CHECKING} based on two timing conditions:
      * <ul>
      *   <li><b>Quiescing state check:</b> If the platform is currently quiescing, it remains in
      *       {@link PlatformStatus#ACTIVE} regardless of elapsed time.</li>
-     *   <li><b>Time since (not/break) quiescence command:</b> If a grace period has not elapsed since the instruction to stop quiescence,
-     *   the status remains {@link PlatformStatus#ACTIVE}. This gives a recently created new event after quiescing enough time to reach consensus.</li>
-     *   <li><b>Time since last consensus:</b> If both above conditions pass, the method checks whether enough time
-     *     has elapsed since the last self event reached consensus and transitions to {@link PlatformStatus#CHECKING} if so.</li>
+     *   <li><b>Time since (not/break) quiescence command:</b> If a grace period has not elapsed since the instruction to
+     *   stop quiescence, the status remains {@link PlatformStatus#ACTIVE}. This gives a recently created new event after
+     *   quiescing enough time to reach consensus.</li>
+     *   <li><b>Time since last consensus:</b> If both above conditions pass, the method checks whether enough time has
+     *     elapsed since the last self event reached consensus and transitions to {@link PlatformStatus#CHECKING} if
+     *     so.</li>
      * </ul>
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
+    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedAction action) {
         final var isQuiescing = action.quiescingStatus().isQuiescing();
         final boolean stopQuiesceGracePeriodElapsed = DurationUtils.isLonger(
                 Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
@@ -191,14 +108,5 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
         } else {
             return this;
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    public PlatformStatus getStatus() {
-        return PlatformStatus.ACTIVE;
     }
 }

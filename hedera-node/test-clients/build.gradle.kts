@@ -118,12 +118,16 @@ tasks.test {
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
+
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|BLOCK_NODE_SIM|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -144,7 +148,6 @@ val prCheckTags =
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
-        "hapiTestBlockNodeSimCommunication" to "BLOCK_NODE_SIM",
         "hapiTestMisc" to miscTags,
         "hapiTestMiscSerial" to miscTagsSerial,
         "hapiTestMiscRecords" to miscTags,
@@ -196,7 +199,6 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
-        "hapiTestBlockNodeSimCommunication" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -426,6 +428,9 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -560,6 +565,9 @@ tasks.register<Test>("testSubprocessConcurrent") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -633,6 +641,9 @@ tasks.register<Test>("testRemote") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -716,6 +727,9 @@ tasks.register<Test>("testEmbedded") {
         systemProperty("fees.simpleFeesEnabled", "true")
     }
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 }
@@ -768,6 +782,9 @@ tasks.register<Test>("testRepeatable") {
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"

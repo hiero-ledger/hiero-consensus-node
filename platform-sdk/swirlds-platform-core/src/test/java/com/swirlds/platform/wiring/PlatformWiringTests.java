@@ -9,6 +9,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgr
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpIssDetectionModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateManagementModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatusMonitorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -26,9 +27,10 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
@@ -44,7 +46,6 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
@@ -99,13 +100,11 @@ class PlatformWiringTests {
                 "123",
                 "cesStream",
                 0,
-                null,
+                _ -> {},
                 model,
                 null,
-                null);
+                Map.of());
 
-        final PlatformSchedulersConfig platformSchedulersConfig =
-                configuration.getConfigData(PlatformSchedulersConfig.class);
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
@@ -115,8 +114,6 @@ class PlatformWiringTests {
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
-                new ComponentWiring<>(model, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
@@ -128,6 +125,7 @@ class PlatformWiringTests {
         final TransactionHandlingModule transactionHandlingModule =
                 createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
         final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
@@ -144,7 +142,7 @@ class PlatformWiringTests {
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
                 notifierWiring,
-                platformMonitorWiring,
+                statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
                 null,
                 null,
@@ -153,28 +151,9 @@ class PlatformWiringTests {
                 null);
         PlatformWiring.wire(inputs, buildingBlocks);
 
-        final PlatformComponents platformComponents = new PlatformComponents(
-                model,
-                eventCreatorModule,
-                eventIntakeModule,
-                pcesModule,
-                hashgraphModule,
-                gossipModule,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateModule,
-                eventStreamWiring,
-                runningEventHashOverrideWiring,
-                eventWindowManagerWiring,
-                notifierWiring,
-                platformMonitorWiring);
-
-        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
-
         eventWindowManagerWiring.bind(mock(EventWindowManager.class));
         eventStreamWiring.bind(mock(ConsensusEventStream.class));
         notifierWiring.bind(mock(AppNotifier.class));
-        platformMonitorWiring.bind(mock(PlatformMonitor.class));
 
         model.start();
         assertFalse(model.checkForUnboundInputWires());

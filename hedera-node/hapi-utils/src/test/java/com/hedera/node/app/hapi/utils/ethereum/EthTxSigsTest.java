@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.CHAINID_TESTNET;
@@ -27,7 +26,6 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import org.hiero.base.utility.CommonUtils;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -146,10 +144,11 @@ class EthTxSigsTest {
     @Test
     void extractsAddress() {
         // good recovery
-        Assertions.assertArrayEquals(TRUFFLE0_ADDRESS, recoverAddressFromPubKey(TRUFFLE0_PUBLIC_ECDSA_KEY));
+        Assertions.assertArrayEquals(
+                TRUFFLE0_ADDRESS, EthSigsUtils.recoverAddressFromPubKey(TRUFFLE0_PUBLIC_ECDSA_KEY));
 
         // failed recovery
-        assertArrayEquals(new byte[0], recoverAddressFromPubKey(TRUFFLE0_PRIVATE_ECDSA_KEY));
+        assertArrayEquals(new byte[0], EthSigsUtils.recoverAddressFromPubKey(TRUFFLE0_PRIVATE_ECDSA_KEY));
     }
 
     @Test
@@ -308,7 +307,7 @@ class EthTxSigsTest {
         Mockito.when(codeDelegation.s()).thenReturn(s);
         Mockito.when(codeDelegation.calculateSignableMessage()).thenReturn(message);
 
-        final LibSecp256k1.secp256k1_pubkey fakePubKey = Mockito.mock(LibSecp256k1.secp256k1_pubkey.class);
+        final byte[] fakePubKey = new byte[0];
 
         try (MockedStatic<EthTxSigs> sigsMock = Mockito.mockStatic(EthTxSigs.class);
                 MockedStatic<EthSigsUtils> addrMock = Mockito.mockStatic(EthSigsUtils.class)) {
@@ -321,11 +320,10 @@ class EthTxSigsTest {
                             Mockito.any(byte[].class)))
                     .thenReturn(fakePubKey);
 
-            sigsMock.when(() ->
-                            EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+            sigsMock.when(() -> EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(byte[].class)))
                     .thenReturn(expectedCompressedKey);
 
-            addrMock.when(() -> EthSigsUtils.recoverAddressFromPubKey(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+            addrMock.when(() -> EthSigsUtils.recoverAddressFromParsedPubKey(Mockito.any(byte[].class)))
                     .thenReturn(expectedAddress);
 
             sigsMock.when(() -> EthTxSigs.extractAuthoritySignature(codeDelegation))

@@ -47,12 +47,11 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.FallenBehindConfig_;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -114,11 +113,10 @@ class ReconnectControllerTest {
         final Random random = getRandomPrintSeed();
 
         // Create roster
-        roster = RandomRosterBuilder.create(random)
-                .withSize(NUM_NODES)
-                .withWeightGenerator(
-                        (l, i) -> WeightGenerators.balancedNodeWeights(NUM_NODES, WEIGHT_PER_NODE * NUM_NODES))
-                .build();
+        roster = RosterFactory.randomRoster(
+                random,
+                NUM_NODES,
+                (l, i) -> WeightGenerators.balancedNodeWeights(NUM_NODES, WEIGHT_PER_NODE * NUM_NODES));
 
         nodeIds = roster.rosterEntries().stream()
                 .map(it -> NodeId.of(it.nodeId()))
@@ -159,10 +157,7 @@ class ReconnectControllerTest {
         reconnectCoordinator = mock(ReconnectCoordinator.class);
 
         // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
-                .getOrCreateConfig();
-        fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
+        fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.5);
 
         // Configure platformCoordinator.pauseGossip() to call fallenBehindMonitor.notifySyncProtocolPaused()
         doAnswer(inv -> {

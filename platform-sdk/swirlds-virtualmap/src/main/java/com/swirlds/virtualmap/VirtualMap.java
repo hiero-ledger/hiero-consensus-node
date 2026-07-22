@@ -22,6 +22,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -32,13 +33,12 @@ import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.VirtualRoot;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.FullLeafRehashHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,6 +48,7 @@ import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -220,9 +221,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     private final VirtualNodeCache cache;
 
     /**
-     * A reference to the map metadata, such as the first leaf path, last leaf path, name ({@link VirtualMapMetadata}).
+     * A reference to the map metadata, such as the first leaf path, last leaf path.
      */
-    private final VirtualMapMetadata metadata;
+    private final Metadata metadata;
 
     /**
      * An interface through which the {@link VirtualMap} can access record data from the cache and the
@@ -322,7 +323,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         this.dataSource = dataSourceBuilder.build(LABEL, snapshotPath, true, false);
-        this.metadata = new VirtualMapMetadata(this.dataSource.getFirstLeafPath(), this.dataSource.getLastLeafPath());
+        this.metadata = new Metadata(this.dataSource.getFirstLeafPath(), this.dataSource.getLastLeafPath());
         this.statistics = new VirtualMapStatistics(LABEL);
         this.statistics.setSize(size());
 
@@ -369,7 +370,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @param virtualMapConfig  the virtual map configuration
      * @param dataSourceBuilder the data source builder
      * @param dataSource        the data source containing the reconnected state
-     * @param metadata          metadata describing the reconnected tree (size, first/last leaf paths)
      * @param statistics        statistics object carried over from the original map
      * @param hasher            the virtual hasher instance
      * @param reconnectHash     the root hash produced by the reconnect hashing process; may be
@@ -379,7 +379,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             @NonNull final VirtualMapConfig virtualMapConfig,
             @NonNull final VirtualDataSourceBuilder dataSourceBuilder,
             @NonNull final VirtualDataSource dataSource,
-            @NonNull final VirtualMapMetadata metadata,
             @NonNull final VirtualMapStatistics statistics,
             @NonNull final VirtualHasher hasher,
             @Nullable final Hash reconnectHash) {
@@ -389,7 +388,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         this.dataSource = requireNonNull(dataSource);
-        this.metadata = requireNonNull(metadata);
+        this.metadata = new Metadata(this.dataSource.getFirstLeafPath(), this.dataSource.getLastLeafPath());
         this.statistics = requireNonNull(statistics);
         this.statistics.setSize(size());
 
@@ -787,8 +786,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             if (lastLeafParent == ROOT_PATH) {
                 if (firstLeafPath == lastLeafPath) {
                     // We just removed the very last leaf, so set these paths to be invalid
-                    metadata.setFirstLeafPath(INVALID_PATH);
-                    metadata.setLastLeafPath(INVALID_PATH);
+                    metadata.clear();
                 } else {
                     // We removed the second to last leaf, so the first & last leaf paths are now the same.
                     metadata.setLastLeafPath(FIRST_LEFT_PATH);
@@ -808,8 +806,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 cache.putLeaf(sibling.withPath(lastLeafParent));
 
                 // Update the first & last leaf paths
-                metadata.setFirstLeafPath(lastLeafParent); // replaced by the sibling, it is now first
-                metadata.setLastLeafPath(lastLeafSibling - 1); // One left of the last leaf sibling
+                metadata.setPaths(lastLeafParent, lastLeafSibling - 1);
             }
             statistics.setSize(metadata.getSize());
 
@@ -979,7 +976,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
 
         final long start = System.currentTimeMillis();
-        flush(cache, metadata, dataSource);
+        flush(cache, dataSource);
         cache.release();
         final long end = System.currentTimeMillis();
         flushed.set(true);
@@ -1023,18 +1020,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 end - start);
     }
 
-    private void flush(VirtualNodeCache cacheToFlush, VirtualMapMetadata stateToUse, VirtualDataSource ds) {
+    private void flush(VirtualNodeCache cacheToFlush, VirtualDataSource ds) {
         try {
             // Get the leaves that were changed and sort them by path so that lower paths come first
             final Stream<VirtualLeafBytes> dirtyLeaves =
-                    cacheToFlush.dirtyLeavesForFlush(stateToUse.getFirstLeafPath(), stateToUse.getLastLeafPath());
+                    cacheToFlush.dirtyLeavesForFlush(metadata.getFirstLeafPath(), metadata.getLastLeafPath());
             // Get the deleted leaves
             final Stream<VirtualLeafBytes> deletedLeaves = cacheToFlush.deletedLeaves();
             // Save the dirty hashes
-            final Stream<VirtualHashChunk> dirtyHashes = cacheToFlush.dirtyHashesForFlush(stateToUse.getLastLeafPath());
+            final Stream<VirtualHashChunk> dirtyHashes = cacheToFlush.dirtyHashesForFlush(metadata.getLastLeafPath());
             ds.saveRecords(
-                    stateToUse.getFirstLeafPath(),
-                    stateToUse.getLastLeafPath(),
+                    metadata.getFirstLeafPath(),
+                    metadata.getLastLeafPath(),
                     dirtyHashes,
                     dirtyLeaves,
                     deletedLeaves,
@@ -1065,11 +1062,11 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     }
 
     /**
-     * Gets the current state.
+     * Gets the current metadata of the map.
      *
      * @return The current state
      */
-    public VirtualMapMetadata getMetadata() {
+    public Metadata getMetadata() {
         return metadata;
     }
 
@@ -1214,7 +1211,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
             try {
                 VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
-                flush(cache.snapshot(), metadata, dataSourceCopy);
+                flush(cache.snapshot(), dataSourceCopy);
                 return dataSourceCopy;
             } finally {
                 try {
@@ -1334,8 +1331,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         if (lastLeafPath == INVALID_PATH) {
             // There are no leaves! So this one will just go left on the root
             leafPath = getLeftChildPath(ROOT_PATH);
-            metadata.setLastLeafPath(leafPath);
-            metadata.setFirstLeafPath(leafPath);
+            metadata.setPaths(leafPath, leafPath);
         } else if (isLeft(lastLeafPath)) {
             // The only time that lastLeafPath is a left node is if the parent is root.
             // In all other cases, it will be a right node. So we can just add this
@@ -1363,8 +1359,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             leafPath = getRightChildPath(firstLeafPath);
 
             // Save the first and last leaf paths
-            metadata.setLastLeafPath(leafPath);
-            metadata.setFirstLeafPath(nextFirstLeafPath);
+            metadata.setPaths(nextFirstLeafPath, leafPath);
         }
         statistics.setSize(metadata.getSize());
 
@@ -1430,7 +1425,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             dataSourceCopy = dataSourceBuilder.build(LABEL, snapshotPath, false, true);
             // Then flush the cache snapshot to the data source copy
             final long cacheFlushStart = System.currentTimeMillis();
-            flush(cacheSnapshot.getValue(), metadata, dataSourceCopy);
+            flush(cacheSnapshot.getValue(), dataSourceCopy);
             logger.info(STARTUP.getMarker(), "++++++++ VM snapshot, cache flush, took {} ms",
                     System.currentTimeMillis() - cacheFlushStart);
             // And finally snapshot the copy to the target dir
@@ -1483,11 +1478,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return virtualMap;
     }
 
-    /*
-     * Implementation of Map-like methods
-     **/
-
-    /*
+    /**
      * Gets the number of elements in this map.
      *
      * @return The number of key/value pairs in the map.
@@ -1496,12 +1487,152 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         return metadata.getSize();
     }
 
-    /*
+    /**
      * Gets whether this map is empty.
      *
      * @return True if the map is empty
      */
     public boolean isEmpty() {
         return size() == 0;
+    }
+
+    /**
+     * Metadata about the virtual map, including the first and last leaf paths.
+     */
+    public static final class Metadata {
+
+        private long firstLeafPath;
+
+        private long lastLeafPath;
+
+        public Metadata() {
+            this(VirtualDataSource.INVALID_PATH, VirtualDataSource.INVALID_PATH);
+        }
+
+        public Metadata(long firstLeafPath, long lastLeafPath) {
+            setPaths(firstLeafPath, lastLeafPath);
+        }
+
+        public Metadata copy() {
+            return new Metadata(firstLeafPath, lastLeafPath);
+        }
+
+        /**
+         * @return the path of the very first leaf in the tree. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH} if there are no leaves.
+         */
+        public long getFirstLeafPath() {
+            return firstLeafPath;
+        }
+
+        /**
+         * @return the path of the very last leaf in the tree. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH} if there are no leaves.
+         */
+        public long getLastLeafPath() {
+            return lastLeafPath;
+        }
+
+        /**
+         * @return size of current range (number of leaves).
+         */
+        public long getSize() {
+            if (getFirstLeafPath() == INVALID_PATH) {
+                return 0;
+            }
+
+            return getLastLeafPath() - getFirstLeafPath() + 1;
+        }
+
+        /**
+         * Determines if a given path refers to a leaf
+         *
+         * @param path the virtual path
+         * @return {@code true} if the path is within the leaf range
+         */
+        public boolean isLeaf(final long path) {
+            return (path >= firstLeafPath) && (path <= lastLeafPath) && (firstLeafPath != INVALID_PATH);
+        }
+
+        /**
+         * Set the first leaf path.
+         *
+         * @param path The new path. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+         * @throws IllegalArgumentException If the path is not valid
+         */
+        void setFirstLeafPath(final long path) {
+            if (path < 1 && path != INVALID_PATH) {
+                throw new IllegalArgumentException("The path must be positive, or INVALID_PATH, but was " + path);
+            }
+            if (path > lastLeafPath) {
+                throw new IllegalArgumentException("The firstLeafPath must be less than or equal to the lastLeafPath");
+            }
+            firstLeafPath = path;
+        }
+
+        /**
+         * Set the last leaf path.
+         *
+         * @param path The new path. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+         * @throws IllegalArgumentException If the path is not valid
+         */
+        void setLastLeafPath(final long path) {
+            if (path < 1 && path != INVALID_PATH) {
+                throw new IllegalArgumentException("The path must be positive, or INVALID_PATH, but was " + path);
+            }
+            if (path < firstLeafPath && path != INVALID_PATH) {
+                throw new IllegalArgumentException(
+                        "The lastLeafPath must be greater than or equal to the firstLeafPath");
+            }
+            this.lastLeafPath = path;
+        }
+
+        void clear() {
+            firstLeafPath = INVALID_PATH;
+            lastLeafPath = INVALID_PATH;
+        }
+
+        void setPaths(final long firstLeafPath, final long lastLeafPath) {
+            if (lastLeafPath == firstLeafPath) {
+                if ((firstLeafPath != VirtualDataSource.INVALID_PATH) && (firstLeafPath != 1)) {
+                    throw new IllegalArgumentException("Invalid paths: " + firstLeafPath + "/" + lastLeafPath);
+                }
+            } else if (lastLeafPath < firstLeafPath) {
+                throw new IllegalArgumentException(
+                        "The lastLeafPath must be greater than or equal to the firstLeafPath");
+            }
+            this.firstLeafPath = firstLeafPath;
+            this.lastLeafPath = lastLeafPath;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public String toString() {
+            return new ToStringBuilder(this)
+                    .append("firstLeafPath", firstLeafPath)
+                    .append("lastLeafPath", lastLeafPath)
+                    .append("size", getSize())
+                    .toString();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) return true;
+            if (o instanceof Metadata other) {
+                return firstLeafPath == other.getFirstLeafPath() && lastLeafPath == other.getLastLeafPath();
+            }
+            return false;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(firstLeafPath, lastLeafPath);
+        }
     }
 }

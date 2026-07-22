@@ -55,12 +55,13 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
+import com.swirlds.platform.config.ConfigurationSetupUtils;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -75,6 +76,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -139,7 +141,7 @@ public class ServicesMain {
     public static void main(final String... args) throws Exception {
         // --- Configure platform infrastructure and derive node id from the command line and environment ---
         initLogging();
-        BootstrapUtils.setupConstructableRegistry();
+        ConstructableRegistration.setupConstructableRegistry();
         final var commandLineArgs = CommandLineArgs.parse(args);
         if (commandLineArgs.localNodesToStart().size() > 1) {
             logger.error(
@@ -241,24 +243,28 @@ public class ServicesMain {
         hedera.setTxnOffsetNanos(transactionOffsetNanos);
         logger.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
 
+        final var persistenceScope = new PersistenceScope(Hedera.APP_NAME, Hedera.SWIRLD_NAME);
+
         // --- Now build the platform and start it ---
-        final var platformBuilder = PlatformBuilder.create(
-                        Hedera.APP_NAME,
-                        Hedera.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        consensusStateEventHandler,
-                        selfId,
-                        consensusEventStreamName,
+        final var platform = new PlatformBuilder<>(
+                        platformConfig,
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
                         rosterHistory,
-                        hedera.getStateLifecycleManager())
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(hedera)
+                        keysAndCerts,
+                        selfId,
+                        platformContext.getRecycleBin(),
+                        platformContext.getFileSystemManager(),
+                        hedera,
+                        consensusStateEventHandler,
+                        initialState,
+                        hedera.getStateLifecycleManager(),
+                        version,
+                        persistenceScope,
+                        consensusEventStreamName,
+                        transactionOffsetNanos)
                 .withStaleEventConsumer(hedera)
-                .withTransactionOffsetNanos(transactionOffsetNanos);
-        final var platform = platformBuilder.build();
+                .build();
 
         platform.start();
         hedera.run();
@@ -372,7 +378,7 @@ public class ServicesMain {
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance());
 
-        rethrowIO(() -> BootstrapUtils.setupConfigBuilder(
+        rethrowIO(() -> ConfigurationSetupUtils.setupConfigBuilder(
                 configurationBuilder,
                 getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME),
                 getAbsolutePath(DEFAULT_OVERRIDES_YAML_FILE_NAME)));

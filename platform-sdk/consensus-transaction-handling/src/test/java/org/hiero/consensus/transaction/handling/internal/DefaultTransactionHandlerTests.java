@@ -24,7 +24,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterAll;
@@ -44,10 +44,7 @@ class DefaultTransactionHandlerTests {
     @BeforeEach
     void setUp() {
         random = Randotron.create();
-        roster = RandomRosterBuilder.create(random)
-                .withRealKeysEnabled(false)
-                .withSize(4)
-                .build();
+        roster = RosterFactory.randomRoster(random, 4);
     }
 
     /**
