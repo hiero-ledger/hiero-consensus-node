@@ -15,10 +15,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.monitor.StatusMonitorModule;
-import com.swirlds.platform.reconnect.ReconnectModule;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -228,7 +224,7 @@ public class ConsensusNoOpModules {
         final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics, selfId);
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, metrics, selfId, 0);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
@@ -364,40 +360,6 @@ public class ConsensusNoOpModules {
                 stateLifecycleManager,
                 latestCompleteStateNexus,
                 savedStateController);
-    }
-
-    public static ReconnectModule createNoOpReconnectModule(
-            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
-        final Time time = Time.getCurrent();
-        final Metrics metrics = new NoOpMetrics();
-        final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
-        final PlatformComponents platformComponents = null;
-        final PlatformCoordinator platformCoordinator = null;
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final ConsensusStateEventHandler consensusStateEventHandler = NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
-                new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
-
-        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
-        reconnectModule.initialize(
-                configuration,
-                time,
-                roster,
-                platformComponents,
-                null,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                consensusStateEventHandler,
-                reservedSignedStateResultPromise,
-                selfId,
-                fallenBehindMonitor);
-        return reconnectModule;
     }
 
     /**

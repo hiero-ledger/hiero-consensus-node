@@ -245,6 +245,7 @@ Topics:
 - [`gossip.md`](gossip.md)
 - [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md)
 - [`reconnect.md`](reconnect.md)
+- [`platform-status.md`](platform-status.md)
 
 Interface:
 

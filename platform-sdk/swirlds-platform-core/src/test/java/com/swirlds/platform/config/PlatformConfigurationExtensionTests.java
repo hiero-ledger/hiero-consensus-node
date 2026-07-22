@@ -16,6 +16,7 @@ import com.swirlds.platform.uptime.UptimeConfig;
 import java.util.Arrays;
 import java.util.Set;
 import org.hiero.consensus.BasicConfig;
+import org.hiero.consensus.FallenBehindConfig;
 import org.junit.jupiter.api.Test;
 
 class PlatformConfigurationExtensionTests {
@@ -47,6 +48,7 @@ class PlatformConfigurationExtensionTests {
                 .containsExactlyInAnyOrderElementsOf(Arrays.asList(
                         BasicConfig.class,
                         ModulesConfig.class,
+                        FallenBehindConfig.class,
                         OSHealthCheckConfig.class,
                         PlatformMetricsConfig.class,
                         StatusMonitorWiringConfig.class,
