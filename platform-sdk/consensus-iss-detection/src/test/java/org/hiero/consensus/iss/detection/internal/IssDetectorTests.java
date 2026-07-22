@@ -40,7 +40,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -95,10 +95,7 @@ class IssDetectorTests {
     @DisplayName("No ISSes Test")
     void noIss() {
         final Randotron random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(100)
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, 100, WEIGHT_GENERATOR);
 
         final Time time = Time.getCurrent();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
@@ -162,10 +159,7 @@ class IssDetectorTests {
     void mixedOrderTest() {
         final Randotron random = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(Math.max(10, random.nextInt(1000)))
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, Math.max(10, random.nextInt(1000)), WEIGHT_GENERATOR);
 
         final Time time = Time.getCurrent();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
@@ -317,10 +311,7 @@ class IssDetectorTests {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(100)
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, 100, WEIGHT_GENERATOR);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final IssDetector issDetector = new DefaultIssDetector(
@@ -429,10 +420,7 @@ class IssDetectorTests {
 
         final int roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(100)
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, 100, WEIGHT_GENERATOR);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final IssDetector issDetector = new DefaultIssDetector(
@@ -510,10 +498,7 @@ class IssDetectorTests {
 
         final int roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(100)
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, 100, WEIGHT_GENERATOR);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final IssDetector issDetector = new DefaultIssDetector(
@@ -579,10 +564,7 @@ class IssDetectorTests {
     void ignoredRoundTest() {
         final Randotron random = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(100)
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, 100, WEIGHT_GENERATOR);
 
         final Time time = Time.getCurrent();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
@@ -632,10 +614,7 @@ class IssDetectorTests {
     void previousVersionEventsTest() {
         final Randotron random = Randotron.create();
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(100)
-                .withWeightGenerator(WEIGHT_GENERATOR)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, 100, WEIGHT_GENERATOR);
 
         final Time time = Time.getCurrent();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();

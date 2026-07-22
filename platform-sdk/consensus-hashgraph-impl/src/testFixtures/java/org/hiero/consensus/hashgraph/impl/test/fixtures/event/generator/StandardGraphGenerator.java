@@ -43,7 +43,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -189,9 +189,7 @@ public class StandardGraphGenerator implements GraphGenerator {
                 seed,
                 maxOtherParents,
                 eventSources,
-                RandomRosterBuilder.create(new Random(seed))
-                        .withSize(eventSources.size())
-                        .build());
+                RosterFactory.randomRoster(new Random(seed), eventSources.size()));
     }
 
     /**
