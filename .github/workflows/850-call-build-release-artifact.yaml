@@ -126,7 +126,7 @@ jobs:
       prerelease: ${{ steps.effective-version.outputs.prerelease }}
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           setup-semver: "true"
 
@@ -242,22 +242,11 @@ jobs:
     needs:
       - validate
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           egress-policy: audit
-
-      - name: Install Deterministic Zip Tooling
-        run: |
-          echo "::group::Download Binary"
-          sudo curl -L -o /usr/local/bin/deterministic-zip https://github.com/timo-reymann/deterministic-zip/releases/download/1.2.0/deterministic-zip_linux-amd64
-          echo "::endgroup::"
-          echo "::group::Change Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/deterministic-zip
-          echo "::endgroup::"
-          echo "::group::Show Binary Version Info"
-          deterministic-zip --version
-          echo "::endgroup::"
+          setup-deterministic-zip: "true"
 
       - name: Install JSON Tools
         run: |
@@ -408,7 +397,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           checkout: "true"
           checkout-ref: "${{ needs.validate.outputs.commit-id }}"
@@ -593,7 +582,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           checkout: "true"
           checkout-ref: "${{ needs.validate.outputs.commit-id }}"
@@ -709,7 +698,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
           checkout: "true"
           checkout-ref: "${{ needs.validate.outputs.commit-id }}"

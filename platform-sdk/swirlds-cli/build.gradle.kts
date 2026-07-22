@@ -13,7 +13,6 @@ testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.event.stream.test.fixtures")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
-    requires("org.hiero.consensus.pces.impl.test.fixtures")
     requires("org.hiero.consensus.pcli")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
