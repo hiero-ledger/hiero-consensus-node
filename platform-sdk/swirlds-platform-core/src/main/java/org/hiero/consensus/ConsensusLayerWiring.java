@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.wiring;
+package org.hiero.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
@@ -13,8 +13,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
@@ -39,9 +37,9 @@ import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
  * consumer. To find where a component's output goes, open the method named after it.
  * <p>Methods taking ConsensusLayerInputs are the ones that wire into the execution layer / external consumers.
  */
-public class PlatformWiring {
+public class ConsensusLayerWiring {
 
-    private PlatformWiring() {}
+    private ConsensusLayerWiring() {}
 
     /**
      * Wire the components together.
