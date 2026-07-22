@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import java.util.HashMap;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -28,10 +28,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
 
     private final int roundAgeToSign = 3;
 
-    private final Roster roster = RandomRosterBuilder.create(random)
-            .withSize(4)
-            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-            .build();
+    private final Roster roster = RosterFactory.randomRoster(random, 4, WeightGenerators.BALANCED_1000_PER_NODE);
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.
