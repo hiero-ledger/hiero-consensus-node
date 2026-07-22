@@ -108,9 +108,9 @@ classDiagram
         +validate()
     }
 
-    class HashRecordValidator {
+    class HashChunkValidator {
         <<interface>>
-        +processHashRecord(VirtualHashRecord)
+        +processHashRecord(VirtualHashChunk)
     }
 
     class LeafBytesValidator {
@@ -123,11 +123,11 @@ classDiagram
         +processBucket(long, ParsedBucket)
     }
 
-    Validator <|-- HashRecordValidator
+    Validator <|-- HashChunkValidator
     Validator <|-- LeafBytesValidator
     Validator <|-- HdhmBucketValidator
 
-    HashRecordValidator <|.. HashRecordIntegrityValidator
+    HashChunkValidator <|.. HashChunkIntegrityValidator
     LeafBytesValidator <|.. LeafBytesIntegrityValidator
     LeafBytesValidator <|.. AccountAndSupplyValidator
     LeafBytesValidator <|.. TokenRelationsIntegrityValidator
@@ -165,11 +165,11 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Pipeline Data Types
 
-|   Type   |                 Source                 |       Content       |                                              Dispatched To                                               |
-|----------|----------------------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
-| **P2KV** | Leaf data files                        | `VirtualLeafBytes`  | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
-| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
-| **K2P**  | HDHM bucket files                      | `ParsedBucket`      | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+|   Type   |                 Source                 |      Content       |                                              Dispatched To                                               |
+|----------|----------------------------------------|--------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files                        | `VirtualLeafBytes` | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashChunk` | [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java) impls   |
+| **K2P**  | HDHM bucket files                      | `ParsedBucket`     | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
 
 ### Thread Safety
 
@@ -180,7 +180,7 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Adding a New Validator
 
-1. Create a class implementing [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
+1. Create a class implementing [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
 2. Add an instance to [ValidatorRegistry.ALL_VALIDATORS](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java).
 3. *(Optional)* Define a new group constant and add it to [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java)'s parameters.
 
