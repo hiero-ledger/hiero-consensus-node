@@ -19,15 +19,15 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import org.hiero.consensus.config.PlatformStatusConfig_;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,399 +54,349 @@ class PlatformStatusStateMachineTests {
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> FREEZE_COMPLETE")
     void freezeCompleteAfterReplayingEvents() {
-        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsAction()));
-        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredTrigger(2)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> FREEZE_COMPLETE")
     void freezeCompleteAfterObserving() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> FREEZING -> FREEZE_COMPLETE")
     void freezeCompleteAfterFreezing() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredTrigger(2)));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 FREEZING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> FREEZE_COMPLETE")
     void freezeCompleteAfterChecking() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> FREEZING")
     void freezingAfterChecking() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezePeriodEnteredTrigger(2)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> ACTIVE -> FREEZE_COMPLETE")
     void freezeCompleteAfterActive() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> ACTIVE -> CHECKING")
     void checkingAfterActive() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
         final var before = time.now();
         time.tick(Duration.ofSeconds(11));
         assertEquals(
                 CHECKING,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, before))));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, before))));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> ACTIVE -> BEHIND")
     void behindAfterActive() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> ACTIVE -> FREEZING")
     void freezingAfterActive() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
-        assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
+        assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezePeriodEnteredTrigger(2)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> CHECKING -> BEHIND")
     void behindAfterChecking() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> BEHIND -> FREEZE_COMPLETE")
     void freezeCompleteAfterBehind() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> BEHIND -> RECONNECT_COMPLETE -> FREEZE_COMPLETE")
     void freezeCompleteAfterReconnectComplete() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteTrigger(5)));
+        assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(2, true)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> BEHIND -> RECONNECT_COMPLETE -> BEHIND")
     void behindAfterReconnectComplete() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteTrigger(5)));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> BEHIND -> RECONNECT_COMPLETE -> FREEZING")
     void freezingAfterReconnectComplete() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(10)));
-        assertEquals(FREEZING, stateMachine.submitStatusAction(new StateWrittenToDiskAction(11, false)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteTrigger(5)));
+        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredTrigger(10)));
+        assertEquals(FREEZING, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(11, false)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> REPLAYING_EVENTS -> OBSERVING -> BEHIND -> RECONNECT_COMPLETE -> CHECKING")
     void checkingAfterReconnectComplete() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertEquals(CHECKING, stateMachine.submitStatusAction(new StateWrittenToDiskAction(11, false)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteTrigger(5)));
+        assertEquals(CHECKING, stateMachine.submitStatusAction(new StateWrittenToDiskTrigger(11, false)));
     }
 
     @Test
     @DisplayName("STARTING_UP -> CATASTROPHIC_FAILURE")
     void startingUpToCatastrophicFailure() {
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("REPLAYING_EVENTS -> CATASTROPHIC_FAILURE")
     void replayingEventsToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("OBSERVING -> CATASTROPHIC_FAILURE")
     void observingToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("CHECKING -> CATASTROPHIC_FAILURE")
     void checkingToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("RECONNECT_COMPLETE -> CATASTROPHIC_FAILURE")
     void reconnectCompleteToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteAction(5)));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(RECONNECT_COMPLETE, stateMachine.submitStatusAction(new ReconnectCompleteTrigger(5)));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("ACTIVE -> CATASTROPHIC_FAILURE")
     void activeToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("BEHIND -> CATASTROPHIC_FAILURE")
     void behindToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindTrigger()));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("FREEZING -> CATASTROPHIC_FAILURE")
     void freezingToCatastrophicFailure() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
+        assertNull(stateMachine.submitStatusAction(new FreezePeriodEnteredTrigger(2)));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 FREEZING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
+                stateMachine.submitStatusAction(new TimeElapsedTrigger(
+                        time.now(), new TimeElapsedTrigger.QuiescingStatus(quiescing, time.now()))));
+        assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureTrigger()));
     }
 
     @Test
     @DisplayName("Illegal action")
     void illegalAction() {
         // state machine must be robust to unexpected actions
-        assertNull(stateMachine.submitStatusAction(new FallenBehindAction()));
+        assertNull(stateMachine.submitStatusAction(new FallenBehindTrigger()));
     }
 
     @Test
     @DisplayName("CHECKING -> ACTIVE (quiescing)")
     void checkingToActiveWhenQuiescing() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now()))));
         // When quiescing, should transition to ACTIVE
         assertEquals(
                 ACTIVE,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now()))));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(true, time.now()))));
     }
 
     @Test
     @DisplayName("ACTIVE remains ACTIVE when quiescing")
     void activeRemainsActiveWhenQuiescing() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
         time.tick(Duration.ofSeconds(15));
         // When quiescing, should remain ACTIVE despite time elapsed
         assertNull(stateMachine.submitStatusAction(
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now()))));
+                new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(true, time.now()))));
     }
 
     @Test
     @DisplayName("ACTIVE remains ACTIVE when insufficient time since quiescence command")
     void activeRemainsActiveWhenInsufficientTimeSinceQuiescenceCommand() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now()))));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
         final var before = time.now();
         time.tick(Duration.ofSeconds(5));
         // Should remain ACTIVE when not enough time has passed since quiescence command (5s < 10s delay)
         assertNull(stateMachine.submitStatusAction(
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, before))));
+                new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, before))));
     }
 
     @Test
     @DisplayName(
             "ACTIVE goes to CHECKING when sufficient time since quiescence command and an event reaching consensus")
     void activeMovesToCheckingWhenSufficientTimeSinceQuiescenceCommand() {
-        assertEquals(
-                REPLAYING_EVENTS,
-                stateMachine.submitStatusAction(new org.hiero.consensus.status.actions.StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
+        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsTrigger()));
+        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsTrigger(time.now())));
         time.tick(Duration.ofSeconds(6));
         assertEquals(
                 CHECKING,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now()))));
         // MOVES instantly to ACTIVE since isQuiescing
         assertEquals(
                 ACTIVE,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now()))));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(true, time.now()))));
         var before = time.now();
         time.tick(Duration.ofSeconds(4));
         // Should remain ACTIVE since not enough time has pass
         assertNull(stateMachine.submitStatusAction(
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, before))));
-        assertNull(stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+                new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(true, before))));
+        assertNull(stateMachine.submitStatusAction(new SelfEventReachedConsensusTrigger(time.now())));
         time.tick(Duration.ofSeconds(5));
         // Should remain ACTIVE when not enough time has passed since quiescence command
         assertNull(stateMachine.submitStatusAction(
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
+                new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, time.now()))));
         before = time.now();
         time.tick(Duration.ofSeconds(11));
         // Should move to checking since its has happened enough time since the last event reached consensus and
@@ -454,6 +404,6 @@ class PlatformStatusStateMachineTests {
         assertEquals(
                 CHECKING,
                 stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, before))));
+                        new TimeElapsedTrigger(time.now(), new TimeElapsedTrigger.QuiescingStatus(false, before))));
     }
 }

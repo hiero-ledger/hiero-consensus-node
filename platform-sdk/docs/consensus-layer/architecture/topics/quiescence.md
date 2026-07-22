@@ -155,7 +155,7 @@ A quiescing node holds platform status `ACTIVE`; no dedicated quiescence
 status exists. The mechanism:
 [`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)`#heartbeat`
 stamps each `TimeElapsedAction` with a
-[`TimeElapsedAction.QuiescingStatus`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/actions/TimeElapsedAction.java)
+[`TimeElapsedAction.QuiescingStatus`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/triggers/TimeElapsedAction.java)
 record (`isQuiescing = lastQuiescenceCommand == QUIESCE`, plus the instant
 the command last changed). In
 [`ActiveStatusLogic`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/logic/ActiveStatusLogic.java)`#processTimeElapsedAction`,

@@ -6,28 +6,28 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 
 /**
  * Base class for {@link PlatformStatusLogic} implementations.
  * <p>
- * It dispatches each {@link PlatformStatusAction} to a per-action {@code on*} hook and supplies the behavior shared by
+ * It dispatches each {@link StatusMachineTrigger} to a per-action {@code on*} hook and supplies the behavior shared by
  * most statuses, so that a concrete subclass only overrides the hooks for the actions that actually drive its logic.
  * The defaults are:
  * <ul>
- *     <li>a {@link CatastrophicFailureAction} transitions to {@link PlatformStatus#CATASTROPHIC_FAILURE};</li>
- *     <li>a {@link StateWrittenToDiskAction} transitions to {@link PlatformStatus#FREEZE_COMPLETE} when it is a freeze
+ *     <li>a {@link CatastrophicFailureTrigger} transitions to {@link PlatformStatus#CATASTROPHIC_FAILURE};</li>
+ *     <li>a {@link StateWrittenToDiskTrigger} transitions to {@link PlatformStatus#FREEZE_COMPLETE} when it is a freeze
  *     state, otherwise it has no effect;</li>
- *     <li>a {@link TimeElapsedAction} and a {@link SelfEventReachedConsensusAction} have no effect;</li>
+ *     <li>a {@link TimeElapsedTrigger} and a {@link SelfEventReachedConsensusTrigger} have no effect;</li>
  *     <li>every other action is illegal and throws an {@link IllegalPlatformStatusException}.</li>
  * </ul>
  * Terminal statuses ({@link PlatformStatus#CATASTROPHIC_FAILURE}, {@link PlatformStatus#FREEZE_COMPLETE}) ignore every
@@ -43,17 +43,17 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
 
     @NonNull
     @Override
-    public final PlatformStatusLogic process(@NonNull final PlatformStatusAction action) {
+    public final PlatformStatusLogic process(@NonNull final StatusMachineTrigger action) {
         return switch (action) {
-            case CatastrophicFailureAction _ -> onCatastrophicFailure();
-            case DoneReplayingEventsAction a -> onDoneReplayingEvents(a);
-            case FallenBehindAction a -> onFallenBehind(a);
-            case FreezePeriodEnteredAction a -> onFreezePeriodEntered(a);
-            case ReconnectCompleteAction a -> onReconnectComplete(a);
-            case SelfEventReachedConsensusAction a -> onSelfEventReachedConsensus(a);
-            case StartedReplayingEventsAction a -> onStartedReplayingEvents(a);
-            case StateWrittenToDiskAction a -> onStateWrittenToDisk(a);
-            case TimeElapsedAction a -> onTimeElapsed(a);
+            case CatastrophicFailureTrigger _ -> onCatastrophicFailure();
+            case DoneReplayingEventsTrigger a -> onDoneReplayingEvents(a);
+            case FallenBehindTrigger a -> onFallenBehind(a);
+            case FreezePeriodEnteredTrigger a -> onFreezePeriodEntered(a);
+            case ReconnectCompleteTrigger a -> onReconnectComplete(a);
+            case SelfEventReachedConsensusTrigger a -> onSelfEventReachedConsensus(a);
+            case StartedReplayingEventsTrigger a -> onStartedReplayingEvents(a);
+            case StateWrittenToDiskTrigger a -> onStateWrittenToDisk(a);
+            case TimeElapsedTrigger a -> onTimeElapsed(a);
         };
     }
 
@@ -71,42 +71,42 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
     }
 
     @NonNull
-    protected PlatformStatusLogic onDoneReplayingEvents(@NonNull final DoneReplayingEventsAction action) {
+    protected PlatformStatusLogic onDoneReplayingEvents(@NonNull final DoneReplayingEventsTrigger action) {
         return illegal(action);
     }
 
     @NonNull
-    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindTrigger action) {
         return illegal(action);
     }
 
     @NonNull
-    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredTrigger action) {
         return illegal(action);
     }
 
     @NonNull
-    protected PlatformStatusLogic onReconnectComplete(@NonNull final ReconnectCompleteAction action) {
+    protected PlatformStatusLogic onReconnectComplete(@NonNull final ReconnectCompleteTrigger action) {
         return illegal(action);
     }
 
     @NonNull
-    protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusAction action) {
+    protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusTrigger action) {
         return this;
     }
 
     @NonNull
-    protected PlatformStatusLogic onStartedReplayingEvents(@NonNull final StartedReplayingEventsAction action) {
+    protected PlatformStatusLogic onStartedReplayingEvents(@NonNull final StartedReplayingEventsTrigger action) {
         return illegal(action);
     }
 
     @NonNull
-    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskAction action) {
+    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskTrigger action) {
         return action.isFreezeState() ? new FreezeCompleteStatusLogic() : this;
     }
 
     @NonNull
-    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedAction action) {
+    protected PlatformStatusLogic onTimeElapsed(@NonNull final TimeElapsedTrigger action) {
         return this;
     }
 
@@ -118,7 +118,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
      * @param action              the freeze period action being processed
      */
     protected void validateFreezeRound(
-            @Nullable final Long existingFreezeRound, @NonNull final FreezePeriodEnteredAction action) {
+            @Nullable final Long existingFreezeRound, @NonNull final FreezePeriodEnteredTrigger action) {
 
         if (existingFreezeRound != null) {
             throw new IllegalPlatformStatusException("Received duplicate freeze period notification in " + status
@@ -134,7 +134,7 @@ public abstract class AbstractStatusLogic implements PlatformStatusLogic {
      * @return never returns; always throws
      */
     @NonNull
-    protected final PlatformStatusLogic illegal(@NonNull final PlatformStatusAction action) {
+    protected final PlatformStatusLogic illegal(@NonNull final StatusMachineTrigger action) {
         throw new IllegalPlatformStatusException(action, getStatus());
     }
 }

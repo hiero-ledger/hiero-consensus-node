@@ -33,7 +33,7 @@ import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
@@ -42,7 +42,7 @@ public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
-    private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
+    private final List<StatusMachineTrigger> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final Instant freezeTime;
@@ -103,9 +103,9 @@ public class TransactionHandlerTester implements AutoCloseable {
     }
 
     /**
-     * @return a list of all {@link PlatformStatusAction}s that have been submitted by the transaction handler
+     * @return a list of all {@link StatusMachineTrigger}s that have been submitted by the transaction handler
      */
-    public List<PlatformStatusAction> getSubmittedActions() {
+    public List<StatusMachineTrigger> getSubmittedActions() {
         return submittedActions;
     }
 

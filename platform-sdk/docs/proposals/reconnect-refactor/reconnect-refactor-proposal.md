@@ -88,7 +88,7 @@ If anything on the process goes wrong the code will retry until a configured max
 
 3. Refactoring Gossip:
    The gossip implementation (SyncGossipModular) and protocols will be simplified and decoupled from the reconnect orchestration.
-   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, statusActionSubmitter, or callbacks for loading state and clearing pipelines.
+   Its constructor will be much simpler. It no longer needs dependencies like swirldStateManager, triggerSubmitter, or callbacks for loading state and clearing pipelines.
    It will work with the FallenBehindMonitor directly which will be shared with the protocols to be able to inform and query the status.
 
 4. Introduction of `ReservedSignedStatePromise`: a piece of code based on our existing `BlockingResourceProvider`. It's an object with two use cases, one client manifests its desire to obtain a resource from the class, and it blocks until it gets the value,

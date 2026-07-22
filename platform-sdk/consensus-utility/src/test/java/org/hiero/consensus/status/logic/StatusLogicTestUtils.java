@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Utility methods for testing {@link PlatformStatusLogic} implementations.
@@ -27,7 +27,7 @@ public class StatusLogicTestUtils {
      */
     public static void assertTransition(
             @NonNull final PlatformStatusLogic logic,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger action,
             @NonNull final PlatformStatus expectedStatus) {
 
         final PlatformStatus newStatus = logic.process(action).getStatus();
@@ -43,7 +43,7 @@ public class StatusLogicTestUtils {
      */
     public static void assertNoTransition(
             @NonNull final PlatformStatusLogic logic,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger action,
             @NonNull final PlatformStatus originalStatus) {
 
         final PlatformStatus newStatus = logic.process(action).getStatus();
@@ -59,7 +59,7 @@ public class StatusLogicTestUtils {
      */
     public static void assertException(
             @NonNull final PlatformStatusLogic logic,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger action,
             @NonNull final PlatformStatus originalStatus) {
 
         assertThrows(

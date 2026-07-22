@@ -3,10 +3,10 @@ package org.hiero.consensus.status;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
- * An exception thrown when an illegal {@link PlatformStatusAction} is received
+ * An exception thrown when an illegal {@link StatusMachineTrigger} is received
  */
 public class IllegalPlatformStatusException extends RuntimeException {
     /**
@@ -16,7 +16,7 @@ public class IllegalPlatformStatusException extends RuntimeException {
      * @param status        the status of the platform when the illegal action was received
      */
     public IllegalPlatformStatusException(
-            @NonNull final PlatformStatusAction illegalAction, @NonNull final PlatformStatus status) {
+            @NonNull final StatusMachineTrigger illegalAction, @NonNull final PlatformStatus status) {
 
         super("Received unexpected status action `%s` with current status of `%s`"
                 .formatted(illegalAction.getClass().getSimpleName(), status.name()));

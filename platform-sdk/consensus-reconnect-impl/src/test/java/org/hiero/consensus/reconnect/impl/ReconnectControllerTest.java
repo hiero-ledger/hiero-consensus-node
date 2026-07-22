@@ -59,8 +59,8 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
 import org.hiero.consensus.system.SystemExitCode;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
@@ -464,11 +464,11 @@ class ReconnectControllerTest {
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify the expected interactions
-        verify(reconnectCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
+        verify(reconnectCoordinator, times(1)).submitStatusAction(any(FallenBehindTrigger.class));
         verify(reconnectCoordinator, times(1)).pauseGossip();
         verify(reconnectCoordinator, atLeast(1)).clear();
         verify(reconnectCoordinator, times(1)).loadReconnectState(any(), any());
-        verify(reconnectCoordinator, times(1)).submitStatusAction(any(ReconnectCompleteAction.class));
+        verify(reconnectCoordinator, times(1)).submitStatusAction(any(ReconnectCompleteTrigger.class));
         verify(reconnectCoordinator, times(1)).resumeGossip();
     }
 
@@ -612,15 +612,15 @@ class ReconnectControllerTest {
     }
 
     @Test
-    @DisplayName("ReconnectCompleteAction is submitted with correct round")
+    @DisplayName("ReconnectCompleteTrigger is submitted with correct round")
     void testReconnectCompleteActionSubmitted() throws InterruptedException {
         final ReconnectController controller = createController();
-        final AtomicReference<ReconnectCompleteAction> capturedAction = new AtomicReference<>();
+        final AtomicReference<ReconnectCompleteTrigger> capturedAction = new AtomicReference<>();
 
         // Capture the submitted action
         doAnswer(inv -> {
                     final Object arg = inv.getArgument(0);
-                    if (arg instanceof ReconnectCompleteAction action) {
+                    if (arg instanceof ReconnectCompleteTrigger action) {
                         capturedAction.set(action);
                     }
                     return null;
@@ -641,7 +641,7 @@ class ReconnectControllerTest {
                 .waitForFinish(LONG_TIMEOUT);
 
         // Verify the action was submitted with correct round
-        assertNotNull(capturedAction.get(), "ReconnectCompleteAction should have been submitted");
+        assertNotNull(capturedAction.get(), "ReconnectCompleteTrigger should have been submitted");
         assertEquals(
                 testSignedState.getRound(),
                 capturedAction.get().reconnectStateRound(),

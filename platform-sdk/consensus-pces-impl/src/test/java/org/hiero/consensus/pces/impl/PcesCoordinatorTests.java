@@ -20,9 +20,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,7 +42,7 @@ class PcesCoordinatorTests {
     private PcesFileTracker initialPcesFiles;
     private InputWire<IOIterator<PlatformEvent>> pcesIteratorInputWire;
     private PcesReplayerWiring pcesReplayerWiring;
-    private Consumer<PlatformStatusAction> statusActionConsumer;
+    private Consumer<StatusMachineTrigger> statusActionConsumer;
     private Runnable platformStatusFlusher;
     private Runnable signalEndOfPcesReplay;
 
@@ -91,12 +91,12 @@ class PcesCoordinatorTests {
                 pcesIteratorInputWire,
                 signalEndOfPcesReplay);
 
-        inOrder.verify(statusActionConsumer).accept(isA(StartedReplayingEventsAction.class));
+        inOrder.verify(statusActionConsumer).accept(isA(StartedReplayingEventsTrigger.class));
         inOrder.verify(platformStatusFlusher).run();
         inOrder.verify(initialPcesFiles).getEventIterator(LOWER_BOUND, STARTING_ROUND);
         inOrder.verify(pcesIteratorInputWire).inject(iterator);
         inOrder.verify(signalEndOfPcesReplay).run();
-        inOrder.verify(statusActionConsumer).accept(isA(DoneReplayingEventsAction.class));
+        inOrder.verify(statusActionConsumer).accept(isA(DoneReplayingEventsTrigger.class));
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -116,10 +116,10 @@ class PcesCoordinatorTests {
     void reportsStartedThenDone() {
         coordinator.replayPcesEvents(LOWER_BOUND, STARTING_ROUND);
 
-        // DoneReplayingEventsAction is stamped with the current time.
-        verify(statusActionConsumer).accept(isA(StartedReplayingEventsAction.class));
-        verify(statusActionConsumer).accept(new DoneReplayingEventsAction(time.now()));
-        verify(statusActionConsumer, times(2)).accept(isA(PlatformStatusAction.class));
+        // DoneReplayingEventsTrigger is stamped with the current time.
+        verify(statusActionConsumer).accept(isA(StartedReplayingEventsTrigger.class));
+        verify(statusActionConsumer).accept(new DoneReplayingEventsTrigger(time.now()));
+        verify(statusActionConsumer, times(2)).accept(isA(StatusMachineTrigger.class));
         verifyNoMoreInteractions(statusActionConsumer);
     }
 }

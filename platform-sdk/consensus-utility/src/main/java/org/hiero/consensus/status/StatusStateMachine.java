@@ -19,12 +19,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.logic.PlatformStatusLogic;
 import org.hiero.consensus.status.logic.StartingUpStatusLogic;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
- * A state machine that processes {@link PlatformStatusAction}s
+ * A state machine that processes {@link StatusMachineTrigger}s
  */
 public class StatusStateMachine {
     private static final Logger logger = LogManager.getLogger(StatusStateMachine.class);
@@ -70,7 +70,7 @@ public class StatusStateMachine {
      * @return a new logic object, or null if the logic threw an exception
      */
     @Nullable
-    private PlatformStatusLogic getNewLogic(@NonNull final PlatformStatusAction action) {
+    private PlatformStatusLogic getNewLogic(@NonNull final StatusMachineTrigger action) {
         requireNonNull(action);
         try {
             return currentStatusLogic.process(action);
@@ -89,7 +89,7 @@ public class StatusStateMachine {
      * @return the new status after processing the action, or null if the status did not change
      */
     @Nullable
-    public PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action) {
+    public PlatformStatus submitStatusAction(@NonNull final StatusMachineTrigger action) {
         requireNonNull(action);
 
         final PlatformStatusLogic newLogic = getNewLogic(action);

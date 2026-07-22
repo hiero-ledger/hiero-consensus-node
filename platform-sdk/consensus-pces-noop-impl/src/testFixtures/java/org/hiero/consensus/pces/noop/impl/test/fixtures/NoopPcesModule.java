@@ -26,7 +26,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * No-op implementation of the {@link PcesModule}.
@@ -55,7 +55,7 @@ public class NoopPcesModule implements PcesModule {
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Consumer<StatusMachineTrigger> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {

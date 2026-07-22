@@ -25,7 +25,7 @@ import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.status.StatusStateMachine;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Responsible for coordinating activities through the component's wire for reconnect-related operations.
@@ -50,7 +50,7 @@ public class ReconnectCoordinator {
     /**
      * @see StatusStateMachine#submitStatusAction
      */
-    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
+    public void submitStatusAction(@NonNull final StatusMachineTrigger action) {
         components.statusMonitorModule().submitStatusAction(action);
     }
 

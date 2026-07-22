@@ -25,16 +25,16 @@ import java.util.stream.Stream;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.FallenBehindAction;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
-import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.triggers.CatastrophicFailureTrigger;
+import org.hiero.consensus.status.triggers.DoneReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.FallenBehindTrigger;
+import org.hiero.consensus.status.triggers.FreezePeriodEnteredTrigger;
+import org.hiero.consensus.status.triggers.ReconnectCompleteTrigger;
+import org.hiero.consensus.status.triggers.SelfEventReachedConsensusTrigger;
+import org.hiero.consensus.status.triggers.StartedReplayingEventsTrigger;
+import org.hiero.consensus.status.triggers.StateWrittenToDiskTrigger;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
+import org.hiero.consensus.status.triggers.TimeElapsedTrigger;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -42,7 +42,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 /**
  * Data-driven test pinning the full (status &times; action) transition table of the platform status state machine.
  * <p>
- * Each case asserts the status produced by {@link PlatformStatusLogic#process(PlatformStatusAction)} for a freshly
+ * Each case asserts the status produced by {@link PlatformStatusLogic#process(StatusMachineTrigger)} for a freshly
  * constructed logic instance, or that the action is illegal and throws. The genuinely <i>conditional</i> cells (the
  * timed {@code TimeElapsed} transitions of OBSERVING/CHECKING/ACTIVE and the round-gated non-freeze
  * {@code StateWrittenToDisk} of RECONNECT_COMPLETE) depend on timing/round inputs and are covered by the per-status
@@ -56,18 +56,18 @@ class PlatformStatusTransitionMatrixTest {
     private static final Instant DEFAULT_INSTANT = Instant.EPOCH;
 
     // one immutable instance of each action; logic instances are built fresh per case
-    private static final CatastrophicFailureAction CATASTROPHIC = new CatastrophicFailureAction();
-    private static final DoneReplayingEventsAction DONE_REPLAYING = new DoneReplayingEventsAction(DEFAULT_INSTANT);
-    private static final FallenBehindAction FALLEN_BEHIND = new FallenBehindAction();
-    private static final FreezePeriodEnteredAction FREEZE_ENTERED = new FreezePeriodEnteredAction(0);
-    private static final ReconnectCompleteAction RECONNECT_COMPLETE = new ReconnectCompleteAction(0);
-    private static final SelfEventReachedConsensusAction SELF_EVENT_CONSENSUS =
-            new SelfEventReachedConsensusAction(DEFAULT_INSTANT);
-    private static final StartedReplayingEventsAction STARTED_REPLAYING = new StartedReplayingEventsAction();
-    private static final StateWrittenToDiskAction FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, true);
-    private static final StateWrittenToDiskAction NON_FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, false);
-    private static final TimeElapsedAction TIME_ELAPSED =
-            new TimeElapsedAction(DEFAULT_INSTANT, new TimeElapsedAction.QuiescingStatus(false, DEFAULT_INSTANT));
+    private static final CatastrophicFailureTrigger CATASTROPHIC = new CatastrophicFailureTrigger();
+    private static final DoneReplayingEventsTrigger DONE_REPLAYING = new DoneReplayingEventsTrigger(DEFAULT_INSTANT);
+    private static final FallenBehindTrigger FALLEN_BEHIND = new FallenBehindTrigger();
+    private static final FreezePeriodEnteredTrigger FREEZE_ENTERED = new FreezePeriodEnteredTrigger(0);
+    private static final ReconnectCompleteTrigger RECONNECT_COMPLETE = new ReconnectCompleteTrigger(0);
+    private static final SelfEventReachedConsensusTrigger SELF_EVENT_CONSENSUS =
+            new SelfEventReachedConsensusTrigger(DEFAULT_INSTANT);
+    private static final StartedReplayingEventsTrigger STARTED_REPLAYING = new StartedReplayingEventsTrigger();
+    private static final StateWrittenToDiskTrigger FREEZE_STATE_WRITTEN = new StateWrittenToDiskTrigger(0, true);
+    private static final StateWrittenToDiskTrigger NON_FREEZE_STATE_WRITTEN = new StateWrittenToDiskTrigger(0, false);
+    private static final TimeElapsedTrigger TIME_ELAPSED =
+            new TimeElapsedTrigger(DEFAULT_INSTANT, new TimeElapsedTrigger.QuiescingStatus(false, DEFAULT_INSTANT));
 
     @NonNull
     static Stream<Arguments> matrix() {
@@ -162,7 +162,7 @@ class PlatformStatusTransitionMatrixTest {
     void transitionMatrix(
             final String name,
             @NonNull final Supplier<PlatformStatusLogic> logicSupplier,
-            @NonNull final PlatformStatusAction action,
+            @NonNull final StatusMachineTrigger action,
             @Nullable final PlatformStatus expected) {
 
         final PlatformStatusLogic logic = logicSupplier.get();
@@ -195,15 +195,15 @@ class PlatformStatusTransitionMatrixTest {
 
         /** The action transitions to the given status. */
         @NonNull
-        StatusCases on(@NonNull final PlatformStatusAction action, @NonNull final PlatformStatus expected) {
+        StatusCases on(@NonNull final StatusMachineTrigger action, @NonNull final PlatformStatus expected) {
             rows.add(arguments(label(action, expected.name()), supplier, action, expected));
             return this;
         }
 
         /** The actions are processed without changing the status. */
         @NonNull
-        StatusCases stays(@NonNull final PlatformStatusAction... actions) {
-            for (final PlatformStatusAction action : actions) {
+        StatusCases stays(@NonNull final StatusMachineTrigger... actions) {
+            for (final StatusMachineTrigger action : actions) {
                 rows.add(arguments(label(action, "stays"), supplier, action, status));
             }
             return this;
@@ -211,15 +211,15 @@ class PlatformStatusTransitionMatrixTest {
 
         /** The actions are illegal for this status and throw. */
         @NonNull
-        StatusCases illegal(@NonNull final PlatformStatusAction... actions) {
-            for (final PlatformStatusAction action : actions) {
+        StatusCases illegal(@NonNull final StatusMachineTrigger... actions) {
+            for (final StatusMachineTrigger action : actions) {
                 rows.add(arguments(label(action, "illegal"), supplier, action, null));
             }
             return this;
         }
 
         @NonNull
-        private String label(@NonNull final PlatformStatusAction action, @NonNull final String outcome) {
+        private String label(@NonNull final StatusMachineTrigger action, @NonNull final String outcome) {
             return status + " + " + action.getClass().getSimpleName() + " -> " + outcome;
         }
 

@@ -39,7 +39,7 @@ import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Default implementation of the {@link PcesModule}.
@@ -76,7 +76,7 @@ public class DefaultPcesModule implements PcesModule {
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
+            @NonNull final Consumer<StatusMachineTrigger> statusActionConsumer,
             @NonNull final Runnable platformStatusFlusher,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {

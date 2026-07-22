@@ -28,7 +28,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
+import org.hiero.consensus.status.TriggerSubmitter;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
@@ -83,7 +83,7 @@ public record PlatformBuildingBlocks(
         @NonNull FreezePeriodChecker freezeChecker,
         @NonNull String consensusEventStreamName,
         @NonNull NotificationEngine notificationEngine,
-        @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
+        @NonNull AtomicReference<TriggerSubmitter> statusActionSubmitterReference,
         @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,

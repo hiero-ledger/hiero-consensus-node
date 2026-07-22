@@ -22,7 +22,7 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * The StatusMonitorModule is responsible for monitoring the platform's status and updating the platform's
@@ -112,7 +112,7 @@ public class StatusMonitorModule {
      *
      * @param action the status action to submit
      */
-    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
+    public void submitStatusAction(@NonNull final StatusMachineTrigger action) {
         platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction).put(action);
     }
 

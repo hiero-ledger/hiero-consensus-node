@@ -62,8 +62,8 @@ import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.TriggerSubmitter;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
@@ -150,7 +150,7 @@ public class ConsensusNoOpModules {
         final long startingRound = 0L;
         final Runnable flushPrimaryPipeline = () -> {};
         final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
-        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
+        final Consumer<StatusMachineTrigger> statusActionConsumer = _ -> {};
         final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
@@ -302,7 +302,7 @@ public class ConsensusNoOpModules {
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final StatusActionSubmitter statusActionSubmitter = action -> {};
+        final TriggerSubmitter triggerSubmitter = action -> {};
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final long transactionOffsetNanos = 0L;
@@ -315,7 +315,7 @@ public class ConsensusNoOpModules {
                 latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
-                statusActionSubmitter,
+                triggerSubmitter,
                 appVersion,
                 selfId,
                 transactionOffsetNanos);

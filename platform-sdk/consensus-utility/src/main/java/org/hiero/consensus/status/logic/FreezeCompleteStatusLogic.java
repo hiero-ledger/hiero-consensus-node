@@ -3,7 +3,7 @@ package org.hiero.consensus.status.logic;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.triggers.StatusMachineTrigger;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#FREEZE_COMPLETE} status.
@@ -13,7 +13,7 @@ import org.hiero.consensus.status.actions.PlatformStatusAction;
 public class FreezeCompleteStatusLogic implements PlatformStatusLogic {
     @NonNull
     @Override
-    public PlatformStatusLogic process(@NonNull final PlatformStatusAction action) {
+    public PlatformStatusLogic process(@NonNull final StatusMachineTrigger action) {
         return this;
     }
 
