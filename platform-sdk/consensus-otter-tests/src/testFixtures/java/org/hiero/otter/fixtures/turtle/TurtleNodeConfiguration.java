@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.merkledb.config.MerkleDbConfig_;
+import com.swirlds.platform.builder.ModulesConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -17,6 +18,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 import org.hiero.otter.fixtures.internal.OverrideProperties;
+import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
 
 /**
  * {@link NodeConfiguration} implementation for a Turtle node.
@@ -47,5 +49,7 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         this.overrideProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));
         this.overrideProperties.withConfigValue(StateConfig_.SAVE_STATE_ASYNC, false);
         this.overrideProperties.withConfigValue(ReconnectConfig_.ACTIVE, false);
+        this.overrideProperties.withConfigValue(
+                ModulesConfig_.GOSSIP, TurtleGossipModule.class.getModule().getName());
     }
 }

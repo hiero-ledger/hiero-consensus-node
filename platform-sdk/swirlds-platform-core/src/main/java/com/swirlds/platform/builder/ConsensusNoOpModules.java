@@ -241,7 +241,8 @@ public class ConsensusNoOpModules {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                Map.of());
         return gossipModule;
     }
 

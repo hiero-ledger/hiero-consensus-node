@@ -30,6 +30,7 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
@@ -99,10 +100,10 @@ class PlatformWiringTests {
                 "123",
                 "cesStream",
                 0,
-                null,
+                _ -> {},
                 model,
                 null,
-                null);
+                Map.of());
 
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =
