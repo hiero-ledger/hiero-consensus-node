@@ -11,7 +11,8 @@ import java.util.Objects;
  */
 public class LearnerSyncMetrics {
 
-    private static final String RECONNECT_MAP_CATEGORY = "reconnect_vmap";
+    /** Metrics category containing VirtualMap learner reconnect statistics. */
+    public static final String RECONNECT_MAP_CATEGORY = "reconnect_vmap";
 
     private final LongGauge transfersFromTeacher;
     private final LongGauge transfersFromLearner;

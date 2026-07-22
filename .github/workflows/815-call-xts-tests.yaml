@@ -263,7 +263,7 @@ jobs:
     uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       enable-full-otter-tests: true
-      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
+      enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
