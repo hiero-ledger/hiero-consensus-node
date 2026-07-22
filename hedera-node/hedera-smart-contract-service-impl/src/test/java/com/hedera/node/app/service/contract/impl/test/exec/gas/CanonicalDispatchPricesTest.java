@@ -6,27 +6,15 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class CanonicalDispatchPricesTest {
-    @Mock
-    private AssetsLoader assetsLoader;
-
     private CanonicalDispatchPrices subject;
-
-    @BeforeEach
-    void setUp() {}
 
     @Test
     void canonicalPricesReflectUpdatedFeeSchedule() {
