@@ -11,6 +11,8 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,6 +57,13 @@ public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
     private static final Duration DEFAULT_WORKER_INTERVAL = Duration.ofSeconds(1);
     private static final int DEFAULT_BUFFER_SIZE = 150;
+    /**
+     * Minimum acked blocks the buffer retains when ISS-block upload is enabled in gRPC-only mode, so a detected ISS
+     * block (whose only source is the buffer) survives the ISS-detection lag. Equals consensus.roundsNonAncient (26)
+     * + 1 — retaining N acked blocks holds a window of N, and the notification can lag a full roundsNonAncient rounds,
+     * so N must be roundsNonAncient + 1. Matches the default of {@link BlockBufferConfig#minAckedBlocksToBuffer()}.
+     */
+    private static final int ISS_RETENTION_FLOOR = 27;
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
@@ -131,6 +140,8 @@ public class BlockBufferService {
      * Flag indicating if the buffer service has been started.
      */
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
+    /** Logs the ISS-retention-floor clamp warning at most once (pruning runs every worker interval). */
+    private final AtomicBoolean issRetentionFloorWarned = new AtomicBoolean(false);
     /**
      * Low-level observability mechanism for block streaming.
      */
@@ -171,6 +182,50 @@ public class BlockBufferService {
      */
     private @NonNull BlockBufferConfig bufferConfig() {
         return configProvider.getConfiguration().getConfigData(BlockBufferConfig.class);
+    }
+
+    /**
+     * Whether the detection-time ISS-block upload feature is enabled. Read defensively: if
+     * {@link FailureBlockUploadConfig} is not registered (only possible in narrow tests; production always registers
+     * it), the feature cannot be active, so treat it as disabled rather than failing buffer pruning.
+     */
+    private boolean isIssBlockUploadEnabled() {
+        try {
+            return configProvider
+                    .getConfiguration()
+                    .getConfigData(FailureBlockUploadConfig.class)
+                    .issBlockUploadEnabled();
+        } catch (final IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * The acked-block retention floor used when pruning. Normally the configured
+     * {@link BlockBufferConfig#minAckedBlocksToBuffer()}; but when the ISS-block upload feature is enabled in gRPC-only
+     * mode — where the in-memory buffer is the only source of a detected ISS block — a value below
+     * {@link #ISS_RETENTION_FLOOR} would let the block be pruned before the (lagging) ISS notification can capture it.
+     * In that case, log a loud one-time warning and clamp up to {@link #ISS_RETENTION_FLOOR} rather than failing node
+     * start (this is an off-by-default triage feature).
+     */
+    private int effectiveMinAckedBlocksToBuffer() {
+        final int configured = bufferConfig().minAckedBlocksToBuffer();
+        if (configured >= ISS_RETENTION_FLOOR
+                || bsConfig().writerMode() != BlockStreamWriterMode.GRPC
+                || !isIssBlockUploadEnabled()) {
+            return configured;
+        }
+        if (issRetentionFloorWarned.compareAndSet(false, true)) {
+            logger.warn(
+                    "!!! blockStream.buffer.minAckedBlocksToBuffer={} is below the {} blocks needed to retain a "
+                            + "detected ISS block through the ISS-detection lag in gRPC-only mode (the buffer is the "
+                            + "block's only source); clamping to {}. Set minAckedBlocksToBuffer >= {} to silence this.",
+                    configured,
+                    ISS_RETENTION_FLOOR,
+                    ISS_RETENTION_FLOOR,
+                    ISS_RETENTION_FLOOR);
+        }
+        return ISS_RETENTION_FLOOR;
     }
 
     private boolean isGrpcStreamingEnabled() {
@@ -696,7 +751,7 @@ public class BlockBufferService {
         final long pruneBlockNumberThreshold;
         if (backpressureEnabled && highestBlockAcked != Long.MIN_VALUE && !orderedBuffer.isEmpty()) {
             final long highestAckedInBuffer = Math.min(highestBlockAcked, orderedBuffer.get(orderedBuffer.size() - 1));
-            pruneBlockNumberThreshold = highestAckedInBuffer - bufferConfig().minAckedBlocksToBuffer() + 1;
+            pruneBlockNumberThreshold = highestAckedInBuffer - effectiveMinAckedBlocksToBuffer() + 1;
         } else {
             pruneBlockNumberThreshold = Long.MIN_VALUE;
         }

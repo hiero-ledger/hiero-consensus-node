@@ -30,6 +30,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.FailureBlockUploadConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
@@ -2341,6 +2342,97 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verifyBlockSizingMetrics();
         verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void issBlockUploadEnabledClampsMinAckedFloorUpInGrpcMode() throws Throwable {
+        // ISS-block upload enabled in gRPC-only mode, where the buffer is the ISS block's only source. A configured
+        // floor (10) below the required 27 must be clamped up so a detected ISS block survives the detection lag.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withConfigDataType(FailureBlockUploadConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 200)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("failureBlockUpload.issBlockUploadEnabled", true)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 30L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(30L);
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Clamped to 27: retained window is [4, 30] (27 blocks), not the configured [21, 30] (10 blocks).
+        assertThat(buffer.keySet()).hasSize(27);
+        assertThat(buffer.keySet()).contains(4L).doesNotContain(3L);
+    }
+
+    @Test
+    void issBlockUploadDisabledHonorsConfiguredMinAckedFloor() throws Throwable {
+        // Feature off: never override an operator who intentionally shrinks the buffer.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withConfigDataType(FailureBlockUploadConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 200)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("failureBlockUpload.issBlockUploadEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 30L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(30L);
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Not clamped: retained window is the configured [21, 30] (10 blocks).
+        assertThat(buffer.keySet()).hasSize(10);
+        assertThat(buffer.keySet()).contains(21L).doesNotContain(20L);
+    }
+
+    @Test
+    void issBlockUploadInFileAndGrpcModeHonorsConfiguredMinAckedFloor() throws Throwable {
+        // FILE_AND_GRPC keeps the block on disk, so the ISS block is not buffer-only and the floor must not be clamped.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withConfigDataType(FailureBlockUploadConfig.class)
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", 200)
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("failureBlockUpload.issBlockUploadEnabled", true)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        for (long b = 1L; b <= 30L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(30L);
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Not clamped (writerMode != GRPC): retained window is the configured [21, 30] (10 blocks).
+        assertThat(buffer.keySet()).hasSize(10);
+        assertThat(buffer.keySet()).contains(21L).doesNotContain(20L);
     }
 
     // Utilities
