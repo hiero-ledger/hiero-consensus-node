@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.config.FallenBehindConfig_;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,10 +36,7 @@ class FallenBehindMonitorTest {
     void setUp() {
 
         final int numNodes = 11;
-        this.roster = RandomRosterBuilder.create(getRandomPrintSeed())
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        this.roster = RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.BALANCED);
         this.nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
@@ -173,10 +170,7 @@ class FallenBehindMonitorTest {
         public FallenBehindMonitorTestData() {
             final Random random = getRandomPrintSeed();
 
-            this.roster = RandomRosterBuilder.create(random)
-                    .withSize(41)
-                    .withWeightGenerator(WeightGenerators.BALANCED)
-                    .build();
+            this.roster = RosterFactory.randomRoster(random, 41, WeightGenerators.BALANCED);
             this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
 
             final Configuration configuration = new TestConfigBuilder()
@@ -600,10 +594,8 @@ class FallenBehindMonitorTest {
     @Test
     void testUnevenWeights() {
         final int numNodes = 11;
-        final Roster roster = RandomRosterBuilder.create(getRandomPrintSeed())
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.SINGLE_NODE_SUPERMAJORITY)
-                .build();
+        final Roster roster =
+                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.SINGLE_NODE_SUPERMAJORITY);
         final NodeId[] nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
@@ -632,10 +624,8 @@ class FallenBehindMonitorTest {
     @Test
     void testIgnoreZeroWeights() {
         final int numNodes = 30;
-        final Roster roster = RandomRosterBuilder.create(getRandomPrintSeed())
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.ONE_THIRD_ZERO_WEIGHT)
-                .build();
+        final Roster roster =
+                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.ONE_THIRD_ZERO_WEIGHT);
         final NodeId[] nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);

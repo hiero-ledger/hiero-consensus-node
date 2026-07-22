@@ -29,7 +29,6 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -146,9 +145,9 @@ class SignedStateFileReadWriteTest {
                 readState(testDirectory, configuration, stateLifecycleManager);
         hashState(deserializedSignedState.reservedSignedState().get());
 
-        final VirtualMapMetadata originalMetadata =
+        final VirtualMap.Metadata originalMetadata =
                 signedState.getState().getRoot().getMetadata();
-        final VirtualMapMetadata loadedMetadata = deserializedSignedState
+        final VirtualMap.Metadata loadedMetadata = deserializedSignedState
                 .reservedSignedState()
                 .get()
                 .getState()

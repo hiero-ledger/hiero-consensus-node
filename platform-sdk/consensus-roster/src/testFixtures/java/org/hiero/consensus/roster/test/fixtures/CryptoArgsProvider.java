@@ -16,11 +16,8 @@ public class CryptoArgsProvider {
      * @return 1 set of arguments (generated)
      */
     static Stream<Arguments> basicTestArgs() {
-        final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create())
-                .withSize(NUMBER_OF_ADDRESSES)
-                .withRealKeysEnabled(true)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-                .buildWithKeys();
+        final RosterWithKeys rosterWithKeys = RosterFactory.randomRosterWithKeys(
+                Randotron.create(), NUMBER_OF_ADDRESSES, WeightGenerators.BALANCED_1000_PER_NODE);
         return Stream.of(Arguments.of(rosterWithKeys.getRoster(), rosterWithKeys.getAllKeysAndCerts()));
     }
 }

@@ -28,7 +28,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherPar
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Test;
@@ -55,9 +55,7 @@ public class ConsensusEngineContractTest {
 
         // setup
         final Randotron random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(random.nextInt(minNodes, maxNodes))
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, random.nextInt(minNodes, maxNodes));
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // start from genesis, validate the output
@@ -93,8 +91,7 @@ public class ConsensusEngineContractTest {
 
         // setup
         final Randotron random = Randotron.create();
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(numNodes).build();
+        final Roster roster = RosterFactory.randomRoster(random, numNodes);
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // first part
@@ -127,10 +124,8 @@ public class ConsensusEngineContractTest {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final Randotron random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .withSize(random.nextInt(minNodes, maxNodes))
-                .build();
+        final Roster roster =
+                RosterFactory.randomRoster(random, random.nextInt(minNodes, maxNodes), WeightGenerators.BALANCED);
         final StandardEventEmitter eventEmitter =
                 new EventEmitterFactory(configuration, metrics, time, random, roster).newStandardEmitter();
         eventEmitter
