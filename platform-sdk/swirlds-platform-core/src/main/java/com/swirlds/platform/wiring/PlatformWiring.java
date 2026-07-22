@@ -132,10 +132,8 @@ public class PlatformWiring {
             @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final HashgraphModule hashgraph = buildingBlocks.hashgraphModule();
 
-        if (inputs.staleEventConsumer() != null) {
-            final OutputWire<PlatformEvent> staleEvent = hashgraph.staleEventOutputWire();
-            staleEvent.solderTo("staleEventCallback", "stale events", inputs.staleEventConsumer()::processStaleEvent);
-        }
+        final OutputWire<PlatformEvent> staleEvent = hashgraph.staleEventOutputWire();
+        staleEvent.solderTo("staleEventCallback", "stale events", inputs.staleEventConsumer()::processStaleEvent);
 
         final OutputWire<PlatformEvent> preconsensusEventOutputWire = hashgraph.preconsensusEventOutputWire();
 
