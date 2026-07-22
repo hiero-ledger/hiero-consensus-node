@@ -16,13 +16,11 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.util.encoders.Hex;
@@ -127,8 +125,7 @@ class HederaEVMTest {
                 .blockValues(mock(BlockValues.class))
                 .isStatic(false)
                 .maxStackSize(100)
-                .completer(_ -> {
-                })
+                .completer(_ -> {})
                 .blockHashLookup((_, _) -> {
                     throw new IllegalStateException();
                 })
@@ -154,16 +151,13 @@ class HederaEVMTest {
         }
 
         @Override
-        public void traceOriginAction(@NonNull MessageFrame frame) {
-        }
+        public void traceOriginAction(@NonNull MessageFrame frame) {}
 
         @Override
-        public void sanitizeTracedActions(@NonNull MessageFrame frame) {
-        }
+        public void sanitizeTracedActions(@NonNull MessageFrame frame) {}
 
         @Override
-        public void tracePrecompileResult(@NonNull MessageFrame frame, @NonNull ContractActionType type) {
-        }
+        public void tracePrecompileResult(@NonNull MessageFrame frame, @NonNull ContractActionType type) {}
 
         @Override
         public List<ContractAction> contractActions() {
@@ -187,16 +181,13 @@ class HederaEVMTest {
         }
 
         @Override
-        public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
-        }
+        public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {}
 
         @Override
-        public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
-        }
+        public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {}
 
         @Override
-        public void traceNotExecuting(MessageFrame child) {
-        }
+        public void traceNotExecuting(MessageFrame child) {}
     }
 
     static List<Arguments> dynamicOpsDurationOpcodesTestParams() {
@@ -292,8 +283,12 @@ class HederaEVMTest {
         assertEquals(
                 exactOpsDurationThrottle32.opsDurationUnitsConsumed() + ops128 - ops32,
                 exactOpsDurationThrottle128.opsDurationUnitsConsumed(),
-                "length 32 ops duration = '%s' should differ from length 128 ops duration = '%s' by exactly 'ops128=%s - ops32=%s' = %s".
-                        formatted(exactOpsDurationThrottle32.opsDurationUnitsConsumed(), exactOpsDurationThrottle128.opsDurationUnitsConsumed(), ops128, ops32, ops128 - ops32));
-
+                "length 32 ops duration = '%s' should differ from length 128 ops duration = '%s' by exactly 'ops128=%s - ops32=%s' = %s"
+                        .formatted(
+                                exactOpsDurationThrottle32.opsDurationUnitsConsumed(),
+                                exactOpsDurationThrottle128.opsDurationUnitsConsumed(),
+                                ops128,
+                                ops32,
+                                ops128 - ops32));
     }
 }
