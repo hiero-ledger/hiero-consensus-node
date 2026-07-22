@@ -23,8 +23,9 @@ import org.hiero.consensus.model.node.NodeId;
  * </ul>
  *
  * <p>
- * All of this data is reported serially from a single source {@link DefaultIssDetector} and caller takes care
- * about not accessing it concurrently and that memory visibility is guaranteed between the calls.
+ * This class in not thread safe.
+ * </p>
+ * <p>
  * This class must be capable of buffering that data until enough becomes available to reach a conclusion
  * on the validity of the hash.
  * </p>
