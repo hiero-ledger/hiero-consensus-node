@@ -129,7 +129,7 @@ public final class MerkleHasher {
     }
 
     /**
-     * Computes the hash of a leaf record. May be called from multiple threads in parallel.
+     * Computes the hash of a leaf record.
      *
      * @param leaf the leaf bytes to hash
      * @return the computed hash

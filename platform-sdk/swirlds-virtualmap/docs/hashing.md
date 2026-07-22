@@ -36,7 +36,7 @@ and 2, rank 2 contains paths 3 through 6, and so on. See `Path.getRank()`.
 
 **Internal node hashes** are computed by combining two child hashes with a distinguishing
 prefix, so that internal node hashes can never collide with leaf hashes. The method
-`MerkleHasher.hashInternalNode()` works as follows:
+`MerkleHasher.internalNodeHash()` works as follows:
 
 1. Write a single byte prefix: `0x02` for normal internal nodes (two children), or `0x01`
    for a root node with only one child (single-leaf tree).
@@ -389,7 +389,7 @@ root chunk would also skip disk I/O entirely.
 * **No dirty leaves:** `hash()` returns `null`.
 * **Invalid leaf range with dirty leaves:** Throws `IllegalArgumentException`.
 * **Single-leaf tree:** `firstLeafPath = lastLeafPath = 1`. The root hash uses `null` for the absent right child, producing a single-child hash with the `0x01` prefix.
-* **Empty tree:** `emptyRootHash()` produces a hash from a single `0x00` byte, used for trees with no elements.
+* **Empty tree:** `MerkleHasher.emptyRootHash()` produces a hash from a single `0x00` byte, used for trees with no elements.
 * **Chunks straddling leaf rank boundaries:** When `firstLeafRank ≠ lastLeafRank`, a chunk may have inputs at two different ranks. The algorithm creates height-1 tasks at the last
   leaf rank that feed into a larger task covering down to the first leaf rank. See
   `getChunkHeightForInputRank()` for the height calculation logic.
