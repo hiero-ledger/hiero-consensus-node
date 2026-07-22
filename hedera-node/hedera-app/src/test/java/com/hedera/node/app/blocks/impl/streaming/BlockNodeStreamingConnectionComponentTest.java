@@ -43,8 +43,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -291,6 +293,280 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     }
 
     @Test
+    void testConnectionWorker_sendPendingRequest_multiItemRequestExceedsSoftLimit_lotsOfSmallItems() throws Exception {
+        /*
+        This test generates a lot of small items. The initial fast calculation to add items to the pending request will
+        cause too many items to be added. When an attempt is made to send the pending request, we will detect that the
+        actual size of the request is too large. When this happens, multiple items will be removed from the pending
+        request to try to reach the size requirement. This test ensures that the requests contain the proper items in
+        the proper order when we "unroll" a pending request multiple times.
+         */
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.streamingRequestPaddingBytes", "0")
+                .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID);
+
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.configuration();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
+
+        final BlockState block = new BlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
+
+        final Map<Integer, BlockItem> items = new TreeMap<>();
+        items.put(0, newBlockTxItem(2_095_148));
+        items.put(1, newBlockTxItem(997));
+        items.put(2, newBlockTxItem(950));
+
+        for (int i = 3; i < 30; ++i) {
+            items.put(i, newBlockTxItem(2));
+        }
+
+        items.forEach((_, item) -> block.addItem(item));
+        block.closeBlock();
+
+        final CountDownLatch latestBlockEndSentLatch = new CountDownLatch(1);
+        doAnswer(_ -> {
+                    latestBlockEndSentLatch.countDown();
+                    return null;
+                })
+                .when(metrics)
+                .recordLatestBlockEndOfBlockSent(anyLong());
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        assertThat(latestBlockEndSentLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should record latest block end-of-block sent")
+                .isTrue();
+
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, times(3)).sendRequest(requestCaptor.capture(), anyBoolean());
+        assertThat(requestCaptor.getAllValues()).hasSize(3);
+        final List<PublishStreamRequestBytes> requests = requestCaptor.getAllValues();
+
+        final Bytes[] expectedReq1Items = new Bytes[] {
+            toBytes(items.get(0)),
+            toBytes(items.get(1)),
+            toBytes(items.get(2)),
+            toBytes(items.get(3)),
+            toBytes(items.get(4)),
+            toBytes(items.get(5)),
+            toBytes(items.get(6)),
+            toBytes(items.get(7))
+        };
+        final PublishStreamRequestBytes req1 = requests.get(0);
+        final List<Bytes> actualReq1Items =
+                req1.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems();
+        assertThat(actualReq1Items).hasSize(expectedReq1Items.length);
+        for (int i = 0; i < expectedReq1Items.length; ++i) {
+            final Bytes expected = expectedReq1Items[i];
+            final Bytes actual = actualReq1Items.get(i);
+            assertThat(actual)
+                    .withFailMessage(
+                            "Req 1 item at index %s does not match expected (expected: %s, actual: %s)",
+                            i, expected, actual)
+                    .isEqualTo(expected);
+        }
+
+        final Bytes[] expectedReq2Items = new Bytes[22];
+        for (int i = 8; i < 30; ++i) {
+            expectedReq2Items[i - 8] = toBytes(items.get(i));
+        }
+        final PublishStreamRequestBytes req2 = requests.get(1);
+        final List<Bytes> actualReq2Items =
+                req2.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems();
+        assertThat(actualReq2Items).hasSize(expectedReq2Items.length);
+        for (int i = 0; i < expectedReq2Items.length; ++i) {
+            final Bytes expected = expectedReq2Items[i];
+            final Bytes actual = actualReq2Items.get(i);
+            assertThat(actual)
+                    .withFailMessage(
+                            "Req 2 item at index %s does not match expected (expected: %s, actual: %s)",
+                            i, expected, actual)
+                    .isEqualTo(expected);
+        }
+
+        final PublishStreamRequestBytes req3 = requests.get(2);
+        assertThat(req3.endOfBlockOrElse(BlockEnd.DEFAULT).blockNumber()).isEqualTo(block.blockNumber());
+
+        verify(metrics, times(6)).recordMultiItemRequestExceedsSoftLimit();
+        verify(metrics, times(3)).recordRequestLatency(anyLong());
+        verify(metrics, times(2)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(2)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
+        verify(connectionManager).notifyConnectionActive(connection);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestCall);
+        verifyNoMoreInteractions(connectionManager);
+    }
+
+    @Test
+    void testConnectionWorker_sendPendingRequest_lotsOfSmallItemsWithOneTooBig() throws Exception {
+        /*
+        This test generates a lot of small items. The initial fast calculation to add items to the pending request will
+        cause too many items to be added. When an attempt is made to send the pending request, we will detect that the
+        actual size of the request is too large. When this happens, multiple items will be removed from the pending
+        request to try to reach the size requirement. This test ensures that the requests contain the proper items in
+        the proper order when we "unroll" a pending request multiple times.
+         */
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.streamingRequestPaddingBytes", "0")
+                .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeStreamingConnection(
+                configProvider,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID);
+
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.configuration();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
+
+        final BlockState block = new BlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
+
+        final Map<Integer, BlockItem> items = new TreeMap<>();
+        items.put(0, newBlockTxItem(2_095_148));
+        items.put(1, newBlockTxItem(997));
+        items.put(2, newBlockTxItem(950));
+
+        for (int i = 3; i < 14; ++i) {
+            items.put(i, newBlockTxItem(2));
+        }
+
+        items.put(14, newBlockTxItem(40_000_000));
+
+        items.forEach((_, item) -> block.addItem(item));
+
+        block.closeBlock();
+
+        final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
+        doAnswer(_ -> {
+                    connectionClosedLatch.countDown();
+                    return null;
+                })
+                .when(metrics)
+                .recordConnectionClosed(any(CloseReason.class));
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        assertThat(connectionClosedLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should record latest block end-of-block sent")
+                .isTrue();
+
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, times(3)).sendRequest(requestCaptor.capture(), anyBoolean());
+        assertThat(requestCaptor.getAllValues()).hasSize(3);
+        final List<PublishStreamRequestBytes> requests = requestCaptor.getAllValues();
+
+        final Bytes[] expectedReq1Items = new Bytes[] {
+            toBytes(items.get(0)),
+            toBytes(items.get(1)),
+            toBytes(items.get(2)),
+            toBytes(items.get(3)),
+            toBytes(items.get(4)),
+            toBytes(items.get(5)),
+            toBytes(items.get(6)),
+            toBytes(items.get(7))
+        };
+        final PublishStreamRequestBytes req1 = requests.get(0);
+        final List<Bytes> actualReq1Items =
+                req1.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems();
+        assertThat(actualReq1Items).hasSize(expectedReq1Items.length);
+        for (int i = 0; i < expectedReq1Items.length; ++i) {
+            final Bytes expected = expectedReq1Items[i];
+            final Bytes actual = actualReq1Items.get(i);
+            assertThat(actual)
+                    .withFailMessage(
+                            "Req 1 item at index %s does not match expected (expected: %s, actual: %s)",
+                            i, expected, actual)
+                    .isEqualTo(expected);
+        }
+
+        final Bytes[] expectedReq2Items = new Bytes[] {
+            toBytes(items.get(8)),
+            toBytes(items.get(9)),
+            toBytes(items.get(10)),
+            toBytes(items.get(11)),
+            toBytes(items.get(12)),
+            toBytes(items.get(13)),
+        };
+        final PublishStreamRequestBytes req2 = requests.get(1);
+        final List<Bytes> actualReq2Items =
+                req2.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems();
+        assertThat(actualReq2Items).hasSize(expectedReq2Items.length);
+        for (int i = 0; i < expectedReq2Items.length; ++i) {
+            final Bytes expected = expectedReq2Items[i];
+            final Bytes actual = actualReq2Items.get(i);
+            assertThat(actual)
+                    .withFailMessage(
+                            "Req 2 item at index %s does not match expected (expected: %s, actual: %s)",
+                            i, expected, actual)
+                    .isEqualTo(expected);
+        }
+
+        final PublishStreamRequestBytes req3 = requests.get(2);
+        assertThat(req3.endStreamOrElse(EndStreamBytes.DEFAULT).endCode()).isEqualTo(EndStream.Code.ERROR);
+
+        verify(metrics, times(6)).recordMultiItemRequestExceedsSoftLimit();
+        verify(metrics, times(3)).recordRequestLatency(anyLong());
+        verify(metrics, times(2)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(2)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(connectionManager).notifyConnectionActive(connection);
+        verify(connectionManager).notifyConnectionClosed(connection);
+        verify(metrics).recordRequestExceedsHardLimit();
+        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
+        verify(requestCall).completeRequests();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestCall);
+        verifyNoMoreInteractions(connectionManager);
+    }
+
+    @Test
     void testConnectionWorker_sendPendingRequest_multiItemRequestExceedsSoftLimit() throws Exception {
         final TestConfigBuilder cfgBuilder = createDefaultConfigProvider()
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
@@ -332,7 +608,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
          */
         final BlockItem item1 = newBlockTxItem(2_095_148);
         final BlockItem item2 = newBlockTxItem(997);
-        final BlockItem item3 = newBlockTxItem(997);
+        final BlockItem item3 = newBlockTxItem(996);
         final BlockItem item4 = newBlockTxItem(1_500);
 
         block.addItem(item1);
