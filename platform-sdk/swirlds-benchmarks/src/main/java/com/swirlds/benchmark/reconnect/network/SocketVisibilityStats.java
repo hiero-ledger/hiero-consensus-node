@@ -53,6 +53,8 @@ package com.swirlds.benchmark.reconnect.network;
  * @param maxRawWriteDurationNanos maximum raw write duration
  * @param rawWriteBytesOverQuarterLatency bytes in writes lasting more than one quarter of target latency
  * @param rawWriteBytesOverSerializationDuration bytes in writes lasting longer than target serialization duration
+ * @param rawWriteBytesOverEitherTarget bytes in writes lasting longer than either the quarter-latency or target
+ *     serialization-duration limit; a range which violates both limits is counted once
  * @param failedRawWrites failed or ambiguously partial raw writes
  * @param state controller lifecycle state
  */
@@ -102,5 +104,6 @@ public record SocketVisibilityStats(
         long maxRawWriteDurationNanos,
         long rawWriteBytesOverQuarterLatency,
         long rawWriteBytesOverSerializationDuration,
+        long rawWriteBytesOverEitherTarget,
         long failedRawWrites,
         String state) {}

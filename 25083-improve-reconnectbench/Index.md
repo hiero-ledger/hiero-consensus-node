@@ -1,6 +1,6 @@
 # ReconnectBench Task Index
 
-Last updated: 2026-07-21
+Last updated: 2026-07-22
 
 > Summary: Routing map for the ReconnectBench improvement task docs and captured calibration artifacts.
 
@@ -13,7 +13,7 @@ Last updated: 2026-07-21
 
 ## Design And Implementation
 
-- [Refined A1 Socket-Network Design And Real-Network Gap Analysis](design-and-implementation/2026-07-21-refined-a1-socket-network-design-and-real-network-gap-analysis.md) - Implemented, falsifiable prototype for sender-observed one-way latency and progressive payload eligibility over the production loopback socket stack while leaving real socket buffers authoritative; correctness/functional smokes pass but the provisional `270 us` timing gate currently fails; includes exact timing, diagnostics, validation status, no-`4L`/no-ticket explanation, and remaining fidelity gaps versus real TCP.
+- [Refined A1 Socket-Network Design And Real-Network Gap Analysis](design-and-implementation/2026-07-21-refined-a1-socket-network-design-and-real-network-gap-analysis.md) - Implemented, falsifiable prototype for sender-observed one-way latency and progressive payload eligibility over the production loopback socket stack while leaving real socket buffers authoritative; 10M accounting/lifecycle checks pass, but measured plumbing overhead and frozen timing gates fail; includes exact timing, diagnostics, no-`4L`/no-ticket explanation, and remaining fidelity gaps versus real TCP.
 - [Runtime Network Architecture Analysis](design-and-implementation/2026-07-20-runtime-network-architecture-analysis.md) - Cross-check draft comparing the simulator, raw loopback socket, current read-paced socket, coordinated hybrid, and relay designs; records bandwidth/latency semantics, TCP-ACK trust boundaries, 5M/10M evidence, competing arguments, and the conditional architecture conclusion.
 - [Original Design Specification](design-and-implementation/ReconnectBench-original-design-specification.md) - Initial planning document for the ReconnectBench redesign.
 - [Traversal-Comparison MVP Design](design-and-implementation/ReconnectBench-traversal-comparison-mvp-design.md) - Current MVP design for comparing reconnect traversal modes with simulated network behavior.
@@ -40,3 +40,6 @@ Last updated: 2026-07-21
 - [2026-07-08 Read-Pacing Smoke Matrix](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-08-read-pacing-smoke-matrix.md) - Initial 5M socket-buffer/read-pacing matrix with low-latency controls, high-latency candidate-binding cells, pacing diagnostics, and the limits imposed by its noise/confounds.
 - [2026-07-16 Read-Pacing 10M Matrix](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-read-pacing-10m-matrix.md) - Fresh internally paired 10M-state repeat of the socket-buffer/read-pacing matrix, including pacing diagnostics and comparison with the July 8 matrix shape.
 - [2026-07-16 Compression 10M Comparison](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-compression-10m-comparison.md) - Counterbalanced production sync-stream comparison on the same 10M state; compression reduced total wire bytes by 60.1% but increased median reconnect time by 71.8% at 270 us and 200 Mbit/s.
+- [2026-07-21 Refined-A1 10M Overhead And Socket-Buffer Matrix](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md) - Completed 10M validation: exact accounting/lifecycle pass, pass-through overhead is about 19.5%, frozen timing gates fail, and the historical high-latency/pinned-small-buffer stress trend partially reproduces.
+- [2026-07-21 Refined-A1 75M Traversal-Order Comparison](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-21-refined-a1-75m-traversal-order-comparison.md) - Completed counterbalanced `ABC / BCA / CAB` large-state comparison at 263 us and 200 Mbit/s; all three socket rounds and both simulator passes reproduce `top-to-bottom < two-phase < parallel`.
+- [2026-07-22 Raw-Loopback 75M Traversal-Order Comparison](evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-22-loopback-75m-traversal-order-comparison.md) - Rounds `ABC` and `BCA` both preserve `top-to-bottom < two-phase < parallel`; paused before `CAB` at `n=2`, with high round-to-round variance for parallel traversal.

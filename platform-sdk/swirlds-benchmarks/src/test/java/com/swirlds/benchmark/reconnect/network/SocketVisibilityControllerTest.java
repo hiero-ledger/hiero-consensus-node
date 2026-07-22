@@ -198,9 +198,11 @@ class SocketVisibilityControllerTest {
     void instrumentedControlRetainsTargetWriteDurationThresholds() throws Exception {
         final SocketNetworkConfig config = SocketNetworkConfig.resolve(NetworkProfile.INSTRUMENTED_LOOPBACK, 270, 200);
         final SocketVisibilityController controller = new SocketVisibilityController(config);
-        final SocketVisibilityController.Reservation reservation = controller.reserveRange(675);
+        final SocketVisibilityController.Reservation serializationOnly = controller.reserveRange(675);
+        final SocketVisibilityController.Reservation bothTargets = controller.reserveRange(675);
 
-        controller.recordRawWrite(reservation, 100_000, true);
+        controller.recordRawWrite(serializationOnly, 50_000, true);
+        controller.recordRawWrite(bothTargets, 100_000, true);
 
         final SocketVisibilityStats stats = controller.stats();
         assertEquals(270_000, stats.configuredLatencyNanos());
@@ -208,7 +210,8 @@ class SocketVisibilityControllerTest {
         assertEquals(0, stats.modeledLatencyNanos());
         assertEquals(Long.MAX_VALUE, stats.modeledBandwidthBytesPerSecond());
         assertEquals(675, stats.rawWriteBytesOverQuarterLatency());
-        assertEquals(675, stats.rawWriteBytesOverSerializationDuration());
+        assertEquals(1_350, stats.rawWriteBytesOverSerializationDuration());
+        assertEquals(1_350, stats.rawWriteBytesOverEitherTarget());
     }
 
     @Test

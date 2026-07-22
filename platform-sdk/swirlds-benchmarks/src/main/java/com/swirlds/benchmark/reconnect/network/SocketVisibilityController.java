@@ -159,6 +159,7 @@ final class SocketVisibilityController {
     private long maxRawWriteDurationNanos;
     private long rawWriteBytesOverQuarterLatency;
     private long rawWriteBytesOverSerializationDuration;
+    private long rawWriteBytesOverEitherTarget;
     private long failedRawWrites;
 
     private final LogHistogram rangeSizes = new LogHistogram();
@@ -355,14 +356,19 @@ final class SocketVisibilityController {
             if (!accepted) {
                 failedRawWrites++;
             }
-            if (configuredLatencyNanos > 0 && duration > configuredLatencyNanos / 4) {
+            final boolean overQuarterLatency = configuredLatencyNanos > 0 && duration > configuredLatencyNanos / 4;
+            final boolean overSerializationDuration = reservation.targetSerializationDurationNanos() > 0
+                    && duration > reservation.targetSerializationDurationNanos();
+            if (overQuarterLatency) {
                 rawWriteBytesOverQuarterLatency =
                         saturatedAdd(rawWriteBytesOverQuarterLatency, reservation.byteCount());
             }
-            if (reservation.targetSerializationDurationNanos() > 0
-                    && duration > reservation.targetSerializationDurationNanos()) {
+            if (overSerializationDuration) {
                 rawWriteBytesOverSerializationDuration =
                         saturatedAdd(rawWriteBytesOverSerializationDuration, reservation.byteCount());
+            }
+            if (overQuarterLatency || overSerializationDuration) {
+                rawWriteBytesOverEitherTarget = saturatedAdd(rawWriteBytesOverEitherTarget, reservation.byteCount());
             }
         } finally {
             lock.unlock();
@@ -587,6 +593,7 @@ final class SocketVisibilityController {
                     maxRawWriteDurationNanos,
                     rawWriteBytesOverQuarterLatency,
                     rawWriteBytesOverSerializationDuration,
+                    rawWriteBytesOverEitherTarget,
                     failedRawWrites,
                     state);
         } finally {

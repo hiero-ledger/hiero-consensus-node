@@ -1,6 +1,6 @@
 # Local ReconnectBench Calibration Notes
 
-Updated: `2026-07-16`
+Updated: `2026-07-22`
 
 Purpose: preserve local `ReconnectBench` calibration and validation notes, grouped by run date.
 
@@ -18,8 +18,6 @@ Later run notes kept as separate files in this directory:
 - [`2026-07-03-loopback-socket-realistic-local-runs.md`](2026-07-03-loopback-socket-realistic-local-runs.md): first loopback-socket REALISTIC runs.
 - [`new-5m-local.md`](new-5m-local.md): `2026-07-06` 5M-state SocketFactory buffer-size runs (unset / 1 MiB / 32 KiB) under the
   write-side shaper — the null result that motivated the read-pacing design.
-- [`2026-07-08-socket-buffer-probe.md`](2026-07-08-socket-buffer-probe.md): standalone macOS socket-buffer probe (effective
-  windows, sender-block points, autotuning readback) — evidence base for the read-pacing design.
 - [`2026-07-08-read-pacing-smoke-matrix.md`](2026-07-08-read-pacing-smoke-matrix.md): first post-implementation smoke matrix
   (buffer config x control/binding leg) validating that `SocketFactory` buffer changes now move reconnect wall-clock in the
   binding regime and correctly show no effect at the calibrated control point.
@@ -28,6 +26,16 @@ Later run notes kept as separate files in this directory:
 - [`2026-07-16-compression-10m-comparison.md`](2026-07-16-compression-10m-comparison.md): counterbalanced three-run-per-mode
   comparison of the production compressed and uncompressed sync-stream paths on the same 10M state at 270 us and
   200 Mbit/s; compression reduced total wire bytes by 60.1% but increased median reconnect time by 71.8%.
+- [`2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md`](2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md):
+  10M refined-A1 validation; exact accounting and lifecycle pass, but pass-through overhead is about 19.5% and the
+  frozen timing gates fail, while the high-latency/pinned-small-buffer stress trend partially reproduces.
+- [`2026-07-21-refined-a1-75m-traversal-order-comparison.md`](2026-07-21-refined-a1-75m-traversal-order-comparison.md):
+  completed counterbalanced `ABC / BCA / CAB` comparison on the supplied large saved state at 263 us and 200 Mbit/s;
+  all three socket rounds and both same-state simulator passes reproduce `top-to-bottom < two-phase < parallel`.
+- [`2026-07-22-loopback-75m-traversal-order-comparison.md`](2026-07-22-loopback-75m-traversal-order-comparison.md):
+  in-progress raw-socket `ABC / BCA / CAB` control on the same supplied state, with no refined-A1 network modeling or
+  visibility machinery; completed `ABC` and `BCA` both preserve `top-to-bottom < two-phase < parallel`; paused before
+  `CAB` at `n=2`, with high round-to-round variance for parallel traversal.
 
 ## 2026-05-04
 

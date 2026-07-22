@@ -2,7 +2,7 @@
 
 Date: `2026-07-21`
 
-Status: `implemented as an uncommitted, falsifiable prototype on the current socket-network branch; correctness and tiny functional smokes pass; the 270 us timing acceptance gate currently fails`
+Status: `implemented falsifiable prototype; 10M accounting/lifecycle checks pass, but pass-through overhead and frozen timing acceptance gates fail; high-latency/small-buffer evidence is exploratory`
 
 Related documents:
 
@@ -100,15 +100,16 @@ INSTRUMENTED_LOOPBACK
 LOOPBACK
 ```
 
-As of this update, 50 focused network tests pass. They cover deterministic schedule arithmetic, fractional carry,
-clock wrap, latency/bandwidth integration, ping-pong and full-duplex directionality, production compression/counters,
-raw and instrumented controls, timeouts, interruption, abort/close wakeups, metadata limits, pass-through target
+As of this update, the complete benchmark test task passes 54 tests. They cover deterministic schedule arithmetic,
+fractional carry, clock wrap, latency/bandwidth integration, ping-pong and full-duplex directionality, production
+compression/counters, raw and instrumented controls, timeouts, interruption, abort/close wakeups, metadata limits, pass-through target
 thresholds, and diagnostics. The benchmark source also compiles and formatting checks pass.
 
-That is implementation-correctness evidence, not experimental acceptance. No raw-loopback versus instrumented
-pass-through **calibrated** comparison or traversal matrix has yet established that `675`-byte range splitting is
-cheap enough or ranking-neutral. Until those gates pass, refined A1 remains a prototype whose output must be inspected
-through its diagnostics.
+That is implementation-correctness evidence, not experimental acceptance. The completed 10M experiment described
+below establishes that `675`-byte range splitting is **not** cheap enough under the frozen control: instrumented
+pass-through is about `19.5%` slower than raw loopback. No traversal matrix has established ranking neutrality. Until
+the design is revised and its gates pass, refined A1 remains a prototype whose output must be inspected through its
+diagnostics.
 
 ### Tiny functional smoke result
 
@@ -132,6 +133,31 @@ this small cold run. Therefore the prototype correctly reports that the document
 acceptance gates do **not** pass on this smoke. A calibrated repeated workload is still needed to separate cold-start
 write tails and instrumentation cost, but the timer result must not be hidden or described as accepted in the
 meantime.
+
+### Completed 10M acceptance experiment
+
+The follow-up experiment is recorded in
+[`2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md`](../evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md).
+It used one fresh deterministic 10M state, eight counterbalanced raw/instrumented single-shot runs, and the historical
+six-cell socket-buffer by latency matrix with three measurements per cell.
+
+The result cleanly separates implementation correctness from model acceptance:
+
+- every instrumented/shaped direction had exact observed/scheduled/returned/network bytes, zero pending metadata,
+  zero failed raw I/O, and `CLOSED` lifecycle state;
+- the four adjacent `INSTRUMENTED_LOOPBACK / LOOPBACK` ratios were `1.242x`, `1.170x`, `1.162x`, and `1.208x`, with a
+  `1.195x` geometric mean;
+- the observer turns the reconnect into about `2.705 million` bounded raw socket writes at the `270 us` target, so the
+  overhead is a material syscall/TCP-write-shape change rather than passive instrumentation;
+- the matrix partially reproduced the useful stress signal: `32 KiB / 50 ms` was `1.725x` its own `270 us` mean and
+  about `2.00-2.14x` the larger-window `50 ms` cells;
+- the old clean low-latency control did not reproduce: `32 KiB / 270 us` was `13.7%` slower than unset by mean;
+- recorded release-lateness p99 failed in all `36/36` matrix directions, and the raw-write union limit passed only
+  `5/36` directions and no complete iteration.
+
+The frozen falsification conditions therefore trigger. The 10M result is valid exploratory evidence that receiver
+read withholding plus real loopback buffers can expose a high-latency/small-buffer interaction. It is not acceptance
+of the current implementation as a low-overhead, timing-calibrated `REALISTIC` transport.
 
 ## Terminology
 
@@ -1204,22 +1230,33 @@ cluster validation, not the default benchmark.
 
 ## Recommended Interpretation And Next Decision Points
 
-Refined A1 is a reasonable next experiment because it combines three properties no current single mode provides:
+Refined A1 was a reasonable bounded experiment because it combines three properties no current single mode provides:
 
 1. observer-relative reconnect-visible latency and progressive payload-bandwidth eligibility;
 2. production sync-stream/compression behavior;
 3. genuine local socket-buffer occupancy and writer blocking.
 
-It does **not** close the TCP-control gap. The design is strongest when used to compare reconnect behavior on a
-healthy, low-latency, lossless path—especially the calibrated `270 us / 200 Mbit/s` profile, whose RTT bandwidth-delay
-product is small compared with the old option readbacks/probe reports. That comparison is encouraging, not proof; the
-release-quantum, pass-through, raw-write, and scheduler criteria must all pass before the low-latency claim is trusted.
+It does **not** close the TCP-control gap. The 10M experiment also shows that the current implementation cannot yet be
+trusted even for the narrower healthy, low-latency, lossless-path claim: pass-through overhead is material, the
+`270 us` release/write gates fail, and bounded output splitting changes raw-write granularity. The design must be
+revised or its benchmark claim downgraded; the failed criteria must not be relaxed after seeing a useful buffer trend.
+
+`INSTRUMENTED_LOOPBACK` should remain available while this prototype remains because it is the only control that
+separates A1 plumbing from modeled waits. Removing only that profile would not remove the same machinery from
+`REALISTIC`; it would hide the measured cost. It may later become an internal diagnostic rather than a permanent
+user-facing profile, but only after the A1 architecture decision.
+
+The next step should not be a larger traversal matrix on the unchanged implementation. First decide whether to invest
+in reducing bounded raw-write amplification and improving timestamp/scheduler fidelity. If not, the portable
+controlled traversal comparison should remain with `SimulatedNetworkChannel`, while real configured-TCP fidelity
+belongs in a separately shaped integration or cluster environment.
 
 The remaining questions to revisit after the prototype are:
 
 1. Are scheduler lateness and raw-write timestamp error small enough at `270 us`?
 2. Does accepted-range `SocketChannel` publication become necessary, or are bounded blocking writes adequate?
-3. Does refined A1 retain useful, stable traversal ranking and buffer diagnostics without the old periodic window?
+3. After an overhead/timing redesign, does refined A1 retain useful, stable traversal ranking and buffer diagnostics
+   without the old periodic window?
 4. Are high-RTT buffer experiments only stress diagnostics, or must the benchmark predict their absolute TCP
    behavior? If the latter, pure A1 is insufficient.
 5. Does the required combined gate/socket timeout preserve current reconnect lifecycle behavior under large `L`?
@@ -1244,7 +1281,9 @@ Another reviewer should independently verify all of the following:
 - [x] Pre-write metadata and socket-I/O lock ordering cannot deadlock by current code/audit evidence.
 - [x] Pre-write timing error is measured and has a falsification threshold.
 - [x] The saturated `t = 2L` replacement timeline is treated as conditional, not guaranteed by pre-write metadata.
-- [ ] The release quantum and instrumented pass-through control meet their acceptance budgets.
+- [ ] The release quantum and instrumented pass-through control meet their acceptance budgets (`10M` pass-through
+      overhead fails at about `19.5%`).
+- [ ] The 10M release-lateness and raw-write union gates pass (no complete matrix iteration passed).
 - [x] Failure signals both controllers and physically closes the shared socket connection.
 - [x] One logical read deadline covers metadata, eligibility, and raw socket waits.
 - [x] ACK timing and receive-window-update timing are described separately.
@@ -1268,6 +1307,7 @@ Local code and task evidence:
 - [`AsyncInputStream.java`](../../platform-sdk/swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/streams/AsyncInputStream.java)
 - [`AsyncOutputStream.java`](../../platform-sdk/swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/streams/AsyncOutputStream.java)
 - [`2026-07-16-read-pacing-10m-matrix.md`](../evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-read-pacing-10m-matrix.md)
+- [`2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md`](../evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-21-refined-a1-10m-overhead-and-buffer-matrix.md)
 - [`2026-07-08-read-pacing-smoke-matrix.md`](../evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-08-read-pacing-smoke-matrix.md)
 - [`2026-07-16-compression-10m-comparison.md`](../evidence-and-calibration/local-reconnectbench-calibration-notes/2026-07-16-compression-10m-comparison.md)
 
