@@ -13,8 +13,8 @@ import org.hiero.consensus.model.node.NodeId;
 
 /**
  * <p>
- * Collects data, and validates this node's hash for a particular round once sufficient data has been collected.
- * This class is responsible for collecting the following:
+ * Collects data, and validates this node's hash for a particular round once sufficient data has been collected. This
+ * class is responsible for collecting the following:
  * </p>
  *
  * <ul>
@@ -23,8 +23,10 @@ import org.hiero.consensus.model.node.NodeId;
  * </ul>
  *
  * <p>
- * All of this data is reported asynchronously to this class by different threads, and so this class must be capable
- * of buffering that data until enough becomes available to reach a conclusion on the validity of the hash.
+ * All of this data is reported serially from a single source {@link DefaultIssDetector} and caller takes care
+ * about not accessing it concurrently and that memory visibility is guaranteed between the calls.
+ * This class must be capable of buffering that data until enough becomes available to reach a conclusion
+ * on the validity of the hash.
  * </p>
  */
 public class RoundHashValidator {
@@ -89,23 +91,22 @@ public class RoundHashValidator {
     }
 
     /**
-     * Get the consensus hash finder.
-     * For read only uses after the hash status is no longer {@link HashValidityStatus#UNDECIDED}. Writing to
-     * this object or reading it prior to the status becoming decided is not thread safe.
+     * Get the consensus hash finder. For read only uses after the hash status is no longer
+     * {@link HashValidityStatus#UNDECIDED}. Writing to this object or reading it prior to the status becoming decided
+     * is not thread safe.
      */
     public ConsensusHashFinder getHashFinder() {
         return hashFinder;
     }
 
     /**
-     * Report the hash computed for this round by this node. This method can be called as soon as the self hash
-     * is known and does not need to wait for consensus.
+     * Report the hash computed for this round by this node. This method can be called as soon as the self hash is known
+     * and does not need to wait for consensus.
      *
-     * @param selfStateHash
-     * 		the hash computed by this node
+     * @param selfStateHash the hash computed by this node
      * @return if the execution of this method caused us to reach a conclusion on the validity of the hash. After this
-     * 		method returns true, then {@link #getStatus()} will return a value that is not
-     *        {@link HashValidityStatus#UNDECIDED}.
+     * method returns true, then {@link #getStatus()} will return a value that is not
+     * {@link HashValidityStatus#UNDECIDED}.
      */
     public boolean reportSelfHash(@NonNull final Hash selfStateHash) {
         if (this.selfStateHash != null) {
@@ -121,15 +122,12 @@ public class RoundHashValidator {
      * transaction containing the hash reaches consensus and is handled on the handle-transaction thread. Signature
      * transactions created by this node should also be passed to this method the same way.
      *
-     * @param nodeId
-     * 		the node ID that is reporting the hash
-     * @param nodeWeight
-     * 		the weight of the node
-     * @param stateHash
-     * 		the hash of this round's state as computed by the node in question
+     * @param nodeId     the node ID that is reporting the hash
+     * @param nodeWeight the weight of the node
+     * @param stateHash  the hash of this round's state as computed by the node in question
      * @return if the execution of this method caused us to reach a conclusion on the validity of the hash. After this
-     * 		method returns true, then {@link #getStatus()} will return a value that is not
-     *        {@link HashValidityStatus#UNDECIDED}.
+     * method returns true, then {@link #getStatus()} will return a value that is not
+     * {@link HashValidityStatus#UNDECIDED}.
      */
     public boolean reportHashFromNetwork(
             @NonNull final NodeId nodeId, final long nodeWeight, @NonNull final Hash stateHash) {
@@ -173,8 +171,8 @@ public class RoundHashValidator {
      * Called when we run out of time to collect additional data.
      *
      * @return if the execution of this method caused us to reach a conclusion on the validity of the hash. After this
-     * 		method returns true, then {@link #getStatus()} will return a value that is not
-     *        {@link HashValidityStatus#UNDECIDED}.
+     * method returns true, then {@link #getStatus()} will return a value that is not
+     * {@link HashValidityStatus#UNDECIDED}.
      */
     public boolean outOfTime() {
         if (status != HashValidityStatus.UNDECIDED) {
@@ -212,8 +210,7 @@ public class RoundHashValidator {
     /**
      * Get the status of the validity of this node's hash for this round.
      *
-     * @return a validity status, will be {@link HashValidityStatus#UNDECIDED} until
-     * 		enough data has been gathered.
+     * @return a validity status, will be {@link HashValidityStatus#UNDECIDED} until enough data has been gathered.
      */
     public HashValidityStatus getStatus() {
         return status;
