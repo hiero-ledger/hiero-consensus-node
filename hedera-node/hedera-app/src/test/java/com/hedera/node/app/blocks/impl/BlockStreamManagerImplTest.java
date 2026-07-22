@@ -861,6 +861,11 @@ class BlockStreamManagerImplTest {
 
         verify(aWriter).openBlock(N_BLOCK_NO);
 
+        // After the freeze round ends, no successor block is opened, so blockNo() must still report the
+        // freeze block itself; the freeze-time block node acknowledgement wait relies on this to target
+        // the freeze block (see Hedera#awaitFreezeRoundBlockProofsAndAcks).
+        assertEquals(N_BLOCK_NO, subject.blockNo());
+
         // Assert the internal state of the subject has changed as expected and the writer has been closed
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
