@@ -17,8 +17,10 @@ public interface BlockUploader {
     /**
      * Uploads the given block-contents files (the {@code .iss.gz}/{@code .pnd.gz}/{@code .open.gz} files captured for
      * triage). For a pending block ({@code .pnd.gz}), the sibling {@code .pnd.json} proof file is uploaded alongside it
-     * when present. Each file becomes a separate object, placed under the given {@code category} folder and grouped
-     * under a per-incident folder so the blocks from one event are kept together and never intermix with another's.
+     * when present, but only once the contents upload has succeeded — a proof is useless without its block, so a block
+     * contributes URIs to the result only when its contents file was uploaded. Each file becomes a separate object,
+     * placed under the given {@code category} folder and grouped under a per-incident folder so the blocks from one
+     * event are kept together and never intermix with another's.
      *
      * @param category the top-level bucket folder for this upload ({@code iss/} for a detection-time capture,
      * {@code triage/} for the catastrophic-failure flushed set)

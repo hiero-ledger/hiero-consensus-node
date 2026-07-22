@@ -465,6 +465,9 @@ public class IssDetectionUploadCoordinator {
                 // The ISS block first, so it is preserved even if the best-effort context upload later runs long.
                 final List<String> issUris =
                         uploader.uploadBlockFiles(UploadCategory.ISS, incidentFolder, List.of(issBlock));
+                // Non-empty iff the ISS block's CONTENTS uploaded: the uploader records no uri for a block whose
+                // contents upload failed (a proof-sidecar-only success is never counted), so this is not a false
+                // positive.
                 issBlockUploaded.set(!issUris.isEmpty());
                 if (issUris.isEmpty()) {
                     log.warn("ISS block {} was NOT uploaded to iss/; see prior errors", issBlock.getFileName());

@@ -107,9 +107,12 @@ class BuckyBlockUploader implements BlockUploader {
         try (final S3Client s3 = clientFactory.create(config, credentials)) {
             for (final Path contents : contentsFiles) {
                 final String uri = uploadOne(s3, category, incidentFolder, contents);
-                if (uri != null) {
-                    uploaded.add(uri);
+                if (uri == null) {
+                    // A .pnd.json proof sidecar is useless without its block contents: skip it when the contents
+                    // upload fails, so a sidecar-only success can't be read by the caller as "the block was uploaded".
+                    continue;
                 }
+                uploaded.add(uri);
                 final Path sidecar = proofSidecarOf(contents);
                 if (sidecar != null && Files.exists(sidecar)) {
                     final String sidecarUri = uploadOne(s3, category, incidentFolder, sidecar);

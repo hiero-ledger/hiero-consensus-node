@@ -4,9 +4,11 @@ package com.hedera.node.app.blocks.cloud.uploader;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -134,6 +136,30 @@ class BuckyBlockUploaderTest {
 
         verify(s3, times(1)).uploadFile(anyString(), anyString(), any(), anyString());
         assertThat(uris).isEmpty();
+    }
+
+    @Test
+    void doesNotUploadProofSidecarWhenPendingContentsUploadFails() throws Exception {
+        // The .pnd.json proof sidecar must upload only if the .pnd.gz contents upload succeeds;
+        // a sidecar-only success must not be reported, else the coordinator marks the ISS block uploaded when it
+        // wasn't.
+        final String base = FileBlockItemWriter.longToFileName(2L);
+        final Path pnd = tempDir.resolve(base + ".pnd.gz");
+        final Path proof = tempDir.resolve(base + ".pnd.json");
+        Files.write(pnd, new byte[] {1, 2, 3});
+        Files.writeString(proof, "{}");
+        // Contents (.pnd.gz) upload fails; the sidecar (.pnd.json) would otherwise succeed by default.
+        doThrow(new IOException("contents failed"))
+                .when(s3)
+                .uploadFile(argThat((String key) -> key.endsWith(".pnd.gz")), anyString(), any(), anyString());
+
+        final var uploader = new BuckyBlockUploader(config, "0.0.3", credentialsFile(), (c, cr) -> s3);
+        final List<String> uris = uploader.uploadBlockFiles(UploadCategory.ISS, INCIDENT, List.of(pnd));
+
+        assertThat(uris).isEmpty();
+        verify(s3).uploadFile(argThat((String key) -> key.endsWith(".pnd.gz")), anyString(), any(), anyString());
+        verify(s3, never())
+                .uploadFile(argThat((String key) -> key.endsWith(".pnd.json")), anyString(), any(), anyString());
     }
 
     @Test
