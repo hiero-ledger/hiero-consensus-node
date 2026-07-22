@@ -6,7 +6,7 @@ Canonical structure for the consensus-layer knowledge base in the repo. Tools (T
 
 ## Scope
 
-The consensus layer of the platform-sdk — the 13 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
+The consensus layer of the platform-sdk — the topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
 
 ## Directory tree
 
@@ -47,7 +47,8 @@ platform-sdk/docs/consensus-layer/
 │   │   ├── iss-detection.md
 │   │   ├── restart-and-pces.md
 │   │   ├── freeze-and-upgrade.md
-│   │   └── reconnect.md
+│   │   ├── reconnect.md
+│   │   └── platform-status.md
 │   └── interfaces/
 │       └── consensus-execution-boundary.md
 │

@@ -38,6 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
@@ -159,10 +160,10 @@ public final class DiagramCommand extends AbstractCommand {
                 0,
                 // Pass a no-op StaleEventConsumer (rather than null) so the stale-event callback edge is wired and
                 // appears in the diagram; in production Execution supplies this consumer.
-                event -> {},
+                _ -> {},
                 model,
                 null,
-                null);
+                Map.of());
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);

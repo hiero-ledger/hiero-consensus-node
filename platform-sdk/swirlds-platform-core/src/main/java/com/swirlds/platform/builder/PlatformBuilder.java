@@ -22,6 +22,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -108,7 +109,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     protected final long transactionOffsetNanos;
 
     /** A callback that is called when a stale self event is detected. */
-    protected StaleEventConsumer staleEventConsumer;
+    protected StaleEventConsumer staleEventConsumer = _ -> {};
 
     /** The building blocks used to construct the consensus layer. */
     protected ConsensusLayerBuildingBlocks buildingBlocks;
@@ -301,7 +302,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
                 staleEventConsumer,
                 null,
                 null,
-                null);
+                Map.of());
     }
 
     /**
