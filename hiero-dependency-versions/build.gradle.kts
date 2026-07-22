@@ -13,7 +13,7 @@ val bouncycastle = "1.84"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.11.2"
+val hederaCryptography = "3.12.0"
 val helidon = "4.5.0"
 val jackson = "2.22.1"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
@@ -100,9 +100,6 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.4.2") {
-        because("org.hyperledger.besu.nativelib.secp256k1")
-    }
     api("org.hyperledger.besu:gnark:1.4.2")
     api("org.hyperledger.besu:secp256r1:1.4.2")
     api("org.hyperledger.besu:arithmetic:1.4.2")
@@ -132,6 +129,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:libsodium:$hederaCryptography") {
         because("com.hedera.cryptography.libsodium")
+    }
+    api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
+        because("com.hedera.cryptography.libsecp256k1")
     }
 
     // Versions of additional tools that are not part of the product or test module paths
