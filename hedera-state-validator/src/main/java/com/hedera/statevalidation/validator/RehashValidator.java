@@ -70,7 +70,7 @@ public class RehashValidator implements Validator {
         logger.debug("Doing full rehash for the path range: {} - {} in the VirtualMap", firstLeafPath, lastLeafPath);
 
         final long startTime = System.currentTimeMillis();
-        final RehashTaskExecutor executor = new RehashTaskExecutor(records, firstLeafPath);
+        final RehashTaskExecutor executor = new RehashTaskExecutor(records, firstLeafPath, lastLeafPath);
         final Hash computedHash;
 
         try {

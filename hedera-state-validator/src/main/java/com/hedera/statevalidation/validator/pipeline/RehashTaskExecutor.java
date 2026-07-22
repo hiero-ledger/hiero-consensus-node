@@ -19,7 +19,7 @@ public class RehashTaskExecutor {
 
     private final RecordAccessor records;
     private final long firstLeafPath;
-
+    private final long lastLeafPath;
     private final FutureMerkleHash result;
 
     /**
@@ -27,10 +27,13 @@ public class RehashTaskExecutor {
      *
      * @param records the record accessor for reading leaf data
      * @param firstLeafPath the first leaf path in the virtual map
+     * @param lastLeafPath the last leaf path in the virtual map
      */
-    public RehashTaskExecutor(@NonNull final RecordAccessor records, final long firstLeafPath) {
+    public RehashTaskExecutor(
+            @NonNull final RecordAccessor records, final long firstLeafPath, final long lastLeafPath) {
         this.records = records;
         this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
         this.result = new FutureMerkleHash();
     }
 
@@ -70,6 +73,10 @@ public class RehashTaskExecutor {
                 parent.setHash(
                         (leafBytes.path() & 1) == 1,
                         MerkleHasher.threadSafeDefault().leafNodeHashBytes(leafBytes));
+
+                if (lastLeafPath == 1) {
+                    parent.setHash(false, null);
+                }
             }
             return true;
         }
