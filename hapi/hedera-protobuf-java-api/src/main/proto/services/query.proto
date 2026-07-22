@@ -107,8 +107,10 @@ message Query {
 
         /**
          * Get the current HBAR balance of an Hedera account or smart contract.
+         * <p>
+         * > This query is deprecated. Obtain account balances from a mirror node instead.
          */
-        CryptoGetAccountBalanceQuery cryptogetAccountBalance = 7;
+        CryptoGetAccountBalanceQuery cryptogetAccountBalance = 7 [deprecated = true];
 
         /**
          * Get records of all "recent" transactions for which a specified

@@ -107,7 +107,6 @@ public final class ExpectedCustomThrottles {
             ContractGetInfo,
             ContractGetBytecode,
             ContractGetRecords,
-            CryptoGetAccountBalance,
             CryptoGetAccountRecords,
             CryptoGetInfo,
             FileGetContents,

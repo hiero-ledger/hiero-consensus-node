@@ -101,9 +101,11 @@ service CryptoService {
     rpc getAccountRecords (Query) returns (Response);
 
     /**
-     * Retrieve the balance of an account
+     * Retrieve the balance of an account.
+     * <p>
+     * This query is deprecated. Obtain account balances from a mirror node instead.
      */
-    rpc cryptoGetBalance (Query) returns (Response);
+    rpc cryptoGetBalance (Query) returns (Response) {option deprecated = true;};
 
     /**
      * Retrieve the metadata of an account
