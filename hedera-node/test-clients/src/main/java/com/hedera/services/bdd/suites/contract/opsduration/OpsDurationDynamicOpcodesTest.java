@@ -37,18 +37,36 @@ public class OpsDurationDynamicOpcodesTest {
         new TestInput("benchCalldatacopy", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput("benchCodecopy", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput("benchExtcodecopy", BigInteger.valueOf(1048576), SUCCESS, null),
-        new TestInput("benchReturndatacopy", BigInteger.valueOf(524288), SUCCESS, null),
+        new TestInput(
+                "benchReturndatacopy",
+                BigInteger.valueOf(524288),
+                SUCCESS,
+                Map.of("contracts.maxSerializedTraceDataBytes", "1572864")),
         new TestInput("benchLog0", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput("benchLog1", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput("benchLog2", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput("benchLog3", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput("benchLog4", BigInteger.valueOf(1048576), SUCCESS, null),
         new TestInput(
-                "benchCreate", BigInteger.valueOf(1048576), SUCCESS, Map.of("contracts.maxInitcodeSize", "1048576")),
+                "benchCreate",
+                BigInteger.valueOf(1048576),
+                SUCCESS,
+                Map.of("contracts.maxInitcodeSize", "1048576", "contracts.maxSerializedTraceDataBytes", "1572864")),
         new TestInput(
-                "benchCreate2", BigInteger.valueOf(1048576), SUCCESS, Map.of("contracts.maxInitcodeSize", "1048576")),
-        new TestInput("benchReturn", BigInteger.valueOf(1048576), SUCCESS, null),
-        new TestInput("benchRevert", BigInteger.valueOf(1048576), CONTRACT_REVERT_EXECUTED, null)
+                "benchCreate2",
+                BigInteger.valueOf(1048576),
+                SUCCESS,
+                Map.of("contracts.maxInitcodeSize", "1048576", "contracts.maxSerializedTraceDataBytes", "1572864")),
+        new TestInput(
+                "benchReturn",
+                BigInteger.valueOf(1048576),
+                SUCCESS,
+                Map.of("contracts.maxSerializedTraceDataBytes", "1572864")),
+        new TestInput(
+                "benchRevert",
+                BigInteger.valueOf(1048576),
+                CONTRACT_REVERT_EXECUTED,
+                Map.of("contracts.maxSerializedTraceDataBytes", "1572864"))
     };
 
     @Contract(contract = "OpsDurationDynamicOpcodes", creationGas = 5_000_000)
