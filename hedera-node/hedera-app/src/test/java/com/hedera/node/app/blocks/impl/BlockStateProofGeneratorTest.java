@@ -125,7 +125,10 @@ class BlockStateProofGeneratorTest {
         Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
                         current, 2L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(indirect, signed)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Pending block #1 produced 2 sibling hashes but exactly 3 were expected");
+                .hasMessageContaining("Pending block #1 produced %d sibling hashes but exactly %d were expected"
+                        .formatted(
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK - 1,
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
     }
 
     @Test
@@ -136,7 +139,10 @@ class BlockStateProofGeneratorTest {
         Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
                         current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Signed block #1 produced 4 sibling hashes but exactly 3 were expected");
+                .hasMessageContaining("Signed block #1 produced %d sibling hashes but exactly %d were expected"
+                        .formatted(
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1,
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
     }
 
     /**

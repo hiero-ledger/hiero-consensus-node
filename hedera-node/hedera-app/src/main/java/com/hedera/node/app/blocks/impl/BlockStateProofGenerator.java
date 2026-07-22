@@ -67,8 +67,10 @@ public class BlockStateProofGenerator {
      * @param remainingPendingBlocks stream of remaining pending blocks after the current one. This queue is
      *                               passed for <b>read-only</b> purposes; don't dequeue from it.
      * @return the constructed state proof
-     * @throws IllegalStateException if the pending blocks contain duplicate block numbers, or do not cover every
-     *                               block from the current pending block through the latest signed block
+     * @throws IllegalStateException if the latest signed block is not strictly after the current pending block, if the
+     *                               pending blocks contain duplicate block numbers or do not cover every block from the
+     *                               current pending block through the latest signed block, or if any block does not
+     *                               carry exactly {@code NUM_SIBLINGS_PER_BLOCK} sibling hashes
      */
     public static StateProof generateStateProof(
             @NonNull final PendingBlock currentPendingBlock,

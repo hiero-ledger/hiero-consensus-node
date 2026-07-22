@@ -385,6 +385,46 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
+    void recoversNothingWhenNewestOnDiskPendingBlockFailsToRecover() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
+        // The newest block (#103) is recovered first; if it fails, every older block is unprovable without it, so
+        // the whole suffix is discarded and nothing is recovered
+        final List<BlockItemWriter> writers = new ArrayList<>();
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> {
+                    final var writer = mock(BlockItemWriter.class);
+                    lenient()
+                            .doThrow(new IllegalStateException("disk failure"))
+                            .when(writer)
+                            .openBlock(103L);
+                    writers.add(writer);
+                    return writer;
+                },
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                streamingObs);
+
+        final var recovered = subject.recoverableSuffixOf(List.of(
+                onDiskPendingBlock(100L),
+                onDiskPendingBlock(101L),
+                onDiskPendingBlock(102L),
+                onDiskPendingBlock(103L)));
+
+        assertTrue(recovered.isEmpty());
+        // Recovery aborts at the very first (newest) block, so only #103's writer is ever requested
+        assertEquals(1, writers.size());
+    }
+
+    @Test
     void requiresLastHashToBeInitialized() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
         subject = new BlockStreamManagerImpl(

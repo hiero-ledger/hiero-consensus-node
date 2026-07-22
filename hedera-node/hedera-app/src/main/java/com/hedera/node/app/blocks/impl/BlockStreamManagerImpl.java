@@ -1056,13 +1056,25 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-                final var stateProof = BlockStateProofGenerator.generateStateProof(
-                        currentPendingBlock,
-                        blockNumber,
-                        effectiveSignature,
-                        signedBlock.blockTimestamp(),
-                        // Pass the remaining pending blocks, but don't remove them from the queue
-                        pendingBlocks.stream());
+                final StateProof stateProof;
+                try {
+                    stateProof = BlockStateProofGenerator.generateStateProof(
+                            currentPendingBlock,
+                            blockNumber,
+                            effectiveSignature,
+                            signedBlock.blockTimestamp(),
+                            // Pass the remaining pending blocks, but don't remove them from the queue
+                            pendingBlocks.stream());
+                } catch (final IllegalStateException e) {
+                    // Drop an unprovable block (e.g. a gap in the pending queue) but still mark it complete so
+                    // pendingBlockProofsFuture can resolve instead of hanging on a block that will never be proven.
+                    log.error(
+                            "Cannot construct indirect proof for pending block #{}; dropping it",
+                            currentPendingBlock.number(),
+                            e);
+                    markPendingBlockProofComplete(currentPendingBlock);
+                    continue;
+                }
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
                 if (log.isDebugEnabled()) {
