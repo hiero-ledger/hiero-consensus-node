@@ -73,6 +73,13 @@ on:
         default: true
         description: "Execute the State Validator Uber JAR build job"
 
+# Serialize XTS dry runs so concurrent dispatches don't contend for the same
+# us-central1 GCP VMs. cancel-in-progress: false queues the new run rather than
+# cancelling an in-flight one that may already have provisioned nodes.
+concurrency:
+  group: xts-dry-run
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   actions: write

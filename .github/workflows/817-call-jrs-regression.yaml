@@ -339,8 +339,49 @@ jobs:
           [[ -d "${SUMMARY_PATH}" ]] || mkdir -p "${SUMMARY_PATH}"
           rclone sync --gcs-bucket-policy-only --checksum --fast-list --stats-one-line -v "gcs:${SUMMARY_BUCKET}/${BRANCH_NAME}/" "${SUMMARY_PATH}/"
 
+      - name: Pre-flight GCP Cleanup
+        id: gcp-preflight
+        env:
+          CONFIG_PATH: ${{ steps.jrs-config.outputs.file }}
+        run: |
+          # Derive the instance group name prefix from the panel config filename.
+          # JRS names groups by lowercasing the config basename and stripping "services-".
+          # e.g. GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json -> gcp-daily-abbrev-dab-update-4n-2c
+          # Groups are then suffixed with a timestamp and index, e.g. ...-2026-07-22-150453-0
+          GROUP_PREFIX="$(basename "${CONFIG_PATH%.json}" | tr '[:upper:]' '[:lower:]' | sed 's/services-//g' | tr '_' '-')"
+          echo "Checking for stale GCP instance groups with prefix: ${GROUP_PREFIX}"
+
+          # Any group matching this prefix that exists before JRS starts must be from a previous run.
+          # The filter anchors on a digit after the prefix to avoid matching unrelated groups.
+          STALE="$(gcloud compute instance-groups managed list \
+            --project="hedera-regression" \
+            --filter="name~'^${GROUP_PREFIX}-[0-9]'" \
+            --format="csv[no-heading](name,region)" 2>/dev/null || true)"
+
+          if [[ -z "${STALE}" ]]; then
+            echo "No stale instance groups found. GCP environment is clean."
+            exit 0
+          fi
+
+          # Stale groups can leave process locks on their VMs. If a new run provisions a VM
+          # that reuses the same external IP, the lock causes Docker installation to fail
+          # (exit code 12). Deleting the group terminates the VMs and wipes the lock.
+          echo "::warning title=Stale GCP Resources::Found stale instance groups from a previous run; cleaning up before starting."
+          while IFS=',' read -r group_name region; do
+            [[ -z "${group_name}" ]] && continue
+            echo "Deleting stale group: ${group_name} (${region})"
+            if gcloud compute instance-groups managed delete "${group_name}" \
+                --region "${region}" --quiet --project="hedera-regression" 2>&1; then
+              echo "  Deleted: ${group_name}"
+            else
+              # Warn but don't fail — the test may still succeed if the lock isn't hit.
+              echo "::warning title=Stale Cleanup Failed::Could not delete ${group_name} — test may fail due to stale process locks."
+            fi
+          done <<< "${STALE}"
+
       - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
         id: run-jrs-regression
+        timeout-minutes: 120
         env:
           HEDERA_TESTS_ENABLED: ${{ inputs.hedera-tests-enabled }}
           REGRESSION_PATH: ${{ inputs.regression-path }}
@@ -431,6 +472,7 @@ jobs:
             echo
             echo "Configuration File '${CONFIG_PATH}' does not exist......"
             echo
+            echo "::error title=JRS Config Error::Configuration file '${CONFIG_PATH}' does not exist."
             exit 20
           fi
 
@@ -438,13 +480,56 @@ jobs:
             JAVA_OPTS="-Xmx8g"
           fi
 
-          ${CG_EXEC} java ${JAVA_OPTS} \
-          -cp "lib/*:regression.jar" \
-          -Dlog4j.configurationFile="log4j2-fsts-enhanced.xml" \
-          -Dspring.output.ansi.enabled=ALWAYS \
-          com.swirlds.fsts.Main ${JRS_ARGUMENTS} -en "Github Actions" "${CONFIG_PATH}"
-          # echo exit code
-          echo "Test Exit Code: $?"
+          # Retry up to 3 times on GCP provisioning failures (exit code 12 = RegressionFatalException).
+          # Any other non-zero exit code is a real test failure and exits without retrying,
+          # so genuine regressions are never masked by a retry.
+          EXIT_CODE=0
+          for attempt in 1 2 3; do
+            [[ ${attempt} -gt 1 ]] && echo "::warning title=GCP Provisioning Failure::Attempt $((attempt - 1)) failed with exit code 12. Retrying (attempt ${attempt} of 3)..."
+
+            # Disable exit-on-error so we can capture the exit code and annotate it
+            # before re-exiting. Without this, the shell exits immediately on failure
+            # and the ::error annotation never runs.
+            set +e
+            ${CG_EXEC} java ${JAVA_OPTS} \
+            -cp "lib/*:regression.jar" \
+            -Dlog4j.configurationFile="log4j2-fsts-enhanced.xml" \
+            -Dspring.output.ansi.enabled=ALWAYS \
+            com.swirlds.fsts.Main ${JRS_ARGUMENTS} -en "Github Actions" "${CONFIG_PATH}"
+            EXIT_CODE=$?
+            set -e
+
+            echo "Test Exit Code: ${EXIT_CODE} (attempt ${attempt} of 3)"
+
+            # Success or a non-infra failure: stop retrying immediately.
+            [[ ${EXIT_CODE} -eq 0 ]] && break
+            [[ ${EXIT_CODE} -ne 12 ]] && break
+
+            # Exit code 12 only: clean up any GCP instance groups created during this
+            # failed attempt so they don't leave stale process locks for the next attempt.
+            if [[ -f "ci-gcp-instance-registry" ]]; then
+              echo "Cleaning up GCP resources from failed attempt ${attempt}..."
+              while IFS='|' read -r project region instance_group; do
+                gcloud compute instance-groups managed delete "${instance_group}" \
+                  --project "${project}" --zone "${region}" --quiet 2>/dev/null || true
+              done < "ci-gcp-instance-registry"
+              rm -f "ci-gcp-instance-registry"
+            fi
+
+            [[ ${attempt} -lt 3 ]] && sleep 30
+          done
+
+          # Map known JRS exit codes to human-readable GitHub Actions error annotations.
+          # Exit code 12 = RegressionFatalException (GCP provisioning or SSH/Docker failure).
+          # Exit code 20 = configuration file not found (also checked above, but JRS can emit it too).
+          case ${EXIT_CODE} in
+            0) ;;
+            12) echo "::error title=GCP Provisioning Failure::JRS exited with code 12 after all attempts — GCP nodes failed to provision or SSH/Docker setup failed. Check for stale process locks or GCP quota issues." ;;
+            20) echo "::error title=JRS Config Error::JRS exited with code 20 — configuration file not found." ;;
+            *) [[ ${EXIT_CODE} -ne 0 ]] && echo "::error title=JRS Test Failure::JRS exited with code ${EXIT_CODE}. See logs above for details." ;;
+          esac
+
+          exit ${EXIT_CODE}
       - name: Show JRS Folder Structures
         if: ${{ inputs.enable-workflow-debug && always() }}
         env:
