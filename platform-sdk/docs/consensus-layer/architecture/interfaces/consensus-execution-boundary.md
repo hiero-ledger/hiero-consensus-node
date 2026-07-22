@@ -340,6 +340,8 @@ These data types appear in the signatures above and travel across the seam:
     [Boundary-wide contracts](#boundary-wide-contracts) pre-handle guarantee.
   - [Freeze and upgrade](../topics/freeze-and-upgrade.md) — freeze-period checks and `PlatformStatus`
     transitions across the seam.
+  - [Platform status](../topics/platform-status.md) — the status state machine behind
+    `ExecutionLayer.newPlatformStatus` and `PlatformStatusChangeNotification`.
   - [Restart and PCES](../topics/restart-and-pces.md) — `StateLifecycleManager.loadSnapshot` and
     `onStateInitialized` with `InitTrigger.RESTART`.
   - [Reconnect](../topics/reconnect.md) — `StateLifecycleManager.createStateFrom` / `initWithState`
