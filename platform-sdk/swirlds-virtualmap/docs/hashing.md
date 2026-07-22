@@ -36,7 +36,7 @@ and 2, rank 2 contains paths 3 through 6, and so on. See `Path.getRank()`.
 
 **Internal node hashes** are computed by combining two child hashes with a distinguishing
 prefix, so that internal node hashes can never collide with leaf hashes. The method
-`VirtualHasher.hashInternal()` works as follows:
+`MerkleHasher.hashInternalNode()` works as follows:
 
 1. Write a single byte prefix: `0x02` for normal internal nodes (two children), or `0x01`
    for a root node with only one child (single-leaf tree).
@@ -47,11 +47,7 @@ prefix, so that internal node hashes can never collide with leaf hashes. The met
 The prefix byte ensures that internal node hashes never collide with leaf hashes,
 and that single-child root hashes are distinct from two-child root hashes.
 
-**Single-leaf tree:** When the tree has exactly one leaf (path 1), path 2 does not exist.
-A sentinel marker (`NO_PATH2_HASH`) is used as the right input, causing `hashInternal` to
-use the `0x01` prefix and omit the right hash bytes.
-
-**Empty tree:** When there are no elements at all, `emptyRootHash()` produces a hash from
+**Empty tree:** When there are no elements at all, `MerkleHasher.emptyRootHash()` produces a hash from
 a single `0x00` byte.
 
 ### Sample tree
@@ -346,11 +342,11 @@ until a single hash remains.
 
 For each left/right pair, the task handles three cases per side:
 
-|         Input state         |                     Meaning                      |                                                                                                                  Action                                                                                                                   |
+| Input state                 | Meaning                                          | Action                                                                                                                                                                                                                                    |
 |-----------------------------|--------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Null                        | Clean node — hash unchanged                      | Load from the chunk. If the path is at the chunk's lowest stored rank, the hash is read directly. If the path is above the lowest rank (possible with sub-chunk tasks), the hash is computed by combining stored hashes from lower ranks. |
 | Non-null                    | Dirty — hash delivered by a child task           | Use it directly, and write it into the chunk at the appropriate storage rank                                                                                                                                                              |
-| Right path beyond last leaf | Only possible for the root in a single-leaf tree | Use the `NO_PATH2_HASH` sentinel                                                                                                                                                                                                          |
+| Right path beyond last leaf | Only possible for the root in a single-leaf tree | Use `null`                                                                                                                                                                                                                                |
 
 The input array is reused in-place: each iteration overwrites the first half with the
 merged results. After the loop, position 0 holds the chunk's output hash.
@@ -392,12 +388,8 @@ root chunk would also skip disk I/O entirely.
 
 * **No dirty leaves:** `hash()` returns `null`.
 * **Invalid leaf range with dirty leaves:** Throws `IllegalArgumentException`.
-* **Single-leaf tree:** `firstLeafPath = lastLeafPath = 1`. The root hash uses the
-  `NO_PATH2_HASH` sentinel for the absent right child, producing a single-child hash
-  with the `0x01` prefix.
-* **Empty tree:** `emptyRootHash()` produces a hash from a single `0x00` byte, used for
-  trees with no elements.
-* **Chunks straddling leaf rank boundaries:** When `firstLeafRank ≠ lastLeafRank`, a chunk
-  may have inputs at two different ranks. The algorithm creates height-1 tasks at the last
+* **Single-leaf tree:** `firstLeafPath = lastLeafPath = 1`. The root hash uses `null` for the absent right child, producing a single-child hash with the `0x01` prefix.
+* **Empty tree:** `emptyRootHash()` produces a hash from a single `0x00` byte, used for trees with no elements.
+* **Chunks straddling leaf rank boundaries:** When `firstLeafRank ≠ lastLeafRank`, a chunk may have inputs at two different ranks. The algorithm creates height-1 tasks at the last
   leaf rank that feed into a larger task covering down to the first leaf rank. See
   `getChunkHeightForInputRank()` for the height calculation logic.
