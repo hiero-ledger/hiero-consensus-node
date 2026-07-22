@@ -3,9 +3,9 @@ package com.swirlds.virtualmap.test.fixtures;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -55,15 +55,8 @@ public final class VirtualMapTestUtils {
         }
     }
 
-    public static Hash hash(final VirtualLeafBytes<?> rec) {
-        try {
-            final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-            final WritableMessageDigest wmd = new WritableMessageDigest(md);
-            rec.writeToForHashing(wmd);
-            return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new CryptographyException(e);
-        }
+    public static Hash hash(final VirtualLeafBytes<?> leaf) {
+        return MerkleHasher.threadSafeDefault().leafNodeHash(leaf);
     }
 
     public static Hash loadHash(final VirtualDataSource dataSource, final long path, final int hashChunkHeight)
@@ -76,7 +69,8 @@ public final class VirtualMapTestUtils {
         if (hashChunk == null) {
             return null;
         }
-        return hashChunk.calcHash(path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
+        return hashChunk.calcHash(
+                MerkleHasher.threadSafeDefault(), path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
     }
 
     /**
