@@ -59,18 +59,18 @@ which statuses permit gossip is the sync allow-list owned by
 [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md) (the "Gossips" column
 mirrors it).
 
-|         Status         | Gossips | Creates events | Accepts app txns |                                                           Role                                                           |
-|------------------------|:-------:|:--------------:|:----------------:|--------------------------------------------------------------------------------------------------------------------------|
-| `STARTING_UP`          |    —    |       —        |        —         | Initial state before replay.                                                                                             |
-| `REPLAYING_EVENTS`     |    —    |       —        |        —         | Replaying the preconsensus event stream (see [restart-and-pces.md](restart-and-pces.md)).                                |
-| `OBSERVING`            |    ✓    |       —        |        —         | Listening to gossip to relearn self events before creating any.                                                          |
-| `CHECKING`             |    ✓    |       ✓        |        —         | Creating events but withholding app transactions until self events reach consensus.                                      |
-| `ACTIVE`               |    ✓    |       ✓        |        ✓         | Fully participating (subject to other gates — health, sync lag, quiescence).                                             |
-| `BEHIND`               |    —    |       —        |        —         | Fallen behind; not gossiping; awaiting reconnect (see [reconnect.md](reconnect.md)).                                     |
-| `RECONNECT_COMPLETE`   |    ✓    |       —        |        —         | Reconnected; gossiping but withholding events until the received state is on disk.                                       |
-| `FREEZING`             |    ✓    |    ✓ (once)    |        —         | Freeze round crossed; one final self-signed freeze event permitted (see [freeze-and-upgrade.md](freeze-and-upgrade.md)). |
-| `FREEZE_COMPLETE`      |    ✓    |       —        |        —         | Freeze done; still gossiping so laggards collect freeze-state signatures.                                                |
-| `CATASTROPHIC_FAILURE` |    —    |       —        |        —         | Unrecoverable failure; node idle.                                                                                        |
+|         Status         | Gossips | Creates events | Accepts app txns |                                                                Role                                                                 |
+|------------------------|:-------:|:--------------:|:----------------:|-------------------------------------------------------------------------------------------------------------------------------------|
+| `STARTING_UP`          |    —    |       —        |        —         | Initial state before replay.                                                                                                        |
+| `REPLAYING_EVENTS`     |    —    |       —        |        —         | Replaying the preconsensus event stream (see [restart-and-pces.md](restart-and-pces.md)).                                           |
+| `OBSERVING`            |    ✓    |       —        |        —         | Listening to gossip to relearn self events before creating any.                                                                     |
+| `CHECKING`             |    ✓    |       ✓        |        —         | Creating events but withholding app transactions until self events reach consensus.                                                 |
+| `ACTIVE`               |    ✓    |       ✓        |        ✓         | Fully participating (subject to other gates — health, sync lag, quiescence).                                                        |
+| `BEHIND`               |    —    |       —        |        —         | Fallen behind; not gossiping; awaiting reconnect (see [reconnect.md](reconnect.md)).                                                |
+| `RECONNECT_COMPLETE`   |    ✓    |       —        |        —         | Reconnected; gossiping but not creating events until the received state is on disk.                                                 |
+| `FREEZING`             |    ✓    |       ✓        |        —         | Freeze boundary crossed; event creation continues until Execution releases it (see [freeze-and-upgrade.md](freeze-and-upgrade.md)). |
+| `FREEZE_COMPLETE`      |    ✓    |       —        |        —         | Freeze done; still gossiping so laggards collect freeze-state signatures.                                                           |
+| `CATASTROPHIC_FAILURE` |    —    |       —        |        —         | Unrecoverable failure; node idle.                                                                                                   |
 
 Three statuses exist for reasons that are not obvious from the summary, and are
 recorded as decisions rather than restated here:
@@ -79,7 +79,7 @@ recorded as decisions rather than restated here:
   relearn self events it gossiped before a crash and avoid branching. Kept
   deliberately even though PCES now durably persists those events; see
   [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md).
-- `RECONNECT_COMPLETE` — a reconnected node withholds event creation until the
+- `RECONNECT_COMPLETE` — a reconnected node does not create events until the
   received state is written to disk, so it always has a valid PCES replay
   starting point; see
   [ADR-007](../../decisions/ADR-007-save-reconnect-state-before-resuming-event-creation.md).
@@ -128,7 +128,7 @@ heartbeat) into the corresponding action.
 | `FallenBehindAction`              | `consensus-reconnect-impl/.../ReconnectController.java`                                                | The node determined it is behind the network.                    |
 | `ReconnectCompleteAction`         | `consensus-reconnect-impl/.../ReconnectController.java`                                                | A reconnect finished.                                            |
 | `StateWrittenToDiskAction`        | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (from a state-saving result)            | A signed state was written to disk (carries the freeze flag).    |
-| `FreezePeriodEnteredAction`       | `consensus-transaction-handling/.../DefaultTransactionHandler.java`                                    | A freeze round was crossed (carries the freeze round).           |
+| `FreezePeriodEnteredAction`       | `consensus-transaction-handling/.../DefaultTransactionHandler.java`                                    | A round crossed the freeze boundary (carries the freeze round).  |
 | `CatastrophicFailureAction`       | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (from a catastrophic `IssNotification`) | An unrecoverable failure occurred.                               |
 | `TimeElapsedAction`               | `swirlds-platform-core/.../system/DefaultPlatformMonitor.java` (heartbeat)                             | Wall-clock tick; carries the current instant and quiescing flag. |
 
@@ -169,15 +169,19 @@ to every component that gates on it:
 - **Event creator** — the
   [`PlatformStatusRule`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/rules/PlatformStatusRule.java)
   permits event creation only in `ACTIVE` or `CHECKING`, and in `FREEZING`
-  only while a buffered signature transaction remains. This is the single
-  largest consumer; see [event-creator.md](event-creator.md).
+  only while Execution still needs events created. That release condition is
+  owned by Execution and read through
+  [`SignatureTransactionCheck`](../../../../consensus-model/src/main/java/org/hiero/consensus/model/transaction/SignatureTransactionCheck.java)`#hasBufferedSignatureTransactions`
+  — the name understates it: the predicate stays true while Execution has any
+  signing work left, not only while the transaction pool holds a signature
+  transaction. This is the single largest consumer; see
+  [event-creator.md](event-creator.md).
 - **Hashgraph**, **gossip**, and the **state module** each receive the status
   on their `platformStatusInputWire`. Gossip uses it to decide whether to sync;
   the allow-list and its rationale live in
   [`reasons-not-to-gossip.md`](reasons-not-to-gossip.md).
 - **Execution** — delivered directly via `ExecutionLayer.newPlatformStatus`
-  (see [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md)).
-- **Application** — delivered as a
+  (see [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md)) and
   [`PlatformStatusChangeNotification`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/listeners/PlatformStatusChangeNotification.java)
   through the notification engine, consumed via `PlatformStatusChangeListener`.
 
@@ -204,7 +208,8 @@ Topics:
 - [`quiescence.md`](quiescence.md) — how a quiescing node holds `ACTIVE`, and
   why no quiescence status was added.
 - [`freeze-and-upgrade.md`](freeze-and-upgrade.md) — the `FREEZING` →
-  `FREEZE_COMPLETE` path and the freeze event exception.
+  `FREEZE_COMPLETE` path and the Execution-controlled gate that keeps event
+  creation alive during `FREEZING`.
 - [`reconnect.md`](reconnect.md) — the `BEHIND` → `RECONNECT_COMPLETE` path.
 - [`restart-and-pces.md`](restart-and-pces.md) — `REPLAYING_EVENTS` and the
   self-event recovery `OBSERVING` guards against.
@@ -217,7 +222,7 @@ Interface:
 
 - [`../interfaces/consensus-execution-boundary.md`](../interfaces/consensus-execution-boundary.md)
   — `ExecutionLayer.newPlatformStatus` and `PlatformStatusChangeNotification`
-  are the boundary operations that carry status to Execution and the app.
+  are the boundary operations that carry status to Execution.
 
 Decisions:
 
