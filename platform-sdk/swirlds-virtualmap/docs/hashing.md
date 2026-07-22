@@ -342,7 +342,7 @@ until a single hash remains.
 
 For each left/right pair, the task handles three cases per side:
 
-| Input state                 | Meaning                                          | Action                                                                                                                                                                                                                                    |
+|         Input state         |                     Meaning                      |                                                                                                                  Action                                                                                                                   |
 |-----------------------------|--------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Null                        | Clean node — hash unchanged                      | Load from the chunk. If the path is at the chunk's lowest stored rank, the hash is read directly. If the path is above the lowest rank (possible with sub-chunk tasks), the hash is computed by combining stored hashes from lower ranks. |
 | Non-null                    | Dirty — hash delivered by a child task           | Use it directly, and write it into the chunk at the appropriate storage rank                                                                                                                                                              |
