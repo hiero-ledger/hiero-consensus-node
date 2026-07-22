@@ -42,7 +42,7 @@ public final class MerkleHasher {
     public MerkleHasher(@NonNull DigestType digestType) {
         this.digestType = Objects.requireNonNull(digestType, "digestType cannot be null");
 
-        digestWriter = new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
+        digestWriter = new WritableMessageDigest(digestType.buildDigest());
     }
 
     /**
