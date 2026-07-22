@@ -109,7 +109,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     protected final long transactionOffsetNanos;
 
     /** A callback that is called when a stale self event is detected. */
-    protected StaleEventConsumer staleEventConsumer;
+    protected StaleEventConsumer staleEventConsumer = _ -> {};
 
     /** The building blocks used to construct the consensus layer. */
     protected ConsensusLayerBuildingBlocks buildingBlocks;
