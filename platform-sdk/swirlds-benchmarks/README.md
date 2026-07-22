@@ -51,6 +51,9 @@ Benchmarks:
 - `ReconnectBench.reconnect`: runs reconnect synchronization from the learner
   state to the teacher state.
 
+See [ReconnectBench](docs/ReconnectBench.md) for simulated-network semantics, run parameters, and local-to-cluster
+calibration results.
+
 ## Run with Gradle
 
 Run Gradle tasks with the full project path. For example, from the repository
@@ -150,7 +153,7 @@ The benchmark-specific settings are:
 |              Setting               |                                                                                                                    Description                                                                                                                     |
 |------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `benchmark.benchmarkData`          | Base directory for benchmark state. If this setting is empty or omitted, each run uses a temporary directory. If set, the benchmark uses `<value>/<BenchmarkName>`.                                                                                |
-| `benchmark.saveDataDirectory`      | Keeps benchmark state after the run. If `false`, the benchmark data directory is deleted during teardown.                                                                                                                                          |
+| `benchmark.saveDataDirectory`      | Keeps benchmark state after the run. If `false`, the benchmark data directory is deleted during teardown. `ReconnectBench` overrides this setting to `true` and always preserves its generated state.                                              |
 | `benchmark.verifyResult`           | Enables benchmark result verification where supported.                                                                                                                                                                                             |
 | `benchmark.enableSnapshots`        | Enables periodic virtual map snapshots for benchmarks that support snapshots.                                                                                                                                                                      |
 | `benchmark.printHistogram`         | Prints a class histogram during invocation teardown.                                                                                                                                                                                               |
@@ -160,6 +163,9 @@ The benchmark-specific settings are:
 | `benchmark.csvWriteFrequency`      | Metric write frequency in milliseconds. `0` disables periodic metric writes.                                                                                                                                                                       |
 | `benchmark.csvAppend`              | Appends to an existing metrics CSV instead of replacing it.                                                                                                                                                                                        |
 | `benchmark.deviceName`             | Linux block device name used for disk metrics. Set it to the device that hosts the benchmark data, for example `sda` for `/sys/block/sda`.                                                                                                         |
+
+`benchmark.benchmarkData` still selects the ReconnectBench base directory. Only its preservation policy is enforced by
+the benchmark class.
 
 JMH `@Param` values such as `numFiles`, `numRecords`, `maxKey`, `numThreads`,
 and the reconnect delay probabilities are JMH parameters, not `settings.txt`

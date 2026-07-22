@@ -108,12 +108,6 @@ dependencies.constraints {
     api("org.hyperledger.besu:gnark:1.4.2")
     api("org.hyperledger.besu:secp256r1:1.4.2")
     api("org.hyperledger.besu:arithmetic:1.4.2")
-    api("org.hyperledger.besu:blake2bf:1.4.2") {
-        because("org.hyperledger.besu.nativelib.blake2bf")
-    }
-    api("org.hyperledger.besu:boringssl:1.4.2") {
-        because("org.hyperledger.besu.nativelib.boringssl")
-    }
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
