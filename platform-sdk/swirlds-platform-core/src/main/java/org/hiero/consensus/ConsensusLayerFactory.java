@@ -8,7 +8,6 @@ import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
 import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
-import static java.util.Objects.requireNonNullElseGet;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
@@ -47,6 +46,7 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -168,8 +168,8 @@ public class ConsensusLayerFactory {
     @NonNull
     private final ExecutorFactory executorFactory;
 
-    @Nullable
-    private final GossipModule gossipModuleOverride;
+    @NonNull
+    private final Map<String, Object> additionalProperties;
 
     /**
      * Creates a new factory with the inputs provided by the execution layer.
@@ -197,11 +197,14 @@ public class ConsensusLayerFactory {
         executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         wiringModel = initializeWiringModel(inputs.wiringModel());
         secureRandom = initializeSecureRandom(inputs.secureRandom());
-        gossipModuleOverride = inputs.gossipModuleOverride();
+        additionalProperties = inputs.additionalProperties();
     }
 
     /**
      * The output of the factory.
+     *
+     * @param platformCoordinator the platform coordinator
+     * @param consensusLayerBuildingBlocks the building blocks of the consensus layer
      */
     public record ConsensusLayerFactoryResult(
             @NonNull PlatformCoordinator platformCoordinator,
@@ -209,6 +212,8 @@ public class ConsensusLayerFactory {
 
     /**
      * Constructs most of the components and modules required to create the platform.
+     *
+     * @return the result of the factory, containing the platform coordinator and the building blocks
      */
     @NonNull
     public ConsensusLayerFactoryResult create() {
@@ -446,8 +451,7 @@ public class ConsensusLayerFactory {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        final GossipModule module =
-                requireNonNullElseGet(gossipModuleOverride, () -> createModule(GossipModule.class, configuration));
+        final GossipModule module = createModule(GossipModule.class, configuration);
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         module.initialize(
@@ -463,7 +467,8 @@ public class ConsensusLayerFactory {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                additionalProperties);
         return module;
     }
 
