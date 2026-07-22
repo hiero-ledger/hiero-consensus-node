@@ -18,7 +18,6 @@ public class UtilityConfigurationExtension implements ConfigurationExtension {
         return Set.of(
                 BasicConfig.class,
                 EventConfig.class,
-                FallenBehindConfig.class,
                 PathsConfig.class,
                 PlatformStatusConfig.class,
                 RecycleBinConfig.class);
