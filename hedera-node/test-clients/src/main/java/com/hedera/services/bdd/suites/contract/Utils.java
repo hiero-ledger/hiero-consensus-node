@@ -13,8 +13,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
@@ -630,12 +628,7 @@ public class Utils {
 
     public static long expectedPrecompileGasFor(
             final HapiSpec spec, final HederaFunctionality function, final SubType type) {
-        final var gasThousandthsOfTinycentPrice = spec.fees()
-                .getCurrentOpFeeData()
-                .get(ContractCall)
-                .get(DEFAULT)
-                .getServicedata()
-                .getGas();
+        final var gasThousandthsOfTinycentPrice = spec.ratesProvider().gasPriceInThousandthsOfTinycent();
         final BigDecimal hapiUsdPrice = CANONICAL_USD_PRICES.get(function).get(type);
         final var precompileTinycentPrice = hapiUsdPrice
                 .multiply(BigDecimal.valueOf(1.2))

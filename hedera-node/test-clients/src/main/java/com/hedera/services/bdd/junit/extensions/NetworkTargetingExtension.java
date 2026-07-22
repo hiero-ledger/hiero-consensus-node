@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.extensions;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.buildRsaBootstrapJson;
@@ -187,13 +186,13 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // thread before executing the test factory
                 if (isAnnotated(method, LeakyHapiTest.class)) {
                     final var a = method.getAnnotation(LeakyHapiTest.class);
-                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles(), a.fees());
+                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles());
                 } else if (isAnnotated(method, LeakyEmbeddedHapiTest.class)) {
                     final var a = method.getAnnotation(LeakyEmbeddedHapiTest.class);
-                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles(), a.fees());
+                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles());
                 } else if (isAnnotated(method, LeakyRepeatableHapiTest.class)) {
                     final var a = method.getAnnotation(LeakyRepeatableHapiTest.class);
-                    bindThreadTargets(new ContextRequirement[] {}, a.overrides(), a.throttles(), a.fees());
+                    bindThreadTargets(new ContextRequirement[] {}, a.overrides(), a.throttles());
                 }
             }
         });
@@ -254,7 +253,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     // Default cleanup if no per-method network was found
                     HapiSpec.TARGET_NETWORK.remove();
                     HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
-                    HapiSpec.FEES_OVERRIDE.remove();
                     HapiSpec.THROTTLES_OVERRIDE.remove();
                     HapiSpec.PROPERTIES_TO_PRESERVE.remove();
                 }
@@ -262,7 +260,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // Default cleanup if no per-method network was found
                 HapiSpec.TARGET_NETWORK.remove();
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
-                HapiSpec.FEES_OVERRIDE.remove();
                 HapiSpec.THROTTLES_OVERRIDE.remove();
                 HapiSpec.PROPERTIES_TO_PRESERVE.remove();
             }
@@ -298,11 +295,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     private void bindThreadTargets(
             @NonNull final ContextRequirement[] requirement,
             @NonNull final String[] overrides,
-            @NonNull final String throttles,
-            @NonNull final String fees) {
+            @NonNull final String throttles) {
         HapiSpec.PROPERTIES_TO_PRESERVE.set(List.of(overrides));
         HapiSpec.THROTTLES_OVERRIDE.set(effectiveResource(requirement, THROTTLE_OVERRIDES, throttles));
-        HapiSpec.FEES_OVERRIDE.set(effectiveResource(requirement, FEE_SCHEDULE_OVERRIDES, fees));
     }
 
     /**
