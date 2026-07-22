@@ -174,8 +174,8 @@ See **Decision** above.
 - [`../architecture/topics/reconnect.md`](../architecture/topics/reconnect.md) — the reconnect topic; its
   *Post-reconnect resumption* section documents the `RECONNECT_COMPLETE` → `CHECKING` transition and the
   state-written-to-disk gate on event creation that this ADR explains the rationale for.
-- [`../../core/platform-status.md`](../../core/platform-status.md) — the platform status explainer; describes
-  `BEHIND`, `RECONNECT_COMPLETE`, `CHECKING`, and when the node creates events.
+- [`../architecture/topics/platform-status.md`](../architecture/topics/platform-status.md) — the platform status topic;
+  describes `BEHIND`, `RECONNECT_COMPLETE`, `CHECKING`, and when the node creates events.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — how a node replays PCES
   from its last on-disk state on startup, which is what a PCES gap invalidates.
 - ADR-004 — the related startup safeguard (`OBSERVING`);
