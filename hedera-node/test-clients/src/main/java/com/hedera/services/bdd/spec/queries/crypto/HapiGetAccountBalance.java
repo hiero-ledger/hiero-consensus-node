@@ -182,6 +182,12 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     }
 
     @Override
+    protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
+        payer = Optional.of(spec.setup().genesisAccountName());
+        return super.submitOp(spec);
+    }
+
+    @Override
     protected void assertExpectationsGiven(HapiSpec spec) throws Throwable {
         final var details = response.getAccountDetails().getAccountDetails();
         long actual = details.getBalance();
