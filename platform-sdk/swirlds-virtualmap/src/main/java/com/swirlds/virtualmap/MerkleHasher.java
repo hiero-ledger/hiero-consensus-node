@@ -86,7 +86,7 @@ public final class MerkleHasher {
      * @return the calculated internal node hash
      */
     @NonNull
-    public byte[] hashInternalNode(@NonNull byte[] left, @Nullable byte[] right) {
+    public byte[] internalNodeHashBytes(@NonNull byte[] left, @Nullable byte[] right) {
         // Unique value to make sure internal node hashes are different from leaf hashes. This
         // value indicates the number of child nodes. All internal virtual nodes have 2 children
         // except a root node in a tree with just one element / leaf.
@@ -108,21 +108,21 @@ public final class MerkleHasher {
      * @return the calculated internal node hash
      */
     @NonNull
-    public Hash hashInternalNode(@NonNull final Hash left, @Nullable final Hash right) {
+    public Hash internalNodeHash(@NonNull final Hash left, @Nullable final Hash right) {
         final byte[] leftBytes = left.copyToByteArray();
         final byte[] rightBytes = (right != null) ? right.copyToByteArray() : null;
-        final byte[] hashBytes = hashInternalNode(leftBytes, rightBytes);
+        final byte[] hashBytes = internalNodeHashBytes(leftBytes, rightBytes);
         return new Hash(hashBytes, digestType);
     }
 
     /**
-     * Computes the hash of a leaf record. May be called from multiple threads in parallel.
+     * Calculates the hash of a leaf record.
      *
      * @param leaf the leaf bytes to hash
      * @return the computed hash
      */
     @NonNull
-    public byte[] hashLeafRecordBytes(@NonNull final VirtualLeafBytes<?> leaf) {
+    public byte[] leafNodeHashBytes(@NonNull final VirtualLeafBytes<?> leaf) {
         leaf.writeToForHashing(digestWriter);
         // Calling digest() resets the digest
         return digestWriter.digest();
@@ -135,7 +135,7 @@ public final class MerkleHasher {
      * @return the computed hash
      */
     @NonNull
-    public Hash hashLeafRecord(@NonNull final VirtualLeafBytes<?> leaf) {
-        return new Hash(hashLeafRecordBytes(leaf), digestType);
+    public Hash leafNodeHash(@NonNull final VirtualLeafBytes<?> leaf) {
+        return new Hash(leafNodeHashBytes(leaf), digestType);
     }
 }

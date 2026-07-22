@@ -448,7 +448,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         firstLeafPath);
                 return;
             }
-            final Hash recaclulatedHash = new MerkleHasher().hashLeafRecord(virtualLeafBytes);
+            final Hash recaclulatedHash = new MerkleHasher().leafNodeHash(virtualLeafBytes);
             if (loadedHash.equals(recaclulatedHash)) {
                 logger.info(
                         STARTUP.getMarker(),

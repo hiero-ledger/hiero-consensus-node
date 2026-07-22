@@ -798,11 +798,11 @@ public class VirtualHashChunkTest {
         assertEquals(hash4, chunk.calcHash(HASHER, 4, 3, 6));
         assertEquals(hash5, chunk.calcHash(HASHER, 5, 3, 6));
         assertEquals(hash6, chunk.calcHash(HASHER, 6, 3, 6));
-        final Hash hash1 = HASHER.hashInternalNode(hash3, hash4);
-        final Hash hash2 = HASHER.hashInternalNode(hash5, hash6);
+        final Hash hash1 = HASHER.internalNodeHash(hash3, hash4);
+        final Hash hash2 = HASHER.internalNodeHash(hash5, hash6);
         assertEquals(hash1, chunk.calcHash(HASHER, 1, 3, 6));
         assertEquals(hash2, chunk.calcHash(HASHER, 2, 3, 6));
-        final Hash rootHash = HASHER.hashInternalNode(hash1, hash2);
+        final Hash rootHash = HASHER.internalNodeHash(hash1, hash2);
         assertEquals(rootHash, chunk.calcHash(HASHER, 0, 3, 6));
         assertEquals(rootHash, chunk.chunkRootHash(HASHER, 3, 6));
         assertEquals(rootHash, chunk.chunkRootHash(HASHER, 10, 20));
@@ -823,10 +823,10 @@ public class VirtualHashChunkTest {
         assertEquals(hash2, chunk.calcHash(HASHER, 2, 2, 4));
         assertEquals(hash3, chunk.calcHash(HASHER, 3, 2, 4));
         assertEquals(hash4, chunk.calcHash(HASHER, 4, 2, 4));
-        final Hash hash1 = HASHER.hashInternalNode(hash3, hash4);
+        final Hash hash1 = HASHER.internalNodeHash(hash3, hash4);
         assertEquals(hash1, chunk.calcHash(HASHER, 1, 2, 4));
         assertEquals(hash2, chunk.calcHash(HASHER, 2, 2, 4));
-        final Hash rootHash = HASHER.hashInternalNode(hash1, hash2);
+        final Hash rootHash = HASHER.internalNodeHash(hash1, hash2);
         assertEquals(rootHash, chunk.calcHash(HASHER, 0, 2, 4));
         assertEquals(rootHash, chunk.chunkRootHash(HASHER, 2, 4));
     }
@@ -846,7 +846,7 @@ public class VirtualHashChunkTest {
         final Hash calculatedRootHash = chunk.calcHash(HASHER, 0, 1, 1);
 
         // Expected: hash of (hash1, null)
-        final Hash expectedRootHash = HASHER.hashInternalNode(hash1, null);
+        final Hash expectedRootHash = HASHER.internalNodeHash(hash1, null);
         assertEquals(expectedRootHash, calculatedRootHash);
 
         // Also test via chunkRootHash
@@ -875,12 +875,12 @@ public class VirtualHashChunkTest {
 
         // Calculate hash at path 1 (internal rank)
         final Hash hash1Calculated = chunk.calcHash(HASHER, 1, 3, 6);
-        final Hash hash1Expected = HASHER.hashInternalNode(hash3, hash4);
+        final Hash hash1Expected = HASHER.internalNodeHash(hash3, hash4);
         assertEquals(hash1Expected, hash1Calculated);
 
         // Calculate hash at path 2 (internal rank)
         final Hash hash2Calculated = chunk.calcHash(HASHER, 2, 3, 6);
-        final Hash hash2Expected = HASHER.hashInternalNode(hash5, hash6);
+        final Hash hash2Expected = HASHER.internalNodeHash(hash5, hash6);
         assertEquals(hash2Expected, hash2Calculated);
     }
 
@@ -924,7 +924,7 @@ public class VirtualHashChunkTest {
         final Hash hash4 = chunk.calcHash(HASHER, 4, 7, 14); // Should calculate from paths 9-10
         assertNotNull(hash4);
 
-        final Hash expectedHash1 = HASHER.hashInternalNode(hash3, hash4);
+        final Hash expectedHash1 = HASHER.internalNodeHash(hash3, hash4);
         final Hash hash1 = chunk.calcHash(HASHER, 1, 7, 14);
         assertEquals(expectedHash1, hash1);
     }

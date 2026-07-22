@@ -58,7 +58,7 @@ public final class VirtualMapTestUtils {
     }
 
     public static Hash hash(final VirtualLeafBytes<?> leaf) {
-        return MerkleHasher.threadSafeDefault().hashLeafRecord(leaf);
+        return MerkleHasher.threadSafeDefault().leafNodeHash(leaf);
     }
 
     public static Hash loadHash(final VirtualDataSource dataSource, final long path, final int hashChunkHeight)

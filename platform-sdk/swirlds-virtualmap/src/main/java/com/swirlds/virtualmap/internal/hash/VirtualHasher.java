@@ -277,7 +277,7 @@ public final class VirtualHasher {
                         }
                     }
 
-                    ins[i] = merkleHasher.hashInternalNode(left, right);
+                    ins[i] = merkleHasher.internalNodeHashBytes(left, right);
                 }
                 rankPath = Path.getParentPath(rankPath);
                 currentRank--;
@@ -316,7 +316,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
-            out.setHash(path, MerkleHasher.threadSafeDefault().hashLeafRecordBytes(leaf));
+            out.setHash(path, MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf));
             return true;
         }
     }

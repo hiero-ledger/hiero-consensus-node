@@ -125,7 +125,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
 
             // Check leaf hash against the hash stored in the hash chunk
             MerkleHasher merkleHasher = MerkleHasher.threadSafeDefault();
-            final byte[] leafHash = merkleHasher.hashLeafRecordBytes(leafBytes);
+            final byte[] leafHash = merkleHasher.leafNodeHashBytes(leafBytes);
             final long hashChunkPath = VirtualHashChunk.pathToChunkPath(p2KvPath, hashChunkHeight);
             final VirtualHashChunk hashChunk;
             final VirtualHashChunk lastLoadedChunk = lastChunk.get();

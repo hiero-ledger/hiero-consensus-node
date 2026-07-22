@@ -603,6 +603,6 @@ public class VirtualHashChunk {
         final byte[] leftHash = calcHashBytes(hasher, h - 1, leftPath, firstLeafPath, lastLeafPath);
         final long rightPath = Path.getRightChildPath(path);
         final byte[] rightHash = calcHashBytes(hasher, h - 1, rightPath, firstLeafPath, lastLeafPath);
-        return hasher.hashInternalNode(leftHash, rightHash);
+        return hasher.internalNodeHashBytes(leftHash, rightHash);
     }
 }

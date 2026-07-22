@@ -69,7 +69,7 @@ public class RehashTaskExecutor {
 
                 parent.setHash(
                         (leafBytes.path() & 1) == 1,
-                        MerkleHasher.threadSafeDefault().hashLeafRecordBytes(leafBytes));
+                        MerkleHasher.threadSafeDefault().leafNodeHashBytes(leafBytes));
             }
             return true;
         }
@@ -104,7 +104,7 @@ public class RehashTaskExecutor {
 
         @Override
         protected boolean onExecute() {
-            final byte[] hash = MerkleHasher.threadSafeDefault().hashInternalNode(leftHash, rightHash);
+            final byte[] hash = MerkleHasher.threadSafeDefault().internalNodeHashBytes(leftHash, rightHash);
 
             if (parent != null) {
                 parent.setHash((path & 1) == 1, hash);
