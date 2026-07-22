@@ -30,8 +30,9 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -114,11 +115,8 @@ public class IntakeBenchmark {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(new Random(SEED))
-                .withSize(numNodes)
-                .withRealKeysEnabled(true)
-                .withSigningSchema(signingSchema)
-                .buildWithKeys();
+        final RosterWithKeys rosterWithKeys = RosterFactory.randomRosterWithKeys(
+                new Random(SEED), numNodes, WeightGenerators.GAUSSIAN, signingSchema);
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .rosterWithKeys(rosterWithKeys)
                 .maxOtherParents(1)

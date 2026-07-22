@@ -354,6 +354,32 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void acknowledgedThroughFutureSupportsBlockNotYetOpened() {
+        // The freeze wait registers its future with the freeze block's number taken from the
+        // BlockStreamManager, which can be ahead of this buffer's lastProducedBlockNumber
+        // (openBlock arrives on the async pipeline); the future must hold until the ack
+        // watermark reaches that exact block rather than resolve against the lagging counter.
+        // given
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+
+        // when: the wait targets a block the buffer has not opened yet
+        final var future = blockBufferService.acknowledgedThroughFuture(TEST_BLOCK_NUMBER2);
+
+        // then
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(TEST_BLOCK_NUMBER);
+        assertThat(future).isNotCompleted();
+
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+        assertThat(future).isNotCompleted();
+
+        // the lagging block reaches the buffer and is acknowledged
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
+        blockBufferService.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER2);
+        assertThat(future).isCompleted();
+    }
+
+    @Test
     void acknowledgedThroughFutureCompletesWhenAckJumpsPastBlock() {
         // given
         blockBufferService = initBufferService(configProvider);

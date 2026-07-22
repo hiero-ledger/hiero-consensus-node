@@ -98,7 +98,7 @@ public abstract class BaseBench {
 
     protected static FileSystemManager fileSystemManager;
 
-    private static void loadConfig() throws IOException {
+    private void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withSource(new LegacyFileConfigSource(Path.of(".", "settings.txt")))
@@ -107,6 +107,8 @@ public abstract class BaseBench {
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(MetricsConfig.class)
                 .withConfigDataType(CryptoConfig.class);
+
+        configureBenchmarkConfiguration(configurationBuilder);
         configuration = configurationBuilder.build();
 
         final StringBuilder settingsUsed = new StringBuilder();
@@ -114,6 +116,15 @@ public abstract class BaseBench {
         try (OutputStream os = Files.newOutputStream(Path.of(".", "settingsUsed.txt"))) {
             os.write(settingsUsed.toString().getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    /**
+     * Adds benchmark-specific configuration before the immutable configuration is built.
+     *
+     * @param configurationBuilder the benchmark configuration builder
+     */
+    protected void configureBenchmarkConfiguration(final ConfigurationBuilder configurationBuilder) {
+        // no-op by default
     }
 
     // ── JMH Lifecycle ────────────────────────────────────────────
@@ -139,6 +150,8 @@ public abstract class BaseBench {
         } else {
             benchDir = Files.createDirectories(Path.of(data).resolve(benchmarkName()));
         }
+
+        logger.info("Benchmark data directory: {}", benchDir.toAbsolutePath());
 
         fileSystemManager = new FileSystemManager(benchDir);
 
