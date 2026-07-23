@@ -16,7 +16,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pcli.utility.ParameterizedClass;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;

@@ -14,7 +14,7 @@ import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.metrics.PlatformMetricsProvider;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.Test;
 
 class DefaultPlatformContextTest {

@@ -29,7 +29,7 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A builder for creating event instances for testing purposes.

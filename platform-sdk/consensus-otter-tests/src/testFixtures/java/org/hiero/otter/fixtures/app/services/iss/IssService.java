@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.SerializableLong;
 import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.otter.fixtures.app.OtterService;

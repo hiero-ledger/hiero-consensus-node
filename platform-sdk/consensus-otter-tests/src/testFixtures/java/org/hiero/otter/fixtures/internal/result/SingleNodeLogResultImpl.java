@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.iss.detection.internal.DefaultIssDetector;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;

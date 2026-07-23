@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -29,7 +29,7 @@ import org.hiero.base.crypto.SigningFactory;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * This class is responsible for generating the keys and certificates {@link KeysAndCerts} used in the system.

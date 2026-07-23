@@ -8,7 +8,7 @@ import java.time.Duration;
 import java.util.Objects;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

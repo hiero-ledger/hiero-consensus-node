@@ -11,7 +11,7 @@ import java.util.TreeMap;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;

@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;

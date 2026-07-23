@@ -7,7 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Provides logging configurations and functionality for the Turtle framework.

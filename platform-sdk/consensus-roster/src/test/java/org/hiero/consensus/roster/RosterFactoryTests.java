@@ -15,7 +15,7 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;

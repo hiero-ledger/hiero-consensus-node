@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 // utility class to hold weight and lag in a map value
 record WeightAndLag(long weight, long lag) {}

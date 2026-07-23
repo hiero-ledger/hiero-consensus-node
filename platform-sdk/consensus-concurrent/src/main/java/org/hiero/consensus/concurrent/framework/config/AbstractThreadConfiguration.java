@@ -21,7 +21,7 @@ import org.hiero.base.Copyable;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Boilerplate getters, setters, and configuration for basic thread configuration.

@@ -26,7 +26,7 @@ import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;

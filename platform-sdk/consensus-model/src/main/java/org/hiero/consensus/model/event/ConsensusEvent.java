@@ -14,7 +14,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
  * interface may be changed at any time, in any way, without notice or prior deprecation. Third parties should NOT
  * implement this interface.
  */
-public interface ConsensusEvent extends Event, ReachedConsensus {
+public interface ConsensusEvent extends org.hiero.consensus.main.model.Event, ReachedConsensus {
 
     /**
      * Returns an iterator over the application events in this transaction, which have all reached consensus. Each

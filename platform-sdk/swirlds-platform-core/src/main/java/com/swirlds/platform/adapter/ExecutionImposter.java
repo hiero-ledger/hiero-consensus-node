@@ -9,7 +9,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.ConsensusLayer;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 public class ExecutionImposter implements Platform {

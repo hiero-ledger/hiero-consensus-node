@@ -8,7 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import java.nio.file.Path;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pcli.AbstractCommand;
 import org.hiero.consensus.pcli.EventStreamCommand;
 import org.hiero.consensus.pcli.SubcommandOf;

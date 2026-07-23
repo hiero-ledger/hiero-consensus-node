@@ -21,7 +21,7 @@ import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**

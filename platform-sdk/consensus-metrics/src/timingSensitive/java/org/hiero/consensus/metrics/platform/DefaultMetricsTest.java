@@ -30,7 +30,7 @@ import java.util.function.Consumer;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

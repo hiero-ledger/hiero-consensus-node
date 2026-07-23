@@ -4,7 +4,7 @@ package org.hiero.consensus.roster;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;

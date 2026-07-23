@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.result.LogSubscriber;
 import org.hiero.sloth.fixtures.result.MultipleNodeLogResults;

@@ -33,7 +33,7 @@ import org.hiero.base.constructable.RuntimeObjectRegistry;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.config.StateConfig;

@@ -36,7 +36,7 @@ import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.SimpleRecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;

@@ -4,7 +4,7 @@ package org.hiero.consensus.metrics.platform;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import java.util.Collection;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Represents a snapshot event that contains a collection of snapshots.

@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.Node;
 
 /**

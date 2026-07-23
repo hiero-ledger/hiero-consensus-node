@@ -31,7 +31,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;

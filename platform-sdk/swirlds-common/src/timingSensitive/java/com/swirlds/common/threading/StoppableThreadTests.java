@@ -29,7 +29,7 @@ import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

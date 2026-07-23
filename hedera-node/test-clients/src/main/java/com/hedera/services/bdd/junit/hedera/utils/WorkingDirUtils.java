@@ -32,7 +32,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.node.NodeUtilities;
 
 public class WorkingDirUtils {

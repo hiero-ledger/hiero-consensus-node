@@ -33,7 +33,7 @@ import org.hiero.consensus.metrics.statistics.AverageAndMax;
 import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.metrics.statistics.MaxStat;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Interface to update relevant sync statistics

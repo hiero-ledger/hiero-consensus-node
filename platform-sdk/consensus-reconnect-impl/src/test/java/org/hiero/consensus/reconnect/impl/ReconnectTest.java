@@ -31,7 +31,7 @@ import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;

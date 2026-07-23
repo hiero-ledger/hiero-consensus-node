@@ -22,7 +22,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;

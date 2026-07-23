@@ -2,7 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.topology;
 
 import java.util.Set;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Holds information about the topology of the network

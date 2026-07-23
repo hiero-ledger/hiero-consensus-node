@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.SignedStateFileWriter;

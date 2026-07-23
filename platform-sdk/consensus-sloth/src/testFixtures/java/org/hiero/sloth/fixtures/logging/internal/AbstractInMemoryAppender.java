@@ -19,7 +19,7 @@ import org.apache.logging.log4j.core.filter.DenyAllFilter;
 import org.apache.logging.log4j.core.filter.LevelRangeFilter;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.logging.StructuredLog;
 
 /**

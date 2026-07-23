@@ -3,7 +3,7 @@ package org.hiero.consensus.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Keeps track of how many events have been received from each peer, but haven't yet made it through the intake

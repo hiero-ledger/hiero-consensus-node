@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.function.Function;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.scratchpad.internal.StandardScratchpad;
 
 /**

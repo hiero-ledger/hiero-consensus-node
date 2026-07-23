@@ -2,7 +2,7 @@
 package org.hiero.sloth.fixtures.container.utils;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Constants and utility methods used by the container setup code and the container code itself.

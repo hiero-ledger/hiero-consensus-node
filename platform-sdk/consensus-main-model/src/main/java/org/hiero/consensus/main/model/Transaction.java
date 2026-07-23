@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.transaction;
+package org.hiero.consensus.main.model;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.concurrent.locks.ReadWriteLock;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 /**
  * A hashgraph transaction that consists of an array of bytes and a list of immutable

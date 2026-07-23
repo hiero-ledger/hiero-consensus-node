@@ -19,7 +19,7 @@ import java.util.Map;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 

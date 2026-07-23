@@ -13,7 +13,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.vali
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {

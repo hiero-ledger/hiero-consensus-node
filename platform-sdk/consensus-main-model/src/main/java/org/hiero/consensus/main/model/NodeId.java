@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.node;
+package org.hiero.consensus.main.model;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeIdCache;
 
 /**
  * A class that is used to uniquely identify a Swirlds Node.

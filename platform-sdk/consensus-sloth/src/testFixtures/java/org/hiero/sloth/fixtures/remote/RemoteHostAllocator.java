@@ -7,7 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Assigns nodes to remote hosts in round-robin fashion. Multiple nodes can share a single host; each node on the same

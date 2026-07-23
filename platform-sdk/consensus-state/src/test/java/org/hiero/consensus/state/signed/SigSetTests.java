@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

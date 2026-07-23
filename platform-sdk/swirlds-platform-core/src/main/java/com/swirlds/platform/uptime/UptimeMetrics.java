@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.RunningAverageMetric;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Metrics that track node uptime.

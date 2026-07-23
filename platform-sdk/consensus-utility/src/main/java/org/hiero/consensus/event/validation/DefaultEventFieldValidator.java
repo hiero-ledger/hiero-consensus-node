@@ -23,7 +23,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**

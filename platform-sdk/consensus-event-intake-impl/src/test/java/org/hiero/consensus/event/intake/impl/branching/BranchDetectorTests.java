@@ -13,7 +13,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;

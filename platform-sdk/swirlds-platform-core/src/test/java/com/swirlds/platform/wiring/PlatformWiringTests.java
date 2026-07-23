@@ -45,7 +45,7 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;

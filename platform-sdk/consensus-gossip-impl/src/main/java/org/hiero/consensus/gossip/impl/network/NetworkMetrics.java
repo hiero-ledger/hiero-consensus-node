@@ -18,7 +18,7 @@ import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.statistics.AtomicAverage;
 import org.hiero.consensus.metrics.statistics.AverageAndMin;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Collection of metrics related to the network

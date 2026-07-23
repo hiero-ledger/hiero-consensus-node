@@ -14,7 +14,7 @@ import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Public certificates for all the members of the network

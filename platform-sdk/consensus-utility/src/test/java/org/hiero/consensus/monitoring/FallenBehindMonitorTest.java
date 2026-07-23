@@ -16,7 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeEach;

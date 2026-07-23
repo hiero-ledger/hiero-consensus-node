@@ -21,7 +21,7 @@ import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;
 import org.hiero.consensus.gossip.impl.test.fixtures.network.TestConnectionManagerFactory;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;

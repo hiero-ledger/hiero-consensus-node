@@ -32,7 +32,7 @@ import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;

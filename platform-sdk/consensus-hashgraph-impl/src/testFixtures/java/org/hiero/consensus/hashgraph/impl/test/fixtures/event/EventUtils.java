@@ -21,7 +21,7 @@ import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public final class EventUtils {
     /**

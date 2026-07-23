@@ -20,7 +20,7 @@ import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatPeerProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

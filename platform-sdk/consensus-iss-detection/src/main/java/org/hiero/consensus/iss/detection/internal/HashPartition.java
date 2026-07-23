@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A group of nodes in agreement about the hash for a particular round. If the network is ISS free then there should

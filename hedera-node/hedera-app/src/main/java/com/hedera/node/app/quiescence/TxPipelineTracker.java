@@ -10,7 +10,7 @@ import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 
 @Singleton
 public class TxPipelineTracker {

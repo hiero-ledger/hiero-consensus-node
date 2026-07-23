@@ -36,7 +36,7 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**

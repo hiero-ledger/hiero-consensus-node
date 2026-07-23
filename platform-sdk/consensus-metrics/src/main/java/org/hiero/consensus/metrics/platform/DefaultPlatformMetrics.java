@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import org.hiero.consensus.metrics.PlatformMetrics;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Default implementation of the {@link Metrics} interface.

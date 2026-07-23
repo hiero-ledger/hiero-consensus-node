@@ -2,7 +2,7 @@
 package org.hiero.sloth.fixtures.result;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**

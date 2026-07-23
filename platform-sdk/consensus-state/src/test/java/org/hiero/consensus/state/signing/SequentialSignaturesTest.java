@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import java.util.HashMap;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;

@@ -32,7 +32,7 @@ import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.config.RecycleBinConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A standard implementation of a {@link RecycleBin}.

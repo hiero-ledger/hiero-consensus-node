@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;

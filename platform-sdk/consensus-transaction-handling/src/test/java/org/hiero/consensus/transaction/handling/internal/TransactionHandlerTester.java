@@ -27,7 +27,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.platformstate.PlatformStateValueAccumulator;

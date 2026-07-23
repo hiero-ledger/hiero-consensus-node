@@ -42,7 +42,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.round.EventWindowUtils;

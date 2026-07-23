@@ -4,5 +4,5 @@ module org.hiero.consensus.main.model {
 
     requires transitive com.hedera.pbj.runtime;
 
-    requires static transitive com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations; requires com.hedera.node.hapi;
 }

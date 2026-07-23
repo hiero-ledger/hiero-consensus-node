@@ -45,7 +45,7 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;

@@ -77,7 +77,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBinImpl;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;

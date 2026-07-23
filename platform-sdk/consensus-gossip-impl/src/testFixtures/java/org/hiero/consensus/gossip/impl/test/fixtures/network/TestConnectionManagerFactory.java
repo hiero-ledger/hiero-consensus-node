@@ -11,7 +11,7 @@ import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.topology.ConnectionManagerFactory;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public class TestConnectionManagerFactory implements ConnectionManagerFactory {
 

@@ -19,7 +19,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.EventStreamManager;

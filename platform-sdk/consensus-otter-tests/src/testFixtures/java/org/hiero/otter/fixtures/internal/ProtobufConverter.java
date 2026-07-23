@@ -25,7 +25,7 @@ public class ProtobufConverter {
      */
     @NonNull
     public static com.hedera.hapi.platform.state.legacy.NodeId toLegacy(
-            @NonNull final org.hiero.consensus.model.node.NodeId sourceNodeId) {
+            @NonNull final org.hiero.consensus.main.model.NodeId sourceNodeId) {
         return com.hedera.hapi.platform.state.legacy.NodeId.newBuilder()
                 .setId(sourceNodeId.id())
                 .build();
@@ -602,7 +602,7 @@ public class ProtobufConverter {
                 sourceLog.getLoggerName(),
                 sourceLog.getThread(),
                 MarkerManager.getMarker(sourceLog.getMarker()),
-                sourceLog.getNodeId() < 0 ? null : org.hiero.consensus.model.node.NodeId.of(sourceLog.getNodeId()));
+                sourceLog.getNodeId() < 0 ? null : org.hiero.consensus.main.model.NodeId.of(sourceLog.getNodeId()));
     }
 
     /**

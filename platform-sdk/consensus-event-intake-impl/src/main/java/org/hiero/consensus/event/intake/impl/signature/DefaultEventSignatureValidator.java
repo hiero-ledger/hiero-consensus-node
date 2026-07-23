@@ -23,7 +23,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;

@@ -23,7 +23,7 @@ import org.hiero.base.CompareTo;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**

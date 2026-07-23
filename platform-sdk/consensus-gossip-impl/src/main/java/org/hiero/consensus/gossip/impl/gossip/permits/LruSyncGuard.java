@@ -11,7 +11,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Fair sync selector based on the least recently used mechanic. It will reject acquires for node ids which are not in

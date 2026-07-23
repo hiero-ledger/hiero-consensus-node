@@ -33,7 +33,7 @@ import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.StatEntry;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

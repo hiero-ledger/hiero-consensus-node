@@ -20,7 +20,7 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A round whose witnesses are currently having their fame voted on in elections. This class tracks the witnesses and

@@ -21,7 +21,7 @@ import java.util.stream.IntStream;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**

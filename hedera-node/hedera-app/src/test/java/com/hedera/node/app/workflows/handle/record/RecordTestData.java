@@ -35,7 +35,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Test data for record stream file tests. It starts with a single JSON dump of a real main net record file in

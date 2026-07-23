@@ -12,7 +12,7 @@ import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.node.NodeUtilities;
 import picocli.CommandLine;
 import picocli.CommandLine.Parameters;

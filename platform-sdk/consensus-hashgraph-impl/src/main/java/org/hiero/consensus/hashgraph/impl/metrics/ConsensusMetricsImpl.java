@@ -18,7 +18,7 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.AverageAndMax;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Collection of metrics related to consensus

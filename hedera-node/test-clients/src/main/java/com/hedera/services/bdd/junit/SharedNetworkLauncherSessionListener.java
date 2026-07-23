@@ -41,7 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;

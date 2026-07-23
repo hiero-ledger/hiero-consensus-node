@@ -8,7 +8,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.logging.StructuredLog;
 import org.hiero.sloth.fixtures.result.MultipleNodeLogResults;
 import org.hiero.sloth.fixtures.result.SingleNodeLogResult;

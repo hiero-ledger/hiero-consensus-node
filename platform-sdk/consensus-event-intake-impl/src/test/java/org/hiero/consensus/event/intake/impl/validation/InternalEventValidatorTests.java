@@ -25,7 +25,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.transaction.TransactionLimits;

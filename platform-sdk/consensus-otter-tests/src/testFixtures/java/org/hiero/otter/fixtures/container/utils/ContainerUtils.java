@@ -15,7 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.commons.lang3.exception.UncheckedInterruptedException;
 import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;

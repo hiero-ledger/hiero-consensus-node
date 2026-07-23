@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.base.utility.test.fixtures.io.ResourceExtractor;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.junit.jupiter.api.BeforeEach;

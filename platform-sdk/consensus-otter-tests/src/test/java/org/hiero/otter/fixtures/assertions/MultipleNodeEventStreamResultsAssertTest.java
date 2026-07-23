@@ -15,7 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;

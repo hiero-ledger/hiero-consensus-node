@@ -33,7 +33,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterRetriever;

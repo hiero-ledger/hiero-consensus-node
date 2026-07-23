@@ -87,7 +87,7 @@ import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;

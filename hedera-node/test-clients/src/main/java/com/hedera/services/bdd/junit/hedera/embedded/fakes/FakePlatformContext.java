@@ -19,7 +19,7 @@ import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public class FakePlatformContext implements PlatformContext {
 

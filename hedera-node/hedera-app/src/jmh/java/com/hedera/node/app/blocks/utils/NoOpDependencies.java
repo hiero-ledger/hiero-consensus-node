@@ -41,7 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**

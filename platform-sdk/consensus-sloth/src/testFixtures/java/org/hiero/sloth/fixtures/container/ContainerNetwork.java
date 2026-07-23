@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TimeManager;

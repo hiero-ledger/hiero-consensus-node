@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Utility class for generating an address book configuration file.

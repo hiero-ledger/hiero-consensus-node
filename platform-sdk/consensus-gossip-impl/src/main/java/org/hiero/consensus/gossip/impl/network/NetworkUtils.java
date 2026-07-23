@@ -24,7 +24,7 @@ import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.gossip.impl.network.connectivity.TlsFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public final class NetworkUtils {
     private static final Logger logger = LogManager.getLogger(NetworkUtils.class);

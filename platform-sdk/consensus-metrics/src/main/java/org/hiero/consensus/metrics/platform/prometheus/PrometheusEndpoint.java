@@ -31,7 +31,7 @@ import org.hiero.consensus.metrics.StatEntry;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricsEvent;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A Prometheus endpoint that shows all {@link Metric}s.

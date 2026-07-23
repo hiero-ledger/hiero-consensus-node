@@ -20,9 +20,9 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 /**

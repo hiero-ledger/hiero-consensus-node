@@ -17,7 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.config.GossipConfig_;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;

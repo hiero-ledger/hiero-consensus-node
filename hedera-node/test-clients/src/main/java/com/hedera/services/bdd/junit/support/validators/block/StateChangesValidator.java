@@ -95,7 +95,7 @@ import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**

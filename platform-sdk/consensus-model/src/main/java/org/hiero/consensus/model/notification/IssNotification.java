@@ -4,7 +4,7 @@ package org.hiero.consensus.model.notification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * This {@link Notification Notification} is triggered when there is an ISS (i.e. an

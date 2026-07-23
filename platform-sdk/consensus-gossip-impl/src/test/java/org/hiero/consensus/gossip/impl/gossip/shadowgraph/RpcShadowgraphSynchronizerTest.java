@@ -29,7 +29,7 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;

@@ -7,7 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 

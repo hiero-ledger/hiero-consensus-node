@@ -32,7 +32,7 @@ import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.internal.network;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Represents a key for a connection between two nodes in the topology.

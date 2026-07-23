@@ -6,7 +6,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**

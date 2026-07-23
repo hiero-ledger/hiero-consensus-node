@@ -16,7 +16,7 @@ import java.util.Map.Entry;
 import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 

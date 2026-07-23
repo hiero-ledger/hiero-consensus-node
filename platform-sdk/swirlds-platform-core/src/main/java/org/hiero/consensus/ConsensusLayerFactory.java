@@ -75,7 +75,7 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;

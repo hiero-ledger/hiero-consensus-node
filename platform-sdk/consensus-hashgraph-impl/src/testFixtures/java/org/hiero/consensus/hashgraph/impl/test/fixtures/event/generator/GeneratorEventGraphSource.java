@@ -23,7 +23,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**

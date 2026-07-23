@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public class FakeConnection implements Connection {
     public final CountDownLatch disconnect = new CountDownLatch(1);

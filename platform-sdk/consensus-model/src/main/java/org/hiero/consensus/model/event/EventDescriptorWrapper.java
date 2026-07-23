@@ -5,7 +5,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A wrapper class for {@link EventDescriptor} that includes the hash of the event descriptor.

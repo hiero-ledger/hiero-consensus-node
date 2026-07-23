@@ -38,7 +38,7 @@ import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;

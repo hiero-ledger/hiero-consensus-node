@@ -13,7 +13,7 @@ import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.network.simulation.fixtures.EventCreatorNetwork;
 import org.hiero.consensus.network.simulation.fixtures.NetworkLatency;
 import org.junit.jupiter.api.Disabled;

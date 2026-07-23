@@ -12,7 +12,7 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Metric} with a single numeric value

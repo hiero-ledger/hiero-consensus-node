@@ -27,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.persistence.SignedStateFilePath;
 import org.hiero.consensus.state.saved.DeserializedSignedState;

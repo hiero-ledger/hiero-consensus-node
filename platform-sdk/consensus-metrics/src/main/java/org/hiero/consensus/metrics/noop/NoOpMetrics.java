@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.metrics.PlatformMetrics;
 import org.hiero.consensus.metrics.noop.internal.NoOpMetricsFactory;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A no-op {@link Metrics} implementation.

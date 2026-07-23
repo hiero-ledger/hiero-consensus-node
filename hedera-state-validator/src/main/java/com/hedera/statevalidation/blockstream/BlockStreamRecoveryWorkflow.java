@@ -40,7 +40,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.signed.SignedState;
 

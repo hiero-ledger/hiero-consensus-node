@@ -16,7 +16,7 @@ import org.hiero.base.crypto.KeyType;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.test.fixtures.PreGeneratedPublicKeys;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

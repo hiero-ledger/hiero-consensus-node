@@ -5,7 +5,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import java.util.Collections;
 import java.util.Map;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A {@link Roster} bundled with the cryptographic keys and certificates for each node. Produced by

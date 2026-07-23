@@ -7,7 +7,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A fully connected topology that never changes.

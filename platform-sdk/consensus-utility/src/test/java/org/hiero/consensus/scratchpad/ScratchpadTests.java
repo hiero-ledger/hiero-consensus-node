@@ -21,7 +21,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.SerializableLong;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

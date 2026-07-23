@@ -18,7 +18,7 @@ import java.util.Objects;
 import org.hiero.base.FastCopyable;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Signatures of the hash of a state.

@@ -14,7 +14,7 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Random;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.AsyncNodeActions;

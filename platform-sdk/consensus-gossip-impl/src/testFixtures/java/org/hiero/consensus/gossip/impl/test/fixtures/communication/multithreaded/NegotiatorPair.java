@@ -8,7 +8,7 @@ import java.util.concurrent.Callable;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**

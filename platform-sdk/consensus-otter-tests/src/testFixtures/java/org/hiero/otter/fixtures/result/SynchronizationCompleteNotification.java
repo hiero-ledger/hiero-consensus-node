@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.result;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A notification about the performance of a completed reconnect.

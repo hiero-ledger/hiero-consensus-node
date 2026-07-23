@@ -49,7 +49,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.SavedStateController;

@@ -27,7 +27,7 @@ import org.hiero.consensus.iss.detection.internal.DefaultIssHandler;
 import org.hiero.consensus.iss.detection.internal.IssDetector;
 import org.hiero.consensus.iss.detection.internal.IssHandler;
 import org.hiero.consensus.iss.detection.internal.IssScratchpad;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.pces.config.PcesConfig;

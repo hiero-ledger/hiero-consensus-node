@@ -7,7 +7,7 @@ import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.stream.LinkedObjectStream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Configures and builds {@link QueueThreadObjectStream} instances.

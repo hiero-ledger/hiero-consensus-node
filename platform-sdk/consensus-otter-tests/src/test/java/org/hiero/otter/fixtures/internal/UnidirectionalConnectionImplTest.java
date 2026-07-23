@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;

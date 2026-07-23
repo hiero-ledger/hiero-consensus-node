@@ -17,7 +17,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

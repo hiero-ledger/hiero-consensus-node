@@ -11,7 +11,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.pces.config.FileSyncOption;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;

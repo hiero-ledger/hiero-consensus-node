@@ -18,11 +18,11 @@ final class NodeIdCache {
     /** Maximum node id to cache. MUST BE non-negative, &gt;= MIN, and reasonably small. */
     private static final int MAX = 63;
 
-    private static final NodeId[] CACHE = new NodeId[MAX - MIN + 1];
+    private static final org.hiero.consensus.main.model.NodeId[] CACHE = new org.hiero.consensus.main.model.NodeId[MAX - MIN + 1];
 
     static {
         for (int id = MIN; id <= MAX; id++) {
-            CACHE[id - MIN] = new NodeId(id);
+            CACHE[id - MIN] = new org.hiero.consensus.main.model.NodeId(id);
         }
     }
 
@@ -36,10 +36,10 @@ final class NodeIdCache {
      * @return a NodeId object
      */
     @NonNull
-    static NodeId getOrCreate(final long id) {
+    static org.hiero.consensus.main.model.NodeId getOrCreate(final long id) {
         if (id >= MIN && id <= MAX) {
             return CACHE[(int) id - MIN];
         }
-        return new NodeId(id);
+        return new org.hiero.consensus.main.model.NodeId(id);
     }
 }

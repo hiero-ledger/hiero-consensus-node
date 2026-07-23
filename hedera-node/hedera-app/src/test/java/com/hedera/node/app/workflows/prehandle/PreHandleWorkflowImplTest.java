@@ -69,7 +69,7 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

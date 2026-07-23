@@ -9,7 +9,7 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * An implementation of {@link Connection} that is local to a machine and does not use sockets.

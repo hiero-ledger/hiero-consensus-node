@@ -26,7 +26,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.sequence.map.SequenceMap;

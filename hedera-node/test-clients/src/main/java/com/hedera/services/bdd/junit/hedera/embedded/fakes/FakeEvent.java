@@ -13,9 +13,9 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.Event;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Event;
+import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class FakeEvent implements Event {

@@ -31,7 +31,7 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;

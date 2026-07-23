@@ -2,6 +2,6 @@
 package org.hiero.consensus.model.gossip;
 
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 public record SyncProgress(NodeId peerId, EventWindow localWindow, EventWindow peerWindow) {}

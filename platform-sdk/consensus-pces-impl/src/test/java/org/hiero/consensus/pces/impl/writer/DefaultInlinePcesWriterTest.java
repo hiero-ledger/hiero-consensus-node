@@ -22,7 +22,7 @@ import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;

@@ -39,7 +39,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterUtils;

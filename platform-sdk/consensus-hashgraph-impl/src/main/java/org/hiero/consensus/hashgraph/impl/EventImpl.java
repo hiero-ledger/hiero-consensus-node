@@ -16,7 +16,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * An internal platform event. This class that stores temporary data that is used while calculating consensus inside the

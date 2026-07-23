@@ -17,7 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;

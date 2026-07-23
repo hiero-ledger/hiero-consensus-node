@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**

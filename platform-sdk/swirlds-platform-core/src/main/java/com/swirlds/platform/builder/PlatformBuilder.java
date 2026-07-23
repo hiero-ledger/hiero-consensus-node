@@ -35,7 +35,7 @@ import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;

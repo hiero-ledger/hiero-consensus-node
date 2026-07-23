@@ -2,7 +2,7 @@ package org.hiero.consensus;
 
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.main.model.TimestampedTransaction;

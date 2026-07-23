@@ -14,7 +14,7 @@ import com.swirlds.platform.uptime.UptimeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.FallenBehindConfig;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * Registers configuration types for the platform.
