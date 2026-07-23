@@ -2,6 +2,21 @@
 name: "ZZZ Test Workflow - Template Only"
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "The branch, tag, or commit to checkout:"
+        type: string
+        required: false
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
 
 defaults:
   run:
@@ -24,6 +39,16 @@ jobs:
           checkout-ref: ${{ github.ref }}
           checkout-fetch-depth: "0"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Echo Input Vars
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          JAVA_DISTRIBUTION: ${{ inputs.java-distribution }}
+          JAVA_VERSION: ${{ inputs.java-version }}
+        run: |
+          echo "ref: ${INPUT_REF}"
+          echo "java-distribution: ${{ inputs.java-distribution }}"
+          echo "java-version: ${{ inputs.java-version }}"
 
       - name: Install gomplate
         run: |
