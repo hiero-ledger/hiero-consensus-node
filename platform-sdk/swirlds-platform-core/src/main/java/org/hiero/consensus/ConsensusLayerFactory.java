@@ -5,11 +5,6 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
-import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
-import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
-import static java.util.Objects.requireNonNullElseGet;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
@@ -33,7 +28,6 @@ import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -43,10 +37,10 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -101,13 +95,6 @@ public class ConsensusLayerFactory {
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
-
-    /**
-     * The path to the settings file (i.e. the file with the optional settings).
-     */
-    private static final Path DEFAULT_SETTINGS_PATH = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
-
-    private static boolean staticSetupCompleted = false;
 
     @NonNull
     private final Configuration configuration;
@@ -168,8 +155,8 @@ public class ConsensusLayerFactory {
     @NonNull
     private final ExecutorFactory executorFactory;
 
-    @Nullable
-    private final GossipModule gossipModuleOverride;
+    @NonNull
+    private final Map<String, Object> additionalProperties;
 
     /**
      * Creates a new factory with the inputs provided by the execution layer.
@@ -197,11 +184,14 @@ public class ConsensusLayerFactory {
         executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         wiringModel = initializeWiringModel(inputs.wiringModel());
         secureRandom = initializeSecureRandom(inputs.secureRandom());
-        gossipModuleOverride = inputs.gossipModuleOverride();
+        additionalProperties = inputs.additionalProperties();
     }
 
     /**
      * The output of the factory.
+     *
+     * @param platformCoordinator the platform coordinator
+     * @param consensusLayerBuildingBlocks the building blocks of the consensus layer
      */
     public record ConsensusLayerFactoryResult(
             @NonNull PlatformCoordinator platformCoordinator,
@@ -209,6 +199,8 @@ public class ConsensusLayerFactory {
 
     /**
      * Constructs most of the components and modules required to create the platform.
+     *
+     * @return the result of the factory, containing the platform coordinator and the building blocks
      */
     @NonNull
     public ConsensusLayerFactoryResult create() {
@@ -221,8 +213,7 @@ public class ConsensusLayerFactory {
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, selfId);
+        final FallenBehindMonitor fallenBehindMonitor = createFallenBehindMonitor();
         final GossipModule gossipModule = createGossipModule(
                 intakeEventCounter, latestCompleteStateNexus, reservedSignedStateResultPromise, fallenBehindMonitor);
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
@@ -272,7 +263,7 @@ public class ConsensusLayerFactory {
                 issDetectionModule,
                 eventPipelineTracker);
 
-        doStaticSetup(configuration);
+        ConsensusLayerStaticSetup.setup(configuration);
 
         return new ConsensusLayerFactoryResult(
                 platformCoordinator,
@@ -298,6 +289,13 @@ public class ConsensusLayerFactory {
                         reservedSignedStateResultPromise,
                         fallenBehindMonitor,
                         intakeEventCounter));
+    }
+
+    @NonNull
+    private FallenBehindMonitor createFallenBehindMonitor() {
+        final double fallenBehindThreshold =
+                configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
+        return new FallenBehindMonitor(rosterHistory.getCurrentRoster(), selfId, fallenBehindThreshold);
     }
 
     @NonNull
@@ -440,8 +438,7 @@ public class ConsensusLayerFactory {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        final GossipModule module =
-                requireNonNullElseGet(gossipModuleOverride, () -> createModule(GossipModule.class, configuration));
+        final GossipModule module = createModule(GossipModule.class, configuration);
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         module.initialize(
@@ -457,7 +454,8 @@ public class ConsensusLayerFactory {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                additionalProperties);
         return module;
     }
 
@@ -624,25 +622,5 @@ public class ConsensusLayerFactory {
                 initialState.get().getRound(),
                 latestFreezeRoundOf(initialState.get().getState()),
                 SystemExitUtils::handleFatalError);
-    }
-
-    /**
-     * Setup static utilities. If running multiple platforms in the same JVM and this method is called more than once
-     * then this method becomes a no-op.
-     *
-     * @param configuration the configuration for this node
-     */
-    private static void doStaticSetup(@NonNull final Configuration configuration) {
-        if (staticSetupCompleted) {
-            // Only setup static utilities once
-            return;
-        }
-        staticSetupCompleted = true;
-
-        BootstrapUtils.performHealthChecks(DEFAULT_SETTINGS_PATH, configuration);
-        writeSettingsUsed(configuration);
-
-        // Initialize JVMPauseDetectorThread, if enabled via settings
-        startJVMPauseDetectorThread(configuration);
     }
 }

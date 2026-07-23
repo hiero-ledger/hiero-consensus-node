@@ -89,7 +89,9 @@ input and output wires plus an `EventTransactionSupplier` passed at
   See [Permission gates](#permission-gates).
 - **Platform status, sync progress, quiescence** — `platformStatusInputWire`,
   `syncProgressInputWire`, and `quiescenceCommandInputWire` feed the
-  `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively.
+  `PlatformStatusRule`, `SyncLagRule`, and `QuiescenceRule` respectively. The
+  status feeding `PlatformStatusRule` comes from the state machine documented in
+  [`platform-status.md`](platform-status.md), the primary consumer of status.
 - **Transactions from execution** — `EventTransactionSupplier` is a
   functional interface
   (`consensus-model/.../transaction/EventTransactionSupplier.java`)

@@ -18,6 +18,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -38,19 +39,8 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  */
 public class TurtleGossipModule implements GossipModule {
 
-    private final SimulatedGossip gossip;
-
     @Nullable
     private GossipWiring gossipWiring;
-
-    /**
-     * Constructor.
-     *
-     * @param gossip the simulated gossip instance to use for this module
-     */
-    public TurtleGossipModule(@NonNull final SimulatedGossip gossip) {
-        this.gossip = requireNonNull(gossip);
-    }
 
     /**
      * {@inheritDoc}
@@ -69,13 +59,17 @@ public class TurtleGossipModule implements GossipModule {
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");
         }
 
         this.gossipWiring = new GossipWiring(configuration, model);
+
+        final SimulatedGossip gossip = (SimulatedGossip) additionalParameters.get("simulatedGossip");
         gossipWiring.bind(gossip);
+        gossip.provideIntakeEventCounter(intakeEventCounter);
     }
 
     /**
