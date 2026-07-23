@@ -372,7 +372,6 @@ jobs:
           wait: 120s
 
       - name: Install Solo
-        if: false
         run: |
           npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
