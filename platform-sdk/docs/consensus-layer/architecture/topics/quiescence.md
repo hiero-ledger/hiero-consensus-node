@@ -249,6 +249,8 @@ Topics:
 - [`reconnect.md`](reconnect.md) — a reconnecting node resumes from a
   peer's recent state; re-establishing quiescence detection afterwards is
   Execution's concern, not the consensus layer's.
+- [`platform-status.md`](platform-status.md) — the status state machine; why a
+  quiescing node holds `ACTIVE` rather than getting a dedicated status.
 
 Concepts:
 
