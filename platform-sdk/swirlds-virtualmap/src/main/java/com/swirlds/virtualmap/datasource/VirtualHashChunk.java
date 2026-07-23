@@ -8,9 +8,10 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
@@ -66,6 +67,7 @@ public class VirtualHashChunk {
     private int dataRank;
 
     VirtualHashChunk(final long path, final int height, @NonNull final byte[] hashData, final int dataRank) {
+        Objects.requireNonNull(hashData, "hashData cannot be null");
         this.path = path;
         if (height <= 0) {
             throw new IllegalArgumentException("Wrong chunk height: " + height);
@@ -75,9 +77,6 @@ public class VirtualHashChunk {
             throw new IllegalArgumentException("Wrong chunk rank/height: " + rank + "/" + height);
         }
         this.height = height;
-        if (hashData == null) {
-            throw new IllegalArgumentException("Null hash data");
-        }
         final int chunkSize = getChunkSize(height);
         final int dataLength = hashData.length;
         // Hash data length must always be hash length * chunk size, even if the number of hashes
@@ -520,7 +519,7 @@ public class VirtualHashChunk {
      *
      * <p>This method can only be used for internal rank paths, if this chunk is partial,
      * i.e. it spans beyond leaf path range. If the chunk is complete, and a hash for an
-     * internal rank path is needed, {@link #calcHash(long, long, long)} should be used
+     * internal rank path is needed, {@link #calcHash(MerkleHasher, long, long, long)} should be used
      * instead.
      */
     public Hash getHashAtPath(final long path) {
@@ -560,36 +559,38 @@ public class VirtualHashChunk {
      * Calculates a hash at the chunk path. Note that this hash is not stored in and
      * even doesn't belong to the current chunk, it belongs to the parent chunk.
      */
-    public Hash chunkRootHash(final long firstLeafPath, final long lastLeafPath) {
-        return new Hash(calcHashBytes(path, firstLeafPath, lastLeafPath), Cryptography.DEFAULT_DIGEST_TYPE);
+    public Hash chunkRootHash(MerkleHasher hasher, final long firstLeafPath, final long lastLeafPath) {
+        return new Hash(calcHashBytes(hasher, path, firstLeafPath, lastLeafPath), hasher.getDigestType());
     }
 
     /**
      * Calculates a hash at the given path. Chunks contain hashes at their last ranks only.
-     * Therefore, gashes for internal ranks need to be calculated.
+     * Therefore, hashes for internal ranks need to be calculated.
      *
      * <p>This method accepts two additional parameters, the first and the last leaf paths.
      * Some paths at the last chunk rank mey be outside the leaf range, in this case leaf
      * hashes are stored at different paths.
      */
-    public Hash calcHash(final long path, final long firstLeafPath, final long lastLeafPath) {
-        return new Hash(calcHashBytes(path, firstLeafPath, lastLeafPath), Cryptography.DEFAULT_DIGEST_TYPE);
+    public Hash calcHash(MerkleHasher hasher, final long path, final long firstLeafPath, final long lastLeafPath) {
+        return new Hash(calcHashBytes(hasher, path, firstLeafPath, lastLeafPath), hasher.getDigestType());
     }
 
     /**
      * Calculates a hash at the given path and returns its bytes. This method is similar to
-     * {@link #calcHash(long, long, long)}, except it does not allocate a hash object, but
+     * {@link #calcHash(MerkleHasher, long, long, long)}, except it does not allocate a hash object, but
      * returns raw hash bytes instead.
      */
-    public byte[] calcHashBytes(final long path, final long firstLeafPath, final long lastLeafPath) {
+    public byte[] calcHashBytes(
+            MerkleHasher hasher, final long path, final long firstLeafPath, final long lastLeafPath) {
         final int pathRank = Path.getRank(path);
         final int chunkRank = Path.getRank(this.path);
         assert pathRank >= chunkRank;
         assert pathRank <= chunkRank + height;
-        return calcHashBytes(chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
+        return calcHashBytes(hasher, chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
     }
 
-    private byte[] calcHashBytes(final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
+    private byte[] calcHashBytes(
+            MerkleHasher hasher, final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
         if (path > lastLeafPath) {
             assert path == 2;
             return null;
@@ -599,23 +600,9 @@ public class VirtualHashChunk {
         }
         assert h > 0;
         final long leftPath = Path.getLeftChildPath(path);
-        final byte[] leftHash = calcHashBytes(h - 1, leftPath, firstLeafPath, lastLeafPath);
+        final byte[] leftHash = calcHashBytes(hasher, h - 1, leftPath, firstLeafPath, lastLeafPath);
         final long rightPath = Path.getRightChildPath(path);
-        final byte[] rightHash = calcHashBytes(h - 1, rightPath, firstLeafPath, lastLeafPath);
-        return VirtualHasher.hashInternal(leftHash, rightHash);
-    }
-
-    /**
-     * Utility method for testing purposes. Calculates a hash for an internal node from
-     * its left and right child node hashes. This method may be called with the null right
-     * hash to calculate the root hash for a tree with only one leaf node.
-     *
-     * @see VirtualHasher#hashInternal(byte[], byte[])
-     */
-    public static Hash hashInternal(final Hash left, final Hash right) {
-        final byte[] leftBytes = left.copyToByteArray();
-        final byte[] rightBytes = (right != null) ? right.copyToByteArray() : null;
-        final byte[] hashBytes = VirtualHasher.hashInternal(leftBytes, rightBytes);
-        return new Hash(hashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
+        final byte[] rightHash = calcHashBytes(hasher, h - 1, rightPath, firstLeafPath, lastLeafPath);
+        return hasher.internalNodeHashBytes(leftHash, rightHash);
     }
 }
