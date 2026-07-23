@@ -339,46 +339,6 @@ jobs:
           [[ -d "${SUMMARY_PATH}" ]] || mkdir -p "${SUMMARY_PATH}"
           rclone sync --gcs-bucket-policy-only --checksum --fast-list --stats-one-line -v "gcs:${SUMMARY_BUCKET}/${BRANCH_NAME}/" "${SUMMARY_PATH}/"
 
-      - name: Pre-flight GCP Cleanup
-        id: gcp-preflight
-        env:
-          CONFIG_PATH: ${{ steps.jrs-config.outputs.file }}
-        run: |
-          # Derive the instance group name prefix from the panel config filename.
-          # JRS names groups by lowercasing the config basename and stripping "services-".
-          # e.g. GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json -> gcp-daily-abbrev-dab-update-4n-2c
-          # Groups are then suffixed with a timestamp and index, e.g. ...-2026-07-22-150453-0
-          GROUP_PREFIX="$(basename "${CONFIG_PATH%.json}" | tr '[:upper:]' '[:lower:]' | sed 's/services-//g' | tr '_' '-')"
-          echo "Checking for stale GCP instance groups with prefix: ${GROUP_PREFIX}"
-
-          # Any group matching this prefix that exists before JRS starts must be from a previous run.
-          # The filter anchors on a digit after the prefix to avoid matching unrelated groups.
-          STALE="$(gcloud compute instance-groups managed list \
-            --project="hedera-regression" \
-            --filter="name~'^${GROUP_PREFIX}-[0-9]'" \
-            --format="csv[no-heading](name,region)" 2>/dev/null || true)"
-
-          if [[ -z "${STALE}" ]]; then
-            echo "No stale instance groups found. GCP environment is clean."
-            exit 0
-          fi
-
-          # Stale groups can leave process locks on their VMs. If a new run provisions a VM
-          # that reuses the same external IP, the lock causes Docker installation to fail
-          # (exit code 12). Deleting the group terminates the VMs and wipes the lock.
-          echo "::warning title=Stale GCP Resources::Found stale instance groups from a previous run; cleaning up before starting."
-          while IFS=',' read -r group_name region; do
-            [[ -z "${group_name}" ]] && continue
-            echo "Deleting stale group: ${group_name} (${region})"
-            if gcloud compute instance-groups managed delete "${group_name}" \
-                --region "${region}" --quiet --project="hedera-regression" 2>&1; then
-              echo "  Deleted: ${group_name}"
-            else
-              # Warn but don't fail — the test may still succeed if the lock isn't hit.
-              echo "::warning title=Stale Cleanup Failed::Could not delete ${group_name} — test may fail due to stale process locks."
-            fi
-          done <<< "${STALE}"
-
       - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
         id: run-jrs-regression
         timeout-minutes: 180
