@@ -1,7 +1,7 @@
 ---
 type: architecture-topic
 title: Event intake
-last_reviewed: 2026-07-02
+last_reviewed: 2026-05-15
 ---
 
 # Event intake
@@ -34,7 +34,7 @@ the `EventIntakeModule` interface; the wiring is built by
 Intake exposes its inputs and outputs through `EventIntakeModule`
 ([EventIntakeModule.java:24](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/EventIntakeModule.java:24)).
 Component soldering happens in
-[`PlatformWiring.wire`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:56).
+[`PlatformWiring.wire`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java:33).
 
 **Inputs**
 
@@ -86,7 +86,7 @@ Component soldering happens in
 ## Validation pipeline
 
 The pipeline is built in
-[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:72)
+[`DefaultEventIntakeModule.initialize`](../../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java:83)
 with five components soldered in series (lines 103-131). Schedulers are configured in
 [`EventIntakeWiringConfig`](../../../../consensus-event-intake/src/main/java/org/hiero/consensus/event/intake/config/EventIntakeWiringConfig.java).
 
@@ -309,15 +309,16 @@ The line 220 check is what distinguishes these two cases on release:
 events still non-ancient are emitted, events that have aged out are
 dropped.
 
-**Note on `eventSequenceNumber`:** the monotonic sequence number is
-stamped on each event as it is released
-([line 228](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:228)).
-It is the local topological-ordering key that replaced the former
-`nGen` (non-deterministic generation), which had a defect that surfaced
-in an edge case during reconnect: `nGen` reset to 1 when an event's
-parents were already ancient, breaking the per-creator monotonic
-ordering its consumers relied on. Unlike `nGen`, the sequence number
-never resets. `nGen` has since been removed entirely (ADR-008).
+**Note on `eventSequenceNumber` vs. `assignNGen`:** both fire on
+release
+([lines 228-229](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:228))
+because the orphan buffer is mid-transition. `nGen` (non-deterministic
+generation) is the legacy identifier; it has a defect that surfaces in
+an edge case during reconnect, which makes it undesirable. The new
+monotonic sequence number is its replacement and eliminates that
+defect. Both are assigned today so consumers can be migrated
+incrementally; once the migration is complete, `assignNGen` will be
+removed.
 
 [TBD: question for engineer —
 [`clear` (line 262)](../../../../consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java:262)

@@ -2,59 +2,111 @@
 package com.swirlds.platform.wiring;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
-import com.swirlds.component.framework.component.ComponentWiring;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
-import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.Objects;
+import java.util.Queue;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
-import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
+ *
+ * <p>{@link #wire(ConsensusLayerInputs, ConsensusLayerBuildingBlocks)} reads as a table of contents: one
+ * {@code wireXxxOutputs} method per producing component, each soldering that component's output wires to every
+ * consumer. To find where a component's output goes, open the method named after it.
+ * <p>Methods taking ConsensusLayerInputs are the ones that wire into the execution layer / external consumers.
  */
 public class PlatformWiring {
 
+    private PlatformWiring() {}
+
     /**
      * Wire the components together.
+     *
+     * @param inputs the inputs to the consensus layer
+     * @param buildingBlocks the building blocks of the consensus layer
      */
     public static void wire(
             @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         Objects.requireNonNull(inputs);
         Objects.requireNonNull(buildingBlocks);
 
-        buildingBlocks
-                .gossipModule()
-                .receivedEventOutputWire()
+        wireGossipOutputs(buildingBlocks);
+        wireEventIntakeOutputs(buildingBlocks);
+        wireEventCreatorOutputs(buildingBlocks);
+        wirePcesOutputs(buildingBlocks);
+        wireHashgraphOutputs(inputs, buildingBlocks);
+        wireEventWindowManagerOutputs(buildingBlocks);
+        wireTransactionHandlingOutputs(buildingBlocks);
+        wireStateOutputs(inputs, buildingBlocks);
+        wireIssDetectionOutputs(buildingBlocks);
+        wireRunningHashOverrideOutputs(buildingBlocks);
+        wirePlatformMonitorOutputs(inputs, buildingBlocks);
+        wireInfrastructure(inputs, buildingBlocks);
+    }
+
+    /**
+     * Solder the gossip module's outputs to their consumers.
+     */
+    private static void wireGossipOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final GossipModule gossip = buildingBlocks.gossipModule();
+
+        gossip.receivedEventOutputWire()
                 .solderTo(buildingBlocks.eventIntakeModule().unhashedEventsInputWire());
-
-        buildingBlocks
-                .gossipModule()
-                .syncProgressOutputWire()
+        gossip.syncProgressOutputWire()
                 .solderTo(buildingBlocks.eventCreatorModule().syncProgressInputWire());
+    }
 
-        // Note: This is an intermediate step while migrating components to the new event intake module.
-        // Right now, the output wire does not provide validated events, but events that have only
-        // run through the components that have been migrated so far.
+    /**
+     * Solder the event intake module's outputs to their consumers.
+     */
+    private static void wireEventIntakeOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         buildingBlocks
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
                 .solderTo(buildingBlocks.pcesModule().eventsToWriteInputWire());
+    }
 
-        final OutputWire<PlatformEvent> writtenEventOutputWire =
-                buildingBlocks.pcesModule().writtenEventsOutputWire();
+    /**
+     * Solder the event creator module's outputs to their consumers.
+     */
+    private static void wireEventCreatorOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        buildingBlocks
+                .eventCreatorModule()
+                .createdEventOutputWire()
+                .solderTo(buildingBlocks.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
+    }
+
+    /**
+     * Solder the PCES module's outputs to their consumers.
+     */
+    private static void wirePcesOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final PcesModule pcesModule = buildingBlocks.pcesModule();
+
+        final OutputWire<PlatformEvent> writtenEventOutputWire = pcesModule.writtenEventsOutputWire();
 
         // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
         // reach consensus with events that might be lost due to a crash
@@ -68,62 +120,30 @@ public class PlatformWiring {
         // Avoid using events as parents before they are persisted
         writtenEventOutputWire.solderTo(buildingBlocks.eventCreatorModule().orderedEventInputWire());
 
-        buildingBlocks
-                .wiringModel()
-                .getHealthMonitorWire()
-                .solderTo(buildingBlocks.eventCreatorModule().healthStatusInputWire());
-
-        buildingBlocks
-                .wiringModel()
-                .getHealthMonitorWire()
-                .solderTo(buildingBlocks.gossipModule().healthStatusInputWire());
-        buildingBlocks
-                .wiringModel()
-                .getHealthMonitorWire()
-                .solderTo("executionHealthInput", "healthyDuration", inputs.executionLayer()::reportUnhealthyDuration);
-
-        buildingBlocks
-                .wiringModel()
-                .buildHeartbeatWire(inputs.configuration()
-                        .getConfigData(PlatformStatusConfig.class)
-                        .statusStateMachineHeartbeatPeriod())
-                .solderTo(buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::heartbeat), OFFER);
-
-        buildingBlocks
-                .eventCreatorModule()
-                .createdEventOutputWire()
-                .solderTo(buildingBlocks.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
-
-        if (inputs.staleEventConsumer() != null) {
-            final OutputWire<PlatformEvent> staleEvent =
-                    buildingBlocks.hashgraphModule().staleEventOutputWire();
-            staleEvent.solderTo("staleEventCallback", "stale events", inputs.staleEventConsumer()::processStaleEvent);
-        }
-
-        // an output wire that filters out only pre-consensus events from the consensus engine
-        final OutputWire<PlatformEvent> consEngineAddedEvents =
-                buildingBlocks.hashgraphModule().preconsensusEventOutputWire();
-        // pre-handle gets pre-consensus events from the consensus engine
-        // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
-        consEngineAddedEvents.solderTo(
-                buildingBlocks.transactionHandlingModule().preHandleEventInputWire());
-
-        buildingBlocks
-                .transactionHandlingModule()
-                .preHandleSignaturesOutputWire()
-                .solderTo(buildingBlocks.stateModule().preconsensusSystemTransactionsInputWire());
-
-        solderEventWindow(buildingBlocks);
-
-        buildingBlocks
-                .pcesModule()
+        pcesModule
                 .pcesEventsToReplay()
                 .solderTo(buildingBlocks.eventIntakeModule().unhashedEventsInputWire());
+    }
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire =
-                buildingBlocks.hashgraphModule().consensusRoundOutputWire();
+    /**
+     * Solder the hashgraph (consensus engine) module's outputs to their consumers.
+     */
+    private static void wireHashgraphOutputs(
+            @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final HashgraphModule hashgraph = buildingBlocks.hashgraphModule();
 
-        // with inline PCES, the round bypasses the round durability buffer and goes directly to the round handler
+        final OutputWire<PlatformEvent> staleEvent = hashgraph.staleEventOutputWire();
+        staleEvent.solderTo("staleEventCallback", "stale events", inputs.staleEventConsumer()::processStaleEvent);
+
+        final OutputWire<PlatformEvent> preconsensusEventOutputWire = hashgraph.preconsensusEventOutputWire();
+
+        // pre-handle gets pre-consensus events from the consensus engine
+        // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
+        preconsensusEventOutputWire.solderTo(
+                buildingBlocks.transactionHandlingModule().preHandleEventInputWire());
+
+        final OutputWire<ConsensusRound> consensusRoundOutputWire = hashgraph.consensusRoundOutputWire();
+
         consensusRoundOutputWire.solderTo(
                 buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());
 
@@ -134,99 +154,13 @@ public class PlatformWiring {
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
-        consensusRoundOutputWire.solderTo(
-                buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::consensusRound));
-
-        buildingBlocks
-                .transactionHandlingModule()
-                .handleSignaturesOutputWire()
-                .solderTo(buildingBlocks.stateModule().postconsensusSystemTranscationsInputWire());
-        buildingBlocks
-                .transactionHandlingModule()
-                .handleSignaturesOutputWire()
-                .solderTo(buildingBlocks.issDetectionModule().systemTransactionsInputWire());
-
-        buildingBlocks
-                .transactionHandlingModule()
-                .stateWithHashComplexityOutputWire()
-                .solderTo(buildingBlocks.stateModule().unhashedStatesInputWire());
-
-        buildingBlocks
-                .transactionHandlingModule()
-                .stateOutputWire()
-                .solderTo(buildingBlocks.stateModule().garbageCollectorRegistrationInputWire());
-
-        final OutputWire<ReservedSignedState> hashedStateOutputWire =
-                buildingBlocks.stateModule().hashedStateOutputWire();
-        hashedStateOutputWire.solderTo(buildingBlocks.issDetectionModule().stateInputWire());
-        hashedStateOutputWire
-                .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
-                .solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendStateHashedNotification));
-
-        // send state signatures to execution
-        buildingBlocks
-                .stateModule()
-                .stateSignaturesOutputWire()
-                .solderTo(
-                        "ExecutionSignatureSubmission",
-                        "state signatures",
-                        inputs.executionLayer()::submitStateSignature);
-
-        buildingBlocks
-                .stateModule()
-                .oldestMinimumBirthRoundOnDiskOutputWire()
-                .solderTo(buildingBlocks.pcesModule().minimumBirthRoundInputWire(), INJECT);
-
-        buildingBlocks
-                .stateModule()
-                .stateSavingResultOutputWire()
-                .solderTo(buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
-
-        buildingBlocks
-                .runningEventHashOverrideWiring()
-                .runningHashUpdateOutput()
-                .solderTo(buildingBlocks.transactionHandlingModule().hashOverrideInputWire());
-        buildingBlocks
-                .runningEventHashOverrideWiring()
-                .runningHashUpdateOutput()
-                .solderTo(buildingBlocks
-                        .consensusEventStreamWiring()
-                        .getInputWire(ConsensusEventStream::legacyHashOverride));
-
-        buildingBlocks
-                .issDetectionModule()
-                .issNotificationOutputWire()
-                .solderTo(buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::issNotification));
-
-        buildingBlocks
-                .platformMonitorWiring()
-                .getOutputWire()
-                .solderTo(buildingBlocks.eventCreatorModule().platformStatusInputWire());
-        buildingBlocks
-                .platformMonitorWiring()
-                .getOutputWire()
-                .solderTo(buildingBlocks.hashgraphModule().platformStatusInputWire(), INJECT);
-        buildingBlocks
-                .platformMonitorWiring()
-                .getOutputWire()
-                .solderTo("ExecutionStatusHandler", "status updates", inputs.executionLayer()::newPlatformStatus);
-        buildingBlocks
-                .platformMonitorWiring()
-                .getOutputWire()
-                .solderTo(buildingBlocks.gossipModule().platformStatusInputWire(), INJECT);
-        buildingBlocks
-                .platformMonitorWiring()
-                .getOutputWire()
-                .solderTo(buildingBlocks.stateModule().platformStatusInputWire(), INJECT);
-
-        solderNotifier(buildingBlocks);
-        buildUnsolderedWires(buildingBlocks);
+        consensusRoundOutputWire.solderTo(buildingBlocks.statusMonitorModule().consensusRoundInputWire());
     }
 
     /**
      * Solder the EventWindow output to all components that need it.
      */
-    private static void solderEventWindow(final ConsensusLayerBuildingBlocks buildingBlocks) {
+    private static void wireEventWindowManagerOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 buildingBlocks.eventWindowManagerWiring().getOutputWire();
 
@@ -238,12 +172,50 @@ public class PlatformWiring {
     }
 
     /**
-     * Solder notifications into the notifier.
+     * Solder the transaction handling module's outputs to their consumers.
      */
-    private static void solderNotifier(final ConsensusLayerBuildingBlocks buildingBlocks) {
-        buildingBlocks
-                .stateModule()
-                .stateSavingResultOutputWire()
+    private static void wireTransactionHandlingOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final TransactionHandlingModule txnHandling = buildingBlocks.transactionHandlingModule();
+        final StateModule state = buildingBlocks.stateModule();
+
+        txnHandling.preHandleSignaturesOutputWire().solderTo(state.preconsensusSystemTransactionsInputWire());
+
+        final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> handleSignatures =
+                txnHandling.handleSignaturesOutputWire();
+        handleSignatures.solderTo(state.postconsensusSystemTranscationsInputWire());
+        handleSignatures.solderTo(buildingBlocks.issDetectionModule().systemTransactionsInputWire());
+
+        txnHandling.stateWithHashComplexityOutputWire().solderTo(state.unhashedStatesInputWire());
+
+        txnHandling.stateOutputWire().solderTo(state.garbageCollectorRegistrationInputWire());
+    }
+
+    /**
+     * Solder the state module's outputs to their consumers.
+     */
+    private static void wireStateOutputs(
+            @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final StateModule state = buildingBlocks.stateModule();
+
+        final OutputWire<ReservedSignedState> hashedStateOutputWire = state.hashedStateOutputWire();
+        hashedStateOutputWire.solderTo(buildingBlocks.issDetectionModule().stateInputWire());
+        hashedStateOutputWire
+                .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
+                .solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendStateHashedNotification));
+
+        state.stateSignaturesOutputWire()
+                .solderTo(
+                        "ExecutionSignatureSubmission",
+                        "state signatures",
+                        inputs.executionLayer()::submitStateSignature);
+
+        state.oldestMinimumBirthRoundOnDiskOutputWire()
+                .solderTo(buildingBlocks.pcesModule().minimumBirthRoundInputWire(), INJECT);
+
+        final OutputWire<StateSavingResult> stateSavingResultOutputWire = state.stateSavingResultOutputWire();
+        stateSavingResultOutputWire.solderTo(
+                buildingBlocks.statusMonitorModule().stateWrittenToDiskInputWire());
+        stateSavingResultOutputWire
                 .buildTransformer(
                         "stateSavedNotifier",
                         "state saved results",
@@ -252,29 +224,57 @@ public class PlatformWiring {
                 .solderTo(
                         buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendStateWrittenToDiskNotification),
                         INJECT);
-
-        buildingBlocks
-                .issDetectionModule()
-                .issNotificationOutputWire()
-                .solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
-        buildingBlocks
-                .platformMonitorWiring()
-                .getOutputWire()
-                .solderTo(buildingBlocks
-                        .notifierWiring()
-                        .getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
     }
 
     /**
-     * {@link ComponentWiring} objects build their input wires when you first request them. Normally that happens when
-     * we are soldering things together, but there are a few wires that aren't soldered and aren't used until later in
-     * the lifecycle. This method forces those wires to be built.
+     * Solder the ISS detection module's outputs to their consumers.
      */
-    private static void buildUnsolderedWires(final ConsensusLayerBuildingBlocks buildingBlocks) {
-        buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
-        buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
-        buildingBlocks.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
-        buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
-        buildingBlocks.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
+    private static void wireIssDetectionOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final OutputWire<IssNotification> issNotification =
+                buildingBlocks.issDetectionModule().issNotificationOutputWire();
+
+        issNotification.solderTo(buildingBlocks.statusMonitorModule().issNotificationInputWire());
+        issNotification.solderTo(buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
+    }
+
+    /**
+     * Solder the running event hash override outputs to their consumers.
+     */
+    private static void wireRunningHashOverrideOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final OutputWire<RunningEventHashOverride> runningHashUpdate =
+                buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateOutput();
+
+        runningHashUpdate.solderTo(buildingBlocks.transactionHandlingModule().hashOverrideInputWire());
+        runningHashUpdate.solderTo(
+                buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
+    }
+
+    /**
+     * Solder the platform monitor's status output to all components that need it.
+     */
+    private static void wirePlatformMonitorOutputs(
+            @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final OutputWire<PlatformStatus> platformStatus =
+                buildingBlocks.statusMonitorModule().platformStatusOutputWire();
+
+        platformStatus.solderTo(buildingBlocks.eventCreatorModule().platformStatusInputWire());
+        platformStatus.solderTo(buildingBlocks.hashgraphModule().platformStatusInputWire(), INJECT);
+        platformStatus.solderTo("ExecutionStatusHandler", "status updates", inputs.executionLayer()::newPlatformStatus);
+        platformStatus.solderTo(buildingBlocks.gossipModule().platformStatusInputWire(), INJECT);
+        platformStatus.solderTo(buildingBlocks.stateModule().platformStatusInputWire(), INJECT);
+        platformStatus.solderTo(
+                buildingBlocks.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
+    }
+
+    /**
+     * Solder framework infrastructure wires (the health monitor and the heartbeat) to their consumers.
+     */
+    private static void wireInfrastructure(
+            @NonNull final ConsensusLayerInputs inputs, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
+        final OutputWire<Duration> healthMonitor = buildingBlocks.wiringModel().getHealthMonitorWire();
+        healthMonitor.solderTo(buildingBlocks.eventCreatorModule().healthStatusInputWire());
+        healthMonitor.solderTo(buildingBlocks.gossipModule().healthStatusInputWire());
+        healthMonitor.solderTo(
+                "executionHealthInput", "healthyDuration", inputs.executionLayer()::reportUnhealthyDuration);
     }
 }

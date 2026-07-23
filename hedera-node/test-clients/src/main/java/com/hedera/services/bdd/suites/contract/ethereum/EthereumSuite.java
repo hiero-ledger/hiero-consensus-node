@@ -87,6 +87,7 @@ import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
@@ -127,6 +128,7 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -141,6 +143,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -428,6 +431,26 @@ public class EthereumSuite {
                                     success ? -(wholeTransactionFee - senderGasCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.maxInitcodeSize"})
+    final Stream<DynamicTest> ethereumCreateRejectsInitcodeExceedingMaxSize() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                // Any real contract's init code exceeds this tiny limit, so the create must be rejected.
+                overriding("contracts.maxInitcodeSize", "32"),
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasPrice(10L)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(CONTRACT_SIZE_LIMIT_EXCEEDED));
     }
 
     @HapiTest
@@ -1318,6 +1341,71 @@ public class EthereumSuite {
                         .gasLimit(2_000_000L * -1)
                         .via(PAY_TXN)
                         .hasPrecheck(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    @HapiTest
+    @DisplayName("Should fail if access list is deeper than needed")
+    public Stream<DynamicTest> deeplyNestedAccessListIsRejectedCleanly() {
+        final var accessListDepth = 35_000;
+        // Prepare EIP-1559 transaction with deeper access list
+        final byte[] rawBytes = rawEIP1559BytesWithDeepAccessList(accessListDepth);
+
+        return hapiTest(
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                explicitEthereumTransaction(
+                                "rawEthTransaction", (spec, b) -> b.setEthereumData(ByteString.copyFrom(rawBytes))
+                                        .setMaxGasAllowance(ONE_HUNDRED_HBARS))
+                        .payingWith(RELAYER)
+                        .markAsJumboTxn()
+                        .logged()
+                        .hasPrecheck(INVALID_ETHEREUM_TRANSACTION),
+                cryptoCreate("test").hasKnownStatus(SUCCESS));
+    }
+
+    // RLP-encode a list from its already-encoded payload
+    static byte[] rlpList(byte[] p) {
+        if (p.length <= 55) {
+            byte[] o = new byte[p.length + 1];
+            o[0] = (byte) (0xc0 + p.length);
+            System.arraycopy(p, 0, o, 1, p.length);
+            return o;
+        }
+        byte[] l = minimalBE(p.length);
+        byte[] o = new byte[1 + l.length + p.length];
+        o[0] = (byte) (0xf7 + l.length);
+        System.arraycopy(l, 0, o, 1, l.length);
+        System.arraycopy(p, 0, o, 1 + l.length, p.length);
+        return o;
+    }
+
+    static byte[] minimalBE(int v) {
+        if (v == 0) return new byte[] {0};
+        int n = (32 - Integer.numberOfLeadingZeros(v) + 7) / 8;
+        byte[] b = new byte[n];
+        for (int i = n - 1; i >= 0; i--) {
+            b[i] = (byte) (v & 0xff);
+            v >>>= 8;
+        }
+        return b;
+    }
+
+    static final byte[] EMPTY = {(byte) 0x80};
+
+    // EIP-1559 typed transaction with element 8 (access list) nested `depth`
+    static byte[] rawEIP1559BytesWithDeepAccessList(int depth) {
+        byte[] cur = {(byte) 0xc0}; // empty RLP list
+        for (int i = 0; i < depth; i++) cur = rlpList(cur); // nest depth times
+        ByteArrayOutputStream p = new ByteArrayOutputStream();
+        for (int i = 0; i < 8; i++) p.writeBytes(EMPTY); // chainId..callData
+        p.writeBytes(cur); // accessList (element 8)
+        p.writeBytes(EMPTY); // recId
+        p.writeBytes(EMPTY);
+        p.writeBytes(EMPTY); // r, s
+        byte[] list = rlpList(p.toByteArray());
+        byte[] tx = new byte[1 + list.length];
+        tx[0] = 0x02; // EIP-1559 type byte
+        System.arraycopy(list, 0, tx, 1, list.length);
+        return tx;
     }
 
     // Ensuring that the BLS12 precompile is not working before the Pectra support

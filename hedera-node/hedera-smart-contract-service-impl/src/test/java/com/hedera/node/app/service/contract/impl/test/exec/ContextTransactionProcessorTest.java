@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
@@ -240,6 +241,43 @@ class ContextTransactionProcessorTest {
                 CodeDelegationResult.EMPTY);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
+    }
+
+    @Test
+    void gasUsedIsNonZeroInRecordStreamEvenWhenGasFeesAreNotCharged() {
+        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
+        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false);
+        final var subject = new ContextTransactionProcessor(
+                hydratedEthTxData,
+                context,
+                contractsConfig,
+                CONFIGURATION,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        givenSenderAccount();
+        givenBodyWithTxnIdWillReturnHEVM();
+        given(processor.processTransaction(
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        OpsDurationCounter.disabled()))
+                .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
+
+        final var outcome = subject.call();
+
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
+        assertEquals(GAS_LIMIT / 2, outcome.txResult().gasUsed());
     }
 
     @Test

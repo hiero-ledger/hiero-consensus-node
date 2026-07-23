@@ -53,6 +53,10 @@ on:
         type: string
         description: "Run Migration Testing Panel"
         default: "true"
+      enable-076-to-077-cutover-panel:
+        type: string
+        description: "Run Solo 0.76 to 0.77 Block Stream Cutover Panel"
+        default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -124,12 +128,6 @@ on:
       gradle-cache-password:
         description: "Gradle Cache Password"
         required: false
-      grafana-agent-username:
-        description: "Grafana Agent Username"
-        required: false
-      grafana-agent-password:
-        description: "Grafana Agent Password"
-        required: false
       jrs-ssh-user-name:
         description: "JRS SSH User Name"
         required: false
@@ -174,7 +172,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -248,9 +246,7 @@ jobs:
       enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-state-throttling: "false"
       enable-hapi-tests-bn-communication: "true"
-      # (FUTURE) Flip to "true" once the hl-cn-hapi-wraps-lin-lg runner pool exists with
-      # the WRAPS proving-key artifacts mounted at /opt/wraps-v1.0.0
-      enable-hapi-tests-wraps: "false"
+      enable-hapi-tests-wraps: "true"
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
@@ -267,7 +263,7 @@ jobs:
     uses: ./.github/workflows/808-call-execute-otter-tests.yaml
     with:
       enable-full-otter-tests: true
-      enable-chaos-otter-tests: false # enable chaos otter tests here when they become a required check.
+      enable-chaos-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
@@ -317,8 +313,6 @@ jobs:
       slack-api-token: ${{ secrets.slack-api-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
@@ -449,6 +443,19 @@ jobs:
             echo "- Required: \`>= 0.44.0\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  solo-076-to-077-cutover-panel:
+    name: Solo 0.76 to 0.77 Cutover Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-076-to-077-cutover-panel == 'true' }}
+    uses: ./.github/workflows/826-call-solo-076-to-077-cutover.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }} Solo 0.76 -> 0.77 Cutover"
+      solo-version: "${{ inputs.solo-version }}"
+      java-version: "${{ inputs.java-version }}"
+
   set-failure-mode:
     name: Set Failure Mode
     runs-on: hl-cn-default-lin-sm
@@ -468,10 +475,11 @@ jobs:
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
       - migration-testing-panel
+      - solo-076-to-077-cutover-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -492,6 +500,7 @@ jobs:
             ${{ needs.json-rpc-relay-regression-panel.result }}
             ${{ needs.block-node-regression-panel.result }}
             ${{ needs.migration-testing-panel.result }}
+            ${{ needs.solo-076-to-077-cutover-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
@@ -505,6 +514,7 @@ jobs:
             ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.solo-076-to-077-cutover-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             build
@@ -518,4 +528,5 @@ jobs:
             json-rpc-relay-regression-panel
             block-node-regression-panel
             migration-testing-panel
+            solo-076-to-077-cutover-panel
         run: bash .github/workflows/support/scripts/set-failure-mode.sh
