@@ -72,7 +72,6 @@ public final class HashgraphInfo {
     // EventInfo.update uses these and updates them the first time it is called with any given pending round.
     private long lastEventID = 0; // the most recent unique ID generated for an event by generateEventID()
     private boolean newRound = true; // true iff update() has never been called for the pending round
-    private boolean lastUpdateUsedCoin; // true iff the last round to reach consensus used a coin round
     private long[] benchmarks = new long[NUM_BENCHMARKS]; // total nanoseconds spent in various code sections
     private long pendingRound;
     private int numNodes;
@@ -80,7 +79,7 @@ public final class HashgraphInfo {
     private HashMap<Long, Integer> nodeIdToIndex;
     private long totalStake;
     private long minNonAncientRound;
-    private int voteD; // must be 1 or 2
+    private int voteD = 2; // must be 1 or 2. Is set during the first update() of each round.
     private ArrayList<EventInfo> parents = new ArrayList<>(); // used as scratchpad during update of an event
     private ArrayList<EventInfo> judges = new ArrayList<>(); // used as scratchpad during update of an event
     private ArrayList<EventInfo> consensusEvents = new ArrayList<>(); // used as scratchpad during update of an event
@@ -118,11 +117,6 @@ public final class HashgraphInfo {
     /** generates a new unique ID for an event each time it is called */
     public long generateEventID() {
         return ++lastEventID;
-    }
-
-    /** true iff the last round to reach consensus used a coin round */
-    public boolean isLastUpdateUsedCoin() {
-        return lastUpdateUsedCoin;
     }
 
     /**
@@ -546,10 +540,17 @@ public final class HashgraphInfo {
 
         /**
          * {@link EventInfo#update EventInfo.update} returns this (or null if consensus wasn't yet reached).
+         * Three useful metrics would be the fraction of rounds that returned
+         * {@link UpdateResults#voteD}==2,
+         * {@link UpdateResults#usedCoin}==true,
+         * {@link UpdateResults#nextRoundInfoPrev#prevJudgesCopied}==true.
+         * All 3 metrics should be close to 0.
          */
         public record UpdateResults(
                 @NonNull EventInfo[] consensusEvents, // consensus events, in consensus order
                 Instant roundTimestamp, // weighted median of created times of all judges in judgesArray
+                int voteD,
+                boolean usedCoin,
                 @NonNull RoundInfoPrev nextRoundInfoPrev) {} //roundInfoPrev to use for the next update()
 
         /**
@@ -690,10 +691,11 @@ public final class HashgraphInfo {
             long minJudgeBirthRound;
             boolean witness;
             boolean prevJudgesCopied; // true iff judges for this round copied from the previous, rather than elected
-            // the following 3 variables are filled in and returned, if this update() reaches consensus on this round
-            EventInfo[] judgesArray; // all judges for this round, in arbitrary order
+            // the following 4 variables are filled in and returned, if this update() reaches consensus on this round
             EventInfo[] consensusEventsArray; // all events that reached consensus this round (in consensus order)
             Instant roundTimestamp; // the weighted median of the created timestamps of all the judges
+            boolean usedCoin = false; // was there a coin round?
+            EventInfo[] judgesArray; // all judges for this round, in arbitrary order
 
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
             if (hashgraph == null) {
@@ -945,7 +947,7 @@ public final class HashgraphInfo {
                         s += (yp != y) ? 0 : r.stake[mp];
                     }
                     h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] += System.nanoTime();
-                    stronglySeeP[m] = (s >= h.supermajorityThreshold) ? y : null;
+                    stronglySeeP[m] = (s > h.supermajorityThreshold) ? y : null;
                 }
             }
             { // function votingRound /---------------------------------------------------------------------------
@@ -973,7 +975,7 @@ public final class HashgraphInfo {
                                 stakeSum += r.stake[m];
                             }
                         }
-                        votingRound = (stakeSum >= h.supermajorityThreshold) ? p + 1 : p;
+                        votingRound = (stakeSum > h.supermajorityThreshold) ? p + 1 : p;
                     }
                 }
             }
@@ -1104,7 +1106,7 @@ public final class HashgraphInfo {
                         voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
                         continue;
                     }
-                    h.lastUpdateUsedCoin = true; // this is a coin round
+                    usedCoin = true; // this is a coin round
                     if (s) { // if a coin round and collect a supermajority, vote that way, but don't decide
                         voteE[m] = v;
                         voteIndex[m] = (voteE[m] == null) ? m : voteE[m].eventCandIndex;
@@ -1161,10 +1163,11 @@ public final class HashgraphInfo {
             judgesArray = h.judges.toArray(new EventInfo[0]);
             // calculate roundTimestamp to be returned: weighted median timeCreated of all judges
             Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
+            final EventInfo[] judgesArrayFinal = judgesArray; // make final for use in lambdas
             Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by timeCreated, ascending
-                return (i2 >= judgesArray.length) ? -1
-                        : (i1 >= judgesArray.length) ? 1
-                          : judgesArray[i1].timeCreated.compareTo(judgesArray[i2].timeCreated);
+                return (i2 >= judgesArrayFinal.length) ? -1
+                        : (i1 >= judgesArrayFinal.length) ? 1
+                          : judgesArrayFinal[i1].timeCreated.compareTo(judgesArrayFinal[i2].timeCreated);
             });
             {
                 long stake = 0; // sum of weights of judges with earlier created time
@@ -1209,8 +1212,8 @@ public final class HashgraphInfo {
                     int medianPos;
                     Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
                     Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
-                        return (i2 >= judgesArray.length) ? -1
-                                : (i1 >= judgesArray.length) ? 1
+                        return (i2 >= judgesArrayFinal.length) ? -1
+                                : (i1 >= judgesArrayFinal.length) ? 1
                                   : event.receivedTime[i1].compareTo(event.receivedTime[i2]);
                     });
                     for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
@@ -1247,6 +1250,8 @@ public final class HashgraphInfo {
             return new UpdateResults(
                     consensusEventsArray, // consensusEvents
                     roundTimestamp, // weighted median of created times of all judges in judgesArray
+                    h.voteD,
+                    usedCoin,
                     new RoundInfoPrev(
                             h.pendingRound, // pendingRound
                             r.judgeCon1, // prevJudgeCon1
