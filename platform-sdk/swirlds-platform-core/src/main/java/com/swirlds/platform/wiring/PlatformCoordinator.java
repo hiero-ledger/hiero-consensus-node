@@ -4,9 +4,7 @@ package com.swirlds.platform.wiring;
 import com.swirlds.platform.components.EventWindowManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
@@ -66,13 +64,5 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) {
         // Since there is asynchronous access to the shadowgraph, it's important to ensure that
         // it has fully ingested the new event window before continuing.
         components.gossipModule().flush();
-    }
-
-    /**
-     * @see EventCreatorModule#quiescenceCommandInputWire()
-     */
-    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        components.statusMonitorModule().submitQuiescenceCommand(quiescenceCommand);
-        components.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 }

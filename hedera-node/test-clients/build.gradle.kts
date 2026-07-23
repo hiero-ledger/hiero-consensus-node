@@ -118,6 +118,10 @@ tasks.test {
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
+
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 }
@@ -424,6 +428,9 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -558,6 +565,9 @@ tasks.register<Test>("testSubprocessConcurrent") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -631,6 +641,9 @@ tasks.register<Test>("testRemote") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
     maxParallelForks = 1
 }
@@ -714,6 +727,9 @@ tasks.register<Test>("testEmbedded") {
         systemProperty("fees.simpleFeesEnabled", "true")
     }
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     // Scale heap and processor count to match available resources
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 }
@@ -766,6 +782,9 @@ tasks.register<Test>("testRepeatable") {
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
 
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
     jvmArgumentProviders.add(TestResourceArgumentsProvider())
 
     // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"

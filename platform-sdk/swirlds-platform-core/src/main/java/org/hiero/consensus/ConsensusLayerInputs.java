@@ -15,8 +15,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
+import java.util.Map;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -44,4 +44,4 @@ public record ConsensusLayerInputs(
         @Nullable StaleEventConsumer staleEventConsumer,
         @Nullable WiringModel wiringModel,
         @Nullable SecureRandom secureRandom,
-        @Nullable GossipModule gossipModuleOverride) {}
+        @NonNull Map<String, Object> additionalProperties) {}
