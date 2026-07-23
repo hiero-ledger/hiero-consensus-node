@@ -230,9 +230,9 @@ val prCheckPropOverrides =
                 "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
             "hapiTestTimeConsuming" to
                 "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-            "hapiTestWraps" to "staking.periodMins=16",
+            "hapiTestWraps" to "staking.periodMins=25",
             "hapiTestCutover" to
-                "blockStream.streamMode=BOTH,blockStream.writerMode=FILE_AND_GRPC,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.buffer.isBufferPersistenceEnabled=false,tss.forceMockSignatures=true,tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
+                "blockStream.streamMode=BOTH,blockStream.writerMode=FILE_AND_GRPC,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.buffer.isBufferPersistenceEnabled=false,tss.forceMockSignatures=true,tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=25",
             "hapiTestTimeConsumingSerial" to
                 "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
             "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
