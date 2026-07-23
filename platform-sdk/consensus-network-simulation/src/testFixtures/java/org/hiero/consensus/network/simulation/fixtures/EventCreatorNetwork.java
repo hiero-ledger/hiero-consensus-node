@@ -30,7 +30,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;

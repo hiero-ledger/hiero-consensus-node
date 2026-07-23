@@ -3,6 +3,7 @@ package org.hiero.consensus.model.transaction;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 
 /**
  * Provides transactions for new events being created.

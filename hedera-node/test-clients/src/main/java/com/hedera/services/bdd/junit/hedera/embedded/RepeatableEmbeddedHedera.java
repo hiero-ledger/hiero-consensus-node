@@ -35,7 +35,7 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus

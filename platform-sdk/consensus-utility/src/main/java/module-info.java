@@ -30,6 +30,7 @@ module org.hiero.consensus.utility {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;

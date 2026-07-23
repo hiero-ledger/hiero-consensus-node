@@ -21,5 +21,6 @@ module org.hiero.consensus.model {
     requires transitive org.hiero.base.utility;
     requires com.swirlds.base;
     requires org.hiero.base.concurrent;
+    requires transitive org.hiero.consensus.main.model;
     requires static transitive com.github.spotbugs.annotations;
 }

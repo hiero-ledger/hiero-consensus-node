@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.ExecutionLayerCallbacks;
+import org.hiero.consensus.main.model.TimestampedTransaction;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -35,7 +36,7 @@ public class AdapterCallbacks implements ExecutionLayerCallbacks {
     }
 
     @Override
-    public List<byte[]> getTransactionForNewEvent() {
+    public List<TimestampedTransaction> getTransactionForNewEvent() {
         return List.of();
     }
 

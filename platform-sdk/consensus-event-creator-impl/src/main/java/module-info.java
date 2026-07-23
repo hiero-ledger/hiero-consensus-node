@@ -20,6 +20,7 @@ module org.hiero.consensus.event.creator.impl {
     requires com.swirlds.logging;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.main.model;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
