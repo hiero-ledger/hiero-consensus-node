@@ -61,6 +61,7 @@ import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -774,6 +775,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
      * - Few items (1-2) that test minimal block case
      */
     @Test
+    @Disabled(
+            "This test creates a lot of data that isn't being cleaned up for some reason and causes memory exhaustion")
     void testConnectionWorker_sendMultipleBlocks() throws InterruptedException {
         // Fixed seed for reproducibility - if this test fails, the seed ensures the exact same
         // sequence of values will be generated, making the failure reproducible.
