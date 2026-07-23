@@ -157,7 +157,7 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
 
 - **Segmentation** — Partitions data sources into segments for parallel reading; in-memory hash ranges are partitioned as well.
-- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
+- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java), producing batches into a bounded queue.
 - **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
 - After all data is consumed, `validate()` is called on each pipeline validator.
 
@@ -165,11 +165,11 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Pipeline Data Types
 
-|   Type   |                 Source                 |      Content       |                                              Dispatched To                                               |
-|----------|----------------------------------------|--------------------|----------------------------------------------------------------------------------------------------------|
-| **P2KV** | Leaf data files                        | `VirtualLeafBytes` | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
-| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashChunk` | [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java) impls   |
-| **K2P**  | HDHM bucket files                      | `ParsedBucket`     | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+|   Type   |      Source       |      Content       |                                              Dispatched To                                               |
+|----------|-------------------|--------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files   | `VirtualLeafBytes` | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files   | `VirtualHashChunk` | [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java) impls   |
+| **K2P**  | HDHM bucket files | `ParsedBucket`     | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
 
 ### Thread Safety
 
