@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
@@ -23,6 +22,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
@@ -354,7 +354,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         if (explicitTo != null) {
             to = explicitTo;
         } else if (alias != null) {
-            to = recoverAddressFromPubKey(alias.toByteArray());
+            to = EthSigsUtils.recoverAddressFromPubKey(alias.toByteArray());
         } else if (account != null) {
             to = Utils.asAddress(spec.registry().getAccountID(account));
         } else if (isTokenFlow) {

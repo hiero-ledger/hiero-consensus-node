@@ -16,10 +16,10 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
+import java.util.Map;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
-import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -38,8 +38,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
 
     private SecureRandom secureRandom;
 
-    // futurework: Use SPI mechanism instead
-    private GossipModule gossipModuleOverride;
+    private Map<String, Object> additionalProperties;
 
     /**
      * Constructs a TestPlatformBuilder instance with the specified configuration and components.
@@ -124,16 +123,14 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
     }
 
     /**
-     * Overrides the gossip module for the platform being built with the specified implementation.
-     * This method allows the user to provide a custom implementation of the {@link GossipModule}.
+     * Sets additional properties to be passed to modules.
      *
-     * @param gossipModuleOverride the custom {@link GossipModule} to replace the default module
      * @return this object
      */
     @NonNull
-    public TestPlatformBuilder withGossipModuleOverride(@NonNull final GossipModule gossipModuleOverride) {
+    public TestPlatformBuilder withAdditionalProperties(@NonNull final Map<String, Object> additionalProperties) {
         throwIfAlreadyUsed();
-        this.gossipModuleOverride = requireNonNull(gossipModuleOverride);
+        this.additionalProperties = requireNonNull(additionalProperties);
         return this;
     }
 
@@ -176,6 +173,6 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
                 staleEventConsumer,
                 wiringModel,
                 secureRandom,
-                gossipModuleOverride);
+                additionalProperties);
     }
 }

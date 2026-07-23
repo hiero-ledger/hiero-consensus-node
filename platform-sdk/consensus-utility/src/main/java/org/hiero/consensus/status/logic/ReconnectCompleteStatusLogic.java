@@ -6,21 +6,14 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.status.IllegalPlatformStatusException;
-import org.hiero.consensus.status.actions.CatastrophicFailureAction;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
-import org.hiero.consensus.status.actions.ReconnectCompleteAction;
-import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
-import org.hiero.consensus.status.actions.TimeElapsedAction;
 
 /**
  * Class containing the state machine logic for the {@link PlatformStatus#RECONNECT_COMPLETE} status.
  */
-public class ReconnectCompleteStatusLogic implements PlatformStatusLogic {
+public class ReconnectCompleteStatusLogic extends AbstractStatusLogic {
     /**
      * The platform status config
      */
@@ -48,126 +41,48 @@ public class ReconnectCompleteStatusLogic implements PlatformStatusLogic {
             @Nullable final Long freezeRound,
             @NonNull final PlatformStatusConfig config) {
 
+        super(PlatformStatus.RECONNECT_COMPLETE);
         this.reconnectStateRound = reconnectStateRound;
         this.freezeRound = freezeRound;
         this.config = Objects.requireNonNull(config);
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * {@link PlatformStatus#RECONNECT_COMPLETE} status unconditionally transitions to
-     * {@link PlatformStatus#CATASTROPHIC_FAILURE} when a {@link CatastrophicFailureAction} is processed.
+     * {@link PlatformStatus#RECONNECT_COMPLETE} status unconditionally transitions to {@link PlatformStatus#BEHIND} when
+     * a {@link FallenBehindAction} is processed.
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processCatastrophicFailureAction(@NonNull final CatastrophicFailureAction action) {
-        return new CatastrophicFailureStatusLogic();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link DoneReplayingEventsAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} throws an
-     * exception, since this is not conceivable in standard operation.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processDoneReplayingEventsAction(@NonNull final DoneReplayingEventsAction action) {
-        Objects.requireNonNull(action);
-
-        throw new IllegalPlatformStatusException(action, getStatus());
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * {@link PlatformStatus#RECONNECT_COMPLETE} status unconditionally transitions to {@link PlatformStatus#BEHIND}
-     * when a {@link FallenBehindAction} is processed.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processFallenBehindAction(@NonNull final FallenBehindAction action) {
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
         return new BehindStatusLogic(config);
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
      * Receiving a {@link FreezePeriodEnteredAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} doesn't ever
      * result in a status transition, but this logic method does record the freeze round, which will inform the status
      * progression once the reconnect state has been saved.
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processFreezePeriodEnteredAction(@NonNull final FreezePeriodEnteredAction action) {
-        if (freezeRound != null) {
-            throw new IllegalPlatformStatusException(
-                    "Received duplicate freeze period notification in RECONNECT_COMPLETE status. Previous notification was for round "
-                            + freezeRound + ", new notification is for round " + action.freezeRound());
-        }
-
+    protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
+        validateFreezeRound(freezeRound, action);
         freezeRound = action.freezeRound();
         return this;
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link ReconnectCompleteAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} throws an
-     * exception, since this is not conceivable in standard operation.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processReconnectCompleteAction(@NonNull final ReconnectCompleteAction action) {
-        Objects.requireNonNull(action);
-
-        throw new IllegalPlatformStatusException(action, getStatus());
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link SelfEventReachedConsensusAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} has no
-     * effect on the state machine.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processSelfEventReachedConsensusAction(
-            @NonNull final SelfEventReachedConsensusAction action) {
-
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link StartedReplayingEventsAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} throws an
-     * exception, since this is not conceivable in standard operation.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processStartedReplayingEventsAction(@NonNull final StartedReplayingEventsAction action) {
-        Objects.requireNonNull(action);
-
-        throw new IllegalPlatformStatusException(action, getStatus());
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
      * Receiving a {@link StateWrittenToDiskAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} causes a
      * transition to {@link PlatformStatus#FREEZE_COMPLETE} if it's a freeze state.
      * <p>
-     * For non-freeze states, if the state written to disk is prior to the reconnect state round, it's old, so we need
-     * to wait until the reconnect state is written to disk (or a later state). If the state written to disk is the
+     * For non-freeze states, if the state written to disk is prior to the reconnect state round, it's old, so we need to
+     * wait until the reconnect state is written to disk (or a later state). If the state written to disk is the
      * reconnect state or later, then we can transition to a new status. If a freeze boundary has been crossed, we
-     * transition to {@link PlatformStatus#FREEZING} status. Otherwise, we transition to
-     * {@link PlatformStatus#CHECKING} status.
+     * transition to {@link PlatformStatus#FREEZING} status. Otherwise, we transition to {@link PlatformStatus#CHECKING}
+     * status.
      */
     @NonNull
     @Override
-    public PlatformStatusLogic processStateWrittenToDiskAction(@NonNull final StateWrittenToDiskAction action) {
+    protected PlatformStatusLogic onStateWrittenToDisk(@NonNull final StateWrittenToDiskAction action) {
         if (action.isFreezeState()) {
             return new FreezeCompleteStatusLogic();
         }
@@ -184,26 +99,5 @@ public class ReconnectCompleteStatusLogic implements PlatformStatusLogic {
         } else {
             return new CheckingStatusLogic(config);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Receiving a {@link TimeElapsedAction} while in {@link PlatformStatus#RECONNECT_COMPLETE} has no effect on the
-     * state machine.
-     */
-    @NonNull
-    @Override
-    public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    public PlatformStatus getStatus() {
-        return PlatformStatus.RECONNECT_COMPLETE;
     }
 }
