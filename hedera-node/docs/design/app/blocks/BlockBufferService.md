@@ -62,7 +62,7 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
   healthy while still preserving a window of acknowledged blocks in case the block node re-requests one. The
   default is sized so the block containing an ISS round is still buffered when the asynchronous ISS detection
   fires — up to `consensus.roundsNonAncient` (26) rounds after the offending round, plus one round of dispatch
-  margin — so it can be captured for upload (see the ISS block upload design doc).
+  margin — so it can be captured for upload (see `FailureBlockUploadConfig` and `IssDetectionUploadCoordinator`).
   The soft limit is overridden by `maxBlocks` when the buffer is dominated by unacknowledged blocks — under that
   pressure, acknowledged blocks within the floor may still be evicted to make room.
 - The buffer size is monitored to apply backpressure when needed.
