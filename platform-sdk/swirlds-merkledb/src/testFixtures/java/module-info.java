@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.merkledb.test.fixtures {
-    exports com.swirlds.merkledb.test.fixtures;
     exports com.swirlds.merkledb.test.fixtures.files;
+    exports com.swirlds.merkledb.test.fixtures;
+
+    opens com.swirlds.merkledb.test.fixtures to
+            org.junit.platform.commons;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
@@ -18,7 +21,4 @@ module com.swirlds.merkledb.test.fixtures {
     requires java.management;
     requires org.junit.jupiter.api;
     requires org.mockito;
-
-    opens com.swirlds.merkledb.test.fixtures to
-            org.junit.platform.commons;
 }

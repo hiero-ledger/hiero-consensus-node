@@ -5,6 +5,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -20,13 +21,13 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.config.types.BlockStreamWriterMode;
-import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -82,8 +83,15 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long MIN_GZIP_SIZE_IN_BYTES = 26;
     private static final String ERROR_PREFIX = "\n  - ";
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
-    private static final int BLOCK_NODE_READ_MAX_ATTEMPTS = 5;
     private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
+    // Under writerMode=GRPC the freeze block's proof finalizes asynchronously and the block node
+    // serves it only after the proof completes (the consensus node flushes its in-memory pending
+    // block to .pnd.gz only on a fatal shutdown, so it is NOT on disk after a normal freeze). The
+    // StateChanges/BinaryStateChanges validators reconstruct the saved-state root, which needs that
+    // freeze block, so the GRPC read waits until a served block reaches the saved-state round (the
+    // freeze round). Bounded by STREAM_SETTLE_TIMEOUT; if the freeze block never arrives the BLOCKS
+    // branch skips those two validators rather than mismatching on a short stream.
+    private static final Duration STREAM_SETTLE_TIMEOUT = Duration.ofSeconds(90);
 
     private final List<RecordStreamValidator> recordStreamValidators;
     private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
@@ -243,6 +251,50 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                     throw new AssertionError(
                                             "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
                                 }
+                            } else {
+                                // BLOCKS mode: there is no record stream to compare against, so run the
+                                // data-independent block validators (state-changes replay vs the saved-state
+                                // root hash, block contents, block-number sequence, event hashes) directly
+                                // against the block stream. Parity validators that need records
+                                // (TransactionRecordParityValidator) override only validateBlockVsRecords, so
+                                // their validateBlocks is the no-op default and they are naturally inert here.
+                                //
+                                // StateChanges/BinaryStateChanges reconstruct the saved-state root and so need
+                                // the freeze block (the block at the saved-state round). Under writerMode=GRPC
+                                // the block node serves it only once its proof finalizes, which can lag; if the
+                                // served stream hasn't reached the saved-state round, skip just those two (a
+                                // short stream would otherwise mismatch the saved-state root for a reason that
+                                // is not a real defect). The structural/event validators still run.
+                                final long savedStateRound = latestSavedStateRound(spec);
+                                final boolean freezeBlockServed =
+                                        savedStateRound < 0 || highestRoundIn(blocks.active()) >= savedStateRound;
+                                if (!freezeBlockServed) {
+                                    log.warn(
+                                            "Block stream reached round {} but saved state is at round {}; skipping "
+                                                    + "state-replay validators (freeze block not served by the block node)",
+                                            highestRoundIn(blocks.active()),
+                                            savedStateRound);
+                                }
+                                final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
+                                        .filter(factory -> factory.appliesTo(spec))
+                                        .filter(factory -> freezeBlockServed || !requiresSavedState(factory))
+                                        .flatMap(factory -> {
+                                            final var validator = factory.create(spec);
+                                            final List<Block> input = (validator
+                                                                    instanceof EventHashBlockStreamValidator
+                                                            || validator
+                                                                    instanceof RedactingEventHashBlockStreamValidator)
+                                                    ? blocks.all()
+                                                    : blocks.active();
+                                            return validator.validationErrorsIn(input);
+                                        })
+                                        .peek(t -> log.error("Block stream validation error", t))
+                                        .map(Throwable::getMessage)
+                                        .collect(joining(ERROR_PREFIX));
+                                if (!maybeErrors.isBlank()) {
+                                    throw new AssertionError(
+                                            "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                                }
                             }
                         },
                         () -> Assertions.fail("No block streams found"));
@@ -288,38 +340,109 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<DiskBlocks> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        // Try ThreadLocal first, then fall back to the shared AtomicReference
-        // (DynamicTest execution threads in concurrent mode don't inherit ThreadLocal values)
-        var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (blockNodeNetwork == null) {
-            blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
-        if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
-            // Retry reading from block nodes — blocks may still be in-flight after freeze,
-            // especially with TSS/state proofs enabled where block finalization is async
-            for (int attempt = 1; attempt <= BLOCK_NODE_READ_MAX_ATTEMPTS; attempt++) {
-                final var result = readMaybeBlockNodeStreamsFor(spec);
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
+        if (BlockSourceFactory.isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
+            // Wait until the block node has served the FREEZE BLOCK before validating. After a freeze
+            // the freeze block's proof finalizes asynchronously and the block node serves only
+            // proof-bearing blocks, so the freeze block — whose state changes produce the saved-state
+            // root that StateChanges/BinaryStateChanges replay against — is served late (or, if its
+            // proof never finalizes this run, not at all). The deterministic target is the latest
+            // saved-state round (the freeze round); poll until a served block reaches that round, then
+            // the freeze block is present. Bounded by STREAM_SETTLE_TIMEOUT; on timeout we return the
+            // short stream and the BLOCKS branch skips the state-replay validators (so a not-yet-served
+            // freeze block can never produce a false root mismatch). Poll the un-dumped read; dump once.
+            final long targetRound = latestSavedStateRound(spec);
+            Optional<DiskBlocks> latest = Optional.empty();
+            final long deadlineNanos = System.nanoTime() + STREAM_SETTLE_TIMEOUT.toNanos();
+            while (System.nanoTime() < deadlineNanos) {
+                final var result = readBlocksFromBlockNodes(spec, blockNodeNetwork);
                 if (result.isPresent()) {
-                    return result;
-                }
-                if (attempt < BLOCK_NODE_READ_MAX_ATTEMPTS) {
-                    log.info(
-                            "No blocks from block nodes on attempt {}, retrying in {}ms",
-                            attempt,
-                            BLOCK_NODE_READ_RETRY_MS);
-                    try {
-                        Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
+                    latest = result;
+                    // targetRound < 0 means no saved state was found (can't compute the freeze round);
+                    // fall back to the first non-empty read rather than spinning to the timeout.
+                    if (targetRound < 0 || highestRoundIn(result.get().active()) >= targetRound) {
+                        dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
+                        return result;
                     }
                 }
+                try {
+                    Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
-            return Optional.empty();
+            if (latest.isPresent()) {
+                log.warn(
+                        "Block-node stream never reached saved-state round {} within {}s; state-replay "
+                                + "validators will be skipped (freeze block not served)",
+                        targetRound,
+                        STREAM_SETTLE_TIMEOUT.toSeconds());
+                dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
+            }
+            return latest;
         }
         // Dump whatever is available from block nodes for debugging before reading from disk
         readMaybeBlockNodeStreamsFor(spec);
         return readBlocksFromDisk(spec);
+    }
+
+    /**
+     * The latest saved-state round across the network's nodes — the freeze round whose state the
+     * {@link StateChangesValidator}/{@link BinaryStateChangesValidator} validators reconstruct. The
+     * saved-state directory is named by round number. Returns -1 if no saved state directory is found.
+     */
+    private static long latestSavedStateRound(@NonNull final HapiSpec spec) {
+        long latest = -1;
+        for (final var node : spec.getNetworkNodes()) {
+            final var savedStatesDir = node.getExternalPath(SAVED_STATES_DIR).toAbsolutePath();
+            if (!Files.isDirectory(savedStatesDir)) {
+                continue;
+            }
+            try (final var stream = Files.newDirectoryStream(savedStatesDir)) {
+                for (final var dir : stream) {
+                    if (!Files.isDirectory(dir)) {
+                        continue;
+                    }
+                    try {
+                        latest = Math.max(
+                                latest, Long.parseLong(dir.getFileName().toString()));
+                    } catch (final NumberFormatException ignore) {
+                        // Not a round directory (e.g. a temp dir); skip.
+                    }
+                }
+            } catch (final IOException e) {
+                log.warn("Failed to scan saved-state directory {}", savedStatesDir, e);
+            }
+        }
+        return latest;
+    }
+
+    /**
+     * The highest consensus round covered by the given blocks (from their round headers), or -1 if
+     * none carry a round header. Used to detect whether the freeze block (at the saved-state round)
+     * has been served by the block node yet.
+     */
+    private static long highestRoundIn(@NonNull final List<Block> blocks) {
+        long highest = -1;
+        for (final var block : blocks) {
+            for (final var item : block.items()) {
+                if (item.hasRoundHeader()) {
+                    highest = Math.max(highest, item.roundHeaderOrThrow().roundNumber());
+                }
+            }
+        }
+        return highest;
+    }
+
+    /**
+     * Whether the given factory builds a validator that reconstructs the saved-state root and so
+     * requires the freeze block to be present ({@link StateChangesValidator}/{@link
+     * BinaryStateChangesValidator}). Such validators are skipped under {@code writerMode=GRPC} when
+     * the block node has not yet served the freeze block.
+     */
+    private static boolean requiresSavedState(@NonNull final BlockStreamValidator.Factory factory) {
+        return factory == StateChangesValidator.FACTORY || factory == BinaryStateChangesValidator.FACTORY;
     }
 
     private static Optional<DiskBlocks> readBlocksFromDisk(@NonNull final HapiSpec spec) {
@@ -502,19 +625,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
     private static Optional<DiskBlocks> readBlocksFromBlockNodes(
             @NonNull final HapiSpec spec, @NonNull final BlockNodeNetwork blockNodeNetwork) {
-        // Determine the configured block node mode from the first entry
-        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
-                .findFirst()
-                .orElse(BlockNodeMode.NONE);
-
-        List<Block> blocks = null;
-        if (mode == BlockNodeMode.SIMULATOR) {
-            blocks = readBlocksFromSimulators(blockNodeNetwork);
-        } else if (mode == BlockNodeMode.REAL) {
-            blocks = readBlocksFromRealContainers(blockNodeNetwork);
-        }
-
-        if (blocks == null || blocks.isEmpty()) {
+        List<Block> blocks = BlockNodeReader.of(blockNodeNetwork).allBlocks();
+        if (blocks.isEmpty()) {
             return Optional.empty();
         }
 
@@ -524,71 +636,21 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (!pendingBlocks.isEmpty()) {
             final var existingNumbers = new HashSet<Long>();
             for (final var block : blocks) {
-                existingNumbers.add(blockNumberOf(block));
+                existingNumbers.add(BlockNodeReader.blockNumberOf(block));
             }
             final var allBlocks = new ArrayList<>(blocks);
             for (final var block : pendingBlocks) {
-                if (existingNumbers.add(blockNumberOf(block))) {
+                if (existingNumbers.add(BlockNodeReader.blockNumberOf(block))) {
                     allBlocks.add(block);
                 }
             }
-            allBlocks.sort(Comparator.comparingLong(StreamValidationOp::blockNumberOf));
+            allBlocks.sort(Comparator.comparingLong(BlockNodeReader::blockNumberOf));
             blocks = allBlocks;
             log.info("Merged {} pending blocks from disk, {} total blocks", pendingBlocks.size(), blocks.size());
         }
 
         // Block-node sources don't carry a preview-archive layer.
         return Optional.of(new DiskBlocks(blocks, List.of()));
-    }
-
-    @Nullable
-    private static List<Block> readBlocksFromSimulators(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        for (final Map.Entry<Long, SimulatedBlockNodeServer> entry :
-                blockNodeNetwork.getSimulatedBlockNodeById().entrySet()) {
-            try {
-                final var blocks = entry.getValue().getAllVerifiedBlocks();
-                log.info("Read {} blocks from simulator block node {}", blocks.size(), entry.getKey());
-                if (!blocks.isEmpty()) {
-                    return blocks;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to read blocks from simulator block node {}", entry.getKey(), e);
-            }
-        }
-        return null;
-    }
-
-    @Nullable
-    private static List<Block> readBlocksFromRealContainers(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        final var containers = blockNodeNetwork.getBlockNodeContainerById();
-        if (containers.isEmpty()) {
-            log.warn("No block node containers available");
-            return null;
-        }
-        for (final Map.Entry<Long, BlockNodeContainer> entry : containers.entrySet()) {
-            try {
-                final var container = entry.getValue();
-                try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    final long lastBlock = client.getLastAvailableBlock();
-                    if (lastBlock >= 0) {
-                        final var blocks = client.subscribeBlocks(0, lastBlock);
-                        log.info(
-                                "Read {} blocks from real block node {} (blocks 0-{})",
-                                blocks.size(),
-                                entry.getKey(),
-                                lastBlock);
-                        if (!blocks.isEmpty()) {
-                            return blocks;
-                        }
-                    } else {
-                        log.info("Block node {} reports no available blocks yet", entry.getKey());
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to read blocks from real block node {}", entry.getKey(), e);
-            }
-        }
-        return null;
     }
 
     private static List<Block> readPendingBlocksFromDisk(@NonNull final HapiSpec spec) {
@@ -688,7 +750,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     private static void writeBlockFileToDisk(@NonNull final Path dir, @NonNull final Block block) throws IOException {
-        final long blockNumber = blockNumberOf(block);
+        final long blockNumber = BlockNodeReader.blockNumberOf(block);
         if (blockNumber == Long.MAX_VALUE) {
             log.warn("Skipping block without header; cannot determine block number");
             return;
@@ -710,10 +772,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<DiskBlocks> readMaybeBlockNodeStreamsFor(@NonNull final HapiSpec spec) {
-        var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
-        if (blockNodeNetwork == null) {
-            blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        }
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
         if (blockNodeNetwork == null) {
             return Optional.empty();
         }
@@ -722,22 +781,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             dumpBlockNodeBlocksToDisk(spec, blockNodeNetwork);
         }
         return result;
-    }
-
-    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
-        try {
-            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-            return BlockStreamWriterMode.GRPC.name().equals(writerMode);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static long blockNumberOf(@NonNull final Block block) {
-        if (!block.items().isEmpty() && block.items().getFirst().hasBlockHeader()) {
-            return block.items().getFirst().blockHeader().number();
-        }
-        return Long.MAX_VALUE;
     }
 
     private static Optional<DataOrException> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
@@ -775,7 +818,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     private static void validateProofs(@NonNull final HapiSpec spec) {
-        if (!isWriterModeGrpcOnly(spec)) {
+        if (!BlockSourceFactory.isWriterModeGrpcOnly(spec)) {
             log.info("Beginning block proof validation for each node in the network");
             spec.getNetworkNodes().forEach(node -> {
                 try {
