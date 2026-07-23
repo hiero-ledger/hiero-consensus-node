@@ -44,7 +44,7 @@ public class WrapsHandoffsTest implements LifecycleTest {
     private static final String INCREMENTAL_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing incremental WRAPS proof";
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(15);
-    private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(16);
+    private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(25);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
     private static final long TRANSFER_PACING_MS = 250L;
     private static final Random RANDOM = new Random(2_721_828L);
