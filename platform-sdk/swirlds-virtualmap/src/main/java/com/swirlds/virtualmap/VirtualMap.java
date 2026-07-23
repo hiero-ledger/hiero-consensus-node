@@ -20,7 +20,6 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.utility.Labeled;
@@ -449,9 +448,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                         firstLeafPath);
                 return;
             }
-            final WritableMessageDigest wmd = new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
-            virtualLeafBytes.writeToForHashing(wmd);
-            final Hash recaclulatedHash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            final Hash recaclulatedHash = new MerkleHasher().leafNodeHash(virtualLeafBytes);
             if (loadedHash.equals(recaclulatedHash)) {
                 logger.info(
                         STARTUP.getMarker(),
@@ -1184,7 +1181,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         if (virtualHash == null) {
             final Hash rootHash = (metadata.getSize() == 0) ? null : records.rootHash();
-            virtualHash = (rootHash != null) ? rootHash : hasher.emptyRootHash();
+            virtualHash = (rootHash != null) ? rootHash : MerkleHasher.emptyRootHash(Cryptography.DEFAULT_DIGEST_TYPE);
         }
 
         // There are no remaining changes to be made to the cache, so we can seal it.
