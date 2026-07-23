@@ -285,20 +285,21 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
     /**
      * {@inheritDoc}
      *
-     * <p>Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
+     * <p>Writes the assigned chunk range to the file channel. Each chunk's {@link MemorySegment}
      * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
      * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
      * pre-allocated zero-filled buffer is written instead.
      *
-     * <p>This method runs exclusively during snapshot, which is sequenced after flush
-     * completion by the virtual pipeline. No concurrent {@link #closeChunk} can
-     * invalidate a chunk's arena during this operation.
+     * <p>Snapshot range invocations may run concurrently, but the snapshot is sequenced after
+     * flush completion by the virtual pipeline. No concurrent {@link #closeChunk} can invalidate
+     * a chunk's arena during this operation.
      */
     @Override
-    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
-        final int totalNumOfChunks = calculateNumberOfChunks(size());
-        final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+    protected void writeLongsData(
+            @NonNull final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
+            throws IOException {
+        final int totalNumOfChunks = calculateNumberOfChunks(endIndex);
+        final int firstChunkWithDataIndex = toIntExact(startIndex / longsPerChunk);
 
         // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
         final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
@@ -314,7 +315,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             }
 
             if (i == firstChunkWithDataIndex) {
-                final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+                final int firstValidIndexInChunk = toIntExact(startIndex % longsPerChunk);
                 buf.position(firstValidIndexInChunk * Long.BYTES);
             } else {
                 buf.position(0);
@@ -322,13 +323,13 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
 
             if (i == (totalNumOfChunks - 1)) {
                 final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+                final long remainingBytes = endIndex * Long.BYTES - bytesWrittenSoFar;
                 buf.limit(toIntExact(remainingBytes));
             } else {
                 buf.limit(memoryChunkSize);
             }
 
-            MerkleDbFileUtils.completelyWrite(fc, buf);
+            fileOffset += MerkleDbFileUtils.completelyWrite(fc, buf, fileOffset);
         }
     }
 

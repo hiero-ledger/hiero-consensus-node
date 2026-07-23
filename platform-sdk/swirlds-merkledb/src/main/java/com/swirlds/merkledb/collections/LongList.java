@@ -5,6 +5,7 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Executor;
 import java.util.stream.LongStream;
 
 /**
@@ -102,6 +103,22 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      * @throws IOException If there was a problem creating or writing to the file.
      */
     void writeToFile(Path file) throws IOException;
+
+    /**
+     * Write all longs in this LongList into a file using the requested number of writer threads. This method has the
+     * same concurrent-mutation semantics as {@link #writeToFile(Path)}.
+     *
+     * <p>The caller owns {@code executor}; this method neither shuts it down nor returns before its submitted tasks
+     * complete. A thread count of one uses the sequential writer and does not submit a task. For higher values, the
+     * calling thread coordinates at most {@code threadCount} tasks and does not write an additional range. The executor
+     * must be able to run those tasks while the caller waits for them.
+     *
+     * @param file The file to write into, it should not exist but its parent directory should exist and be writable.
+     * @param executor executor for parallel write tasks
+     * @param threadCount total number of writer threads for this list, at least one
+     * @throws IOException If there was a problem creating or writing to the file.
+     */
+    void writeToFile(Path file, Executor executor, int threadCount) throws IOException;
 
     /**
      * Updates min and max valid indexes in this list. If both values are -1, this indicates
