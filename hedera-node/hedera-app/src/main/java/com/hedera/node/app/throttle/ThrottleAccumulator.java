@@ -1224,9 +1224,7 @@ public class ThrottleAccumulator {
 
         if (throttleMetrics != null) {
             final var configuration = configSupplier.get();
-            final var allThrottles = new ArrayList<>(activeThrottles);
-            allThrottles.addAll(highVolumeActiveThrottles);
-            throttleMetrics.setupThrottleMetrics(allThrottles, configuration);
+            throttleMetrics.setupThrottleMetrics(allActiveThrottlesIncludingHighVolume(), configuration);
         }
 
         logResolvedDefinitions(capacitySplitSource.getAsInt());
