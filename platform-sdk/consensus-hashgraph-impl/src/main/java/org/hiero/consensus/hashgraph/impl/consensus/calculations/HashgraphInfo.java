@@ -73,7 +73,7 @@ public final class HashgraphInfo {
     private long lastEventID = 0; // the most recent unique ID generated for an event by generateEventID()
     private boolean newRound = true; // true iff update() has never been called for the pending round
     private long[] benchmarks = new long[NUM_BENCHMARKS]; // total nanoseconds spent in various code sections
-    private long pendingRound;
+    private long pendingRound = 0; // update must be called matching this (or with any pending round, if this is 0)
     private int numNodes;
     private long[] nodeIDs;
     private HashMap<Long, Integer> nodeIdToIndex;
@@ -701,13 +701,14 @@ public final class HashgraphInfo {
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
             }
-            if (ENFORCE_ROUND_ADVANCE && roundInfo.pendingRound != roundInfoPrev.pendingRound) {
-                throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound ("
-                        + roundInfo.pendingRound + " != " + roundInfoPrev.pendingRound + ")");
+            if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
+                throw new IllegalArgumentException(
+                        "roundInfo.pendingRound != roundInfoPrev.pendingRound ("
+                                + roundInfo.pendingRound + " !=  " + roundInfoPrev.pendingRound + ")");
             }
             if (ENFORCE_ROUND_ADVANCE
                     && roundInfo.pendingRound != h.pendingRound
-                    && (roundInfo.pendingRound != 1 || h.pendingRound != 0)) {
+                    && h.pendingRound != 0) {
                 throw new IllegalArgumentException(
                         "roundInfo.pendingRound should be " + h.pendingRound + ", not " + roundInfo.pendingRound);
             }
