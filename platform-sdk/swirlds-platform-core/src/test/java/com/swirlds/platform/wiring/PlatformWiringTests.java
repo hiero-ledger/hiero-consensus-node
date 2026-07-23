@@ -148,6 +148,7 @@ class PlatformWiringTests {
                 null,
                 null,
                 null,
+                null,
                 null);
         PlatformWiring.wire(inputs, buildingBlocks);
 
