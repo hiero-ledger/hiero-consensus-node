@@ -13,4 +13,5 @@ module org.hiero.consensus.roster {
     requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.jspecify;
 }

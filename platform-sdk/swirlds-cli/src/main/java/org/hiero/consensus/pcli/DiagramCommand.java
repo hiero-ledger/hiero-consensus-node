@@ -49,13 +49,18 @@ import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
@@ -144,14 +149,14 @@ public final class DiagramCommand extends AbstractCommand {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                null,
-                null,
-                null,
-                null,
+                RosterHistory.fakeRoster(),
+                KeysAndCerts.emptyKeysAndCerts(),
+                NodeId.FIRST_NODE_ID,
+                new NoOpRecycleBin(),
                 fileSystemManager,
                 new NoOpExecutionLayer(),
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
-                null,
+                ReservedSignedState.createNullReservation(),
                 null,
                 SemanticVersion.DEFAULT,
                 "testApp",
