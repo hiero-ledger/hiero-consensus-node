@@ -62,7 +62,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @java.lang.SuppressWarnings("unused")
 public final class HashgraphInfo {
     /** throw exceptions if update() is called on a round after it reaches consensus, or if it skips a round */
-    public static boolean ENFORCE_ROUND_ADVANCE = false;
+    public static boolean ENFORCE_ROUND_ADVANCE = true;
     /** for round 1 (the genesis round) use this as the RoundInfoPrev record */
     public static final RoundInfoPrev FIRST_ROUND_INFO_PREV =
             new RoundInfoPrev(1, false, new EventInfo[0], false, 1, 0, 0);
