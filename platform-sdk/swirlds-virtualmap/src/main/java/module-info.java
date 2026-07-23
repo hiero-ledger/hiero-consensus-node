@@ -19,10 +19,6 @@ open module com.swirlds.virtualmap {
             com.hedera.node.app;
     exports com.swirlds.virtualmap.internal.cache to
             com.swirlds.virtualmap.test.fixtures;
-    exports com.swirlds.virtualmap.internal.reconnect to
-            com.hedera.state.validator;
-    exports com.swirlds.virtualmap.internal.hash to
-            com.hedera.state.validator;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

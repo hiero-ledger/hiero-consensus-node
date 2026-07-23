@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
+
 module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.chaosbot;
@@ -100,4 +103,7 @@ module org.hiero.otter.fixtures {
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
+
+    provides GossipModule with
+            TurtleGossipModule;
 }
