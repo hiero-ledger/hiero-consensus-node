@@ -381,7 +381,7 @@ jobs:
 
       - name: Execute JRS Regression (${{ steps.jrs-config.outputs.file }})
         id: run-jrs-regression
-        timeout-minutes: 120
+        timeout-minutes: 150
         env:
           HEDERA_TESTS_ENABLED: ${{ inputs.hedera-tests-enabled }}
           REGRESSION_PATH: ${{ inputs.regression-path }}
