@@ -2435,6 +2435,45 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer.keySet()).contains(21L).doesNotContain(20L);
     }
 
+    @Test
+    void issRetentionFloorSurvivesSmallUnackedTailOverMaxBlocksInGrpcMode() throws Throwable {
+        // Regression for the maxBlocks-vs-floor interaction: with the PRODUCTION default maxBlocks (30) and floor (27),
+        // a small unacked tail (5 blocks) takes the buffer to 32 > 30. The oldest protected acked block is the ISS
+        // block at worst-case detection lag, so the maxBlocks ceiling must NOT evict it. (The other retention tests
+        // raise maxBlocks to 200, which hides this; here it is left at the default on purpose.)
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withConfigDataType(FailureBlockUploadConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                // blockStream.buffer.maxBlocks left at the default (30) — the point of the test.
+                .withValue("blockStream.buffer.minAckedBlocksToBuffer", 27)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("failureBlockUpload.issBlockUploadEnabled", true)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+
+        // Acked window [74,100] = 27 blocks, ISS block = 74 at the oldest (most vulnerable) edge; preceded by prunable
+        // sub-floor acked blocks [70,73]; followed by an unacked tail [101,105] that takes the total to 36.
+        for (long b = 70L; b <= 105L; b++) {
+            blockBufferService.openBlock(b);
+            blockBufferService.closeBlock(b);
+        }
+        blockBufferService.setLatestAcknowledgedBlock(100L);
+        checkBufferHandle.invoke(blockBufferService);
+
+        // Sub-floor acked blocks are still pruned by the floor...
+        assertThat(buffer.keySet()).doesNotContain(73L);
+        // ...but the whole protected window [74,100] survives despite total > maxBlocks (without the fix, 74 and 75 are
+        // evicted by the `size > maxBlocks` disjunct)...
+        assertThat(buffer.keySet()).contains(74L, 75L, 100L);
+        // ...and the unacked tail is never pruned.
+        assertThat(buffer.keySet()).contains(101L, 105L);
+    }
+
     // Utilities
 
     void setupState(final int numBlockUnacked, final boolean realStart) throws Throwable {

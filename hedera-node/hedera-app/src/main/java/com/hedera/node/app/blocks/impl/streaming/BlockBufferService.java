@@ -228,6 +228,25 @@ public class BlockBufferService {
         return ISS_RETENTION_FLOOR;
     }
 
+    /**
+     * The buffer-size ceiling used to decide whether to evict an acknowledged block that lies inside the ISS retention
+     * floor. Normally the configured {@link #maxBufferedBlocks()}. But in gRPC-only mode with ISS-block upload enabled,
+     * the protected window ({@link #effectiveMinAckedBlocksToBuffer()}) must survive the detection lag even while an
+     * unacknowledged tail pushes the buffer over the configured ceiling — otherwise the oldest protected block (which,
+     * at worst-case lag, is the ISS block) is evicted before the ISS notification fires. Raise the eviction ceiling by
+     * the floor so protected blocks are never sacrificed to make room. The unacked tail stays bounded by
+     * saturation-driven backpressure, which is unchanged (still measured against the configured {@code maxBlocks}); and
+     * steady-state memory is unaffected, because sub-floor acked blocks are still pruned by the floor — the extra
+     * headroom is only consumed transiently under unacked pressure.
+     */
+    private int effectiveMaxBufferedBlocks() {
+        final int configured = maxBufferedBlocks();
+        if (bsConfig().writerMode() != BlockStreamWriterMode.GRPC || !isIssBlockUploadEnabled()) {
+            return configured;
+        }
+        return configured + effectiveMinAckedBlocksToBuffer();
+    }
+
     private boolean isGrpcStreamingEnabled() {
         return bsConfig().streamToBlockNodes();
     }
@@ -732,6 +751,10 @@ public class BlockBufferService {
         final long highestBlockAcked = highestAckedBlockNumber.get();
         final int maxBufferSize = maxBufferedBlocks();
         final boolean backpressureEnabled = isBackpressureEnabled();
+        // Eviction ceiling: equals maxBufferSize except in gRPC+ISS mode, where the retention floor is held above
+        // maxBlocks so a detected ISS block survives the detection lag under an unacked tail. Only consulted under
+        // backpressure (the sole path that enforces the floor); saturation is still measured against maxBufferSize.
+        final int evictionCeiling = backpressureEnabled ? effectiveMaxBufferedBlocks() : maxBufferSize;
 
         // Create a sorted snapshot of keys so the pruning order is oldest-first
         final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
@@ -781,9 +804,9 @@ public class BlockBufferService {
                 shouldPrune = (size > maxBufferSize);
             } else {
                 // If backpressure is enabled, prune an acknowledged block when either the buffer
-                // exceeds the hard ceiling, or the block is older than the soft retention floor.
+                // exceeds the eviction ceiling, or the block is older than the soft retention floor.
                 shouldPrune = (blockNumber <= highestBlockAcked)
-                        && ((size > maxBufferSize) || (blockNumber < pruneBlockNumberThreshold));
+                        && ((size > evictionCeiling) || (blockNumber < pruneBlockNumberThreshold));
             }
 
             if (shouldPrune) {
