@@ -32,13 +32,10 @@ jobs:
     name: Test all Slack message templates
     runs-on: hl-cn-default-lin-sm
     steps:
-      - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
-          checkout: "true"
-          checkout-ref: ${{ github.ref }}
-          checkout-fetch-depth: "0"
-          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          egress-policy: audit
 
       - name: Echo Input Vars
         env:
