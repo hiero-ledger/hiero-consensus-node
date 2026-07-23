@@ -42,7 +42,11 @@ import org.junit.jupiter.api.Assertions;
 
 /**
  * Gets the balance of an account from the account details query.
+ *
+ * @deprecated This verb no longer submits a {@code CryptoGetAccountBalance} query. New HAPI tests should use
+ *     {@link QueryVerbs#getAccountDetails(String)} with an authorized payer instead.
  */
+@Deprecated(forRemoval = true)
 public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     private static final Logger log = LogManager.getLogger(HapiGetAccountBalance.class);
 
