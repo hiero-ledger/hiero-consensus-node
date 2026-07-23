@@ -202,15 +202,11 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         final SwirldsPlatform platform;
         if (startedFromGenesis) {
-            platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+            platform = new SwirldsPlatform(inputs, buildingBlocks, 0, 0);
         } else {
             final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
-            platform = new SwirldsPlatform(
-                    inputs,
-                    platformCoordinator,
-                    buildingBlocks,
-                    initialAncientThreshold,
-                    initialSignedState.getRound());
+            platform =
+                    new SwirldsPlatform(inputs, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
         }
 
         InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
