@@ -74,6 +74,7 @@ public class WrapsHistoryProver implements HistoryProver {
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
+    private final Object voteLock = new Object();
 
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
             new EnumMap<>(WrapsPhase.class);
@@ -145,7 +146,22 @@ public class WrapsHistoryProver implements HistoryProver {
      * Future that resolves on submission of this node's vote for proof.
      */
     @Nullable
-    private CompletableFuture<Void> voteFuture;
+    private volatile CompletableFuture<Void> voteFuture;
+
+    /**
+     * The kind of proof work associated with {@link #voteFuture}; this is set while either computing or voting on it.
+     */
+    @Nullable
+    private ProofKind voteFutureKind;
+
+    /**
+     * If non-null, a node whose explicit recursive proof has already been validated.
+     */
+    @Nullable
+    private Long validRecursiveProofNodeId;
+
+    private boolean nonRecursiveProofFinalized;
+    private boolean recursiveProofFinalized;
 
     /**
      * The current WRAPS phase; starts with R1 and advances as messages are received.
@@ -182,6 +198,11 @@ public class WrapsHistoryProver implements HistoryProver {
     private enum VoteChoice {
         SUBMIT,
         SKIP
+    }
+
+    private enum ProofKind {
+        NON_RECURSIVE,
+        RECURSIVE
     }
 
     private record VoteDecision(VoteChoice choice, @Nullable Long congruentNodeId) {
@@ -314,14 +335,22 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(proofVoteCategory);
         if (proofFinalized) {
             log.info("Observed finalized proof via node{}; skipping vote", nodeId);
-            tryCompleteVoteDecision(VoteDecision.skip());
-            // Null these out in case we need to repeat voting in a post-aggregation phase at genesis
-            voteDecisionFuture = null;
-            voteFuture = null;
-            return;
-        }
-        // If we’ve already decided & sent our vote, nothing to do
-        if (voteDecisionFuture == null || voteDecisionFuture.isDone()) {
+            final var proofKind = proofKindOf(proofVoteCategory);
+            final CompletableFuture<VoteDecision> decisionFuture;
+            synchronized (voteLock) {
+                markFinalized(proofKind);
+                decisionFuture = voteFutureKind == null || voteFutureKind == proofKind ? voteDecisionFuture : null;
+                if (decisionFuture != null) {
+                    voteDecisionFuture = null;
+                }
+                if (voteFutureKind == proofKind) {
+                    voteFuture = null;
+                    voteFutureKind = null;
+                }
+            }
+            if (decisionFuture != null) {
+                decisionFuture.complete(VoteDecision.skip());
+            }
             return;
         }
         // Explicit vote case
@@ -331,17 +360,34 @@ public class WrapsHistoryProver implements HistoryProver {
                 case NOT_RECURSIVE -> {
                     // Always store a hash – useful if we haven't finished our own proof yet
                     final var hash = hashOf(proof);
-                    explicitHistoryProofHashes.put(nodeId, hash);
-                    // If we already have our proof, see if it matches; save a few bytes by using congruent vote
-                    if (historyProof != null && selfProofHashOrThrow().equals(hash)) {
+                    final CompletableFuture<VoteDecision> decisionFuture;
+                    synchronized (voteLock) {
+                        explicitHistoryProofHashes.put(nodeId, hash);
+                        // If we already have our proof, see if it matches; save a few bytes by using congruent vote
+                        decisionFuture = (voteFutureKind == null || voteFutureKind == ProofKind.NON_RECURSIVE)
+                                        && historyProof != null
+                                        && selfProofHashOrThrow().equals(hash)
+                                ? voteDecisionFuture
+                                : null;
+                    }
+                    if (decisionFuture != null && decisionFuture.complete(VoteDecision.congruent(nodeId))) {
                         log.info("Observed matching explicit proof from node{}; voting congruent instead", nodeId);
-                        tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
                     }
                 }
                 case VALID_RECURSIVE -> {
                     // This is the big win, avoiding an explicit vote for the megabyte-scale WRAPS proof
-                    log.info("Observed valid explicit recursive proof from node{}; voting congruent instead", nodeId);
-                    tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+                    final CompletableFuture<VoteDecision> decisionFuture;
+                    synchronized (voteLock) {
+                        validRecursiveProofNodeId = nodeId;
+                        decisionFuture = voteFutureKind == null || voteFutureKind == ProofKind.RECURSIVE
+                                ? voteDecisionFuture
+                                : null;
+                    }
+                    if (decisionFuture != null && decisionFuture.complete(VoteDecision.congruent(nodeId))) {
+                        log.info(
+                                "Observed valid explicit recursive proof from node{}; voting congruent instead",
+                                nodeId);
+                    }
                 }
                 case INVALID_RECURSIVE -> {
                     // No-op, an invalid proof obviously has no use for us
@@ -564,27 +610,10 @@ public class WrapsHistoryProver implements HistoryProver {
             log.info("Skipping vote scheduling on canceled construction #{}", constructionId);
             return;
         }
-        this.historyProof = proof;
-
+        final var proofKind = proofKindOf(proof);
         final var selfProofHash = hashOf(proof);
-        for (final var entry : explicitHistoryProofHashes.entrySet()) {
-            if (selfProofHash.equals(entry.getValue())) {
-                log.info("Already observed explicit proof from node{}; voting congruent immediately", entry.getKey());
-                this.voteDecisionFuture = CompletableFuture.completedFuture(VoteDecision.congruent(entry.getKey()));
-                this.voteFuture = submissions.submitCongruentProofVote(constructionId, entry.getKey());
-                return;
-            }
-        }
-
-        this.voteDecisionFuture = new CompletableFuture<>();
-
-        final long jitterMs = computeJitterMs(tssConfig, constructionId);
-        final var delayed = delayer.delayedExecutor(jitterMs, MILLISECONDS, executor);
-
-        // If this is the first thread to complete the vote decision, we submit an explicit vote
-        CompletableFuture.runAsync(() -> tryCompleteVoteDecision(VoteDecision.explicit()), delayed);
-
-        this.voteFuture = voteDecisionFuture.thenCompose(decision -> switch (decision.choice()) {
+        final var decisionFuture = new CompletableFuture<VoteDecision>();
+        final var submissionFuture = decisionFuture.thenCompose(decision -> switch (decision.choice()) {
             case SKIP -> CompletableFuture.completedFuture(null);
             case SUBMIT -> {
                 final var congruentNodeId = decision.congruentNodeId();
@@ -600,12 +629,60 @@ public class WrapsHistoryProver implements HistoryProver {
                 }
             }
         });
+        final VoteDecision immediateDecision;
+        synchronized (voteLock) {
+            if (constructionCanceled || isFinalized(proofKind)) {
+                log.info(
+                        "Skipping {} proof vote scheduling on finalized construction #{}",
+                        proofKind == ProofKind.RECURSIVE ? "recursive" : "non-recursive",
+                        constructionId);
+                return;
+            }
+            this.historyProof = proof;
+            immediateDecision = immediateDecisionFor(proofKind, selfProofHash);
+            voteDecisionFuture = decisionFuture;
+            voteFuture = submissionFuture;
+            voteFutureKind = proofKind;
+        }
+        if (immediateDecision != null) {
+            if (immediateDecision.congruentNodeId() != null) {
+                log.info(
+                        "Already observed usable explicit proof from node{}; voting congruent immediately",
+                        immediateDecision.congruentNodeId());
+            }
+            decisionFuture.complete(immediateDecision);
+            return;
+        }
+
+        final long jitterMs = computeJitterMs(tssConfig, constructionId);
+        final var delayed = delayer.delayedExecutor(jitterMs, MILLISECONDS, executor);
+
+        // If this is the first thread to complete the vote decision, we submit an explicit vote
+        CompletableFuture.runAsync(() -> decisionFuture.complete(VoteDecision.explicit()), delayed);
     }
 
-    private void tryCompleteVoteDecision(VoteDecision decision) {
-        final var f = this.voteDecisionFuture;
-        if (f != null && !f.isDone()) {
-            f.complete(decision);
+    @Nullable
+    private VoteDecision immediateDecisionFor(@NonNull final ProofKind proofKind, @NonNull final Bytes selfProofHash) {
+        if (proofKind == ProofKind.RECURSIVE) {
+            return validRecursiveProofNodeId == null ? null : VoteDecision.congruent(validRecursiveProofNodeId);
+        }
+        for (final var entry : explicitHistoryProofHashes.entrySet()) {
+            if (selfProofHash.equals(entry.getValue())) {
+                return VoteDecision.congruent(entry.getKey());
+            }
+        }
+        return null;
+    }
+
+    private boolean isFinalized(@NonNull final ProofKind proofKind) {
+        return proofKind == ProofKind.RECURSIVE ? recursiveProofFinalized : nonRecursiveProofFinalized;
+    }
+
+    private void markFinalized(@NonNull final ProofKind proofKind) {
+        if (proofKind == ProofKind.RECURSIVE) {
+            recursiveProofFinalized = true;
+        } else {
+            nonRecursiveProofFinalized = true;
         }
     }
 
@@ -818,12 +895,30 @@ public class WrapsHistoryProver implements HistoryProver {
             case R1 -> f -> r1Future = f;
             case R2 -> f -> r2Future = f;
             case R3 -> f -> r3Future = f;
-            case AGGREGATE, POST_AGGREGATION -> f -> voteFuture = f;
+            case AGGREGATE -> f -> setVoteFuture(f, ProofKind.NON_RECURSIVE);
+            case POST_AGGREGATION -> f -> setVoteFuture(f, ProofKind.RECURSIVE);
         };
+    }
+
+    private void setVoteFuture(@Nullable final CompletableFuture<Void> future, @NonNull final ProofKind proofKind) {
+        synchronized (voteLock) {
+            voteFuture = future;
+            voteFutureKind = future == null ? null : proofKind;
+        }
     }
 
     private Bytes selfProofHashOrThrow() {
         return explicitHistoryProofHashes.computeIfAbsent(selfId, k -> hashOf(requireNonNull(historyProof)));
+    }
+
+    private static ProofKind proofKindOf(@NonNull final HistoryProof proof) {
+        return proof.chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT).hasWrapsProof()
+                ? ProofKind.RECURSIVE
+                : ProofKind.NON_RECURSIVE;
+    }
+
+    private static ProofKind proofKindOf(@NonNull final ProofVoteCategory category) {
+        return category == ProofVoteCategory.NOT_RECURSIVE ? ProofKind.NON_RECURSIVE : ProofKind.RECURSIVE;
     }
 
     private static Bytes hashOf(@NonNull final HistoryProof proof) {
