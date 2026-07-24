@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.uptime;
+package org.hiero.consensus.uptime;
 
 import static com.swirlds.base.units.TimeUnit.UNIT_MICROSECONDS;
 import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
-import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
+import static org.hiero.consensus.uptime.UptimeData.NO_ROUND;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.hiero.base.CompareTo;
+import org.hiero.consensus.config.UptimeConfig;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;

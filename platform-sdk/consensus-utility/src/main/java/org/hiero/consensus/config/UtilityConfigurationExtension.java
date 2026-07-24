@@ -4,6 +4,7 @@ package org.hiero.consensus.config;
 import com.swirlds.config.api.ConfigurationExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.status.StatusMonitorWiringConfig;
 
 /**
  * Registers configuration types for the consensus utility module.
@@ -15,6 +16,11 @@ public class UtilityConfigurationExtension implements ConfigurationExtension {
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(PathsConfig.class, PlatformStatusConfig.class, RecycleBinConfig.class);
+        return Set.of(
+                PathsConfig.class,
+                PlatformStatusConfig.class,
+                RecycleBinConfig.class,
+                StatusMonitorWiringConfig.class,
+                UptimeConfig.class);
     }
 }

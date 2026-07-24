@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.uptime;
+package org.hiero.consensus.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -12,4 +12,5 @@ import java.time.Duration;
  *                             node to be degraded.
  */
 @ConfigData("uptime")
-public record UptimeConfig(@ConfigProperty(defaultValue = "10s") Duration degradationThreshold) {}
+public record UptimeConfig(
+        @ConfigProperty(defaultValue = "10s") Duration degradationThreshold) {}
