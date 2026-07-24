@@ -362,7 +362,7 @@ See [concepts/birth-round.md](concepts/birth-round.md).
 
 The node's lifecycle state (e.g. `ACTIVE`, `CHECKING`, `FREEZING`), tracked by the status
 state machine and consulted by rules such as whether to create events or gossip.
-See [architecture/interfaces/consensus-execution-boundary.md](architecture/interfaces/consensus-execution-boundary.md).
+See [architecture/topics/platform-status.md](architecture/topics/platform-status.md).
 
 ### Prehandle
 
