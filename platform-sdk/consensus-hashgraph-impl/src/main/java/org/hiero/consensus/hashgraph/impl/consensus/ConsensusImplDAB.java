@@ -423,6 +423,7 @@ public class ConsensusImplDAB implements Consensus {
                 .map(memosEventMap::get)
                 .toList();
         final long consensusRoundNum = roundInfo.pendingRound();
+        final long pendingRound = consensusRoundNum + 1;
 
         // Check for no judges or super majority conditions.
         logJudgeErrors(judges, consensusRoundNum);
@@ -460,7 +461,7 @@ public class ConsensusImplDAB implements Consensus {
         // Extract the minimum judge info objects for all non-ancient rounds for the snapshot.
         // In the future, only the minimum judge info for the lastest consensus round needs to be stored
         // in state. This is cleanup to do later.
-        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(nonAncientThreshold, roundInfo.pendingRound())
+        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(nonAncientThreshold, pendingRound)
                 .mapToObj(this::getMinimumJudgeInfo)
                 .filter(Objects::nonNull)
                 .toList();
