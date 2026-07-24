@@ -16,6 +16,7 @@ import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -426,7 +427,7 @@ public class ConsensusLayerFactory {
                 latestImmutableStateNexus,
                 consensusStateEventHandler,
                 stateLifecycleManager,
-                statusMonitorModule::submitStatusAction,
+                statusMonitorModule.platformStatusActionInputWire()::put,
                 version,
                 selfId,
                 transactionOffsetNanos);
@@ -498,6 +499,8 @@ public class ConsensusLayerFactory {
             @Nullable final EventPipelineTracker eventPipelineTracker) {
         final Supplier<PcesReplayProgress> replayProgressSupplier =
                 createPcesReplayProgressSupplier(latestImmutableStateNexus);
+        final Runnable signalEndOfPcesReplay = () ->
+                issDetectionModule.signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
         module.initialize(
                 wiringModel,
                 configuration,
@@ -509,9 +512,9 @@ public class ConsensusLayerFactory {
                 initialState.get().getRound(),
                 platformCoordinator::flushPrimaryPipeline,
                 replayProgressSupplier,
-                statusMonitorModule::submitStatusAction,
+                statusMonitorModule.platformStatusActionInputWire()::put,
                 statusMonitorModule::flush,
-                issDetectionModule::signalEndOfPcesReplay,
+                signalEndOfPcesReplay,
                 eventPipelineTracker);
     }
 
