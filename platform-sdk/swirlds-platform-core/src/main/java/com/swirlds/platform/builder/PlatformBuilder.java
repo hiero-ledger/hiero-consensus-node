@@ -16,7 +16,6 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
-import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -30,6 +29,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
 import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -190,7 +190,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
         buildingBlocks = factory.create();
 
-        PlatformWiring.wire(inputs, buildingBlocks);
+        ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         final SignedState initialSignedState = initialState.get();
         final boolean startedFromGenesis = initialSignedState.isGenesisState();
