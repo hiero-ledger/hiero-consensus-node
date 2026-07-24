@@ -97,7 +97,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
 
         // Internal node (path 0) should also be hashed
         assertEquals(
-                VirtualHashChunk.hashInternal(correctHash, correctHash2),
+                new MerkleHasher().internalNodeHash(correctHash, correctHash2),
                 vm.getRecords().rootHash(),
                 "Root hash should be computed");
 

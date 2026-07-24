@@ -35,10 +35,10 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
@@ -144,6 +144,7 @@ class PlatformWiringTests {
                 notifierWiring,
                 statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
+                null,
                 null,
                 null,
                 null,

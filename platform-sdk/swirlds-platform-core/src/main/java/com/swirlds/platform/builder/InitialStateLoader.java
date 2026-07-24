@@ -18,7 +18,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -54,13 +53,11 @@ public class InitialStateLoader {
      * @param platform            the newly constructed platform
      * @param inputs              consensus layer inputs from the execution layer
      * @param buildingBlocks      the consensus layer building blocks
-     * @param platformCoordinator the platform coordinator
      */
     public static void initializeModulesWithInitialState(
             @NonNull final Platform platform,
             @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
-            @NonNull final PlatformCoordinator platformCoordinator) {
+            @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final SignedState signedState = inputs.initialState().get();
 
         initializeState(platform, signedState, inputs.consensusStateEventHandler());
@@ -101,7 +98,7 @@ public class InitialStateLoader {
         final boolean startedFromGenesis = signedState.isGenesisState();
 
         if (startedFromGenesis) {
-            platformCoordinator.updateEventWindow(EventWindow.getGenesisEventWindow());
+            buildingBlocks.platformCoordinator().updateEventWindow(EventWindow.getGenesisEventWindow());
         } else {
             buildingBlocks.stateModule().sendState(signedState);
 
@@ -115,8 +112,9 @@ public class InitialStateLoader {
             // the expired threshold will continue to expand until it reaches its full size.
             final int roundsNonAncient =
                     inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
-            platformCoordinator.updateEventWindow(
-                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+            buildingBlocks
+                    .platformCoordinator()
+                    .updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
             buildingBlocks.issDetectionModule().overrideIssDetectorState(signedState.reserve("initialize issDetector"));
         }
     }
