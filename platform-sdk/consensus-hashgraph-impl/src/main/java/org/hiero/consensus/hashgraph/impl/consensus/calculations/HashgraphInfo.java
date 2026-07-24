@@ -144,17 +144,29 @@ public final class HashgraphInfo {
 
     // the following getters are just for metrics, debugging, testing, etc. Normal code should not rely on them.
 
-    public long getNumVoteD() {return numVoteD;}
+    public long getNumVoteD() {
+        return numVoteD;
+    }
 
-    public long getNumUsedCoin() {return numUsedCoin;}
+    public long getNumUsedCoin() {
+        return numUsedCoin;
+    }
 
-    public long getNumPrevJudgesCopied() {return numPrevJudgesCopied;}
+    public long getNumPrevJudgesCopied() {
+        return numPrevJudgesCopied;
+    }
 
-    public static boolean isEnforceRoundAdvance() {return ENFORCE_ROUND_ADVANCE;}
+    public static boolean isEnforceRoundAdvance() {
+        return ENFORCE_ROUND_ADVANCE;
+    }
 
-    public ArrayList<EventInfo> getConsensusEvents() {return consensusEvents;}
+    public ArrayList<EventInfo> getConsensusEvents() {
+        return consensusEvents;
+    }
 
-    public Integer[] getSortInd() {return sortInd;}
+    public Integer[] getSortInd() {
+        return sortInd;
+    }
 
     public static AtomicLong getLastHashgraphInfoID() {
         return lastHashgraphInfoID;
@@ -566,7 +578,7 @@ public final class HashgraphInfo {
                 Instant roundTimestamp, // weighted median of created times of all judges in judgesArray
                 int voteD,
                 boolean usedCoin,
-                @NonNull RoundInfoPrev nextRoundInfoPrev) {} //roundInfoPrev to use for the next update()
+                @NonNull RoundInfoPrev nextRoundInfoPrev) {} // roundInfoPrev to use for the next update()
 
         /**
          * Set isConsensus to true for each event x in the hashgraph where it is false, and where x is an ancestor
@@ -574,16 +586,19 @@ public final class HashgraphInfo {
          * (if consensusEvents is not null). Set x.searchOrder to the order in which it was found. For each judge j,
          * set x.receivedTime[j] to the creation time of the event where x first reached a self-ancestor of judge j.
          */
-        private static void graphSearch(@NonNull HashgraphInfo hashgraphInfo, @NonNull EventInfo[] judges,
-                                 boolean judgeCon1, ArrayList<EventInfo> consensusEvents) {
+        private static void graphSearch(
+                @NonNull HashgraphInfo hashgraphInfo,
+                @NonNull EventInfo[] judges,
+                boolean judgeCon1,
+                ArrayList<EventInfo> consensusEvents) {
             // mark used while searching from the first judge (later judges' marks are greater)
             int firstMark = hashgraphInfo.currMark + 1;
             // events reach consensus when they are an ancestor of this many judges
             int targetCount = judgeCon1 ? 1 : judges.length;
             hashgraphInfo.benchmarks[BENCHMARK_SEARCH] -= System.nanoTime();
             for (int judgeIndex = 0;
-                 judgeIndex < judges.length;
-                 judgeIndex++) { // depth-first search starting from each judge
+                    judgeIndex < judges.length;
+                    judgeIndex++) { // depth-first search starting from each judge
                 EventInfo nextX;
                 EventInfo x = judges[judgeIndex];
                 Instant lowestTime = x.timeCreated; // created time for lowest self-ancestor on current search path
@@ -609,11 +624,12 @@ public final class HashgraphInfo {
                     // while nextX is bad (null / ancient / marked / isConsensus), search until good is found or done
                     while (x != null
                             && (nextX == null
-                            || nextX.birthRound < hashgraphInfo.minNonAncientRound
-                            || nextX.searchMark == hashgraphInfo.currMark
-                            || nextX.isConsensus)) {
+                                    || nextX.birthRound < hashgraphInfo.minNonAncientRound
+                                    || nextX.searchMark == hashgraphInfo.currMark
+                                    || nextX.isConsensus)) {
                         while (x != null && x.searchParent >= x.parentsSigned.length - 1) {
-                            x.searchMark = hashgraphInfo.currMark; // backtrack up from x to its child, so mark x as fully explored
+                            x.searchMark = hashgraphInfo
+                                    .currMark; // backtrack up from x to its child, so mark x as fully explored
                             x = x.searchChild; // backtrack up until an event is found with an unexplored parent
                             if (x != null && x.searchJudgeSelfAncestor) {
                                 lowestTime = x.timeCreated;
@@ -718,13 +734,10 @@ public final class HashgraphInfo {
                 throw new IllegalArgumentException("Event was already cleared");
             }
             if (roundInfo.pendingRound != roundInfoPrev.pendingRound) {
-                throw new IllegalArgumentException(
-                        "roundInfo.pendingRound != roundInfoPrev.pendingRound ("
-                                + roundInfo.pendingRound + " !=  " + roundInfoPrev.pendingRound + ")");
+                throw new IllegalArgumentException("roundInfo.pendingRound != roundInfoPrev.pendingRound ("
+                        + roundInfo.pendingRound + " !=  " + roundInfoPrev.pendingRound + ")");
             }
-            if (ENFORCE_ROUND_ADVANCE
-                    && roundInfo.pendingRound != h.pendingRound
-                    && h.pendingRound != 0) {
+            if (ENFORCE_ROUND_ADVANCE && roundInfo.pendingRound != h.pendingRound && h.pendingRound != 0) {
                 throw new IllegalArgumentException(
                         "roundInfo.pendingRound should be " + h.pendingRound + ", not " + roundInfo.pendingRound);
             }
@@ -734,7 +747,7 @@ public final class HashgraphInfo {
             if (h.newRound) {
                 // If this is the first time update has ever been called on this hashgraph.
                 if (h.pendingRound == 0) {
-                    graphSearch(h,roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
+                    graphSearch(h, roundInfoPrev.prevJudges, rp.prevJudgeCon1, null);
                 }
                 h.pendingRound = r.pendingRound;
                 h.numNodes = r.nodes.length;
@@ -1177,9 +1190,11 @@ public final class HashgraphInfo {
             Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
             final EventInfo[] judgesArrayFinal = judgesArray; // make final for use in lambdas
             Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by timeCreated, ascending
-                return (i2 >= judgesArrayFinal.length) ? -1
-                        : (i1 >= judgesArrayFinal.length) ? 1
-                          : judgesArrayFinal[i1].timeCreated.compareTo(judgesArrayFinal[i2].timeCreated);
+                return (i2 >= judgesArrayFinal.length)
+                        ? -1
+                        : (i1 >= judgesArrayFinal.length)
+                                ? 1
+                                : judgesArrayFinal[i1].timeCreated.compareTo(judgesArrayFinal[i2].timeCreated);
             });
             {
                 long stake = 0; // sum of weights of judges with earlier created time
@@ -1209,10 +1224,12 @@ public final class HashgraphInfo {
             // function consensusOrder /--------------------------------------------------------------------------
             // function consensusTimestamp /----------------------------------------------------------------------
             if (r.judgeCon1 && consensusEventsArray.length > 0) { // if each is ancestor of at least one judge
-                Arrays.sort(consensusEventsArray, Comparator
-                        .comparingLong((EventInfo e) -> e.gen) // sort by timeCon(r,d,x) which is just e.gen plus const
-                        .thenComparingLong(e -> e.eventID) // tiebreaker is eventID then searchOrder
-                        .thenComparingInt(e -> e.searchOrder));
+                Arrays.sort(
+                        consensusEventsArray,
+                        Comparator.comparingLong(
+                                        (EventInfo e) -> e.gen) // sort by timeCon(r,d,x) which is just e.gen plus const
+                                .thenComparingLong(e -> e.eventID) // tiebreaker is eventID then searchOrder
+                                .thenComparingInt(e -> e.searchOrder));
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(i);
@@ -1224,9 +1241,11 @@ public final class HashgraphInfo {
                     int medianPos;
                     Arrays.setAll(h.sortInd, i -> i); // set array to [0, 1, ..., numNodes - 1]
                     Arrays.sort(h.sortInd, (Integer i1, Integer i2) -> { // sort by received time, ascending
-                        return (i2 >= judgesArrayFinal.length) ? -1
-                                : (i1 >= judgesArrayFinal.length) ? 1
-                                  : event.receivedTime[i1].compareTo(event.receivedTime[i2]);
+                        return (i2 >= judgesArrayFinal.length)
+                                ? -1
+                                : (i1 >= judgesArrayFinal.length)
+                                        ? 1
+                                        : event.receivedTime[i1].compareTo(event.receivedTime[i2]);
                     });
                     for (medianPos = 0; medianPos < judgesArray.length; medianPos++) {
                         stake += r.stake[judgesArray[h.sortInd[medianPos]].creator];
@@ -1236,11 +1255,13 @@ public final class HashgraphInfo {
                     }
                     event.consensusTimestamp = event.receivedTime[medianPos];
                 }
-                Arrays.sort(consensusEventsArray, Comparator
-                        .comparing((EventInfo e) -> e.consensusTimestamp) // sort by weighted median time received
-                        .thenComparingLong(e -> e.gen) // tiebreaker is gen then eventID then searchOrder
-                        .thenComparingLong(e -> e.eventID)
-                        .thenComparingInt(e -> e.searchOrder));
+                Arrays.sort(
+                        consensusEventsArray,
+                        Comparator.comparing(
+                                        (EventInfo e) -> e.consensusTimestamp) // sort by weighted median time received
+                                .thenComparingLong(e -> e.gen) // tiebreaker is gen then eventID then searchOrder
+                                .thenComparingLong(e -> e.eventID)
+                                .thenComparingInt(e -> e.searchOrder));
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                 }
@@ -1260,7 +1281,7 @@ public final class HashgraphInfo {
             h.newRound = true;
             h.numPrevJudgesCopied += prevJudgesCopied ? 1 : 0;
             h.numUsedCoin += usedCoin ? 1 : 0;
-            h.numVoteD += h.voteD==2 ? 1 : 0;
+            h.numVoteD += h.voteD == 2 ? 1 : 0;
             h.benchmarks[HashgraphInfo.BENCHMARK_LOOP9] += System.nanoTime();
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
             return new UpdateResults(

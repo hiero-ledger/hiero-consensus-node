@@ -403,7 +403,6 @@ public class ConsensusImplDAB implements Consensus {
                     memosEventMap.remove(insertedEvent.getEventInfo());
                 }
             }
-
         }
         return null;
     }

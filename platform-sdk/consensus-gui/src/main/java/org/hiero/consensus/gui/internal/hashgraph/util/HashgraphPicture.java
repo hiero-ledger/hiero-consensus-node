@@ -145,11 +145,15 @@ public class HashgraphPicture extends JPanel {
                 benchmarksString.append(" nsPerUpdate = ").append((int) ((float) benchmarks[0] / benchmarks[1] + 0.5));
                 benchmarksString.append(" breakdown = ");
                 for (int i = 2; i < benchmarks.length; i++) {
-                    benchmarksString.append((benchmarks[i] * 100 / benchmarks[0])).append("% ");
+                    benchmarksString
+                            .append((benchmarks[i] * 100 / benchmarks[0]))
+                            .append("% ");
                 }
                 rect = fm.getStringBounds(benchmarksString.toString(), g);
-                g.drawString(benchmarksString.toString(), (int) ((double) this.getBounds().width / 2 - rect.getWidth() / 2), (int)
-                        (pictureMetadata.getYmax() + 2 * rect.getHeight()));
+                g.drawString(
+                        benchmarksString.toString(),
+                        (int) ((double) this.getBounds().width / 2 - rect.getWidth() / 2),
+                        (int) (pictureMetadata.getYmax() + 2 * rect.getHeight()));
             }
 
             final int d = pictureMetadata.getD();
@@ -287,9 +291,11 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeRoundCreated()) {
-            s.append(" ").append(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                    ? event.getEventInfo().getVotingRound()
-                    : event.getRoundCreated());
+            s.append(" ")
+                    .append(
+                            GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                                    ? event.getEventInfo().getVotingRound()
+                                    : event.getRoundCreated());
         }
         if (options.writeVote() && event.isWitness()) {
             if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
@@ -339,25 +345,30 @@ public class HashgraphPicture extends JPanel {
         }
 
         if (options.writeBirthRound()) {
-            s.append(" ").append(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                    ? event.getEventInfo().getBirthRound()
-                    : event.getBirthRound());
+            s.append(" ")
+                    .append(
+                            GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                                    ? event.getEventInfo().getBirthRound()
+                                    : event.getBirthRound());
         }
 
         final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
         if (options.writeBranches()
                 && hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(gossipEvent)) {
-            s.append(" " + "\\/ ").append(hashgraphSource
-                    .getEventStorage()
-                    .getBranchedEventsMetadata()
-                    .get(gossipEvent)
-                    .branchIndex());
+            s.append(" " + "\\/ ")
+                    .append(hashgraphSource
+                            .getEventStorage()
+                            .getBranchedEventsMetadata()
+                            .get(gossipEvent)
+                            .branchIndex());
         }
 
         if (options.writeDeGen()) {
-            s.append(" ").append(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                    ? event.getEventInfo().getGen()
-                    : event.getDeGen());
+            s.append(" ")
+                    .append(
+                            GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                                    ? event.getEventInfo().getGen()
+                                    : event.getDeGen());
         }
         if (!s.isEmpty()) {
             final Rectangle2D rect = fm.getStringBounds(s.toString(), g);
