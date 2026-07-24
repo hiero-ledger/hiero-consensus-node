@@ -26,12 +26,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Import Checksum Files from the Build Context
 ADD checksums/* /tmp/checksums/
 
-# Install basic OS utilities for building.
-# The apt retry config is written first so transient mirror failures don't abort the build.
-RUN printf 'Acquire::Retries "8";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
-      > /etc/apt/apt.conf.d/80-retries && \
-    apt-get update && \
-    apt-get install -y tar gzip wget dos2unix gnupg2 hashdeep && \
+# Install basic OS utilities for building
+RUN apt-get update && \
+	apt-get install -y tar gzip wget dos2unix gnupg2 hashdeep && \
     apt-get autoclean && \
     apt-get clean all && \
     rm -rf /var/cache/apt
@@ -42,8 +39,7 @@ RUN printf 'Acquire::Retries "8";\nAcquire::http::Timeout "30";\nAcquire::https:
 
 # Download Java Archive
 WORKDIR "/tmp/java"
-RUN wget --quiet --tries=8 --waitretry=15 --retry-connrefused --timeout=30 \
-    https://download.java.net/java/GA/jdk${OPENJDK_VERSION}/${OPENJDK_DL_KEY}/GPL/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz
+RUN wget --quiet https://download.java.net/java/GA/jdk${OPENJDK_VERSION}/${OPENJDK_DL_KEY}/GPL/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz
 
 # Validate Java Archive
 RUN sha256sum -c /tmp/checksums/openjdk-${OPENJDK_VERSION}_linux-x64_bin.tar.gz.sha256
@@ -77,16 +73,13 @@ ADD wait-for /usr/local/bin/
 # Fetch Validated Java Binaries
 COPY --from=openjdk-builder /usr/local/java/ /usr/local/java/
 
-# Install Basic OS Requirements.
-# The apt retry config is written first so transient mirror failures don't abort the build.
-RUN printf 'Acquire::Retries "8";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
-      > /etc/apt/apt.conf.d/80-retries && \
-    apt-get update && \
-    apt-get install -y tar gzip openssl zlib1g libsodium23 libreadline8t64 sudo netcat-traditional && \
-    apt-get autoremove && \
-    apt-get autoclean && \
-    apt-get clean all && \
-    rm -rf /var/cache/apt
+# Install Basic OS Requirements
+RUN apt-get update && \
+	apt-get install -y tar gzip openssl zlib1g libsodium23 libreadline8t64 sudo netcat-traditional && \
+	apt-get autoremove && \
+	apt-get autoclean && \
+	apt-get clean all && \
+	rm -rf /var/cache/apt
 
 # Install Java Alternatives
 RUN update-alternatives --install "/usr/bin/java" "java" "/usr/local/java/jdk-${OPENJDK_VERSION}/bin/java" 1500 && \
