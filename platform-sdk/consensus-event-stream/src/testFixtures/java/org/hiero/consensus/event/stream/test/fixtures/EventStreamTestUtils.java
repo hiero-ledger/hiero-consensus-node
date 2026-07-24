@@ -36,7 +36,6 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
-// import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.mockito.Mockito;
 
