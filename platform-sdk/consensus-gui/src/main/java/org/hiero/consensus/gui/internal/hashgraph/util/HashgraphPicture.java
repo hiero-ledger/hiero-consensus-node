@@ -134,17 +134,21 @@ public class HashgraphPicture extends JPanel {
                         name, (int) (x - rect.getWidth() / 2), (int) (pictureMetadata.getYmax() + rect.getHeight()));
             }
             if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
-                String benchmarksString = "benchmarks:  ";
+                HashgraphInfo h = events.getFirst().getEventInfo().getHashgraph();
+                long[] benchmarks = h.getBenchmarks();
+                StringBuilder benchmarksString = new StringBuilder("countBad(voteD,coin,judgeCopied) = ("
+                        + h.getNumVoteD() + ", "
+                        + h.getNumUsedCoin() + ", "
+                        + h.getNumPrevJudgesCopied() + ")");
                 Rectangle2D rect;
-                long[] benchmarks =
-                        events.getFirst().getEventInfo().getHashgraph().getBenchmarks();
-                benchmarksString += benchmarks[1] + " update() calls, ";
-                benchmarksString += (benchmarks[0] / benchmarks[1]) + " ns per update(), inner loops: ";
+                benchmarksString.append(" updateCalls = ").append(benchmarks[1]);
+                benchmarksString.append(" nsPerUpdate = ").append((int) ((float) benchmarks[0] / benchmarks[1] + 0.5));
+                benchmarksString.append(" breakdown = ");
                 for (int i = 2; i < benchmarks.length; i++) {
-                    benchmarksString += (benchmarks[i] * 100 / benchmarks[0]) + "% ";
+                    benchmarksString.append((benchmarks[i] * 100 / benchmarks[0])).append("% ");
                 }
-                rect = fm.getStringBounds(benchmarksString, g);
-                g.drawString(benchmarksString, (int) ((double) this.getBounds().width / 2 - rect.getWidth() / 2), (int)
+                rect = fm.getStringBounds(benchmarksString.toString(), g);
+                g.drawString(benchmarksString.toString(), (int) ((double) this.getBounds().width / 2 - rect.getWidth() / 2), (int)
                         (pictureMetadata.getYmax() + 2 * rect.getHeight()));
             }
 
@@ -272,105 +276,101 @@ public class HashgraphPicture extends JPanel {
         g.fillOval(xPos, yPos, d, d);
         g.setFont(g.getFont().deriveFont(Font.BOLD));
 
-        String s = "";
+        StringBuilder s = new StringBuilder();
 
         if (options.writeEventID()) {
-            s += " " + event.getEventInfo().getEventID();
+            s.append(" ").append(event.getEventInfo().getEventID());
         }
 
         if (options.writeNGen()) {
-            s += " " + event.getNGen();
+            s.append(" ").append(event.getNGen());
         }
 
         if (options.writeRoundCreated()) {
-            s += " "
-                    + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                            ? event.getEventInfo().getVotingRound()
-                            : event.getRoundCreated());
+            s.append(" ").append(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                    ? event.getEventInfo().getVotingRound()
+                    : event.getRoundCreated());
         }
         if (options.writeVote() && event.isWitness()) {
             if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
                 // final HashgraphInfo.EventInfo[] votes = event.getEventInfo().getVoteE();
                 final int[] votes = event.getEventInfo().getVoteIndex();
                 if (votes == null) {
-                    s += " NULL";
+                    s.append(" NULL");
                 } else {
-                    s += " < ";
+                    s.append(" < ");
                     for (int vi : votes) {
                         HashgraphInfo.EventInfo ve =
                                 event.getEventInfo().getHashgraph().getCandEventInfo()[vi];
-                        s += (ve == null) ? " -" : (" " + ve.getEventID());
+                        s.append((ve == null) ? " -" : (" " + ve.getEventID()));
                     }
-                    s += " >";
+                    s.append(" >");
                 }
             } else {
                 for (int i = 0; i < event.getVotesSize(); i++) {
                     // showing T or F from true/false for readability on the picture
                     final String vote = event.getVote(i) ? "T" : "F";
-                    s += vote;
+                    s.append(vote);
                 }
             }
         }
         if (options.writeEventHash()) {
             // showing first two characters from the hash of the event
-            s += " h:" + event.getBaseHash().toString().substring(0, 2);
+            s.append(" h:").append(event.getBaseHash().toString(), 0, 2);
         }
         if (options.writeRoundReceived() && event.getRoundReceived() > 0) {
-            s += " " + event.getRoundReceived();
+            s.append(" ").append(event.getRoundReceived());
         }
         // if not consensus, then there's no order yet
         if (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
             if (options.writeConsensusOrder() && event.getEventInfo().isConsensus()) {
-                s += " " + event.getEventInfo().getConsensusOrder();
+                s.append(" ").append(event.getEventInfo().getConsensusOrder());
             }
         } else {
             if (options.writeConsensusOrder() && event.isConsensus()) {
-                s += " " + event.getBaseEvent().getConsensusOrder();
+                s.append(" ").append(event.getBaseEvent().getConsensusOrder());
             }
         }
         if (options.writeConsensusTimeStamp()) {
             final Instant t = event.getConsensusTimestamp();
             if (t != null) {
-                s += " " + HashgraphGuiConstants.FORMATTER.format(t);
+                s.append(" ").append(HashgraphGuiConstants.FORMATTER.format(t));
             }
         }
 
         if (options.writeBirthRound()) {
-            s += " "
-                    + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                            ? event.getEventInfo().getBirthRound()
-                            : event.getBirthRound());
+            s.append(" ").append(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                    ? event.getEventInfo().getBirthRound()
+                    : event.getBirthRound());
         }
 
         final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
         if (options.writeBranches()
                 && hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(gossipEvent)) {
-            s += " " + "\\/ "
-                    + hashgraphSource
-                            .getEventStorage()
-                            .getBranchedEventsMetadata()
-                            .get(gossipEvent)
-                            .branchIndex();
+            s.append(" " + "\\/ ").append(hashgraphSource
+                    .getEventStorage()
+                    .getBranchedEventsMetadata()
+                    .get(gossipEvent)
+                    .branchIndex());
         }
 
         if (options.writeDeGen()) {
-            s += " "
-                    + (GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
-                            ? event.getEventInfo().getGen()
-                            : event.getDeGen());
+            s.append(" ").append(GuiEventStorage.USE_DYNAMIC_ADDRESS_BOOK_UPDATE
+                    ? event.getEventInfo().getGen()
+                    : event.getDeGen());
         }
         if (!s.isEmpty()) {
-            final Rectangle2D rect = fm.getStringBounds(s, g);
+            final Rectangle2D rect = fm.getStringBounds(s.toString(), g);
 
             final int x = (int) (pictureMetadata.xpos(event) - rect.getWidth() / 2. - fa / 4.);
             final int y = (int) (pictureMetadata.ypos(event) + rect.getHeight() / 2. - fd / 2);
             g.setColor(HashgraphGuiConstants.LABEL_OUTLINE);
-            g.drawString(s, x - 1, y - 1);
-            g.drawString(s, x + 1, y - 1);
-            g.drawString(s, x - 1, y + 1);
-            g.drawString(s, x + 1, y + 1);
+            g.drawString(s.toString(), x - 1, y - 1);
+            g.drawString(s.toString(), x + 1, y - 1);
+            g.drawString(s.toString(), x - 1, y + 1);
+            g.drawString(s.toString(), x + 1, y + 1);
             g.setColor(color);
-            g.drawString(s, x, y);
+            g.drawString(s.toString(), x, y);
         }
     }
 

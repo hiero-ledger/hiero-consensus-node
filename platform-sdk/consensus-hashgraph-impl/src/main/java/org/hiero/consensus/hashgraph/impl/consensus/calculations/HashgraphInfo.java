@@ -80,6 +80,9 @@ public final class HashgraphInfo {
     private long totalStake;
     private long minNonAncientRound;
     private int voteD = 2; // must be 1 or 2. Is set during the first update() of each round.
+    private long numVoteD = 0; // metric: how many rounds had voteD==2
+    private long numUsedCoin = 0; // metric: how many rounds had usedCoin==true
+    private long numPrevJudgesCopied = 0; // metric: how many rounds set prevJudgesCopied==true
     private ArrayList<EventInfo> parents = new ArrayList<>(); // used as scratchpad during update of an event
     private ArrayList<EventInfo> judges = new ArrayList<>(); // used as scratchpad during update of an event
     private ArrayList<EventInfo> consensusEvents = new ArrayList<>(); // used as scratchpad during update of an event
@@ -139,7 +142,19 @@ public final class HashgraphInfo {
         }
     }
 
-    // the following getters are just for debugging, monitoring, testing, etc. Normal code should not rely on them.
+    // the following getters are just for metrics, debugging, testing, etc. Normal code should not rely on them.
+
+    public long getNumVoteD() {return numVoteD;}
+
+    public long getNumUsedCoin() {return numUsedCoin;}
+
+    public long getNumPrevJudgesCopied() {return numPrevJudgesCopied;}
+
+    public static boolean isEnforceRoundAdvance() {return ENFORCE_ROUND_ADVANCE;}
+
+    public ArrayList<EventInfo> getConsensusEvents() {return consensusEvents;}
+
+    public Integer[] getSortInd() {return sortInd;}
 
     public static AtomicLong getLastHashgraphInfoID() {
         return lastHashgraphInfoID;
@@ -698,6 +713,7 @@ public final class HashgraphInfo {
             EventInfo[] judgesArray; // all judges for this round, in arbitrary order
 
             h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] -= System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP1] -= System.nanoTime();
             if (hashgraph == null) {
                 throw new IllegalArgumentException("Event was already cleared");
             }
@@ -848,15 +864,15 @@ public final class HashgraphInfo {
             // (for each i that is the index of the judge in prevJudge(r))
             for (int i = 0; i < rp.prevJudges.length; i++) {
                 ancestorJudge[i] = (this == rp.prevJudges[i]);
-                h.benchmarks[HashgraphInfo.BENCHMARK_LOOP1] -= System.nanoTime();
                 for (EventInfo parent : parentsSigned) {
                     if (parent.birthRound >= rp.prevMinJudgeBirthRound && parent.ancestorJudge[i]) {
                         ancestorJudge[i] = true;
                         break;
                     }
                 }
-                h.benchmarks[HashgraphInfo.BENCHMARK_LOOP1] += System.nanoTime();
             }
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP1] += System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP2] -= System.nanoTime();
             { // function gen /-----------------------------------------------------------------------------------
                 long t = 0;
                 for (EventInfo parent : h.parents) {
@@ -873,6 +889,8 @@ public final class HashgraphInfo {
                     parentRound = Math.max(parentRound, parent.votingRound);
                 }
             }
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP2] += System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP3] -= System.nanoTime();
             // function lastSee /---------------------------------------------------------------------------------
             for (int m = 0; m < numNodes; m++) {
                 if (m == creator) {
@@ -880,19 +898,16 @@ public final class HashgraphInfo {
                 } else {
                     // find k = max(map(s1,votingRound))
                     long k = 1; // start at 1 to ensure max({}) = 1
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP2] -= System.nanoTime();
                     for (EventInfo parent : h.parents) {
                         EventInfo y = parent.lastSee[m];
                         if (y != null && y.votingRound > k) {
                             k = y.votingRound;
                         }
                     }
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP2] += System.nanoTime();
                     EventInfo w = null; // find w = firstSelfWitness(r,first(s2))
                     EventInfo p = null; // find p = event in s3 with the max gen
                     boolean s2empty = true;
                     long maxGen = -1;
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP3] -= System.nanoTime();
                     for (EventInfo parent : h.parents) {
                         EventInfo y = parent.lastSee[m];
                         // y (if nonnull) is in s1
@@ -911,10 +926,11 @@ public final class HashgraphInfo {
                             }
                         }
                     }
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP3] += System.nanoTime();
                     lastSee[m] = s2empty ? null : p;
                 }
             }
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP3] += System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] -= System.nanoTime();
             // function stronglySeeP /----------------------------------------------------------------------------
             for (int m = 0; m < numNodes; m++) {
                 EventInfo y, z, p = selfParent;
@@ -932,7 +948,6 @@ public final class HashgraphInfo {
                     stronglySeeP[m] = null;
                 } else {
                     long s = 0;
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] -= System.nanoTime();
                     for (int mp = 0; mp < numNodes; mp++) {
                         EventInfo yp;
                         // function seeThru /---------------------------------------------------------------------
@@ -947,10 +962,11 @@ public final class HashgraphInfo {
                         // finished yp = seeThru(r,x,m,mp)
                         s += (yp != y) ? 0 : r.stake[mp];
                     }
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] += System.nanoTime();
                     stronglySeeP[m] = (s > h.supermajorityThreshold) ? y : null;
                 }
             }
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP4] += System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP5] -= System.nanoTime();
             { // function votingRound /---------------------------------------------------------------------------
                 long p = parentRound;
                 if (r.pendingRound == p + 1) {
@@ -1021,9 +1037,10 @@ public final class HashgraphInfo {
                 }
                 h.candEventInfo[eventCandIndex] = this;
             }
-            // function vote /------------------------------------------------------------------------------------
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP5] += System.nanoTime();
             h.benchmarks[h.voteD == 2 ? HashgraphInfo.BENCHMARK_LOOP6 : HashgraphInfo.BENCHMARK_LOOP7] -=
                     System.nanoTime();
+            // function vote /------------------------------------------------------------------------------------
             for (int m = 0; m < numNodes; m++) { // find which candidate created by each m to vote for (null for none)
                 long i = h.pendingRound + h.voteD; // first voting round
                 voteE[m] = null; // default if not overridden before the "continue"
@@ -1071,9 +1088,6 @@ public final class HashgraphInfo {
                     // function stakeAgrees /---------------------------------------------------------------------
                     // function topVote /-------------------------------------------------------------------------
                     // Instead of using these 2 functions from the paper, use h.cand* fields for more efficiency
-                    h.benchmarks[h.voteD == 2 ? HashgraphInfo.BENCHMARK_LOOP6 : HashgraphInfo.BENCHMARK_LOOP7] +=
-                            System.nanoTime(); // don't include topVote in loops 6 or 7
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP8] -= System.nanoTime(); // first half of top vote
                     // collect all votes
                     Arrays.fill(h.candStakeCollected, 0);
                     for (int mp = 0; mp < numNodes; mp++) {
@@ -1082,8 +1096,6 @@ public final class HashgraphInfo {
                             h.candStakeCollected[t.voteIndex[m]] += r.stake[mp];
                         }
                     }
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP8] += System.nanoTime();
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP9] -= System.nanoTime(); // second half of top vote
                     // find the top vote
                     int bestIndex = 0;
                     long bestStake = -1;
@@ -1096,9 +1108,6 @@ public final class HashgraphInfo {
                     }
                     EventInfo v = h.candEventInfo[bestIndex];
                     boolean s = (bestStake > h.supermajorityThreshold);
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP9] += System.nanoTime(); // end of loop 9 for topVote
-                    h.benchmarks[h.voteD == 2 ? HashgraphInfo.BENCHMARK_LOOP6 : HashgraphInfo.BENCHMARK_LOOP7] -=
-                            System.nanoTime(); // continue with loop 6 or loop 7 for vote
                     // end of topVote(), returning (v,s). Now continue with vote()
                     boolean q = (0 == ((votingRound - h.pendingRound) % r.coinInterval));
                     if (!q) { // if not a coin round, vote whatever vote had the majority collected
@@ -1124,11 +1133,11 @@ public final class HashgraphInfo {
                     }
                     voteE[m] = w.voteE[m]; // vote the same as the vote collected from the voter that the coin chose
                     voteIndex[m] = w.voteIndex[m];
-                    h.benchmarks[HashgraphInfo.BENCHMARK_LOOP7] += System.nanoTime();
                 }
             } // end vote
             h.benchmarks[h.voteD == 2 ? HashgraphInfo.BENCHMARK_LOOP6 : HashgraphInfo.BENCHMARK_LOOP7] +=
                     System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP8] -= System.nanoTime(); // first half of top vote
             // function judges /-----------------------------------------------------------------------------
             // set h.roundDecided to true iff this event decided the pending round
             h.roundDecided = witness;
@@ -1138,11 +1147,13 @@ public final class HashgraphInfo {
                     break;
                 }
             }
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP8] += System.nanoTime();
             if (!h.roundDecided) { // if it didn't decide, then judges is {} and update() returns null now
                 h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
                 h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE_COUNT]++;
                 return null;
             }
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP9] -= System.nanoTime(); // second half of top vote
             long s = 0; // total stake of all the elected judges
             for (int m = 0; m < numNodes; m++) {
                 if (voteE[m] != null) {
@@ -1245,9 +1256,13 @@ public final class HashgraphInfo {
             for (EventInfo judge : h.judges) {
                 minJudgeBirthRound = Math.min(minJudgeBirthRound, judge.birthRound);
             }
-            h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
             h.pendingRound++; // require the next call to update to be for the next round
             h.newRound = true;
+            h.numPrevJudgesCopied += prevJudgesCopied ? 1 : 0;
+            h.numUsedCoin += usedCoin ? 1 : 0;
+            h.numVoteD += h.voteD==2 ? 1 : 0;
+            h.benchmarks[HashgraphInfo.BENCHMARK_LOOP9] += System.nanoTime();
+            h.benchmarks[HashgraphInfo.BENCHMARK_UPDATE] += System.nanoTime();
             return new UpdateResults(
                     consensusEventsArray, // consensusEvents
                     roundTimestamp, // weighted median of created times of all judges in judgesArray
