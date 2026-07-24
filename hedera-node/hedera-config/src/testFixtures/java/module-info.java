@@ -12,6 +12,7 @@ module com.hedera.node.config.test.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.reconnect;

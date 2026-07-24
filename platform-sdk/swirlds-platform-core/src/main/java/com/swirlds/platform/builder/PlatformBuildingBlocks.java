@@ -8,7 +8,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -34,7 +33,6 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
  * components.
  *
- * @param platformComponents                     the wiring for this platform
  * @param platformContext                        the context for this platform
  * @param model                                  the wiring model for this platform
  * @param keysAndCerts                           an object holding all the public/private key pairs and the CSPRNG state
@@ -68,7 +66,6 @@ import org.hiero.consensus.status.StatusActionSubmitter;
  * @param savedStateController                   the controller for saving states to disk
  */
 public record PlatformBuildingBlocks(
-        @NonNull PlatformComponents platformComponents,
         @NonNull PlatformContext platformContext,
         @NonNull WiringModel model,
         @NonNull KeysAndCerts keysAndCerts,
@@ -94,7 +91,6 @@ public record PlatformBuildingBlocks(
         long transactionOffsetNanos,
         @NonNull SavedStateController savedStateController) {
     public PlatformBuildingBlocks {
-        requireNonNull(platformComponents);
         requireNonNull(platformContext);
         requireNonNull(model);
         requireNonNull(keysAndCerts);
