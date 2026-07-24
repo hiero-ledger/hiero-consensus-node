@@ -973,7 +973,9 @@ public final class VirtualNodeCache implements FastCopyable {
             setMapSnapshotAndArray(this.keyToDirtyLeafIndex, newSnapshot.keyToDirtyLeafIndex, newSnapshot.dirtyLeaves);
             newSnapshot.fastCopyVersion.set(this.fastCopyVersion.get());
             newSnapshot.seal();
-            logger.info(STARTUP.getMarker(), "++++++++ VirtualNodeCache snapshot, took {} ms",
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ VirtualNodeCache snapshot, took {} ms",
                     System.currentTimeMillis() - start);
             return newSnapshot;
         }

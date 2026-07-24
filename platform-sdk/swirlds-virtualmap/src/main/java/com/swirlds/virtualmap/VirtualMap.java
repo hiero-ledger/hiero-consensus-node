@@ -1411,7 +1411,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // done below
             return dataSourceSnapshot();
         });
-        logger.info(STARTUP.getMarker(), "++++++++ VM snapshot, cache+DS snapshot, took {} ms",
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ VM snapshot, cache+DS snapshot, took {} ms",
                 System.currentTimeMillis() - detachStart);
 
         // build(), flush() and snapshot() below are called outside pausePipelineAndExecute() to
@@ -1426,7 +1428,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // Then flush the cache snapshot to the data source copy
             final long cacheFlushStart = System.currentTimeMillis();
             flush(cacheSnapshot.getValue(), dataSourceCopy);
-            logger.info(STARTUP.getMarker(), "++++++++ VM snapshot, cache flush, took {} ms",
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ VM snapshot, cache flush, took {} ms",
                     System.currentTimeMillis() - cacheFlushStart);
             // And finally snapshot the copy to the target dir
             dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
@@ -1437,8 +1441,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             if (dataSourceCopy != null) {
                 dataSourceCopy.close();
             }
-            logger.info(STARTUP.getMarker(), "++++++++ VM snapshot, took {} ms",
-                    System.currentTimeMillis() - start);
+            logger.info(STARTUP.getMarker(), "++++++++ VM snapshot, took {} ms", System.currentTimeMillis() - start);
         }
     }
 

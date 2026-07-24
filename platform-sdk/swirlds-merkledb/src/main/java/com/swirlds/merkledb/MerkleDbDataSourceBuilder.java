@@ -142,7 +142,9 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         } finally {
-            logger.info(STARTUP.getMarker(), "++++++++ New MerkleDbDataSource is created, took {} ms",
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ New MerkleDbDataSource is created, took {} ms",
                     System.currentTimeMillis() - start);
         }
     }
@@ -174,8 +176,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         }
         final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
         snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
-        logger.info(STARTUP.getMarker(), "++++++++ Snapshot data source, took {} ms",
-                System.currentTimeMillis() - start);
+        logger.info(
+                STARTUP.getMarker(), "++++++++ Snapshot data source, took {} ms", System.currentTimeMillis() - start);
         return snapshotDir;
     }
 
@@ -215,7 +217,9 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         } finally {
-            logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource is restored, took {} ms",
+            logger.info(
+                    STARTUP.getMarker(),
+                    "++++++++ MerkleDbDataSource is restored, took {} ms",
                     System.currentTimeMillis() - start);
         }
     }
