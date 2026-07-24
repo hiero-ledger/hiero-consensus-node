@@ -146,6 +146,7 @@ class ConsensusLayerWiringTests {
                 null,
                 null,
                 null,
+                null,
                 null);
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
