@@ -59,7 +59,7 @@ public class ChildCallDataSizeValidationTest {
                         .exposingResultTo(res -> Assertions.assertEquals(callResult, res[0])),
                 getTxnRecord(txName + "success")
                         .andAllChildRecords()
-                        .hasChildRecordCount(1)
+                        .hasNonStakingChildRecordCount(1)
                         .hasChildRecords(recordWith().status(callResponseCode)),
                 // Halt
                 contract.call(functionName, asHeadlongAddress(new byte[20]), BigInteger.valueOf(inputArrayParamSize2))
