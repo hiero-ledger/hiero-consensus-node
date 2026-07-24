@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;

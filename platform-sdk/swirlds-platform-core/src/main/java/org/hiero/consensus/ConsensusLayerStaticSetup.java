@@ -1,18 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.util;
+package org.hiero.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.api.source.ConfigSource;
 import com.swirlds.config.extensions.export.ConfigExport;
-import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
-import com.swirlds.config.extensions.sources.YamlConfigSource;
 import com.swirlds.platform.JVMPauseDetectorThread;
-import com.swirlds.platform.config.internal.ConfigMappings;
 import com.swirlds.platform.config.internal.PlatformConfigUtils;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.health.OSHealthChecker;
@@ -20,7 +17,6 @@ import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,58 +25,45 @@ import java.nio.file.Path;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.constructable.ConstructableRegistration;
 
 /**
- * Utility methods that are helpful when starting up a JVM.
+ * Performs setup that should be done only once per JVM.
  */
-public final class BootstrapUtils {
+public final class ConsensusLayerStaticSetup {
 
     /**
      * The logger for this class
      */
-    private static final Logger logger = LogManager.getLogger(BootstrapUtils.class);
-
-    private BootstrapUtils() {}
+    private static final Logger logger = LogManager.getLogger(ConsensusLayerStaticSetup.class);
 
     /**
-     * Load the configuration for the platform without overrides.
-     *
-     * @param configurationBuilder the configuration builder to setup
-     * @param settingsPath         the path to the settings.txt file
-     * @throws IOException if there is a problem reading the configuration files
+     * The path to the settings file (i.e. the file with the optional settings).
      */
-    public static void setupConfigBuilder(
-            @NonNull final ConfigurationBuilder configurationBuilder, @NonNull final Path settingsPath)
-            throws IOException {
-        setupConfigBuilder(configurationBuilder, settingsPath, null);
-    }
+    private static final Path DEFAULT_SETTINGS_PATH = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
+
+    private static boolean staticSetupCompleted = false;
+
+    private ConsensusLayerStaticSetup() {}
 
     /**
-     * Load the configuration for the platform.
+     * Setup static setup of the consensus layer. If running multiple platforms in the same JVM and this method is
+     * called more than once then this method becomes a no-op.
      *
-     * @param configurationBuilder the configuration builder to setup
-     * @param settingsPath         the path to the settings.txt file
-     * @param nodeOverridesPath    the path to the node-overrides.yaml file
-     * @throws IOException if there is a problem reading the configuration files
+     * @param configuration the configuration for this node
      */
-    public static void setupConfigBuilder(
-            @NonNull final ConfigurationBuilder configurationBuilder,
-            @NonNull final Path settingsPath,
-            @Nullable final Path nodeOverridesPath)
-            throws IOException {
-
-        final ConfigSource settingsConfigSource = LegacyFileConfigSource.ofSettingsFile(settingsPath);
-        final ConfigSource mappedSettingsConfigSource = ConfigMappings.addConfigMapping(settingsConfigSource);
-        configurationBuilder.autoDiscoverExtensions().withSource(mappedSettingsConfigSource);
-
-        if (nodeOverridesPath != null) {
-            final ConfigSource yamlConfigSource = new YamlConfigSource(nodeOverridesPath);
-            configurationBuilder.withSource(yamlConfigSource);
+    public static void setup(@NonNull final Configuration configuration) {
+        if (staticSetupCompleted) {
+            // Only setup static utilities once
+            return;
         }
+        staticSetupCompleted = true;
+
+        performHealthChecks(DEFAULT_SETTINGS_PATH, configuration);
+        writeSettingsUsed(configuration);
+
+        // Initialize JVMPauseDetectorThread, if enabled via settings
+        startJVMPauseDetectorThread(configuration);
     }
 
     /**
@@ -89,7 +72,7 @@ public final class BootstrapUtils {
      * @param settingsPath  the path to the settings.txt file
      * @param configuration the configuration
      */
-    public static void performHealthChecks(
+    private static void performHealthChecks(
             @NonNull final Path settingsPath, @NonNull final Configuration configuration) {
         requireNonNull(configuration);
         final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(settingsPath);
@@ -103,23 +86,12 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Add all classes to the constructable registry.
-     */
-    public static void setupConstructableRegistry() {
-        try {
-            ConstructableRegistration.registerAllConstructables();
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
      * Instantiate and start the JVMPauseDetectorThread, if enabled via the
      * {@link BasicConfig#jvmPauseDetectorSleepMs()} setting.
      *
      * @param configuration the configuration object
      */
-    public static void startJVMPauseDetectorThread(@NonNull final Configuration configuration) {
+    private static void startJVMPauseDetectorThread(@NonNull final Configuration configuration) {
         requireNonNull(configuration);
 
         final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
@@ -145,7 +117,7 @@ public final class BootstrapUtils {
      *
      * @param configuration the configuration values to write
      */
-    public static void writeSettingsUsed(@NonNull final Configuration configuration) {
+    private static void writeSettingsUsed(@NonNull final Configuration configuration) {
         requireNonNull(configuration);
         final StringBuilder settingsUsedBuilder = new StringBuilder();
 
