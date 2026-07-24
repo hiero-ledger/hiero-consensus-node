@@ -60,12 +60,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -191,6 +192,15 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         if (workerThread != null) {
             assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
         }
+    }
+
+    @AfterAll
+    static void afterAll() {
+        // This test generates a lot of data that gets used in mocks. Mockito seems to hold on to this data even after
+        // these tests have fully completed. Because of this, there is elevated memory utilization after this test class
+        // is completed that can cause heap exhaustion. Thus, we force Mockito to clear out its data after all the
+        // tests have finished.
+        Mockito.framework().clearInlineMocks();
     }
 
     @Test
@@ -508,8 +518,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
      * - Few items (1-2) that test minimal block case
      */
     @Test
-    @Disabled(
-            "This test creates a lot of data that isn't being cleaned up for some reason and causes memory exhaustion")
     void testConnectionWorker_sendMultipleBlocks() throws InterruptedException {
         // Fixed seed for reproducibility - if this test fails, the seed ensures the exact same
         // sequence of values will be generated, making the failure reproducible.
