@@ -372,6 +372,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         run: |
           npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -379,7 +380,6 @@ jobs:
           solo --version
 
       - name: Build Solo
-        if: false
         run: |
           set +x
           set +e
@@ -540,7 +540,6 @@ jobs:
           sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-2-0@g" block-node-values.yaml.orig > block-node-values3.yaml
           cp block-node-values3.yaml block-node-values.yaml;
           export BN_MAPPING="node1=2,node2=2,node3=3,node4=1,node5=1,node6=2,node7=3"
-
           task solo:block:add
 
           sleep 30
@@ -592,7 +591,6 @@ jobs:
           done
 
       - name: Update back-fill
-        if: false
         run: |
           set +x
           set +e
