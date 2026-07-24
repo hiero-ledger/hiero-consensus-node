@@ -47,7 +47,8 @@ platform-sdk/docs/consensus-layer/
 │   │   ├── iss-detection.md
 │   │   ├── restart-and-pces.md
 │   │   ├── freeze-and-upgrade.md
-│   │   └── reconnect.md
+│   │   ├── reconnect.md
+│   │   └── platform-status.md
 │   └── interfaces/
 │       └── consensus-execution-boundary.md
 │
