@@ -33,7 +33,7 @@ feeds it, and who reads its output.
   ([`PlatformStatusAction`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/actions/PlatformStatusAction.java)
   and subtypes); translating domain events into actions and fanning the
   resulting status out to consumers
-  ([`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java),
+  ([`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/monitor/internal/DefaultPlatformMonitor.java),
   wired by
   [`PlatformWiring`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformWiring.java)).
 - Owns: the boundary notification to the application —
@@ -116,11 +116,11 @@ Actions are the machine's only input. Each is produced by the topic that owns
 the underlying event and submitted through the
 [`StatusActionSubmitter`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/StatusActionSubmitter.java)
 functional interface. Some are translated by
-[`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)
+[`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/monitor/internal/DefaultPlatformMonitor.java)
 from a richer domain input (a `ConsensusRound`, an `IssNotification`, a
 heartbeat) into the corresponding action.
 
-|              Action               |                                  Produced by (`module/.../File.java`)                                  |                             Meaning                              |
+|              Action               |                                Produced by (`<module>/.../<File>.java`)                                |                             Meaning                              |
 |-----------------------------------|--------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
 | `StartedReplayingEventsAction`    | `consensus-pces-impl/.../PcesCoordinator.java`                                                         | PCES replay began.                                               |
 | `DoneReplayingEventsAction`       | `consensus-pces-impl/.../PcesCoordinator.java`                                                         | PCES replay finished.                                            |

@@ -70,7 +70,7 @@ transaction counters, no TCTs. The only consensus-side state is the
 - [`TipsetEventCreator`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java)`#quiescenceCommand`,
   plus a `breakQuiescenceEventCreated` boolean that lets at most one
   quiescence-breaker event be created per quiescence period.
-- [`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)`#lastQuiescenceCommand`
+- [`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/monitor/internal/DefaultPlatformMonitor.java)`#lastQuiescenceCommand`
   and `#lastQuiescenceCommandTime` — the monitor records the current
   command and the wall-clock instant it last changed, for use by the
   status state machine.
@@ -90,7 +90,7 @@ simply the arrival of a `QUIESCE` command at the boundary:
    [`Platform`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/Platform.java)`#quiescenceCommand(QuiescenceCommand)`.
 2. [`PlatformCoordinator`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/wiring/PlatformCoordinator.java)`#quiescenceCommand`
    fans the command out on two wires: to
-   [`PlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/PlatformMonitor.java)
+   [`PlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/monitor/internal/PlatformMonitor.java)
    and to the event-creator module.
 3. [`DefaultEventCreationManager`](../../../../consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/DefaultEventCreationManager.java)`#quiescenceCommand`
    forwards it to both the `QuiescenceRule` and the `TipsetEventCreator`.
@@ -153,7 +153,7 @@ that observes the new work and responds by sending `DONT_QUIESCE` (or
 
 A quiescing node holds platform status `ACTIVE`; no dedicated quiescence
 status exists. The mechanism:
-[`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/system/DefaultPlatformMonitor.java)`#heartbeat`
+[`DefaultPlatformMonitor`](../../../../swirlds-platform-core/src/main/java/com/swirlds/platform/monitor/internal/DefaultPlatformMonitor.java)`#heartbeat`
 stamps each `TimeElapsedAction` with a
 [`TimeElapsedAction.QuiescingStatus`](../../../../consensus-utility/src/main/java/org/hiero/consensus/status/actions/TimeElapsedAction.java)
 record (`isQuiescing = lastQuiescenceCommand == QUIESCE`, plus the instant
