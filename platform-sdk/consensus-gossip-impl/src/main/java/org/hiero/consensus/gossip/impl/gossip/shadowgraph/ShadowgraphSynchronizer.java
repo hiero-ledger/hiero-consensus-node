@@ -231,7 +231,7 @@ public class ShadowgraphSynchronizer {
     }
 
     /**
-     * Starts helper threads needed for synchronizing shadowgraph
+     * Logs the initial state
      */
     public void start() {
         shadowGraph.logInitialState();
