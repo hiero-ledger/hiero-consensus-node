@@ -837,7 +837,7 @@ jobs:
           set +x
           set +e
           export TERM=vt100
-          cd "${{ github.workspace }}"/platform-sdk/swirlds-benchmarks
+          cd "${{ github.workspace }}"/target_consensus_node/platform-sdk/swirlds-benchmarks
           ulimit -n 16000
           ../../gradlew --no-daemon --rerun-tasks -Dorg.gradle.caching=false --no-configuration-cache jmhJar
 
