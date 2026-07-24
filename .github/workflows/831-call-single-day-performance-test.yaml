@@ -586,27 +586,27 @@ jobs:
           #BN node 1
           sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-2-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values1.yaml
           cp block-node-values1.yaml block-node-values.yaml;
-          export BN_MAPPING="node1=3,node2=2,node3=2,node4=2,node5=3,node6=2,node7=3"
+          export BN_MAPPING="node1=1,node2=2,node3=3,node4=3,node5=1,node6=2,node7=2"
           task solo:block:add
 
           #BN node 2
           sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-3-0@g" block-node-values.yaml.orig > block-node-values2.yaml
           cp block-node-values2.yaml block-node-values.yaml;
-          export BN_MAPPING="node1=1,node2=2,node3=1,node4=1,node5=2,node6=1,node7=2"
+          export BN_MAPPING="node1=3,node2=1,node3=1,node4=2,node5=3,node6=3,node7=1"
           task solo:block:add
 
           #BN node 3
           sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1-0@g" -e "s@%ANOTHER_BN_2%@block-node-2-0@g" block-node-values.yaml.orig > block-node-values3.yaml
           cp block-node-values3.yaml block-node-values.yaml;
-          export BN_MAPPING="node1=3,node2=1,node3=3,node4=3,node5=1,node6=3,node7=1"
+          export BN_MAPPING="node1=2,node2=2,node3=3,node4=1,node5=1,node6=1,node7=3"
           task solo:block:add
 
           sleep 30
 
       - name: Fix blocknode jsons
         run: |
-          find ~/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
-          find ~/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
+          find $HOME/.solo -type f -name 'block-nodes*.json' -exec perl -i -ne '~s/("priority": \d+),/$1/g; print if !/messageSize/' {} \;
+          find $HOME/.solo -type f -name 'block-nodes*.json' -print -exec cat {} \;
 
       - name: Deploy CNs
         run: |
@@ -664,6 +664,7 @@ jobs:
             echo '{"nodes": [' > block-node-sources_$i.json
             grep -v "block-node-$i-0" block_ips.txt | awk '{ print "{ \"address\": \""$2"\", \"port\": 40840, \"priority\": 1 },"}' | perl -pne '~s/\n//g' | perl -pne '~s/^(.*)[,]$/$1/g' >> block-node-sources_$i.json
             echo ']}' >> block-node-sources_$i.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "if [ -d /opt/hiero/block-node/backfill ]; then rm -rf /opt/hiero/block-node/backfill; fi"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "mkdir -p /opt/hiero/block-node/backfill"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp block-node-sources_$i.json \
               block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
@@ -1575,8 +1576,7 @@ jobs:
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
       #java-version: "${{ env.java-version }}"
 
-
-  performance-HeliSwapLoadTest:
+  performance-SmartContractLoadTest:
     needs:
       - acquire-kubernetes-resources
       - performance-CryptoTransferLoadTest
@@ -1585,7 +1585,7 @@ jobs:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "HeliSwapLoadTest"
+      nlg-test: "SmartContractLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
@@ -1594,16 +1594,16 @@ jobs:
       k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
       #java-version: "${{ env.java-version }}"
 
-  performance-SmartContractLoadTest:
+  performance-HeliSwapLoadTest:
     needs:
       - acquire-kubernetes-resources
-      - performance-HeliSwapLoadTest
+      - performance-SmartContractLoadTest
     uses: ./.github/workflows/832-call-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "SmartContractLoadTest"
+      nlg-test: "HeliSwapLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
