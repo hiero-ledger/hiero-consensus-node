@@ -1033,55 +1033,49 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
             // main snapshotting process in multiple-threads
             try {
-                // Flush cached hash chunks to the hash chunk store
-                final long hashCacheStart = System.currentTimeMillis();
-                if (getLastLeafPath() > 0) {
-                    final long maxValidChunkId =
-                            VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
-                    final Stream<VirtualHashChunk> cacheChunksToFlush =
-                            hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
-                    writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
-                }
-                logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write hashes, took {} ms",
-                        System.currentTimeMillis() - hashCacheStart);
-                final CountDownLatch countDownLatch = new CountDownLatch(6);
-                // write all data stores
-                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
-                    final long start = System.currentTimeMillis();
+                // 4 tasks: hashes, leaves, HDHM, and DB metadata
+                final CountDownLatch countDownLatch = new CountDownLatch(4);
+                runWithSnapshotExecutor(countDownLatch, "snapshotHashes", () -> {
+                    // Flush cached hash chunks to the hash chunk store
+                    final long hashCacheStart = System.currentTimeMillis();
+                    if (getLastLeafPath() > 0) {
+                        final long maxValidChunkId =
+                                VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
+                        final Stream<VirtualHashChunk> cacheChunksToFlush =
+                                hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
+                        writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
+                    }
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, flush hashes, took {} ms",
+                            System.currentTimeMillis() - hashCacheStart);
+                    final long hashIndexStart = System.currentTimeMillis();
                     idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
                     logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write hash index, took {} ms",
-                            System.currentTimeMillis() - start);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
-                    final long start = System.currentTimeMillis();
-                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
-                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write leaf index, took {} ms",
-                            System.currentTimeMillis() - start);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
-                    final long start = System.currentTimeMillis();
+                            System.currentTimeMillis() - hashIndexStart);
+                    final long hashStoreStart = System.currentTimeMillis();
                     hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
                     logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write hashes, took {} ms",
-                            System.currentTimeMillis() - start);
+                            System.currentTimeMillis() - hashStoreStart);
                     return true;
                 });
-                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
-                    final long start = System.currentTimeMillis();
-                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
-                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write HDHM, took {} ms",
-                            System.currentTimeMillis() - start);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
-                    final long start = System.currentTimeMillis();
+                runWithSnapshotExecutor(countDownLatch, "snapshotLeaves", () -> {
+                    final long leafIndexStart = System.currentTimeMillis();
+                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write leaf index, took {} ms",
+                            System.currentTimeMillis() - leafIndexStart);
+                    final long leafStoreStart = System.currentTimeMillis();
                     keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
                     logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write leaves, took {} ms",
-                            System.currentTimeMillis() - start);
+                            System.currentTimeMillis() - leafStoreStart);
                     return true;
                 });
-                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
+                runWithSnapshotExecutor(countDownLatch, "snapshotHDHM", () -> {
+                    final long hdhmStart = System.currentTimeMillis();
+                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
+                    logger.info(STARTUP.getMarker(), "++++++++ MerkleDbDataSource.snapshot, write HDHM, took {} ms",
+                            System.currentTimeMillis() - hdhmStart);
+                    return true;
+                });
+                runWithSnapshotExecutor(countDownLatch, "snapshotMetadata", () -> {
                     saveMetadata(snapshotDbPaths);
                     return true;
                 });
