@@ -2,22 +2,16 @@
 package com.swirlds.platform.wiring;
 
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.system.PlatformMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.StatusStateMachine;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components) implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components) {
 
     /**
      * Constructor
@@ -70,33 +64,5 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         // Since there is asynchronous access to the shadowgraph, it's important to ensure that
         // it has fully ingested the new event window before continuing.
         components.gossipModule().flush();
-    }
-
-    /**
-     * @see StatusStateMachine#submitStatusAction
-     */
-    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        components
-                .platformMonitorWiring()
-                .getInputWire(PlatformMonitor::submitStatusAction)
-                .put(action);
-    }
-
-    /**
-     * Flush the platform status state machine
-     */
-    public void flushPlatformStatus() {
-        components.platformMonitorWiring().flush();
-    }
-
-    /**
-     * @see EventCreatorModule#quiescenceCommandInputWire()
-     */
-    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        components
-                .platformMonitorWiring()
-                .getInputWire(PlatformMonitor::quiescenceCommand)
-                .inject(quiescenceCommand);
-        components.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 }

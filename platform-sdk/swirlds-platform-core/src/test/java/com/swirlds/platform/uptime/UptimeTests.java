@@ -34,7 +34,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -98,7 +98,7 @@ class UptimeTests {
         final FakeTime time = new FakeTime();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
+        final Roster roster = RosterFactory.randomRoster(random, 10);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
@@ -211,7 +211,7 @@ class UptimeTests {
         final FakeTime time = new FakeTime();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
+        final Roster roster = RosterFactory.randomRoster(random, 10);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
@@ -330,7 +330,7 @@ class UptimeTests {
         final FakeTime time = new FakeTime();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(3).build();
+        final Roster roster = RosterFactory.randomRoster(random, 3);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);

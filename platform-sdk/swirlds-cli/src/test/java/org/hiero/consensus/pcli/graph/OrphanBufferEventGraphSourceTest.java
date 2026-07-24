@@ -15,7 +15,7 @@ import java.util.Random;
 import java.util.function.Function;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,8 +36,7 @@ class OrphanBufferEventGraphSourceTest {
     void setUp() {
         context = PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
-        final Roster roster =
-                RandomRosterBuilder.create(new Random(SEED)).withSize(NUM_NODES).build();
+        final Roster roster = RosterFactory.randomRoster(new Random(SEED), NUM_NODES);
 
         // Generate raw events
         rawEvents = generateEvents(Randotron.create(), NUM_EVENTS, context, roster, null);

@@ -10,8 +10,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -32,7 +32,7 @@ public class ChildCallDataSizeValidationTest {
     private static final int TRANSACTION_MAX_BYTES = 6144;
     private static final int TRANSACTION_MAX_GAS = 15_000_000;
 
-    @Contract(contract = "ChildCallDataSizeValidationContract", creationGas = 2_000_000L)
+    @Contract(contract = "ChildCallDataSizeCheck", creationGas = 2_000_000L)
     static SpecContract contract;
 
     @BeforeAll
@@ -59,7 +59,7 @@ public class ChildCallDataSizeValidationTest {
                         .exposingResultTo(res -> Assertions.assertEquals(callResult, res[0])),
                 getTxnRecord(txName + "success")
                         .andAllChildRecords()
-                        .hasChildRecordCount(1)
+                        .hasNonStakingChildRecordCount(1)
                         .hasChildRecords(recordWith().status(callResponseCode)),
                 // Halt
                 contract.call(functionName, asHeadlongAddress(new byte[20]), BigInteger.valueOf(inputArrayParamSize2))
@@ -72,7 +72,7 @@ public class ChildCallDataSizeValidationTest {
                 );
     }
 
-    @HapiTest
+    @LeakyHapiTest
     public Stream<DynamicTest> htsFunctionCallDataSizeValidationTest() {
         return functionCallDataSizeValidationTest(
                 "callAssociateTokens",
@@ -82,7 +82,7 @@ public class ChildCallDataSizeValidationTest {
                 INVALID_ACCOUNT_ID);
     }
 
-    @HapiTest
+    @LeakyHapiTest
     public Stream<DynamicTest> hasFunctionCallDataSizeValidationTest() {
         return functionCallDataSizeValidationTest(
                 "callIsAuthorized",
@@ -92,7 +92,7 @@ public class ChildCallDataSizeValidationTest {
                 SUCCESS);
     }
 
-    @HapiTest
+    @LeakyHapiTest
     public Stream<DynamicTest> hssFunctionCallDataSizeValidationTest() {
         return functionCallDataSizeValidationTest(
                 "callSignSchedule",

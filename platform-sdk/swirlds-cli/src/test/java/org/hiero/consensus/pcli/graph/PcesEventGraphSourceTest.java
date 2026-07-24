@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import static org.hiero.consensus.roster.test.fixtures.RosterFactory.generateRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -26,6 +25,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.graph.utils.TestEventUtils;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +53,7 @@ class PcesEventGraphSourceTest {
         final PlatformContext context =
                 PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
-        final Roster roster = generateRoster(keysAndCertsMap);
+        final Roster roster = RosterFactory.rosterOf(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, NUM_EVENTS);
     }
 

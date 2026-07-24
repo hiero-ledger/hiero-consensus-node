@@ -16,6 +16,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -49,6 +50,7 @@ public interface GossipModule {
      * @param reservedSignedStateResultPromise a promise for the result of reserving a signed state
      * @param fallenBehindMonitor the monitor for detecting if the node has fallen behind
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
+     * @param additionalParameters additional parameters for the gossip module
      */
     void initialize(
             @NonNull WiringModel model,
@@ -63,7 +65,8 @@ public interface GossipModule {
             @NonNull Supplier<ReservedSignedState> latestCompleteState,
             @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull FallenBehindMonitor fallenBehindMonitor,
-            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager);
+            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull Map<String, Object> additionalParameters);
 
     /**
      * {@link OutputWire} for events received through gossip.
