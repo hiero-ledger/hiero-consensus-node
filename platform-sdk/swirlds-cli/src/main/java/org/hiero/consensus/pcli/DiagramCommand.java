@@ -209,6 +209,7 @@ public final class DiagramCommand extends AbstractCommand {
                 null,
                 null,
                 null,
+                null,
                 null);
 
         PlatformWiring.wire(inputs, buildingBlocks);
