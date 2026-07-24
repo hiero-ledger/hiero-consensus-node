@@ -175,6 +175,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         if (eventInfo == null) {
             eventInfoText.setText(ABOUT_TEXT);
         } else {
+            final HashgraphInfo h = eventInfo.getHashgraph();
             String str = "";
             try {
                 str += "\nSELECTED EVENT ===============================================";
@@ -202,39 +203,39 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                 str += "\n                consensusOrder  " + eventInfo.getConsensusOrder();
                 str += "\n            consensusTimestamp  " + eventInfo.getConsensusTimestamp();
                 str += "\nLATEST ROUND INFO ("
-                        + HashgraphInfo.getLatestRoundInfo().pendingRound()
+                        + h.getLatestRoundInfo().pendingRound()
                         + ") ====================================";
                 str += "\n                         nodes  "
-                        + longsToString(HashgraphInfo.getLatestRoundInfo().nodes());
+                        + longsToString(h.getLatestRoundInfo().nodes());
                 str += "\n                         stake  "
-                        + longsToString(HashgraphInfo.getLatestRoundInfo().stake());
+                        + longsToString(h.getLatestRoundInfo().stake());
                 str += "\n               seeNum / seeDen  "
-                        + HashgraphInfo.getLatestRoundInfo().seeNum();
-                str += " / " + HashgraphInfo.getLatestRoundInfo().seeDen();
+                        + h.getLatestRoundInfo().seeNum();
+                str += " / " + h.getLatestRoundInfo().seeDen();
                 str += "\n                     judgeCon1  "
-                        + HashgraphInfo.getLatestRoundInfo().judgeCon1();
+                        + h.getLatestRoundInfo().judgeCon1();
                 str += "\n                  coinInterval  "
-                        + HashgraphInfo.getLatestRoundInfo().coinInterval();
+                        + h.getLatestRoundInfo().coinInterval();
                 str += "\n     targetNumRoundsNonAncient  "
-                        + HashgraphInfo.getLatestRoundInfo().targetNumRoundsNonAncient();
+                        + h.getLatestRoundInfo().targetNumRoundsNonAncient();
                 str += "\n          numRoundsAddressBook  "
-                        + HashgraphInfo.getLatestRoundInfo().numRoundsAddressBook();
+                        + h.getLatestRoundInfo().numRoundsAddressBook();
                 str += "\nLATEST ROUND INFO PREV ("
-                        + HashgraphInfo.getLatestRoundInfoPrev().pendingRound()
+                        + h.getLatestRoundInfoPrev().pendingRound()
                         + ") ===============================";
                 str += "\n                 prevJudgeCon1  "
-                        + HashgraphInfo.getLatestRoundInfoPrev().prevJudgeCon1();
+                        + h.getLatestRoundInfoPrev().prevJudgeCon1();
                 str += "\n                    prevJudges  "
                         + eventInfosToString(
-                                HashgraphInfo.getLatestRoundInfoPrev().prevJudges());
+                                h.getLatestRoundInfoPrev().prevJudges());
                 str += "\n              prevJudgesCopied  "
-                        + HashgraphInfo.getLatestRoundInfoPrev().prevJudgesCopied();
+                        + h.getLatestRoundInfoPrev().prevJudgesCopied();
                 str += "\n        prevMinNonAncientRound  "
-                        + HashgraphInfo.getLatestRoundInfoPrev().prevMinNonAncientRound();
+                        + h.getLatestRoundInfoPrev().prevMinNonAncientRound();
                 str += "\n                   prevNumCons  "
-                        + HashgraphInfo.getLatestRoundInfoPrev().prevNumCons();
+                        + h.getLatestRoundInfoPrev().prevNumCons();
                 str += "\n        prevMinJudgeBirthRound  "
-                        + HashgraphInfo.getLatestRoundInfoPrev().prevMinJudgeBirthRound();
+                        + h.getLatestRoundInfoPrev().prevMinJudgeBirthRound();
             } catch (Exception e) {
                 str = "\n" + e + "\n" + e.getMessage();
             }

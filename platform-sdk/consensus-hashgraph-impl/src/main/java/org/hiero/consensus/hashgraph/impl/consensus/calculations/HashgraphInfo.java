@@ -99,8 +99,8 @@ public final class HashgraphInfo {
     private ArrayList<ArrayList<Integer>> candIndex; // for each node, the index into cand* for each candidate
     private EventInfo[] candEventInfo; // all the judge candidate events for voting
     private long[] candStakeCollected; // the total stake of all votes collected, for each candidate event
-    private static RoundInfo latestRoundInfo; // the latest roundInfo passed to update() for any hashgraph instance
-    private static RoundInfoPrev latestRoundInfoPrev; // the most recent roundInfoPrev passed to any update()
+    private RoundInfo latestRoundInfo; // the latest roundInfo passed to update() for any hashgraph instance
+    private RoundInfoPrev latestRoundInfoPrev; // the most recent roundInfoPrev passed to any update()
 
     // define what each element in benchmarks[] currently means. Always at least 1. Elements 0/1 must never change
     private static final int BENCHMARK_UPDATE = 0; // time spent in update()
@@ -268,11 +268,11 @@ public final class HashgraphInfo {
         return candCount;
     }
 
-    public static RoundInfo getLatestRoundInfo() {
+    public RoundInfo getLatestRoundInfo() {
         return latestRoundInfo;
     }
 
-    public static RoundInfoPrev getLatestRoundInfoPrev() {
+    public RoundInfoPrev getLatestRoundInfoPrev() {
         return latestRoundInfoPrev;
     }
 
@@ -741,8 +741,8 @@ public final class HashgraphInfo {
                 throw new IllegalArgumentException(
                         "roundInfo.pendingRound should be " + h.pendingRound + ", not " + roundInfo.pendingRound);
             }
-            HashgraphInfo.latestRoundInfo = roundInfo;
-            HashgraphInfo.latestRoundInfoPrev = roundInfoPrev;
+            h.latestRoundInfo = roundInfo;
+            h.latestRoundInfoPrev = roundInfoPrev;
             // if this is a new round (or the first called on this hashgraph), calculate the HashgraphInfo fields
             if (h.newRound) {
                 // If this is the first time update has ever been called on this hashgraph.
