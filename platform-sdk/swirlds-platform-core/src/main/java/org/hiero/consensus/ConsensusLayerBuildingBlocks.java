@@ -8,7 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.monitor.StatusMonitorModule;
-import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -45,7 +45,8 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull StatusMonitorModule statusMonitorModule,
         @NonNull NotificationEngine notificationEngine,
         @NonNull SavedStateController savedStateController,
-        @NonNull PlatformComponents platformComponents,
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
-        @NonNull IntakeEventCounter intakeEventCounter) {}
+        @NonNull IntakeEventCounter intakeEventCounter,
+        @NonNull PlatformCoordinator platformCoordinator,
+        @NonNull PipelineFlusher pipelineFlusher) {}
