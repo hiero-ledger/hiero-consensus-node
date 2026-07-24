@@ -1066,12 +1066,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             // Pass the remaining pending blocks, but don't remove them from the queue
                             pendingBlocks.stream());
                 } catch (final IllegalStateException e) {
-                    // Drop an unprovable block (e.g. a gap in the pending queue) but still mark it complete so
-                    // pendingBlockProofsFuture can resolve instead of hanging on a block that will never be proven.
+                    // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
+                    // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path
+                    // will — then mark it complete so a freeze waiting on pendingBlockProofsFuture resolves instead
+                    // of hanging on a block that will never be proven.
                     log.error(
                             "Cannot construct indirect proof for pending block #{}; dropping it",
                             currentPendingBlock.number(),
                             e);
+                    currentPendingBlock.writer().flushIncompleteBlock();
+                    if (currentPendingBlock.contentsPath() != null) {
+                        cleanUpPendingBlock(currentPendingBlock.contentsPath());
+                    }
                     markPendingBlockProofComplete(currentPendingBlock);
                     continue;
                 }
