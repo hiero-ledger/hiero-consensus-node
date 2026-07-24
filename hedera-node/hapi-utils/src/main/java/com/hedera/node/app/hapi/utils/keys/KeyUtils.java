@@ -33,6 +33,7 @@ import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.util.Set;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PKCS8Generator;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
@@ -62,6 +63,7 @@ public final class KeyUtils {
     private static final Set<PosixFilePermission> PRIVATE_KEY_PERMISSIONS =
             PosixFilePermissions.fromString("rw-------");
     public static final String ENCRYPTED_PRIVATE_KEY = "ENCRYPTED PRIVATE KEY";
+    public static final String UNENCRYPTED_PRIVATE_KEY = "PRIVATE KEY";
 
     private KeyUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -128,13 +130,18 @@ public final class KeyUtils {
                 if (pemObject == null) {
                     throw new IllegalArgumentException("No PEM object found");
                 }
-                if (!ENCRYPTED_PRIVATE_KEY.equals(pemObject.getType())) {
-                    throw new IllegalArgumentException("Unexpected PEM type: " + pemObject.getType());
+                final String pemType = pemObject.getType();
+                if (!ENCRYPTED_PRIVATE_KEY.equals(pemType) && !UNENCRYPTED_PRIVATE_KEY.equals(pemType)) {
+                    throw new IllegalArgumentException("Unexpected PEM type: " + pemType);
                 }
                 if (pemReader.readPemObject() != null) {
                     throw new IllegalArgumentException("Multiple PEM objects not allowed");
                 }
 
+                if (UNENCRYPTED_PRIVATE_KEY.equals(pemType)) {
+                    final var info = PrivateKeyInfo.getInstance(pemObject.getContent());
+                    return (T) converter.getPrivateKey(info);
+                }
                 final var encryptedPrivateKeyInfo = new PKCS8EncryptedPrivateKeyInfo(pemObject.getContent());
                 final var info = encryptedPrivateKeyInfo.decryptPrivateKeyInfo(decryptProvider);
                 return (T) converter.getPrivateKey(info);
