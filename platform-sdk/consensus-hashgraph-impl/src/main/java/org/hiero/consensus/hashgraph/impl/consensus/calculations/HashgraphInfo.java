@@ -1228,8 +1228,7 @@ public final class HashgraphInfo {
                         consensusEventsArray,
                         Comparator.comparingLong(
                                         (EventInfo e) -> e.gen) // sort by timeCon(r,d,x) which is just e.gen plus const
-                                .thenComparingLong(e -> e.eventID) // tiebreaker is eventID then searchOrder
-                                .thenComparingInt(e -> e.searchOrder));
+                                .thenComparingInt(e -> e.searchOrder)); // tiebreaker is searchOrder
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
                     consensusEventsArray[i].consensusTimestamp = roundTimestamp.plusNanos(i);
@@ -1259,8 +1258,7 @@ public final class HashgraphInfo {
                         consensusEventsArray,
                         Comparator.comparing(
                                         (EventInfo e) -> e.consensusTimestamp) // sort by weighted median time received
-                                .thenComparingLong(e -> e.gen) // tiebreaker is gen then eventID then searchOrder
-                                .thenComparingLong(e -> e.eventID)
+                                .thenComparingLong(e -> e.gen) // sort by gen. Then tiebreaker is searchOrder
                                 .thenComparingInt(e -> e.searchOrder));
                 for (int i = 0; i < consensusEventsArray.length; i++) {
                     consensusEventsArray[i].consensusOrder = i + rp.prevNumCons;
