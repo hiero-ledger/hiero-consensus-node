@@ -451,11 +451,22 @@ public class BlockNodeConnectionManager {
                             }
                         }
                         case FAILED -> {
-                            logger.warn(
-                                    "[{}:{}] Failed to retrieve block node status",
-                                    serviceEndpoint.host(),
-                                    serviceEndpoint.port(),
-                                    future.exceptionNow());
+                            final Throwable error = future.exceptionNow();
+                            final FailureType failureType = FailureType.findFailureType(error);
+                            if (failureType.isCommonFailure()) {
+                                logger.warn(
+                                        "[{}:{}] Failed to retrieve block node status (error: {})",
+                                        serviceEndpoint.host(),
+                                        serviceEndpoint.port(),
+                                        failureType);
+                            } else {
+                                logger.warn(
+                                        "[{}:{}] Failed to retrieve block node status",
+                                        serviceEndpoint.host(),
+                                        serviceEndpoint.port(),
+                                        error);
+                            }
+
                             yield BlockNodeStatus.notReachable();
                         }
                         case CANCELLED, RUNNING -> {

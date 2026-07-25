@@ -98,6 +98,27 @@ public class StatusMonitorModule {
     }
 
     /**
+     * {@link InputWire} to submit a PlatformStatusAction to the monitor
+     *
+     * @return the {@link InputWire} for submitting PlatformStatusAction
+     */
+    @InputWireLabel("platform status action")
+    @NonNull
+    public InputWire<PlatformStatusAction> platformStatusActionInputWire() {
+        return platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
+    }
+
+    /**
+     * {@link InputWire} to submit a quiescence command to the platform monitor.
+     *
+     * @return the {@link InputWire} for submitting quiescence commands
+     */
+    @NonNull
+    public InputWire<QuiescenceCommand> quiescenceCommandInputWire() {
+        return platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand);
+    }
+
+    /**
      * The primary output wire of the StatusMonitorModule. This output wire produces PlatformStatus notifications.
      *
      * @return the {@link OutputWire} for PlatformStatus notifications
@@ -105,24 +126,6 @@ public class StatusMonitorModule {
     @NonNull
     public OutputWire<PlatformStatus> platformStatusOutputWire() {
         return platformMonitorWiring.getOutputWire();
-    }
-
-    /**
-     * Submit a status action to the platform monitor.
-     *
-     * @param action the status action to submit
-     */
-    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction).put(action);
-    }
-
-    /**
-     * Submit a quiescence command to the platform monitor.
-     *
-     * @param quiescenceCommand the quiescence command to submit
-     */
-    public void submitQuiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand).inject(quiescenceCommand);
     }
 
     /**
