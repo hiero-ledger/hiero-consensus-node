@@ -157,8 +157,9 @@ public class TurtleGossipModule implements GossipModule {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
-        requireNonNull(gossipWiring, "Not initialized").getStartInput().inject(NoInput.getInstance());
+    @NonNull
+    public InputWire<NoInput> startInputWire() {
+        return requireNonNull(gossipWiring, "Not initialized").getStartInput();
     }
 
     /**

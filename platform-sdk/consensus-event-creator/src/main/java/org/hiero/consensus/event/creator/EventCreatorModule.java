@@ -112,16 +112,18 @@ public interface EventCreatorModule {
     InputWire<SyncProgress> syncProgressInputWire();
 
     /**
+     * {@link InputWire} for the quiescence command.
+     *
+     * @return the {@link InputWire} for the quiescence command
+     */
+    @InputWireLabel("quiescence command")
+    @NonNull
+    InputWire<QuiescenceCommand> quiescenceCommandInputWire();
+
+    /**
      * Destroys the module.
      */
     void destroy();
-
-    /**
-     * Submit a quiescence command to the platform monitor.
-     *
-     * @param quiescenceCommand the quiescence command to submit
-     */
-    void submitQuiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
 
     /**
      * Flushes all events of the internal event creation manager.

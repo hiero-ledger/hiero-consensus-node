@@ -150,18 +150,18 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() {
-        throw new UnsupportedOperationException("Shutdown mechanism not implemented yet");
+    @NonNull
+    public InputWire<QuiescenceCommand> quiescenceCommandInputWire() {
+        return requireNonNull(eventCreationManagerWiring, "Not initialized")
+                .getInputWire(EventCreationManager::quiescenceCommand);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void submitQuiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::quiescenceCommand)
-                .inject(quiescenceCommand);
+    public void destroy() {
+        throw new UnsupportedOperationException("Shutdown mechanism not implemented yet");
     }
 
     /**
