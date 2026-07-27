@@ -31,7 +31,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
@@ -97,9 +96,7 @@ public class InitialStateLoader {
 
         final boolean startedFromGenesis = signedState.isGenesisState();
 
-        if (startedFromGenesis) {
-            buildingBlocks.platformCoordinator().updateEventWindow(EventWindow.getGenesisEventWindow());
-        } else {
+        if (!startedFromGenesis) {
             buildingBlocks.stateModule().sendState(signedState);
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
