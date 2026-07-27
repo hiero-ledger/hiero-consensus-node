@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.uptime;
+package org.hiero.consensus.uptime;
 
-import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.roster.test.fixtures.RosterTestUtils.addRandomRosterEntryToRoster;
 import static org.hiero.consensus.roster.test.fixtures.RosterTestUtils.dropRosterEntryFromRoster;
+import static org.hiero.consensus.uptime.UptimeData.NO_ROUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;

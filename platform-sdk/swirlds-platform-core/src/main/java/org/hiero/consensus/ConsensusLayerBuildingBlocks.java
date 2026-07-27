@@ -7,7 +7,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,6 +24,7 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
 public record ConsensusLayerBuildingBlocks(

@@ -27,7 +27,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
 import java.util.Map;
@@ -46,6 +45,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
@@ -115,15 +115,15 @@ class ConsensusLayerWiringTests {
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
-        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
         final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
         final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
-        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.uptime;
+package org.hiero.consensus.uptime;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
@@ -123,7 +123,8 @@ public class UptimeData {
             return;
         }
 
-        nodeData.setLastEventRound(round).setLastEventTime(event.getConsensusTimestamp());
+        nodeData.setLastEventRound(round);
+        nodeData.setLastEventTime(event.getConsensusTimestamp());
     }
 
     /**
@@ -139,7 +140,8 @@ public class UptimeData {
                     EXCEPTION.getMarker(), "Node {} is not being tracked by the uptime tracker.", event.getCreatorId());
             return;
         }
-        nodeData.setLastJudgeRound(round).setLastJudgeTime(event.getConsensusTimestamp());
+        nodeData.setLastJudgeRound(round);
+        nodeData.setLastJudgeTime(event.getConsensusTimestamp());
     }
 
     /**
