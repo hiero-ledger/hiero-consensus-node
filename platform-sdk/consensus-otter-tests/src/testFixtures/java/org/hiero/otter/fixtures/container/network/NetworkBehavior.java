@@ -39,8 +39,9 @@ public class NetworkBehavior {
     private static final ConnectionState INITIAL_STATE =
             new ConnectionState(true, Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
 
-    private final ToxiproxyClient toxiproxyClient;
     private final Map<ConnectionKey, Proxy> proxies = new HashMap<>();
+
+    private ToxiproxyClient toxiproxyClient;
     private Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
 
     /**
@@ -130,23 +131,49 @@ public class NetworkBehavior {
         connections = newConnections;
     }
 
+    /**
+     * Repoints the control client at a new Toxiproxy control endpoint. This is needed after the Toxiproxy container is
+     * bounced, which re-publishes the host-mapped control port; the proxies themselves keep their internal listen
+     * addresses, so only the control endpoint changes.
+     *
+     * @param host        the host on which the Toxiproxy control server is now reachable
+     * @param controlPort the host port now mapped to the Toxiproxy control server
+     */
+    public void reconnect(
+            @NonNull final String host,
+            final int controlPort,
+            @NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
+        toxiproxyClient = new ToxiproxyClient(host, controlPort);
+        connections = newConnections;
+        for (final Map.Entry<ConnectionKey, Proxy> entry : proxies.entrySet()) {
+            final ConnectionKey connectionKey = entry.getKey();
+            final Proxy previous = entry.getValue();
+
+            // A proxy carries its upstream (sender -> receiver) traffic and, on its downstream, the reverse
+            // connection's (receiver -> sender) traffic, so its toxics are reapplied from both connection states.
+            final ConnectionState upstream = newConnections.getOrDefault(connectionKey, DISCONNECTED);
+            final ConnectionState downstream = newConnections.getOrDefault(connectionKey.reversed(), DISCONNECTED);
+
+            final Proxy proxy = toxiproxyClient.createProxy(
+                    new Proxy(previous.name(), previous.listen(), previous.upstream(), upstream.connected()));
+            toxiproxyClient.createToxin(proxy, new LatencyToxin(upstream.latency(), upstream.jitter()));
+            toxiproxyClient.createToxin(
+                    proxy, new LatencyToxin(downstream.latency(), downstream.jitter()).downstream());
+            toxiproxyClient.createToxin(proxy, new BandwidthToxin(upstream.bandwidthLimit()));
+            toxiproxyClient.createToxin(proxy, new BandwidthToxin(downstream.bandwidthLimit()).downstream());
+            entry.setValue(proxy);
+        }
+    }
+
     private void connect(@NonNull final ConnectionKey connectionKey) {
         log.debug("Connecting sender {} and receiver {}", connectionKey.sender(), connectionKey.receiver());
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
-                    .formatted(connectionKey.sender(), connectionKey.receiver()));
-        }
+        final Proxy proxy = getProxy(connectionKey);
         proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(true)));
     }
 
     private void disconnect(@NonNull final ConnectionKey connectionKey) {
         log.debug("Disconnecting sender {} and receiver {}", connectionKey.sender(), connectionKey.receiver());
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
-                    .formatted(connectionKey.sender(), connectionKey.receiver()));
-        }
+        final Proxy proxy = getProxy(connectionKey);
         proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(false)));
     }
 
@@ -179,11 +206,7 @@ public class NetworkBehavior {
     }
 
     private void updateToxinSingleStream(@NonNull final ConnectionKey connectionKey, @NonNull final Toxin toxin) {
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
-                    .formatted(connectionKey.sender(), connectionKey.receiver()));
-        }
+        final Proxy proxy = getProxy(connectionKey);
         toxiproxyClient.updateToxin(proxy, toxin);
     }
 
@@ -199,11 +222,7 @@ public class NetworkBehavior {
     @NonNull
     public NetworkEndpoint getProxyEndpoint(@NonNull final Node sender, @NonNull final Node receiver) {
         final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
-        final Proxy proxy = proxies.get(connectionKey);
-        if (proxy == null) {
-            throw new IllegalStateException(
-                    "No proxy found for sender %s and receiver %s".formatted(sender.selfId(), receiver.selfId()));
-        }
+        final Proxy proxy = getProxy(connectionKey);
 
         try {
             final URI uri = URI.create("http://" + proxy.listen());
@@ -214,5 +233,15 @@ public class NetworkBehavior {
             // this should not happen as the host has just been set up
             throw new UncheckedIOException(e);
         }
+    }
+
+    @NonNull
+    private Proxy getProxy(@NonNull final ConnectionKey connectionKey) {
+        final Proxy proxy = proxies.get(connectionKey);
+        if (proxy == null) {
+            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
+                    .formatted(connectionKey.sender(), connectionKey.receiver()));
+        }
+        return proxy;
     }
 }

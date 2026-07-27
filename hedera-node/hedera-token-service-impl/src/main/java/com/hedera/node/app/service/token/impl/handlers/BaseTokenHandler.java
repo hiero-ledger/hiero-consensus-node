@@ -31,6 +31,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -406,7 +407,7 @@ public class BaseTokenHandler {
         requireNonNull(accountStore);
 
         final var originalBalance = tokenRel.balance();
-        final var newBalance = originalBalance + adjustment;
+        final var newBalance = addExactBalance(originalBalance, adjustment);
         validateTrue(newBalance >= 0, INSUFFICIENT_TOKEN_BALANCE);
 
         final var copyRel = tokenRel.copyBuilder();
@@ -424,6 +425,15 @@ public class BaseTokenHandler {
         }
         final var copyAccount = account.copyBuilder();
         accountStore.put(copyAccount.numberPositiveBalances(numPositiveBalances).build());
+    }
+
+    // Reject out-of-range sums; a wrapped result could pass the newBalance >= 0 guard.
+    protected static long addExactBalance(final long a, final long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(INSUFFICIENT_TOKEN_BALANCE);
+        }
     }
 
     protected void validateNotFrozenAndKycOnRelation(@NonNull final TokenRelation rel) {

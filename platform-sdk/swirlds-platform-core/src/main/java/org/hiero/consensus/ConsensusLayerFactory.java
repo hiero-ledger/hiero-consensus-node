@@ -5,11 +5,6 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerC
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createModule;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
-import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
-import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
-import static java.util.Objects.requireNonNullElseGet;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
@@ -21,20 +16,20 @@ import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
+import com.swirlds.platform.components.DefaultAppNotifier;
+import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
+import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -42,23 +37,26 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.Thread.UncaughtExceptionHandler;
-import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
@@ -67,11 +65,11 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
@@ -85,7 +83,6 @@ import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
 import org.hiero.consensus.system.SystemExitUtils;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
@@ -98,13 +95,6 @@ public class ConsensusLayerFactory {
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
-
-    /**
-     * The path to the settings file (i.e. the file with the optional settings).
-     */
-    private static final Path DEFAULT_SETTINGS_PATH = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
-
-    private static boolean staticSetupCompleted = false;
 
     @NonNull
     private final Configuration configuration;
@@ -151,6 +141,9 @@ public class ConsensusLayerFactory {
     @NonNull
     private final String swirldName;
 
+    @NonNull
+    private final String consensusEventStreamName;
+
     private final long transactionOffsetNanos;
 
     @NonNull
@@ -162,8 +155,8 @@ public class ConsensusLayerFactory {
     @NonNull
     private final ExecutorFactory executorFactory;
 
-    @Nullable
-    private final GossipModule gossipModuleOverride;
+    @NonNull
+    private final Map<String, Object> additionalProperties;
 
     /**
      * Creates a new factory with the inputs provided by the execution layer.
@@ -186,25 +179,21 @@ public class ConsensusLayerFactory {
         version = inputs.version();
         appName = inputs.appName();
         swirldName = inputs.swirldName();
+        consensusEventStreamName = inputs.consensusEventStreamName();
         transactionOffsetNanos = inputs.transactionOffsetNanos();
         executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         wiringModel = initializeWiringModel(inputs.wiringModel());
         secureRandom = initializeSecureRandom(inputs.secureRandom());
-        gossipModuleOverride = inputs.gossipModuleOverride();
+        additionalProperties = inputs.additionalProperties();
     }
 
     /**
-     * The output of the factory.
-     */
-    public record ConsensusLayerFactoryResult(
-            @NonNull PlatformCoordinator platformCoordinator,
-            @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {}
-
-    /**
      * Constructs most of the components and modules required to create the platform.
+     *
+     * @return the result of the factory, containing the platform coordinator and the building blocks
      */
     @NonNull
-    public ConsensusLayerFactoryResult create() {
+    public ConsensusLayerBuildingBlocks create() {
         final EventCreatorModule eventCreatorModule = createEventCreatorModule();
         final IntakeEventCounter intakeEventCounter = createIntakeEventCounter();
         final EventPipelineTracker eventPipelineTracker = createEventPipelineTracker(eventCreatorModule);
@@ -214,38 +203,57 @@ public class ConsensusLayerFactory {
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor =
-                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, selfId);
+        final FallenBehindMonitor fallenBehindMonitor = createFallenBehindMonitor();
         final GossipModule gossipModule = createGossipModule(
                 intakeEventCounter, latestCompleteStateNexus, reservedSignedStateResultPromise, fallenBehindMonitor);
         final IssDetectionModule issDetectionModule = createIssDetectionModule();
 
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference = new AtomicReference<>();
+        final StatusMonitorModule statusMonitorModule = createStatusMonitorModule();
         final SignedStateNexus latestImmutableStateNexus = createLatestImmutableStateNexus(initialState);
         final TransactionHandlingModule transactionHandlingModule =
-                createTransactionHandlingModule(latestImmutableStateNexus, statusActionSubmitterReference);
+                createTransactionHandlingModule(latestImmutableStateNexus, statusMonitorModule);
 
         final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
         final StateModule stateModule = createStateModule(latestCompleteStateNexus, savedStateController);
 
         final PcesModule pcesModule = createModule(PcesModule.class, configuration);
 
-        final PlatformSchedulersConfig platformSchedulersConfig =
-                configuration.getConfigData(PlatformSchedulersConfig.class);
-        final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
-        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = new ComponentWiring<>(
-                wiringModel, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
+        final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring = createConsensusEventStreamWiring();
+
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
                 RunningEventHashOverrideWiring.create(wiringModel);
+
         final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(wiringModel, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<AppNotifier, Void> notifierWiring =
-                new ComponentWiring<>(wiringModel, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
-                new ComponentWiring<>(wiringModel, PlatformMonitor.class, platformSchedulersConfig.platformMonitor());
+                createEventWindowManagerWiring();
+
         final NotificationEngine notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
-        final PlatformComponents platformComponents = new PlatformComponents(
+        final ComponentWiring<AppNotifier, Void> notifierWiring = createNotifierWiring(notificationEngine);
+
+        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(eventWindowManagerWiring, gossipModule);
+
+        // Future Work: Once reconnect has been redesigned, only pces requires the pipeline flush
+        //              At this point, we can merge the functionality into PCES directly and remove PipelineFlusher.
+        final PipelineFlusher pipelineFlusher = new PipelineFlusher(
+                eventIntakeModule,
+                pcesModule,
+                gossipModule,
+                hashgraphModule,
+                transactionHandlingModule,
+                eventCreatorModule,
+                stateModule);
+        initializePcesModule(
+                pcesModule,
+                pipelineFlusher,
+                latestImmutableStateNexus,
+                statusMonitorModule,
+                issDetectionModule,
+                eventPipelineTracker);
+
+        ConsensusLayerStaticSetup.setup(configuration);
+
+        return new ConsensusLayerBuildingBlocks(
                 wiringModel,
+                configuration,
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,
@@ -258,38 +266,78 @@ public class ConsensusLayerFactory {
                 runningEventHashOverrideWiring,
                 eventWindowManagerWiring,
                 notifierWiring,
-                platformMonitorWiring);
-        final PlatformCoordinator platformCoordinator = new PlatformCoordinator(platformComponents);
-        initializePcesModule(pcesModule, platformCoordinator, latestImmutableStateNexus, eventPipelineTracker);
-
-        statusActionSubmitterReference.set(platformCoordinator);
-
-        doStaticSetup(configuration);
-
-        return new ConsensusLayerFactoryResult(
+                statusMonitorModule,
+                notificationEngine,
+                savedStateController,
+                reservedSignedStateResultPromise,
+                fallenBehindMonitor,
+                intakeEventCounter,
                 platformCoordinator,
-                new ConsensusLayerBuildingBlocks(
-                        wiringModel,
-                        configuration,
-                        eventCreatorModule,
-                        eventIntakeModule,
-                        pcesModule,
-                        hashgraphModule,
-                        gossipModule,
-                        issDetectionModule,
-                        transactionHandlingModule,
-                        stateModule,
-                        eventStreamWiring,
-                        runningEventHashOverrideWiring,
-                        eventWindowManagerWiring,
-                        notifierWiring,
-                        platformMonitorWiring,
-                        notificationEngine,
-                        savedStateController,
-                        platformComponents,
-                        reservedSignedStateResultPromise,
-                        fallenBehindMonitor,
-                        intakeEventCounter));
+                pipelineFlusher);
+    }
+
+    @NonNull
+    private FallenBehindMonitor createFallenBehindMonitor() {
+        final double fallenBehindThreshold =
+                configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
+        return new FallenBehindMonitor(rosterHistory.getCurrentRoster(), selfId, fallenBehindThreshold);
+    }
+
+    @NonNull
+    private StatusMonitorModule createStatusMonitorModule() {
+        return new StatusMonitorModule(wiringModel, configuration, metrics, time, selfId);
+    }
+
+    @NonNull
+    private ComponentWiring<AppNotifier, Void> createNotifierWiring(
+            @NonNull final NotificationEngine notificationEngine) {
+        final ComponentWiring<AppNotifier, Void> notifierWiring =
+                new ComponentWiring<>(wiringModel, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final AppNotifier appNotifier = new DefaultAppNotifier(notificationEngine);
+        notifierWiring.bind(appNotifier);
+        // Create unbound wires
+        notifierWiring.getInputWire(AppNotifier::sendReconnectCompleteNotification);
+        notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
+        return notifierWiring;
+    }
+
+    @NonNull
+    private ComponentWiring<EventWindowManager, EventWindow> createEventWindowManagerWiring() {
+        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
+                new ComponentWiring<>(wiringModel, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
+        eventWindowManagerWiring.bind(eventWindowManager);
+        // Create unbound wires
+        eventWindowManagerWiring.getInputWire(EventWindowManager::updateEventWindow);
+        return eventWindowManagerWiring;
+    }
+
+    /**
+     * Build the consensus event stream
+     *
+     * @return the consensus event stream
+     */
+    @NonNull
+    private ComponentWiring<ConsensusEventStream, Void> createConsensusEventStreamWiring() {
+        final EventStreamWiringConfig eventStreamWiringConfig =
+                configuration.getConfigData(EventStreamWiringConfig.class);
+        final ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring = new ComponentWiring<>(
+                wiringModel, ConsensusEventStream.class, eventStreamWiringConfig.consensusEventStream());
+        final Predicate<CesEvent> isLastEventInFreezePeriod = (final CesEvent event) -> {
+            final Instant consensusTimestamp = event.getConsensusTimestamp();
+            final VirtualMapState mutableState = stateLifecycleManager.getMutableState();
+            return event.isLastInRoundReceived() && isInFreezePeriod(consensusTimestamp, mutableState);
+        };
+        final ConsensusEventStream consensusEventStream = new DefaultConsensusEventStream(
+                time,
+                configuration,
+                metrics,
+                selfId,
+                (byte[] data) -> new PlatformSigner(keysAndCerts).sign(data),
+                consensusEventStreamName,
+                isLastEventInFreezePeriod);
+        consensusEventStreamWiring.bind(consensusEventStream);
+        return consensusEventStreamWiring;
     }
 
     @NonNull
@@ -299,29 +347,24 @@ public class ConsensusLayerFactory {
         return latestImmutableStateNexus;
     }
 
-    @NonNull
-    public ReconnectModule createReconnectModule(
-            @NonNull final Platform platform,
-            @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final PlatformComponents platformComponents,
-            @NonNull final SavedStateController savedStateController,
-            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+    /**
+     * Setup the reconnect module with the necessary dependencies.
+     *
+     * @param platform the {@link Platform}
+     * @param buildingBlocks the {@link ConsensusLayerBuildingBlocks}
+     */
+    public void setupReconnectModule(
+            @NonNull final Platform platform, @NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
         final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
         reconnectModule.initialize(
                 configuration,
                 time,
                 rosterHistory.getCurrentRoster(),
-                platformComponents,
+                buildingBlocks,
                 platform,
-                platformCoordinator,
                 stateLifecycleManager,
-                savedStateController,
                 consensusStateEventHandler,
-                reservedSignedStateResultPromise,
-                selfId,
-                fallenBehindMonitor);
-        return reconnectModule;
+                selfId);
     }
 
     @NonNull
@@ -346,7 +389,7 @@ public class ConsensusLayerFactory {
     @NonNull
     private TransactionHandlingModule createTransactionHandlingModule(
             @NonNull final SignedStateNexus latestImmutableStateNexus,
-            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference) {
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         return new TransactionHandlingModule(
                 wiringModel,
                 configuration,
@@ -355,7 +398,7 @@ public class ConsensusLayerFactory {
                 latestImmutableStateNexus,
                 consensusStateEventHandler,
                 stateLifecycleManager,
-                statusActionSubmitterReference,
+                statusMonitorModule.platformStatusActionInputWire()::put,
                 version,
                 selfId,
                 transactionOffsetNanos);
@@ -367,8 +410,7 @@ public class ConsensusLayerFactory {
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
-        final GossipModule module =
-                requireNonNullElseGet(gossipModuleOverride, () -> createModule(GossipModule.class, configuration));
+        final GossipModule module = createModule(GossipModule.class, configuration);
         final Supplier<ReservedSignedState> latestCompleteStateSupplier =
                 () -> latestCompleteStateNexus.getState("get latest complete state for reconnect");
         module.initialize(
@@ -384,7 +426,8 @@ public class ConsensusLayerFactory {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                additionalProperties);
         return module;
     }
 
@@ -420,11 +463,15 @@ public class ConsensusLayerFactory {
 
     private void initializePcesModule(
             @NonNull final PcesModule module,
-            @NonNull final PlatformCoordinator platformCoordinator,
+            @NonNull final PipelineFlusher pipelineFlusher,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
+            @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final IssDetectionModule issDetectionModule,
             @Nullable final EventPipelineTracker eventPipelineTracker) {
         final Supplier<PcesReplayProgress> replayProgressSupplier =
                 createPcesReplayProgressSupplier(latestImmutableStateNexus);
+        final Runnable signalEndOfPcesReplay = () ->
+                issDetectionModule.signalEndOfPreconsensusReplayInputWire().put(NoInput.getInstance());
         module.initialize(
                 wiringModel,
                 configuration,
@@ -434,15 +481,15 @@ public class ConsensusLayerFactory {
                 recycleBin,
                 fileSystemManager,
                 initialState.get().getRound(),
-                platformCoordinator::flushPrimaryPipeline,
+                pipelineFlusher::flushPrimaryPipeline,
                 replayProgressSupplier,
-                platformCoordinator::submitStatusAction,
-                platformCoordinator::flushPlatformStatus,
-                platformCoordinator::signalEndOfPcesReplay,
+                statusMonitorModule.platformStatusActionInputWire()::put,
+                statusMonitorModule::flush,
+                signalEndOfPcesReplay,
                 eventPipelineTracker);
     }
 
-    @NonNull
+    @Nullable
     private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
         final boolean eventPipelineMetricsEnabled =
                 configuration.getConfigData(PlatformMetricsConfig.class).eventPipelineMetricsEnabled();
@@ -549,25 +596,5 @@ public class ConsensusLayerFactory {
                 initialState.get().getRound(),
                 latestFreezeRoundOf(initialState.get().getState()),
                 SystemExitUtils::handleFatalError);
-    }
-
-    /**
-     * Setup static utilities. If running multiple platforms in the same JVM and this method is called more than once
-     * then this method becomes a no-op.
-     *
-     * @param configuration the configuration for this node
-     */
-    private static void doStaticSetup(@NonNull final Configuration configuration) {
-        if (staticSetupCompleted) {
-            // Only setup static utilities once
-            return;
-        }
-        staticSetupCompleted = true;
-
-        BootstrapUtils.performHealthChecks(DEFAULT_SETTINGS_PATH, configuration);
-        writeSettingsUsed(configuration);
-
-        // Initialize JVMPauseDetectorThread, if enabled via settings
-        startJVMPauseDetectorThread(configuration);
     }
 }

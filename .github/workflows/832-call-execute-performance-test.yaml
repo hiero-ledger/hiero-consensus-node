@@ -88,46 +88,66 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Validate Input Parameters
+        env:
+          REF: ${{ inputs.ref }}
+          GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
+          GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
+          TEST_ASSET: ${{ inputs.test-asset }}
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          K8S_CLUSTER: ${{ inputs.k8s-cluster }}
+          NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
+          NLG_TEST: ${{ inputs.nlg-test }}
+          NLG_TIME: ${{ inputs.nlg-time }}
         run: |
           echo "Run HCN Version"
-          echo ${{ inputs.ref }}
+          echo "${REF}"
           echo "GS Root Dir"
-          echo ${{ inputs.gs-root-dir }}
+          echo "${GS_ROOT_DIR_INPUT}"
           echo "GS Root HTTPS"
-          echo ${{ inputs.gs-root-https }}
+          echo "${GS_ROOT_HTTPS_INPUT}"
           echo "Test Asset"
-          echo ${{ inputs.test-asset }}
+          echo "${TEST_ASSET}"
           echo "Namespace"
-          echo ${{ inputs.k8s-namespace }}
+          echo "${K8S_NAMESPACE}"
           echo "K8S Cluster"
-          echo ${{ inputs.k8s-cluster }}
+          echo "${K8S_CLUSTER}"
           echo "NLG Accounts"
-          echo ${{ inputs.nlg-accounts }}
+          echo "${NLG_ACCOUNTS}"
           echo "NLG Test"
-          echo ${{ inputs.nlg-test }}
+          echo "${NLG_TEST}"
           echo "NLG Time"
-          echo ${{ inputs.nlg-time }}
+          echo "${NLG_TIME}"
           echo "Workspace"
           echo ${{ github.workspace }}
 
       - name: Generate Google Storage URL for Publishing
         id: gs-dir-url
+        env:
+          REF: ${{ inputs.ref }}
+          GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
+          TEST_ASSET: ${{ inputs.test-asset }}
+          NLG_TEST: ${{ inputs.nlg-test }}
         run: |
-          GS_DIR_URL="${{ inputs.gs-root-dir }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ inputs.nlg-test }}"
+          GS_DIR_URL="${GS_ROOT_DIR_INPUT}/${REF}_${TEST_ASSET}_${{ github.run_number }}/report/${NLG_TEST}"
           echo "Calculated gs-dir-url: ${GS_DIR_URL}"
           echo "url=${GS_DIR_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Generate HTTPS URL for Publishing
         id: gs-https-url
+        env:
+          REF: ${{ inputs.ref }}
+          GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
+          TEST_ASSET: ${{ inputs.test-asset }}
+          NLG_TEST: ${{ inputs.nlg-test }}
         run: |
-          GS_HTTPS_URL="${{ inputs.gs-root-https }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ inputs.nlg-test }}"
+          GS_HTTPS_URL="${GS_ROOT_HTTPS_INPUT}/${REF}_${TEST_ASSET}_${{ github.run_number }}/report/${NLG_TEST}"
           echo "Calculated gs-https-url: ${GS_HTTPS_URL}"
           echo "url=${GS_HTTPS_URL}" >> "${GITHUB_OUTPUT}"
 
@@ -204,28 +224,33 @@ jobs:
           mkdir "${{ github.workspace }}"/report
 
       - name: Start test
+        env:
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
+          NLG_TEST: ${{ inputs.nlg-test }}
+          NLG_TIME: ${{ inputs.nlg-time }}
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          n=`expr "${{ inputs.nlg-accounts }}" / 1000`
+          n=`expr "${NLG_ACCOUNTS}" / 1000`
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${NLG_ACCOUNTS}"
 
-          case "${{ inputs.nlg-test }}" in
+          case "${NLG_TEST}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
             CryptoTransferLoadTest) NLGargs="-K ECDSA ${NLGargs}";;
             HCSLoadTest)            NLGargs="-K ECDSA ${NLGargs} -n ${n}";;
             TokenTransferLoadTest)  NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000";;
           esac
 
-          run_NLG_Time=${{ inputs.nlg-time }}
+          run_NLG_Time=${NLG_TIME}
           run_NLG_Time3=`expr ${run_NLG_Time} / 3`
 
-          case "${{ inputs.nlg-test }}" in
+          case "${NLG_TEST}" in
             CryptoTransferLoadTest) run_NLG_Time=${run_NLG_Time3};;
             HCSLoadTest)            run_NLG_Time=${run_NLG_Time3};;
             TokenTransferLoadTest)  run_NLG_Time=${run_NLG_Time3};;
@@ -233,15 +258,17 @@ jobs:
           esac
 
           echo \
-          kubectl -n "${{ inputs.k8s-namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
-          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
+          kubectl -n "${K8S_NAMESPACE}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${NLG_TEST} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
-          kubectl -n "${{ inputs.k8s-namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
-          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
+          kubectl -n "${K8S_NAMESPACE}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${NLG_TEST} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
       - name: Wait for test completion
+        env:
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
         run: |
           set +x
           set +e
@@ -269,9 +296,9 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
@@ -279,7 +306,7 @@ jobs:
           max_counter=340 #max_counter=330 mins of max test time + 10 min waiting time
 
           ec=2
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -290,13 +317,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
@@ -310,10 +337,10 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ inputs.k8s-namespace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ inputs.k8s-namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
-          cp -r podlog_"${{ inputs.k8s-namespace }}" "${{ github.workspace }}"/report/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${K8S_NAMESPACE}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${K8S_NAMESPACE}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}

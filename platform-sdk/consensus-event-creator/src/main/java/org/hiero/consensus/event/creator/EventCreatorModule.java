@@ -112,12 +112,11 @@ public interface EventCreatorModule {
     InputWire<SyncProgress> syncProgressInputWire();
 
     /**
-     * {@link InputWire} for the quiescence command. The event creator will always behave according to the most recent
-     * quiescence command that it has been given.
+     * {@link InputWire} for the quiescence command.
      *
-     * @return the {@link InputWire} for the sync round lag
+     * @return the {@link InputWire} for the quiescence command
      */
-    @InputWireLabel("quiescence")
+    @InputWireLabel("quiescence command")
     @NonNull
     InputWire<QuiescenceCommand> quiescenceCommandInputWire();
 
@@ -125,6 +124,11 @@ public interface EventCreatorModule {
      * Destroys the module.
      */
     void destroy();
+
+    /**
+     * Flushes all events of the internal event creation manager.
+     */
+    void flush();
 
     // **************************************************************
     // Temporary workaround to allow reuse of the EventCreator module
@@ -136,13 +140,6 @@ public interface EventCreatorModule {
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
      */
     void startSquelching();
-
-    /**
-     * Flushes all events of the internal event creation manager.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     */
-    void flush();
 
     /**
      * Stops squelching the internal event creation manager.
