@@ -97,6 +97,28 @@ class LongListParallelWriteTest extends AbstractFileManagerAwareTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(Implementation.class)
+    void validRangeBeyondSizeMatchesSequentialWrite(final Implementation implementation, @TempDir final Path tempDir)
+            throws Exception {
+        try (final LongList source = createList(implementation)) {
+            source.updateValidRange(0, CAPACITY - 1L);
+            source.put(0, 1);
+            source.updateValidRange(LONGS_PER_CHUNK, CAPACITY - 1L);
+
+            final Path sequentialFile = tempDir.resolve("sequential.ll");
+            final Path parallelFile = tempDir.resolve("parallel.ll");
+            source.writeToFile(sequentialFile);
+
+            try (final ExecutorService executor = Executors.newFixedThreadPool(THREADS_PER_LIST)) {
+                source.writeToFile(parallelFile, executor, THREADS_PER_LIST);
+            }
+
+            assertEquals(-1L, Files.mismatch(sequentialFile, parallelFile));
+            assertEquals(FILE_HEADER_SIZE_V3, Files.size(parallelFile));
+        }
+    }
+
     @Test
     void parallelWriteUsesOnlyConfiguredExecutorTasks(@TempDir final Path tempDir) throws Exception {
         final int threadsPerList = 2;

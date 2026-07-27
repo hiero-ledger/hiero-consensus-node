@@ -387,6 +387,43 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         }
     }
 
+    @Test
+    void snapshotPropagatesTaskFailure() throws IOException {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("failed-snapshot");
+        Files.createDirectories(snapshotDir);
+        Files.createFile(new MerkleDbPaths(snapshotDir).idToDiskLocationHashChunksFile);
+
+        createAndApplyDataSource(
+                1_000, dataSource -> assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir)));
+    }
+
+    @Test
+    void interruptedSnapshotFinishesTasksBeforeReturning() throws IOException {
+        final Path snapshotDir = fileSystemManager.resolveNewTemp("interrupted-snapshot");
+        final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDir);
+
+        createAndApplyDataSource(1_000, dataSource -> {
+            Thread.currentThread().interrupt();
+            try {
+                final IOException exception = assertThrows(IOException.class, () -> dataSource.snapshot(snapshotDir));
+                assertTrue(exception.getCause() instanceof InterruptedException);
+                assertTrue(Thread.currentThread().isInterrupted());
+            } finally {
+                Thread.interrupted();
+            }
+
+            assertTrue(Files.exists(snapshotPaths.metadataFile));
+            assertTrue(Files.exists(snapshotPaths.idToDiskLocationHashChunksFile));
+            assertTrue(Files.exists(snapshotPaths.pathToDiskLocationLeafNodesFile));
+            assertTrue(Files.exists(snapshotPaths.hashChunkDirectory));
+            assertTrue(Files.exists(snapshotPaths.keyToPathDirectory));
+            assertTrue(Files.exists(snapshotPaths.pathToKeyValueDirectory));
+        });
+
+        final MerkleDbDataSource restored = restoreDataSource(snapshotDir, "test", false);
+        restored.close();
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void parallelLongListSnapshotRestores(final boolean useDiskIndices) throws IOException {

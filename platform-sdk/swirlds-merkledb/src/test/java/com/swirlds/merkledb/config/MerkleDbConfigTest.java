@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.config;
 
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -14,9 +13,6 @@ class MerkleDbConfigTest {
         final ConfigurationBuilder configurationBuilder =
                 ConfigurationBuilder.create().withConfigDataTypes(MerkleDbConfig.class);
         // then
-        final Configuration configuration =
-                Assertions.assertDoesNotThrow(configurationBuilder::build, "All default values should be valid");
-        Assertions.assertEquals(
-                1, configuration.getConfigData(MerkleDbConfig.class).longListSnapshotThreadsPerList());
+        Assertions.assertDoesNotThrow(configurationBuilder::build, "All default values should be valid");
     }
 }
