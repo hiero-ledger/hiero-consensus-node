@@ -193,7 +193,6 @@ public class SyncGossipModular implements Gossip {
         startInput.bindConsumer(ignored -> {
             rpcProtocol.start();
             network.start();
-            synchronizer.start();
         });
         stopInput.bindConsumer(ignored -> {
             rpcProtocol.stop();

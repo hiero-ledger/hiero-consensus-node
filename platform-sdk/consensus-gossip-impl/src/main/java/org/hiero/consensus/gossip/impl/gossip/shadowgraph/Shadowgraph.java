@@ -326,6 +326,13 @@ public class Shadowgraph {
         }
         this.eventWindow = eventWindow;
 
+        if (hashToShadowEvent.isEmpty()) {
+            // No events are tracked, so there is nothing to expire. Adopt the new window directly instead of
+            // walking the indicator range up to its expired threshold.
+            oldestUnexpiredIndicator = eventWindow.expiredThreshold();
+            return;
+        }
+
         // Remove reservations for events that can and should be expired, and
         // keep track of the oldest threshold that can be expired
         long oldestReservedIndicator = pruneReservationList();
