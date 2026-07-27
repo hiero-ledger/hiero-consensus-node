@@ -592,7 +592,6 @@ jobs:
           done
 
       - name: Update back-fill
-        if: false
         run: |
           set +x
           set +e
