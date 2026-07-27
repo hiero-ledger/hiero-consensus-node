@@ -138,7 +138,7 @@ public class TransactionProcessor {
                 ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
 
-        if (transaction.isEthereumTransaction() && !transaction.isHookExecution() && !context.isNoopGasContext()) {
+        if (transaction.isEthereumTransaction() && !transaction.isHookExecution() && !context.isStaticCall()) {
             parties.sender().incrementNonce();
         }
 

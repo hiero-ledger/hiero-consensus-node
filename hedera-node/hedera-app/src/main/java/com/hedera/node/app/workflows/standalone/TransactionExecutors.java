@@ -55,6 +55,12 @@ import org.hyperledger.besu.evm.operation.Operation;
 
 /**
  * A factory for creating {@link TransactionExecutor} instances.
+ *
+ * <p>Executors created by this factory skip all signature and key verification: the standalone
+ * dispatch uses a no-op key verifier, and the contract service is wired with
+ * {@code NOOP_VERIFICATION_STRATEGIES}, which treats every key as valid. They are intended for
+ * standalone replay and simulation (e.g. Mirror Node gas estimation and {@code eth_call}), not
+ * for authoritative transaction execution.
  */
 public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
@@ -233,6 +239,9 @@ public enum TransactionExecutors {
         };
     }
 
+    /**
+     * Builds the {@link ExecutorComponent} backing a standalone executor.
+     */
     public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,

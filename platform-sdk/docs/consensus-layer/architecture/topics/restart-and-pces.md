@@ -69,10 +69,11 @@ gossiped a self-event and crashed before it was written, on restart the node wou
 build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
 [`../../concepts/branching.md`](../../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
 
-The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk. A restarting
-node sits in `OBSERVING` — gossiping but not creating events — for a configurable window, giving it time to pick up any
-of its own self-events that the network still holds. Under normal operation, the inline write keeps every gossipped
-self-event on local disk, so this fallback is not exercised.
+The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk: a restarting
+node gossips without creating events for a window, giving it time to relearn any of its own self-events that the network
+still holds. Under normal operation, the inline write keeps every gossipped self-event on local disk, so this fallback is
+not exercised. For the status mechanics see [`platform-status.md`](platform-status.md); for why the status is retained
+despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md).
 
 ### Durability model
 

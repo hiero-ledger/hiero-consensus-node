@@ -16,10 +16,10 @@ testModuleInfo {
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.apache.logging.log4j.core")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.apache.logging.log4j.core")
 }
 
 timingSensitiveModuleInfo {
@@ -31,4 +31,16 @@ timingSensitiveModuleInfo {
     requires("org.apache.logging.log4j.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+}
+
+tasks.test {
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
+}
+
+tasks.timingSensitive {
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
 }

@@ -11,7 +11,7 @@ import com.swirlds.metrics.api.Metrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSourceFactory;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
@@ -128,10 +128,7 @@ public class EventEmitterBuilder {
             time = Time.getCurrent();
         }
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(weightGenerator)
-                .withSize(numNodes)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, numNodes, weightGenerator);
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 

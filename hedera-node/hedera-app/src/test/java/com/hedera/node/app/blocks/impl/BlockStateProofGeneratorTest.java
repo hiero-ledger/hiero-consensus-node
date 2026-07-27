@@ -73,6 +73,99 @@ class BlockStateProofGeneratorTest {
         }
     }
 
+    @Test
+    void throwsOnDuplicatePendingBlockNumber() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var duplicate = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(duplicate)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate pending block #0");
+    }
+
+    @Test
+    void throwsWhenSignedBlockIsNotAfterCurrentPendingBlock() {
+        final var current = pendingBlock(5L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // The signed block number equals the current pending block number, so there is no indirect range to prove
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 5L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.empty()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot construct an indirect proof for pending block #5 from signed block #5");
+    }
+
+    @Test
+    void throwsWhenPendingBlocksDoNotCoverEntireRange() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // Blocks #1 and #2 between the current (#0) and signed (#3) blocks are absent from the queue
+        final var signed = pendingBlock(3L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 3L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #1 is missing");
+    }
+
+    @Test
+    void throwsWhenSignedBlockItselfIsMissing() {
+        // Every intermediate block is present; only the signed block (#102) at the top of the range is missing
+        final var current = pendingBlock(100L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var intermediate = pendingBlock(101L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 102L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(intermediate)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending block #102 is missing");
+    }
+
+    @Test
+    void throwsWhenIndirectBlockHasUnexpectedSiblingCount() {
+        // The proof starts from the current block's own root hash, so an intermediate indirect block (#1) is the
+        // first whose siblings are consumed. Give it one too few sibling hashes for the expected layout.
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        final var indirect = pendingBlock(1L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK - 1);
+        final var signed = pendingBlock(2L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 2L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(indirect, signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Pending block #1 produced %d sibling hashes but exactly %d were expected"
+                        .formatted(
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK - 1,
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+    }
+
+    @Test
+    void throwsWhenSignedBlockHasUnexpectedSiblingCount() {
+        final var current = pendingBlock(0L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK);
+        // The signed block has one too many sibling hashes for the fixed array layout
+        final var signed = pendingBlock(1L, BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1);
+        Assertions.assertThatThrownBy(() -> BlockStateProofGenerator.generateStateProof(
+                        current, 1L, FINAL_SIGNATURE, Timestamp.DEFAULT, Stream.of(signed)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Signed block #1 produced %d sibling hashes but exactly %d were expected"
+                        .formatted(
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK + 1,
+                                BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+    }
+
+    /**
+     * Builds a minimal {@link PendingBlock} with the given number and sibling-hash count. Each sibling hash reuses
+     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, a valid SHA-384-length value, so that hash
+     * conversion succeeds and only the guard under test can fail.
+     */
+    private static PendingBlock pendingBlock(final long number, final int siblingCount) {
+        final var siblings = new MerkleSiblingHash[siblingCount];
+        for (int i = 0; i < siblingCount; i++) {
+            siblings[i] = new MerkleSiblingHash(false, HASH_OF_ZERO);
+        }
+        return new PendingBlock(
+                number,
+                null,
+                HASH_OF_ZERO,
+                HASH_OF_ZERO,
+                BlockProof.newBuilder().block(number),
+                new NoOpTestWriter(),
+                Timestamp.DEFAULT,
+                siblings);
+    }
+
     /**
      * Verifies each generated state proof by following {@link MerklePath#nextPathIndex()} links —
      * the same traversal strategy the block-node's {@code StateProofVerifier} uses — and confirms

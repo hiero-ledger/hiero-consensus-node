@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,8 +33,7 @@ class TipsetTests {
 
         final int nodeCount = 100;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
 
         final Tipset tipset = new Tipset(roster);
         assertThat(tipset.size()).isEqualTo(nodeCount);
@@ -61,8 +60,7 @@ class TipsetTests {
 
         final int nodeCount = 100;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
 
         // Given:
         final Tipset emptyTipset = new Tipset(roster);
@@ -138,10 +136,7 @@ class TipsetTests {
 
         final int nodeCount = 100;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(nodeCount)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         final NodeId selfId =
                 NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
@@ -196,8 +191,7 @@ class TipsetTests {
         final Random random = getRandomPrintSeed();
         final int nodeCount = 100;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(nodeCount).build();
+        final Roster roster = RosterFactory.randomRoster(random, nodeCount);
 
         final Map<NodeId, Long> weights = new HashMap<>();
         for (final RosterEntry address : roster.rosterEntries()) {

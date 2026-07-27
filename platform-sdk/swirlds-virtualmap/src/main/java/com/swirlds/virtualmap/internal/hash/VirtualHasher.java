@@ -6,7 +6,7 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
+import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -14,7 +14,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,12 +47,6 @@ public final class VirtualHasher {
     private static final Logger logger = LogManager.getLogger(VirtualHasher.class);
 
     private final ForkJoinPool hashingPool;
-
-    /**
-     * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
-     */
-    private static final ThreadLocal<WritableMessageDigest> MESSAGE_DIGEST_THREAD_LOCAL =
-            ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     /**
      * Pre-loads virtual hash chunks by chunk paths.
@@ -97,31 +90,6 @@ public final class VirtualHasher {
     public void shutdown() {
         shutdown.set(true);
         hashingPool.shutdown();
-    }
-
-    /**
-     * Calculates a hash for an internal node from its left and right child hashes.
-     *
-     * <p>The left hash must always be provided. The right hash is typically provided, too.
-     * However, this method may also be called with a null right hash to calculate a root
-     * hash for a tree with only one leaf node.
-     */
-    public static byte[] hashInternal(@NonNull final byte[] left, @Nullable final byte[] right) {
-        return hashInternal(left, right, MESSAGE_DIGEST_THREAD_LOCAL.get());
-    }
-
-    private static byte[] hashInternal(final byte[] left, final byte[] right, final WritableMessageDigest wmd) {
-        // Unique value to make sure internal node hashes are different from leaf hashes. This
-        // value indicates the number of child nodes. All internal virtual nodes have 2 children
-        // except a root node in a tree with just one element / leaf. In this and only this case,
-        // the right hash will be set to a marker NO_PATH2_HASH hash object
-        wmd.writeByte(right == null ? (byte) 0x01 : (byte) 0x02);
-        wmd.writeBytes(left);
-        if (right != null) {
-            wmd.writeBytes(right);
-        }
-        // Note that the digest is reset after the call to digest()
-        return wmd.digest();
     }
 
     // A task that can supply hashes to other tasks. There are two hash producer task
@@ -263,7 +231,7 @@ public final class VirtualHasher {
             final int chunkLastRank = chunkRank + hashChunk.height();
             long rankPath = Path.getLeftGrandChildPath(path, height);
             int currentRank = taskRank + height;
-            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+            final MerkleHasher merkleHasher = MerkleHasher.threadSafeDefault();
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
                     byte[] left = ins[i * 2];
@@ -277,7 +245,7 @@ public final class VirtualHasher {
                             left = hashChunk.getHashBytesAtPath(leftPath);
                         } else {
                             // Get left's left and right child hashes and hashInternal() them
-                            left = hashChunk.calcHashBytes(leftPath, firstLeafPath, lastLeafPath);
+                            left = hashChunk.calcHashBytes(merkleHasher, leftPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
@@ -300,7 +268,7 @@ public final class VirtualHasher {
                             right = hashChunk.getHashBytesAtPath(rightPath);
                         } else {
                             // Get right's left and right child hashes and hashInternal() them
-                            right = hashChunk.calcHashBytes(rightPath, firstLeafPath, lastLeafPath);
+                            right = hashChunk.calcHashBytes(merkleHasher, rightPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
@@ -309,7 +277,7 @@ public final class VirtualHasher {
                         }
                     }
 
-                    ins[i] = hashInternal(left, right, wmd);
+                    ins[i] = merkleHasher.internalNodeHashBytes(left, right);
                 }
                 rankPath = Path.getParentPath(rankPath);
                 currentRank--;
@@ -348,10 +316,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
-            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
-            leaf.writeToForHashing(wmd);
-            final byte[] hash = wmd.digest();
-            out.setHash(path, hash);
+            out.setHash(path, MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf));
             return true;
         }
     }
@@ -658,28 +623,9 @@ public final class VirtualHasher {
         // created during walking from the last leaf on the last leaf rank to the root; sibling
         // tasks to the left of the very first route to the root. There are no more dirty leaves,
         // all these tasks may be marked as clean now
-        chunkTasks.forEach((path, task) -> task.noMoreInputs());
+        chunkTasks.forEach((_, task) -> task.noMoreInputs());
         chunkTasks.clear();
 
         return rootTask;
-    }
-
-    public Hash emptyRootHash() {
-        final MessageDigest md = Cryptography.DEFAULT_DIGEST_TYPE.buildDigest();
-        md.update((byte) 0x00);
-        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-    }
-
-    /**
-     * Computes the hash of a leaf record. May be called from multiple threads in parallel.
-     *
-     * @param leaf the leaf bytes to hash
-     * @return the computed hash
-     */
-    public static Hash hashLeafRecord(final VirtualLeafBytes<?> leaf) {
-        final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
-        leaf.writeToForHashing(wmd);
-        // Calling digest() resets the digest
-        return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 }
