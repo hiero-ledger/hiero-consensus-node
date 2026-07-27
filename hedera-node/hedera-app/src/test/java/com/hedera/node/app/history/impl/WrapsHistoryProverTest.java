@@ -6,10 +6,12 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID_RECURSIVE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.Instant.EPOCH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.isNull;
@@ -686,19 +688,17 @@ class WrapsHistoryProverTest {
     }
 
     @Test
-    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsNull() {
+    void observeProofVoteDoesNotSubmitWhenVoteDecisionFutureIsNull() {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        // voteDecisionFuture is null by default, so this should return early
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
-        // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
     }
 
     @Test
-    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsDone() {
+    void observeProofVoteDoesNotSubmitWhenVoteDecisionFutureIsDone() {
         final var completedFuture = CompletableFuture.completedFuture(null);
         setField("voteDecisionFuture", completedFuture);
 
@@ -707,7 +707,6 @@ class WrapsHistoryProverTest {
 
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
-        // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
     }
 
@@ -798,6 +797,95 @@ class WrapsHistoryProverTest {
 
         // The vote decision future should NOT be completed
         assertFalse(pendingFuture.isDone());
+    }
+
+    @Test
+    void validRecursiveVoteObservedBeforeProofIsReadyCausesImmediateCongruentVote() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(submissions.submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID))
+                .willReturn(CompletableFuture.completedFuture(null));
+        final var proof = recursiveProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, VALID_RECURSIVE);
+        scheduleVote(proof);
+
+        verify(submissions).submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID);
+        assertEquals(0, delayedExecutor.pendingTasks());
+    }
+
+    @Test
+    void finalizedRecursiveProofObservedBeforeProofIsReadyPreventsLateVote() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        final var proof = recursiveProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, true, VALID_RECURSIVE);
+        scheduleVote(proof);
+
+        verifyNoInteractions(submissions);
+        assertEquals(0, delayedExecutor.pendingTasks());
+    }
+
+    @Test
+    void aggregateVoteTimerCannotCompleteLaterRecursiveVoteDecision() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(Duration.ofSeconds(5));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        final var aggregateProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var aggregateVote =
+                HistoryProofVote.newBuilder().proof(aggregateProof).build();
+        final var recursiveProof = recursiveProof();
+
+        scheduleVote(aggregateProof);
+        subject.observeProofVote(OTHER_NODE_ID, aggregateVote, true, NOT_RECURSIVE);
+        scheduleVote(recursiveProof);
+
+        assertEquals(2, delayedExecutor.pendingTasks());
+        delayedExecutor.runNext();
+        verify(submissions, never()).submitExplicitProofVote(anyLong(), any());
+
+        delayedExecutor.runNext();
+        verify(submissions).submitExplicitProofVote(CONSTRUCTION_ID, recursiveProof);
     }
 
     @Test
@@ -1079,6 +1167,25 @@ class WrapsHistoryProverTest {
             fail(e);
             return null;
         }
+    }
+
+    private void scheduleVote(HistoryProof proof) {
+        try {
+            final var method = WrapsHistoryProver.class.getDeclaredMethod(
+                    "scheduleVoteWithJitter", long.class, TssConfig.class, HistoryProof.class);
+            method.setAccessible(true);
+            method.invoke(subject, CONSTRUCTION_ID, tssConfig, proof);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    private static HistoryProof recursiveProof() {
+        return HistoryProof.newBuilder()
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .build();
     }
 
     private static final class ManualExecutor implements Executor {

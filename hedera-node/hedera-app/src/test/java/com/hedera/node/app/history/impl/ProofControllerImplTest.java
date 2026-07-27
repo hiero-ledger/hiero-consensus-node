@@ -35,6 +35,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1159,6 +1160,60 @@ class ProofControllerImplTest {
 
         verify(prover).replayWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(wrapsMessagePublications.getFirst()));
         verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+    }
+
+    @Test
+    void constructorReplaysCongruentVoteChainRegardlessOfMapOrder() {
+        // Regression for #26524: persisted votes come back from state in HashMap iteration order, NOT the consensus
+        // order in which they were cast. A congruent vote replayed before the explicit vote it references must still
+        // be counted; otherwise a reconnecting node ends up with less counted weight than the nodes that never
+        // restarted and can diverge (ISS) when a later vote completes the proof only on the continuously running
+        // nodes. Pin a deliberately hostile order with a LinkedHashMap -- each congruent vote precedes its referent,
+        // and the chain node 0 -> node 1 -> node 2 (explicit) is only rebuilt if replay resolves dependencies
+        // iteratively rather than in map order -- so the test does not depend on the current JDK's HashMap bucket
+        // order.
+        final var proof = aValidProof();
+        final Map<Long, HistoryProofVote> hostileOrderVotes = new LinkedHashMap<>();
+        hostileOrderVotes.put(
+                0L, HistoryProofVote.newBuilder().congruentNodeId(1L).build());
+        hostileOrderVotes.put(
+                1L, HistoryProofVote.newBuilder().congruentNodeId(2L).build());
+        hostileOrderVotes.put(2L, HistoryProofVote.newBuilder().proof(proof).build());
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                hostileOrderVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        // Nodes 0, 1, and 2 must all be counted (weight 30). With a threshold of 35 the proof is not yet complete,
+        // but one more congruent vote (node 3) crosses it. Had node 0 or node 1 been dropped during replay, the tally
+        // would be short of the threshold and completeProof would never be called.
+        given(weights.sourceWeightOf(0L)).willReturn(10L);
+        given(weights.sourceWeightOf(1L)).willReturn(10L);
+        given(weights.sourceWeightOf(2L)).willReturn(10L);
+        given(weights.sourceWeightOf(3L)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(35L);
+        given(writableHistoryStore.completeProof(eq(CONSTRUCTION_ID), eq(proof)))
+                .willReturn(construction);
+
+        final var thresholdCrossingVote =
+                HistoryProofVote.newBuilder().congruentNodeId(2L).build();
+        subject.addProofVote(3L, thresholdCrossingVote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
     }
 
     @Test
