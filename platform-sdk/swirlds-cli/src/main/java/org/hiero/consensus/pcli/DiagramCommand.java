@@ -167,16 +167,16 @@ public final class DiagramCommand extends AbstractCommand {
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
-        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
         final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
         final StateModule statemanagementModule =
                 createNoOpStateManagementModule(model, configuration, fileSystemManager);
-        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
 
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =

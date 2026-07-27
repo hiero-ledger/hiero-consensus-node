@@ -398,7 +398,7 @@ public class ConsensusLayerFactory {
                 latestImmutableStateNexus,
                 consensusStateEventHandler,
                 stateLifecycleManager,
-                statusMonitorModule.platformStatusActionInputWire()::put,
+                statusMonitorModule,
                 version,
                 selfId,
                 transactionOffsetNanos);
@@ -483,8 +483,7 @@ public class ConsensusLayerFactory {
                 initialState.get().getRound(),
                 pipelineFlusher::flushPrimaryPipeline,
                 replayProgressSupplier,
-                statusMonitorModule.platformStatusActionInputWire()::put,
-                statusMonitorModule::flush,
+                statusMonitorModule,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
     }
