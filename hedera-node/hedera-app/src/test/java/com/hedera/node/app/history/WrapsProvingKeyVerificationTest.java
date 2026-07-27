@@ -558,11 +558,11 @@ class WrapsProvingKeyVerificationTest {
     private static void writeArtifactsManifest(final Path dir) throws IOException {
         final var sb = new StringBuilder();
         for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
-            final var hash = noThrowSha384HashOf(Bytes.wrap(artifact.getBytes(StandardCharsets.UTF_8))).toHex();
+            final var hash = noThrowSha384HashOf(Bytes.wrap(artifact.getBytes(StandardCharsets.UTF_8)))
+                    .toHex();
             sb.append(hash).append("  ").append(artifact).append('\n');
         }
-        Files.writeString(
-                dir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME), sb.toString());
+        Files.writeString(dir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME), sb.toString());
     }
 
     // ===== minimal tar.gz builder (mirrors TarGzExtractorTest) =====

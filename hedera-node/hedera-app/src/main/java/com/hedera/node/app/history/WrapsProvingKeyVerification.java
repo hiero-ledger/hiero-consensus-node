@@ -401,8 +401,7 @@ public class WrapsProvingKeyVerification {
     private static void writeArtifactsManifest(@NonNull final Path extractionDir) {
         final var manifestPath = extractionDir.resolve(WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
         final var sb = new StringBuilder();
-        for (final var name :
-                List.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin")) {
+        for (final var name : List.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin")) {
             final var filePath = extractionDir.resolve(name);
             if (!Files.isRegularFile(filePath)) {
                 log.warn("Skipping missing artifact {} while writing WRAPS manifest", name);
