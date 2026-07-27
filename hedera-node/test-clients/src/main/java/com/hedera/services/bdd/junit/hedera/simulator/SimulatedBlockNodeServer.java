@@ -398,11 +398,12 @@ public class SimulatedBlockNodeServer {
             return ServerStatusResponse.newBuilder()
                     .firstAvailableBlock(lastBlock)
                     .lastAvailableBlock(lastBlock)
+                    .nextExpectedBlock(lastBlock + 1)
                     .build();
         }
 
         @Override
-        public @NonNull ServerStatusDetailResponse serverStatusDetail(@NonNull ServerStatusRequest ignored) {
+        public @NonNull ServerStatusDetailResponse serverStatusDetail(@NonNull final ServerStatusRequest ignored) {
             return ServerStatusDetailResponse.newBuilder().build();
         }
     }

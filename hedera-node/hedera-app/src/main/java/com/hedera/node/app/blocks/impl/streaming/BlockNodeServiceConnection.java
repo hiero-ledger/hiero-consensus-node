@@ -261,12 +261,12 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         logger.debug(
-                "{} Received the following block node server status => lastAvailableBlock: {}, latency: {}ms",
+                "{} Received the following block node server status => nextExpectedBlock: {}, latency: {}ms",
                 this,
-                response.lastAvailableBlock(),
+                response.nextExpectedBlock(),
                 durationMillis);
 
-        return BlockNodeStatus.reachable(durationMillis, response.lastAvailableBlock());
+        return BlockNodeStatus.reachable(durationMillis, response.nextExpectedBlock());
     }
 
     /**
