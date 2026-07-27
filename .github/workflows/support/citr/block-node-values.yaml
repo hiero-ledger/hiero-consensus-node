@@ -104,17 +104,16 @@ blockNode:
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
       existingClaim: "live-storage-block-node-%NODE_ID%-0"
-    verification:
+    application-state:
       create: false
       # name of the volume within the statefulset
-      volumeName: "verification-storage"
-      # should match VERIFICATION_ALL_BLOCKS_HASHER_FILE_PATH parent directory
-      mountPath: "/opt/hiero/block-node/verification"
+      volumeName: "application-state-storage"
+      mountPath: "/opt/hiero/block-node/application-state"
       size: 1Gi
       # Optionally add a storage class name if needed
       storageClass: "local-path"
       # Optionally specify an existing PVC name instead of creating via volumeClaimTemplate
-      existingClaim: "verification-storage-block-node-%NODE_ID%-0"
+      existingClaim: "application-state-storage-block-node-%NODE_ID%-0"
     plugins:
       create: false
       # name of the volume within the statefulset
