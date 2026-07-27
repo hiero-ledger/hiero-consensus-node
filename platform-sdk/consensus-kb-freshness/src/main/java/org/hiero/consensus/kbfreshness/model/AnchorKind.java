@@ -12,15 +12,32 @@ public enum AnchorKind {
     MODULE_DIR(0),
     /** A path to a source file (from {@code components:}, markdown links, or abbreviated form). */
     SOURCE_PATH(0),
+    /**
+     * A bare source-file basename cited in prose (e.g. {@code `ObservingStatusLogic.java:176-187`}) with
+     * no path. Checked for existence anywhere in the index only — never for a "moved" location, since no
+     * location was cited.
+     */
+    SOURCE_BASENAME(0),
     /** A relative link from one KB doc to another. */
     CROSS_DOC_LINK(0),
     /** A {@code #heading} fragment that must exist in the linked doc. */
     DOC_HEADING(0),
     /** A catalog-ID reference (INV/TUN/ADR/SYM/RUL/SCN/HEU-NNN). */
     CATALOG_ID(0),
+    /**
+     * A Java package cited in prose (e.g. {@code `com.swirlds.platform.wiring`}). Checked for existence
+     * against the indexed package directories (a parent of an indexed package counts as existing);
+     * asserted gone only when the package's namespace is itself indexed — an external namespace is
+     * unverifiable, never asserted.
+     */
+    PACKAGE_REF(0),
 
     // ---- Tier 1: symbol existence ----
-    /** A class/type cited with an owning module or path. */
+    /**
+     * A type cited fully-qualified in prose (e.g. {@code `com.x.monitor.HealthMonitor`}) or with an
+     * owning module or path. Resolved by package + simple name against the source index; a type found
+     * in a different package is reported as a <em>move</em>, not as gone.
+     */
     CLASS(1),
     /** A method named on a resolvable class (e.g. {@code verification:} "Class — method"). */
     METHOD_ON_CLASS(1),
@@ -30,12 +47,19 @@ public enum AnchorKind {
     ENUM_CONSTANT(1),
     /** A config key resolved against its {@code *Config} class. */
     CONFIG_KEY(1),
+    /**
+     * A tunables-catalog section's binding of a config prefix to its record class, checked against the
+     * {@code @ConfigData} annotation of the resolved (or prefix-located) record.
+     */
+    CONFIG_PREFIX(1),
 
     // ---- Tier 2: signature / value equality ----
     /** A method cited with a parameter list, e.g. {@code Class.method(ParamType)}, checked for signature equality. */
     METHOD_SIGNATURE(2),
     /** A documented interface method compared against the interface's declared method set. */
-    INTERFACE_METHOD(2);
+    INTERFACE_METHOD(2),
+    /** A documented config default compared against the {@code @ConfigProperty(defaultValue = …)} literal. */
+    CONFIG_DEFAULT(2);
 
     /** The resolution tier of this kind (0 = text/filesystem, 1 = symbol, 2 = signature/value). */
     private final int tier;

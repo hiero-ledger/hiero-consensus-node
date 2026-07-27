@@ -26,7 +26,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
@@ -192,10 +192,6 @@ class TlsFactoryTest extends ConnectivityTestBase {
      */
     @NonNull
     private static RosterWithKeys genRosterLoadKeys(final int size) {
-        return RandomRosterBuilder.create(Randotron.create())
-                .withSize(size)
-                .withRealKeysEnabled(true)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-                .buildWithKeys();
+        return RosterFactory.randomRosterWithKeys(Randotron.create(), size, WeightGenerators.BALANCED_1000_PER_NODE);
     }
 }

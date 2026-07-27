@@ -16,6 +16,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -49,6 +50,7 @@ public interface GossipModule {
      * @param reservedSignedStateResultPromise a promise for the result of reserving a signed state
      * @param fallenBehindMonitor the monitor for detecting if the node has fallen behind
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
+     * @param additionalParameters additional parameters for the gossip module
      */
     void initialize(
             @NonNull WiringModel model,
@@ -63,7 +65,8 @@ public interface GossipModule {
             @NonNull Supplier<ReservedSignedState> latestCompleteState,
             @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull FallenBehindMonitor fallenBehindMonitor,
-            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager);
+            @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull Map<String, Object> additionalParameters);
 
     /**
      * {@link OutputWire} for events received through gossip.
@@ -120,24 +123,6 @@ public interface GossipModule {
     InputWire<Duration> healthStatusInputWire();
 
     /**
-     * {@link InputWire} for control signals to start gossiping.
-     *
-     * @return the {@link InputWire} for start signals
-     */
-    @InputWireLabel("start")
-    @NonNull
-    InputWire<NoInput> startInputWire();
-
-    /**
-     * {@link InputWire} for control signals to stop gossiping.
-     *
-     * @return the {@link InputWire} for stop signals
-     */
-    @InputWireLabel("stop")
-    @NonNull
-    InputWire<NoInput> stopInputWire();
-
-    /**
      * {@link InputWire} for control signals to clear internal gossip state.
      *
      * @return the {@link InputWire} for clear signals
@@ -163,6 +148,15 @@ public interface GossipModule {
     @InputWireLabel("resume")
     @NonNull
     InputWire<NoInput> resumeInputWire();
+
+    /**
+     * {@link InputWire} for control signals to start gossiping.
+     *
+     * @return the {@link InputWire} for start signals
+     */
+    @InputWireLabel("start")
+    @NonNull
+    InputWire<NoInput> startInputWire();
 
     /**
      * Flushes the gossip module.

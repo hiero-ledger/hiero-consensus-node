@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,7 +23,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
 import org.hiero.consensus.state.test.fixtures.TestingAppStateInitializer;
@@ -47,7 +47,7 @@ class StateLifecycleManagerTests {
     @BeforeEach
     void setup() {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
-        final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
+        final Roster roster = RosterFactory.randomRoster(Randotron.create(), 4);
         when(platform.getRoster()).thenReturn(roster);
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();

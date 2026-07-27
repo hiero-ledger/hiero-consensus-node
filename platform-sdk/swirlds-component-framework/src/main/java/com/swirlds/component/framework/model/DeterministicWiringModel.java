@@ -143,6 +143,13 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public void start() {
         throwIfStarted();
         markAsStarted();
+
+        // We don't have to do anything with the output of these sanity checks.
+        // The methods below will log errors if they find problems.
+        checkForCyclicalBackpressure();
+        checkForIllegalDirectSchedulerUsage();
+        checkForUnboundInputWires();
+
         isRunning = true;
         heartbeatScheduler.start();
     }

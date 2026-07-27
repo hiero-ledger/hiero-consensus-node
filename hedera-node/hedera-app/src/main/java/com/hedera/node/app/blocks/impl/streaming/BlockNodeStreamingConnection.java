@@ -787,20 +787,39 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
             blockStreamMetrics.recordRequestSendFailure();
             final Throwable error = e instanceof ExecutionException ? e.getCause() : e;
+            final FailureType failureType = FailureType.findFailureType(error);
 
             if (isActive()) {
-                logger.warn(
-                        "{} Error encountered while sending request to block node (duration: {}μs)",
-                        connectionContext(correlationId),
-                        durationMicros,
-                        error);
+                if (failureType.isCommonFailure()) {
+                    logger.warn(
+                            "{} Error encountered while sending request to block node (duration: {}μs, error: {})",
+                            connectionContext(correlationId),
+                            durationMicros,
+                            failureType);
+                } else {
+                    logger.warn(
+                            "{} Error encountered while sending request to block node (duration: {}μs)",
+                            connectionContext(correlationId),
+                            durationMicros,
+                            error);
+                }
+
                 throw new RuntimeException("Error encountered while sending request to block node", error);
             } else {
-                logger.info(
-                        "{} Error encountered while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
-                        connectionContext(correlationId),
-                        durationMicros,
-                        error);
+                if (failureType.isCommonFailure()) {
+                    logger.info(
+                            "{} Error encountered while sending request to block node (duration: {}μs, error: {}) - suppressing because connection is no longer active",
+                            connectionContext(correlationId),
+                            durationMicros,
+                            failureType);
+                } else {
+                    logger.info(
+                            "{} Error encountered while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
+                            connectionContext(correlationId),
+                            durationMicros,
+                            error);
+                }
+
                 return new SendRequestResult(false, startNanos.get(), endNanos.get());
             }
         }
@@ -905,17 +924,22 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     client.close();
                 }
             } catch (final Exception e) {
-                logger.error("{} Error occurred while closing gRPC client", this, e);
+                final FailureType failureType = FailureType.findFailureType(e);
+                if (failureType.isCommonFailure()) {
+                    logger.error("{} Error occurred while closing gRPC client (error: {})", this, failureType);
+                } else {
+                    logger.error("{} Error occurred while closing gRPC client", this, e);
+                }
             }
             try {
                 blockingIoExecutor.shutdown();
                 if (!blockingIoExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
                     blockingIoExecutor.shutdownNow();
                 }
-            } catch (final InterruptedException e) {
+            } catch (final InterruptedException _) {
                 Thread.currentThread().interrupt();
                 blockingIoExecutor.shutdownNow();
-                logger.error("{} Error occurred while shutting down pipeline executor", this, e);
+                logger.error("{} Error occurred while shutting down pipeline executor (error: INTERRUPTED)", this);
             }
             blockStreamMetrics.recordConnectionClosed(closeReason);
             // regardless of outcome, mark the connection as closed
@@ -949,11 +973,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         Thread.currentThread().interrupt(); // Restore interrupt status
                         logger.debug("{} Interrupted while waiting for request pipeline to close", this);
                     } catch (final ExecutionException e) {
+                        final FailureType failureType = FailureType.findFailureType(e);
+                        if (failureType.isCommonFailure()) {
+                            logger.debug("{} Error executing request pipeline close (error: {})", this, failureType);
+                        }
                         logger.debug("{} Error executing request pipeline close", this, e.getCause());
                     }
                 }
             } catch (final Exception e) {
-                logger.warn("{} Error while completing request pipeline", this, e);
+                final FailureType failureType = FailureType.findFailureType(e);
+                if (failureType.isCommonFailure()) {
+                    logger.warn("{} Error while completing request pipeline (error: {})", this, failureType);
+                } else {
+                    logger.warn("{} Error while completing request pipeline", this, e);
+                }
             }
             // Clear the call reference to prevent further use
             logger.debug("{} Request pipeline closed and cleared", this);
@@ -1035,7 +1068,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             if (error instanceof final GrpcException grpcException) {
                 logger.warn("{} Error received (grpcStatus: {})", this, grpcException.status(), grpcException);
             } else {
-                logger.warn("{} Error received", this, error);
+                final FailureType failureType = FailureType.findFailureType(error);
+                if (failureType.isCommonFailure()) {
+                    logger.warn("{} Error received (error: {})", this, failureType);
+                } else {
+                    logger.warn("{} Error received", this, error);
+                }
             }
 
             shouldSendEndStreamOnClose = false;
@@ -1497,24 +1535,48 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                             reqBytes);
                 }
             } catch (final UncheckedIOException e) {
-                logger.warn(
-                        "{} UncheckedIOException caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {})",
-                        BlockNodeStreamingConnection.this,
-                        block.blockNumber(),
-                        requestCtr.get(),
-                        pendingRequestItems.size(),
-                        reqBytes,
-                        e);
+                final FailureType failureType = FailureType.findFailureType(e);
+                if (failureType.isCommonFailure()) {
+                    logger.warn(
+                            "{} UncheckedIOException caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {}, error: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber(),
+                            requestCtr.get(),
+                            pendingRequestItems.size(),
+                            reqBytes,
+                            failureType);
+                } else {
+                    logger.warn(
+                            "{} UncheckedIOException caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber(),
+                            requestCtr.get(),
+                            pendingRequestItems.size(),
+                            reqBytes,
+                            e);
+                }
                 close(CloseReason.CONNECTION_ERROR, false);
             } catch (final Exception e) {
-                logger.warn(
-                        "{} Exception caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {})",
-                        BlockNodeStreamingConnection.this,
-                        block.blockNumber(),
-                        requestCtr.get(),
-                        pendingRequestItems.size(),
-                        reqBytes,
-                        e);
+                final FailureType failureType = FailureType.findFailureType(e);
+                if (failureType.isCommonFailure()) {
+                    logger.warn(
+                            "{} Exception caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {}, error: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber(),
+                            requestCtr.get(),
+                            pendingRequestItems.size(),
+                            reqBytes,
+                            failureType);
+                } else {
+                    logger.warn(
+                            "{} Exception caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {})",
+                            BlockNodeStreamingConnection.this,
+                            block.blockNumber(),
+                            requestCtr.get(),
+                            pendingRequestItems.size(),
+                            reqBytes,
+                            e);
+                }
                 close(CloseReason.CONNECTION_ERROR, true);
             }
 

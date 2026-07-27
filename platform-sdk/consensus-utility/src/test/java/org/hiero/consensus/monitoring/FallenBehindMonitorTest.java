@@ -9,18 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.config.FallenBehindConfig_;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -36,17 +33,11 @@ class FallenBehindMonitorTest {
     void setUp() {
 
         final int numNodes = 11;
-        this.roster = RandomRosterBuilder.create(getRandomPrintSeed())
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .build();
+        this.roster = RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.BALANCED);
         this.nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
-                .getOrCreateConfig();
-        monitor = new FallenBehindMonitor(roster, configuration, nodeIds[0]);
+        monitor = new FallenBehindMonitor(roster, nodeIds[0], 0.5);
     }
 
     @Test
@@ -173,16 +164,9 @@ class FallenBehindMonitorTest {
         public FallenBehindMonitorTestData() {
             final Random random = getRandomPrintSeed();
 
-            this.roster = RandomRosterBuilder.create(random)
-                    .withSize(41)
-                    .withWeightGenerator(WeightGenerators.BALANCED)
-                    .build();
-            this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
-
-            final Configuration configuration = new TestConfigBuilder()
-                    .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.25)
-                    .getOrCreateConfig();
-            this.fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
+            this.roster = RosterFactory.randomRoster(random, 41, WeightGenerators.BALANCED);
+            this.selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+            this.fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.25);
         }
     }
 
@@ -441,10 +425,7 @@ class FallenBehindMonitorTest {
     @Test
     @DisplayName("Test edge case with threshold of 0.0")
     void testThresholdOfZero() {
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.0)
-                .getOrCreateConfig();
-        final FallenBehindMonitor permissiveMonitor = new FallenBehindMonitor(roster, configuration, nodeIds[0]);
+        final FallenBehindMonitor permissiveMonitor = new FallenBehindMonitor(roster, nodeIds[0], 0.0);
 
         // With threshold of 0.0, need > 0 reports to fall behind
         assertFalse(permissiveMonitor.hasFallenBehind());
@@ -600,17 +581,12 @@ class FallenBehindMonitorTest {
     @Test
     void testUnevenWeights() {
         final int numNodes = 11;
-        final Roster roster = RandomRosterBuilder.create(getRandomPrintSeed())
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.SINGLE_NODE_SUPERMAJORITY)
-                .build();
+        final Roster roster =
+                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.SINGLE_NODE_SUPERMAJORITY);
         final NodeId[] nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
-                .getOrCreateConfig();
-        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, configuration, nodeIds[5]);
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds[5], 0.5);
 
         assertFalse(monitor.hasFallenBehind());
         monitor.report(nodeIds[0]); // this node alone has supermajority
@@ -632,17 +608,12 @@ class FallenBehindMonitorTest {
     @Test
     void testIgnoreZeroWeights() {
         final int numNodes = 30;
-        final Roster roster = RandomRosterBuilder.create(getRandomPrintSeed())
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.ONE_THIRD_ZERO_WEIGHT)
-                .build();
+        final Roster roster =
+                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.ONE_THIRD_ZERO_WEIGHT);
         final NodeId[] nodeIds = roster.rosterEntries().stream()
                 .map(entry -> NodeId.of(entry.nodeId()))
                 .toArray(NodeId[]::new);
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(FallenBehindConfig_.FALLEN_BEHIND_THRESHOLD, 0.0)
-                .getOrCreateConfig();
-        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, configuration, nodeIds[0]);
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds[0], 0.0);
 
         assertFalse(monitor.hasFallenBehind());
         for (int i = 1; i < 8; i++) {

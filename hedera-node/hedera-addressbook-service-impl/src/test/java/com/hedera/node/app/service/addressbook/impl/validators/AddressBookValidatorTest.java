@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_REGISTERED_NODES_EX
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase.generateX509Certificates;
+import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.parseX509Certificate;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,15 +58,28 @@ class AddressBookValidatorTest {
 
     @Test
     void encodedCertPassesValidation() {
-        assertDoesNotThrow(() -> validateX509Certificate(Bytes.wrap(x509Cert.getEncoded())));
+        assertDoesNotThrow(() -> parseX509Certificate(Bytes.wrap(x509Cert.getEncoded())));
+    }
+
+    @Test
+    void encodedCertPassesValidationAtDeterministicTime() {
+        final var validAt = x509Cert.getNotBefore().toInstant().plusSeconds(1);
+        assertDoesNotThrow(() -> validateX509Certificate(Bytes.wrap(x509Cert.getEncoded()), validAt));
+    }
+
+    @Test
+    void encodedCertFailsValidationOutsideDeterministicTime() {
+        final var notYetValidAt = x509Cert.getNotBefore().toInstant().minusSeconds(1);
+        final var e = assertThrows(
+                HandleException.class, () -> validateX509Certificate(Bytes.wrap(x509Cert.getEncoded()), notYetValidAt));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, e.getStatus());
     }
 
     @Test
     void utf8EncodingOfX509PemFailsValidation() throws CertificateEncodingException, IOException {
         final var baos = new ByteArrayOutputStream();
         writeCertificatePemFile(x509Cert.getEncoded(), baos);
-        final var e =
-                assertThrows(PreCheckException.class, () -> validateX509Certificate(Bytes.wrap(baos.toByteArray())));
+        final var e = assertThrows(PreCheckException.class, () -> parseX509Certificate(Bytes.wrap(baos.toByteArray())));
         assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, e.responseCode());
     }
 
