@@ -24,6 +24,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
@@ -43,7 +44,7 @@ public class ReconnectCoordinator {
     }
 
     /**
-     * //     * @see StatusStateMachine#submitStatusAction
+     * @see StatusMonitorModule#platformStatusActionInputWire()
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
         buildingBlocks.statusMonitorModule().platformStatusActionInputWire().put(action);

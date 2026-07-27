@@ -15,7 +15,6 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
@@ -26,7 +25,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.PcesReplayProgress;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * No-op implementation of the {@link PcesModule}.
@@ -55,8 +54,7 @@ public class NoopPcesModule implements PcesModule {
             final long startingRound,
             @NonNull final Runnable flushPrimaryPipeline,
             @NonNull final Supplier<PcesReplayProgress> replayProgressSupplier,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable platformStatusFlusher,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Runnable signalEndOfPcesReplay,
             @Nullable final EventPipelineTracker pipelineTracker) {
         requireNonNull(model);
@@ -66,8 +64,7 @@ public class NoopPcesModule implements PcesModule {
         requireNonNull(recycleBin);
         requireNonNull(flushPrimaryPipeline);
         requireNonNull(replayProgressSupplier);
-        requireNonNull(platformStatusFlusher);
-        requireNonNull(statusActionConsumer);
+        requireNonNull(statusMonitorModule);
         requireNonNull(signalEndOfPcesReplay);
 
         final var scheduler = model.<PlatformEvent>schedulerBuilder("InlinePcesWriter")

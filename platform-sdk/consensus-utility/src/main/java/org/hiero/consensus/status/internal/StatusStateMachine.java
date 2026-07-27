@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.status;
+package org.hiero.consensus.status.internal;
 
 import static com.swirlds.base.units.TimeUnit.UNIT_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.status.IllegalPlatformStatusException;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.logic.PlatformStatusLogic;
 import org.hiero.consensus.status.logic.StartingUpStatusLogic;
