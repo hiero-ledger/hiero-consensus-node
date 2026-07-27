@@ -88,8 +88,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             future = blockingIoExecutor.submit(new CreateClientTask());
             future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
-            logger.warn("{} Error initializing connection", this, e);
-
             if (future != null) {
                 future.cancel(true);
             }

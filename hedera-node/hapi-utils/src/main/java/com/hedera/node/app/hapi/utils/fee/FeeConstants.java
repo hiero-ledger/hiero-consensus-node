@@ -7,6 +7,7 @@ import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Transaction;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -17,6 +18,8 @@ import java.util.List;
  */
 public final class FeeConstants {
     public static final long MAX_ENTITY_LIFETIME = 100L * 365L * 24L * 60L * 60L;
+
+    public static final BigDecimal USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
 
     public static final int LONG_SIZE = 8;
     public static final int FEE_MATRICES_CONST = 1;
@@ -120,6 +123,21 @@ public final class FeeConstants {
      */
     public static long getTinybarsFromTinyCents(final ExchangeRate exchangeRate, final long tinyCentsFee) {
         return getAFromB(tinyCentsFee, exchangeRate.getHbarEquiv(), exchangeRate.getCentEquiv());
+    }
+
+    /**
+     * Convert tinycents to tinybars, falling back to BigInteger math when the product would overflow.
+     *
+     * @param amount the amount in tinycents
+     * @param rate the exchange rate
+     * @return the amount in tinybars
+     */
+    public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
+        final var hbarEquiv = rate.getHbarEquiv();
+        if (CommonUtils.productWouldOverflow(amount, hbarEquiv)) {
+            return getTinybarsFromTinyCents(rate, amount);
+        }
+        return amount * hbarEquiv / rate.getCentEquiv();
     }
 
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {

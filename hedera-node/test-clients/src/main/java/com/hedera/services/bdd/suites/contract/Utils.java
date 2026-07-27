@@ -27,7 +27,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookCall;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -58,6 +57,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -621,6 +621,13 @@ public class Utils {
                 .build());
     }
 
+    /** Canonical USD prices formerly loaded from the legacy {@code canonical-prices.json}. */
+    private static final Map<HederaFunctionality, Map<SubType, BigDecimal>> CANONICAL_USD_PRICES = Map.of(
+            HederaFunctionality.TokenMint,
+            Map.of(
+                    SubType.TOKEN_FUNGIBLE_COMMON, new BigDecimal("0.001"),
+                    SubType.TOKEN_NON_FUNGIBLE_UNIQUE, new BigDecimal("0.02")));
+
     public static long expectedPrecompileGasFor(
             final HapiSpec spec, final HederaFunctionality function, final SubType type) {
         final var gasThousandthsOfTinycentPrice = spec.fees()
@@ -629,13 +636,7 @@ public class Utils {
                 .get(DEFAULT)
                 .getServicedata()
                 .getGas();
-        final var assetsLoader = new AssetsLoader();
-        final BigDecimal hapiUsdPrice;
-        try {
-            hapiUsdPrice = assetsLoader.loadCanonicalPrices().get(function).get(type);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final BigDecimal hapiUsdPrice = CANONICAL_USD_PRICES.get(function).get(type);
         final var precompileTinycentPrice = hapiUsdPrice
                 .multiply(BigDecimal.valueOf(1.2))
                 .multiply(BigDecimal.valueOf(100 * 100_000_000L))

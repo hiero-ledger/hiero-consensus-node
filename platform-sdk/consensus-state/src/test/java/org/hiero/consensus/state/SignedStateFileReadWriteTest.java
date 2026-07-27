@@ -2,7 +2,7 @@
 package org.hiero.consensus.state;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Bytes;
-import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
+import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
 import static org.hiero.consensus.state.SignedStateFileReader.readState;
@@ -29,7 +29,6 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -146,9 +145,9 @@ class SignedStateFileReadWriteTest {
                 readState(testDirectory, configuration, stateLifecycleManager);
         hashState(deserializedSignedState.reservedSignedState().get());
 
-        final VirtualMapMetadata originalMetadata =
+        final VirtualMap.Metadata originalMetadata =
                 signedState.getState().getRoot().getMetadata();
-        final VirtualMapMetadata loadedMetadata = deserializedSignedState
+        final VirtualMap.Metadata loadedMetadata = deserializedSignedState
                 .reservedSignedState()
                 .get()
                 .getState()

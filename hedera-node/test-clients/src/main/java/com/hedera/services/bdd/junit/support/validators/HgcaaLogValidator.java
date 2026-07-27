@@ -104,6 +104,7 @@ public class HgcaaLogValidator {
                 List.of("Block node", "reported it is behind. Will start streaming block"),
                 List.of("BlockNodeConnectionManager", "Block stream worker interrupted"),
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
+                List.of("TraceDataSizeLimiter", "Clearing contract trace data"),
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"),
@@ -115,7 +116,8 @@ public class HgcaaLogValidator {
                 List.of("WRAPS proving key download failed"),
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
-                List.of("Failed to initiate async download of WRAPS proving key (from URL "));
+                List.of("Failed to initiate async download of WRAPS proving key (from URL "),
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

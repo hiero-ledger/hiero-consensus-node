@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.pcli {
+    exports org.hiero.consensus.pcli.graph;
     exports org.hiero.consensus.pcli.utility;
     exports org.hiero.consensus.pcli;
 

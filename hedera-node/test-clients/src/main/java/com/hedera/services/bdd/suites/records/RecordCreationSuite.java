@@ -33,7 +33,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_B
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -58,6 +57,9 @@ import org.junit.jupiter.api.Tag;
 @Tag(SERIAL)
 @HapiTestLifecycle
 public class RecordCreationSuite {
+    /** Expected fee components in tinybars, formerly the hapi-utils {@code FeeObject}. */
+    private record FeeObject(long nodeFee, long networkFee, long serviceFee) {}
+
     private static final String FOR_ACCOUNT_FUNDING = "98";
     private static final String FOR_ACCOUNT_STAKING_REWARDS = "800";
     private static final String FOR_ACCOUNT_NODE_REWARD = "801";
@@ -87,7 +89,6 @@ public class RecordCreationSuite {
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                         .memo(comfortingMemo)
-                        .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
                 sourcing(() -> {
                     feeObs.set(new FeeObject(16666, 150000, 0));
@@ -219,7 +220,6 @@ public class RecordCreationSuite {
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                         .memo(comfortingMemo)
-                        .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
                 sourcing(() -> {

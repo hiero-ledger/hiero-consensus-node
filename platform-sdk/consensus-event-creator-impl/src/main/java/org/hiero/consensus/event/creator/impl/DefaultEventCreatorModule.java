@@ -164,6 +164,14 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
         throw new UnsupportedOperationException("Shutdown mechanism not implemented yet");
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void flush() {
+        requireNonNull(eventCreationManagerWiring, "Not initialized").flush();
+    }
+
     // *****************************************************************
     // Temporary workaround to allow reuse of the EventCreator component
     // *****************************************************************
@@ -174,14 +182,6 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @Override
     public void startSquelching() {
         requireNonNull(eventCreationManagerWiring, "Not initialized").startSquelching();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void flush() {
-        requireNonNull(eventCreationManagerWiring, "Not initialized").flush();
     }
 
     /**

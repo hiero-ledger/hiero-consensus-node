@@ -14,12 +14,12 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires com.swirlds.metrics.api;
+    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
-    requires org.hiero.base.concurrent;
+    requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
-    requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;

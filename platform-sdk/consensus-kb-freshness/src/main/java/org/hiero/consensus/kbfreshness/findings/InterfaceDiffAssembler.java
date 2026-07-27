@@ -13,7 +13,7 @@ import org.hiero.consensus.kbfreshness.model.Occurrence;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
 import org.hiero.consensus.kbfreshness.resolve.SourceIndex;
-import org.hiero.consensus.kbfreshness.util.Hashing;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Tier-2 interface method-set diff. For an {@code architecture/interfaces/*} entry that declares its
@@ -58,6 +58,19 @@ public final class InterfaceDiffAssembler {
     }
 
     /**
+     * Whether an interface entry opts into the Tier-2 method-set diff by declaring both its subject source
+     * ({@code interface:}) and the documented method names ({@code methods:}). Entries that do not opt in
+     * are never mechanically diffed (they surface in the coverage lane instead).
+     *
+     * @param doc a KB document (expected to be an {@code architecture/interfaces/*} entry).
+     * @return {@code true} when the entry declares both {@code interface:} and a non-empty {@code methods:}.
+     */
+    public static boolean optsIntoTier2(final KbDocument doc) {
+        return doc.frontmatter().scalar("interface") != null
+                && !doc.frontmatter().list("methods").isEmpty();
+    }
+
+    /**
      * Diffs one interface entry, or returns empty when it lacks the {@code interface:}/{@code methods:}
      * convention or the interface cannot be resolved.
      *
@@ -65,18 +78,18 @@ public final class InterfaceDiffAssembler {
      * @return the diff findings for the entry.
      */
     private List<Finding> diff(final KbDocument doc) {
-        final String ifacePath = doc.frontmatter().scalar("interface");
-        final List<String> documented = doc.frontmatter().list("methods");
-        if (ifacePath == null || documented.isEmpty()) {
+        if (!optsIntoTier2(doc)) {
             return List.of();
         }
+        final String ifacePath = doc.frontmatter().scalar("interface");
+        final List<String> documented = doc.frontmatter().list("methods");
         final String repoRel = "platform-sdk/" + ifacePath.strip().replace('\\', '/');
-        final String className = classNameOf(repoRel);
-        final String module = moduleOf(repoRel);
+        final String className = RepoPaths.classNameOfPath(repoRel);
+        final String module = RepoPaths.moduleOf(repoRel);
 
         String resolvedPath = null;
         for (final String p : index.pathsForBasename(className + ".java")) {
-            if (module == null || module.equals(moduleOf(p))) {
+            if (module == null || module.equals(RepoPaths.moduleOf(p))) {
                 resolvedPath = p;
                 break;
             }
@@ -142,12 +155,8 @@ public final class InterfaceDiffAssembler {
             final Lane lane,
             final String evidence,
             final int docLine) {
-        final String id = Hashing.id(doc.entry().key(), method, AnchorKind.INTERFACE_METHOD.name());
-        return new Finding(
-                id,
-                doc.entry().key(),
-                doc.entry().relativePath(),
-                doc.entry().type(),
+        return Finding.of(
+                doc.entry(),
                 AnchorKind.INTERFACE_METHOD,
                 method,
                 null,
@@ -156,36 +165,6 @@ public final class InterfaceDiffAssembler {
                 lane,
                 "interface `" + className + "` declares method `" + method + "`",
                 evidence,
-                List.of(new Occurrence(docLine, Anchor.NO_LINE, method)),
-                null);
-    }
-
-    /**
-     * The module segment of a repo-relative source path (the segment before {@code src}).
-     *
-     * @param repoRelPath a repo-relative source path.
-     * @return the module name, or {@code null} if none.
-     */
-    private static String moduleOf(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 1; i < parts.length; i++) {
-            if (parts[i].equals("src")) {
-                return parts[i - 1];
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The simple class name implied by a source path's file name.
-     *
-     * @param path a source path.
-     * @return the class name (file name without extension).
-     */
-    private static String classNameOf(final String path) {
-        final int slash = path.lastIndexOf('/');
-        final String name = slash >= 0 ? path.substring(slash + 1) : path;
-        final int dot = name.indexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
+                List.of(new Occurrence(docLine, Anchor.NO_LINE, method)));
     }
 }

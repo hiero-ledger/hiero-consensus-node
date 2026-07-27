@@ -7,9 +7,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.*;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * Builder for creating {@link GeneratorEventGraphSource} instances with optional parameters.
@@ -27,7 +28,7 @@ public class GeneratorEventGraphSourceBuilder {
     private RosterWithKeys rosterWithKeys;
     private Integer numNodes;
     private boolean realSignatures = false;
-    private boolean populateSequenceNumber = false;
+    private boolean populateNgen = false;
 
     /**
      * Creates a new builder instance.
@@ -137,13 +138,13 @@ public class GeneratorEventGraphSourceBuilder {
     }
 
     /**
-     * Sets whether to populate sequence numbers on generated events.
+     * Sets whether to populate ngen values on generated events.
      *
-     * @param populateSequenceNumber {@code true} to populate sequence numbers, {@code false} otherwise
+     * @param populateNgen {@code true} to populate ngen values, {@code false} otherwise
      * @return this builder
      */
-    public GeneratorEventGraphSourceBuilder populateSequenceNumber(final boolean populateSequenceNumber) {
-        this.populateSequenceNumber = populateSequenceNumber;
+    public GeneratorEventGraphSourceBuilder populateNgen(final boolean populateNgen) {
+        this.populateNgen = populateNgen;
         return this;
     }
 
@@ -175,30 +176,17 @@ public class GeneratorEventGraphSourceBuilder {
         if (realSignatures) {
             final RosterWithKeys rosterWithKeys = this.rosterWithKeys != null
                     ? this.rosterWithKeys
-                    : RandomRosterBuilder.create(Randotron.create(getSeed()))
-                            .withSize(nodeCount)
-                            .withRealKeysEnabled(true)
-                            .buildWithKeys();
+                    : RosterFactory.randomRosterWithKeys(
+                            Randotron.create(getSeed()), nodeCount, WeightGenerators.GAUSSIAN);
             signer = new RealEventSigner(rosterWithKeys);
             actualRoster = rosterWithKeys.getRoster();
         } else {
             signer = new RandomEventSigner(getSeed());
-            actualRoster = roster != null
-                    ? roster
-                    : RandomRosterBuilder.create(Randotron.create(getSeed()))
-                            .withSize(nodeCount)
-                            .withRealKeysEnabled(false)
-                            .build();
+            actualRoster = roster != null ? roster : RosterFactory.randomRoster(Randotron.create(getSeed()), nodeCount);
         }
 
         return new GeneratorEventGraphSource(
-                getConfiguration(),
-                getTime(),
-                getSeed(),
-                getMaxOtherParents(),
-                actualRoster,
-                signer,
-                populateSequenceNumber);
+                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer, populateNgen);
     }
 
     private Configuration getConfiguration() {

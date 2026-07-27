@@ -12,6 +12,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -76,7 +78,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Provides access to the state
      */
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     /**
      * Creates a new instance.
@@ -98,7 +100,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
         this.fileSystemManager = requireNonNull(fileSystemManager);
         this.time = requireNonNull(time);
@@ -319,7 +321,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         }
 
         if (index < 0) {
-            return EventConstants.BIRTH_ROUND_UNDEFINED;
+            return EventConstants.GENERATION_UNDEFINED;
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
         return oldestStateMetadata.minimumBirthRoundNonAncient();

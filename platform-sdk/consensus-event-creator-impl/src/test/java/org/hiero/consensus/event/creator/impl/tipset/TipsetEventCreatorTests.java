@@ -2,7 +2,7 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignSeqNumAndDistributeEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
@@ -10,7 +10,6 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
-import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -31,13 +30,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
 import org.hiero.junit.extensions.ParameterCombinationExtension;
@@ -49,8 +50,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @DisplayName("TipsetEventCreatorImpl Tests")
 class TipsetEventCreatorTests {
 
-    private static final long FIRST_SEQUENCE_NUMBER = 1;
-
     /**
      * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
      * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in the roster in order. For
@@ -58,7 +57,7 @@ class TipsetEventCreatorTests {
      * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
      * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
      * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
-     * birthround at the time the event is being created.
+     * birthround or a generation at the time the event is being created.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
      */
@@ -77,8 +76,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -104,7 +102,7 @@ class TipsetEventCreatorTests {
                 // In this test, it should be impossible for a node to be unable to create an event.
                 assertNotNull(event);
 
-                assignSeqNumAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
@@ -119,7 +117,7 @@ class TipsetEventCreatorTests {
      * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
      * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
      * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
-     * birthround at the time the event is being created.
+     * birthround or a generation at the time the event is being created.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
      * @param random         {@link RandomUtils#getRandomPrintSeed()}
@@ -142,8 +140,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -179,7 +176,7 @@ class TipsetEventCreatorTests {
                 }
                 atLeastOneEventCreated = true;
 
-                assignSeqNumAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
@@ -190,9 +187,9 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test simulates bug in Orphan Buffer, which resets sequence number to 1 for events in case node has almost fallen behind.
+     * This test simulates bug in Orphan Buffer, which resets NGen to 1 for events in case node has almost fallen behind.
      * This in turn invoked the bug in event creator, which was picking the event due to selfishness reasons, but
-     * was not considering it as advancing weight (due to sequence number being smaller than last used event), leading to
+     * was not considering it as advancing weight (due to NGen being smaller than last used event), leading to
      * not creating the event (and writing scary warnings)
      * In the fixed code, when this situation happens, we fall back to using other eligible events, without focusing
      * on reducing selfishness.
@@ -205,18 +202,14 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Tipset failure due to reset sequence number")
+    @DisplayName("Tipset failure due to reset NGEN")
     void tipsetFailureTest(@ParamName("random") final Random random) {
 
         for (int loop = 0; loop < 10; loop++) {
 
             final int networkSize = 4;
 
-            final Roster roster = RandomRosterBuilder.create(random)
-                    .withMinimumWeight(1)
-                    .withMaximumWeight(1)
-                    .withSize(networkSize)
-                    .build();
+            final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
             final FakeTime time = new FakeTime();
 
@@ -287,9 +280,9 @@ class TipsetEventCreatorTests {
             eventCreator.registerEvent(eventBToExpire);
             eventCreator.setEventWindow(new EventWindow(106, 107, 90, 60));
 
-            // and here we insert 'broken' event, which comes from bug in Orphan buffer, with reset sequence number
-            final PlatformEvent eventBbrokenSeqNum = createTestEventWithParent(random, nodeB, 1, 107, previousD);
-            eventCreator.registerEvent(eventBbrokenSeqNum);
+            // and here we insert 'broken' event, which comes from bug in Orphan buffer, with reset nGen
+            final PlatformEvent eventBbrokenNGen = createTestEventWithParent(random, nodeB, 1, 107, previousD);
+            eventCreator.registerEvent(eventBbrokenNGen);
 
             // and an useful event, which can be used to advance weight
             final PlatformEvent eventCValid = createTestEventWithParent(random, nodeC, 400, 107, previousD);
@@ -329,8 +322,7 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 4;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final FakeTime time = new FakeTime();
         final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
@@ -352,7 +344,7 @@ class TipsetEventCreatorTests {
                 if (event == null) {
                     continue;
                 }
-                assignSeqNumAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
                 if (nodeId.equals(reconnectingId)) {
                     latestSelfEvent = event;
                 }
@@ -381,7 +373,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier.set(generateRandomTransactions(random));
                 final PlatformEvent event = nodes.get(nodeId).eventCreator().maybeCreateEvent();
                 if (event != null) {
-                    assignSeqNumAndDistributeEvent(nodes, events, event);
+                    assignNGenAndDistributeEvent(nodes, events, event);
                 }
             }
         }
@@ -418,8 +410,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -453,7 +444,7 @@ class TipsetEventCreatorTests {
                         break;
                     }
 
-                    assignSeqNumAndDistributeEvent(nodes, events, event);
+                    assignNGenAndDistributeEvent(nodes, events, event);
 
                     validateNewEventAndMaybeAdvanceCreatorScore(
                             events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
@@ -490,8 +481,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -539,7 +529,7 @@ class TipsetEventCreatorTests {
                 }
                 atLeastOneEventCreated = true;
 
-                assignSeqNumAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, breakQuiescence);
@@ -570,7 +560,7 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
-        Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
+        Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final NodeId zeroWeightNode =
                 NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -634,7 +624,7 @@ class TipsetEventCreatorTests {
                     zeroWeightNodeOtherParentCount++;
                 }
 
-                assignSeqNumAndDistributeEvent(nodes, allEvents, newEvent);
+                assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false, false);
@@ -675,7 +665,7 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
-        Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
+        Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final NodeId zeroWeightNode =
                 NodeId.of(roster.rosterEntries().getFirst().nodeId());
@@ -746,7 +736,7 @@ class TipsetEventCreatorTests {
                             distributeEvent(nodes, slowEvent);
                         }
                         slowNodeEvents.clear();
-                        assignSeqNumAndDistributeEvent(nodes, allEvents, newEvent);
+                        assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                     } else {
                         // Most of the time, we don't immediately distribute the slow events.
                         registerEvent(nodes.get(nodeId), allEvents, newEvent);
@@ -758,7 +748,7 @@ class TipsetEventCreatorTests {
                     }
                 } else {
                     // immediately distribute all events not created by the zero stake node
-                    assignSeqNumAndDistributeEvent(nodes, allEvents, newEvent);
+                    assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                 }
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
@@ -800,8 +790,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 1;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -828,7 +817,7 @@ class TipsetEventCreatorTests {
             // In this test, it should be impossible for a node to be unable to create an event.
             assertNotNull(newEvent);
 
-            assignSeqNumAndDistributeEvent(nodes, events, newEvent);
+            assignNGenAndDistributeEvent(nodes, events, newEvent);
         }
     }
 
@@ -852,11 +841,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -872,9 +857,12 @@ class TipsetEventCreatorTests {
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEventWithParent(random, nodeB, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
-        final PlatformEvent eventC1 = createTestEventWithParent(random, nodeC, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
-        final PlatformEvent eventD1 = createTestEventWithParent(random, nodeD, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
+        final PlatformEvent eventB1 =
+                createTestEventWithParent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventC1 =
+                createTestEventWithParent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventD1 =
+                createTestEventWithParent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -934,11 +922,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -958,10 +942,14 @@ class TipsetEventCreatorTests {
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEventWithParent(random, nodeB, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
-        final PlatformEvent eventC1 = createTestEventWithParent(random, nodeC, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
-        final PlatformEvent eventD1 = createTestEventWithParent(random, nodeD, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
-        final PlatformEvent eventE1 = createTestEventWithParent(random, nodeE, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
+        final PlatformEvent eventB1 =
+                createTestEventWithParent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventC1 =
+                createTestEventWithParent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventD1 =
+                createTestEventWithParent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventE1 =
+                createTestEventWithParent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -1007,11 +995,7 @@ class TipsetEventCreatorTests {
     void noStaleEventsAtCreationTimeTest(@ParamName("random") final Random random) {
         final int networkSize = 4;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -1052,8 +1036,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -1089,7 +1072,7 @@ class TipsetEventCreatorTests {
                 // In this test, it should be impossible for a node to be unable to create an event.
                 assertNotNull(event);
 
-                assignSeqNumAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 if (eventIndex == 0) {
                     final long birthRound = event.getEventCore().birthRound();
@@ -1104,7 +1087,7 @@ class TipsetEventCreatorTests {
 
     /**
      * During PCES replay, the node will learn of self events it created in the past. This test creates a single node
-     * network, sends the event creator self events (with sequence number values assigned), then creates a new event. The new event
+     * network, sends the event creator self events (with nGen values assigned), then creates a new event. The new event
      * should have the proper self parent.
      */
     @TestTemplate
@@ -1115,12 +1098,11 @@ class TipsetEventCreatorTests {
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
-    @DisplayName("Self event with highest sequence number is used as latest self event on startup")
+    @DisplayName("Self event with highest nGen is used as latest self event on startup")
     void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
@@ -1129,12 +1111,11 @@ class TipsetEventCreatorTests {
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
-        PlatformEvent eventWithHighestSequenceNumber = null;
+        PlatformEvent eventWithHighestNGen = null;
         for (int i = 0; i < numEvents; i++) {
             final PlatformEvent event = createTestEventWithParent(random, selfId, i + 1, ROUND_FIRST);
-            if (eventWithHighestSequenceNumber == null
-                    || event.getSequenceNumber() > eventWithHighestSequenceNumber.getSequenceNumber()) {
-                eventWithHighestSequenceNumber = event;
+            if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
+                eventWithHighestNGen = event;
             }
             pcesEvents.add(event);
         }
@@ -1143,12 +1124,12 @@ class TipsetEventCreatorTests {
         Collections.shuffle(pcesEvents, random);
         pcesEvents.forEach(eventCreator::registerEvent);
 
-        // Verify that the new event created uses a self parent that is the event with the highest sequence number.
-        // This new event should not have an sequence number assigned.
+        // Verify that the new event created uses a self parent that is the event with the highest nGen.
+        // This new event should not have an nGen assigned.
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(eventWithHighestSequenceNumber.getDescriptor(), newEvent.getSelfParent());
-        assertEquals(SEQUENCE_NUMBER_UNDEFINED, newEvent.getSequenceNumber());
+        assertEquals(eventWithHighestNGen.getDescriptor(), newEvent.getSelfParent());
+        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
     }
 
     /**
@@ -1169,8 +1150,7 @@ class TipsetEventCreatorTests {
     void lastSelfEventNotOverwritten(@ParamName("random") final Random random) {
 
         final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
@@ -1180,22 +1160,70 @@ class TipsetEventCreatorTests {
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(SEQUENCE_NUMBER_UNDEFINED, newEvent.getSequenceNumber());
+        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
 
-        // Create a self event with an sequence number value set and register it with the event creator. This can happen
+        // Create a self event with an nGen value set and register it with the event creator. This can happen
         // if we are forced to reconnect and learn of an event we created a long time ago after we started creating
         // the events. This is a branch, but not necessarily an intentional branch. This old event should be discarded
         // because we want to favor any self event last created by the event creator even though it does not have an
-        // sequence number set.
+        // nGen set.
         final PlatformEvent oldSelfEvent =
-                createTestEventWithParent(random, selfId, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
+                createTestEventWithParent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         eventCreator.registerEvent(oldSelfEvent);
 
         // Now create another event and check that the self parent is the expected event.
         final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
-        assertEquals(SEQUENCE_NUMBER_UNDEFINED, newEvent2.getSequenceNumber());
+        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
+    }
+
+    /**
+     * When the event creator learns of a self event, it only adopts it as the latest self event if the event is
+     * actually higher in the hashgraph. Height is measured by nGen, not by sequence number: a sequence number is
+     * assigned in the order events are received and says nothing about a self event's position in the graph. This test
+     * registers a self event with a high nGen, then a second self event that is received later - and therefore has a
+     * higher, auto-assigned sequence number - but a lower nGen. The creator must keep the higher-nGen event as its self
+     * parent and ignore the later, lower-nGen one. Under the previous sequence-number comparison the later event would
+     * have wrongly replaced it.
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Latest self event is chosen by nGen, not sequence number")
+    void lastSelfEventChosenByNGenNotSequenceNumber(@ParamName("random") final Random random) {
+        final int networkSize = 1;
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+        // Register a self event with a high nGen. With no prior self event, it becomes the latest self event.
+        final PlatformEvent highNGenEvent = createTestEventWithParent(random, selfId, 10, ROUND_FIRST);
+        eventCreator.registerEvent(highNGenEvent);
+
+        // Register a self event created later - and therefore with a higher, auto-assigned sequence number - but with a
+        // lower nGen. Because it is lower in the graph, it must not replace the higher-nGen event.
+        final PlatformEvent lowNGenEvent = createTestEventWithParent(random, selfId, 5, ROUND_FIRST);
+        assertTrue(
+                lowNGenEvent.getSequenceNumber() > highNGenEvent.getSequenceNumber(),
+                "the later event must have a higher sequence number for this test to be meaningful");
+        eventCreator.registerEvent(lowNGenEvent);
+
+        // The new event must build on the higher-nGen self event, not the later, lower-nGen one.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(highNGenEvent.getDescriptor(), newEvent.getSelfParent());
     }
 
     /**
@@ -1216,8 +1244,7 @@ class TipsetEventCreatorTests {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = random.nextInt(1, 100);
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
@@ -1247,8 +1274,7 @@ class TipsetEventCreatorTests {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = random.nextInt(1, 100);
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
@@ -1278,11 +1304,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 100;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -1298,7 +1320,8 @@ class TipsetEventCreatorTests {
 
         for (int i = 1; i < networkSize; i++) {
             final NodeId nodeX = NodeId.of(roster.rosterEntries().get(i).nodeId());
-            final PlatformEvent event = createTestEventWithParent(random, nodeX, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
+            final PlatformEvent event =
+                    createTestEventWithParent(random, nodeX, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
             eventCreator.registerEvent(event);
         }
 
@@ -1328,11 +1351,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 5;
 
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withMinimumWeight(1)
-                .withMaximumWeight(1)
-                .withSize(networkSize)
-                .build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
@@ -1348,7 +1367,8 @@ class TipsetEventCreatorTests {
 
         for (int i = 1; i < networkSize; i++) {
             final NodeId nodeX = NodeId.of(roster.rosterEntries().get(i).nodeId());
-            final PlatformEvent event = createTestEventWithParent(random, nodeX, FIRST_SEQUENCE_NUMBER, ROUND_FIRST);
+            final PlatformEvent event =
+                    createTestEventWithParent(random, nodeX, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
             eventCreator.registerEvent(event);
         }
 
