@@ -106,11 +106,12 @@ public final class KeyUtils {
     }
 
     /**
-     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 encrypted private key.
+     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 private key.
+     * Both encrypted and unencrypted keys are supported.
      * @param in the input stream containing the PEM-encoded private key
-     * @param passphrase the passphrase used to decrypt the private key
+     * @param passphrase the passphrase used to decrypt the private key. Ignored in unencrypted case.
      * @param pemKeyProvider the provider to use for PEM key conversion
-     * @return the decrypted private key
+     * @return the private key (decrypted if relevant)
      * @param <T> the type of the private key, extending {@link PrivateKey}
      */
     public static <T extends PrivateKey> T readKeyFrom(
