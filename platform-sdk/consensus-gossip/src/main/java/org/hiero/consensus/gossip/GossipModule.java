@@ -150,9 +150,13 @@ public interface GossipModule {
     InputWire<NoInput> resumeInputWire();
 
     /**
-     * Starts gossiping.
+     * {@link InputWire} for control signals to start gossiping.
+     *
+     * @return the {@link InputWire} for start signals
      */
-    void start();
+    @InputWireLabel("start")
+    @NonNull
+    InputWire<NoInput> startInputWire();
 
     /**
      * Flushes the gossip module.

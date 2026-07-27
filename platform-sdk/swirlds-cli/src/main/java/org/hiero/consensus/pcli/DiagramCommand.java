@@ -30,7 +30,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.monitor.StatusMonitorModule;
-import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -43,6 +42,7 @@ import java.util.Set;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
+import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -209,9 +209,10 @@ public final class DiagramCommand extends AbstractCommand {
                 null,
                 null,
                 null,
+                null,
                 null);
 
-        PlatformWiring.wire(inputs, buildingBlocks);
+        ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

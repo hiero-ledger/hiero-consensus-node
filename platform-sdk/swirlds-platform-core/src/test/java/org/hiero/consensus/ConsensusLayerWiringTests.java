@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.wiring;
+package org.hiero.consensus;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
@@ -33,8 +33,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
@@ -55,9 +53,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Unit tests for {@link PlatformWiring}
+ * Unit tests for {@link ConsensusLayerWiring}
  */
-class PlatformWiringTests {
+class ConsensusLayerWiringTests {
 
     @TempDir
     static Path tmpDir;
@@ -148,8 +146,9 @@ class PlatformWiringTests {
                 null,
                 null,
                 null,
+                null,
                 null);
-        PlatformWiring.wire(inputs, buildingBlocks);
+        ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         eventWindowManagerWiring.bind(mock(EventWindowManager.class));
         eventStreamWiring.bind(mock(ConsensusEventStream.class));
