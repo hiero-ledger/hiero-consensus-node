@@ -20,8 +20,8 @@ produced by a given consensus node in an ordered manner.
 - Tracks which blocks are currently being produced and what the latest (or highest) block acknowledged by the block node.
 - Provides an interface for access any block that is held in the buffer.
 - Regularly prunes the buffer to reclaim memory by removing acknowledged blocks once they fall outside the soft
-  retention floor (`blockStream.buffer.minAckedBlocksToBuffer`), with the hard `blockStream.buffer.maxBlocks`
-  ceiling always taking precedence when unacknowledged blocks push the buffer toward capacity.
+  retention floor (`blockStream.buffer.minAckedBlocksToBuffer`), with the hard `blockStream.buffer.maxBlocks` and
+  `blockStream.buffer.maxBytes` ceilings always taking precedence when unacknowledged blocks push the buffer toward capacity.
 - Monitors the buffer for saturation (i.e. too many blocks unacknowledged) and applies back pressure if necessary.
 - Persists the buffer to disk for recovery purposes (only when `streamMode` is `BLOCKS`).
 
@@ -44,8 +44,9 @@ produced by a given consensus node in an ordered manner.
 ## Backpressure Mechanism
 
 The block stream system implements a backpressure mechanism to ensure that block nodes keep pace with the incoming block stream.
-If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production and transaction handling on the consensus node.
-This ensures system stability and prevents the accumulation of unacknowledged blocks in the stream buffer.
+If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production 
+and transaction handling on the consensus node. This ensures system stability and prevents the accumulation of 
+unacknowledged blocks in the stream buffer.
 
 ### Buffer Management
 
@@ -53,8 +54,8 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 
 - Each block state contains the block items for a specific block number.
 - The buffer tracks acknowledgment status as a single high watermark.
-- Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
-- A periodic pruning mechanism removes acknowledged and expired entries.
+- Entries remain in the buffer until acknowledged.
+- A periodic pruning mechanism removes acknowledged entries.
 - When backpressure is enabled, pruning also enforces a soft retention floor configured by
   `blockStream.buffer.minAckedBlocksToBuffer` (default `10`): at least this many of the most recent acknowledged
   blocks are retained (those above `highestBlockAcked - minAckedBlocksToBuffer`); older acknowledged blocks are
@@ -63,6 +64,10 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
   The soft limit is overridden by `maxBlocks` when the buffer is dominated by unacknowledged blocks — under that
   pressure, acknowledged blocks within the floor may still be evicted to make room.
 - The buffer size is monitored to apply backpressure when needed.
+
+There are two capacity limits involved: max number of blocks and the max number of bytes consumed by the buffer.
+When pruning the buffer, if the count of unacknowledged blocks OR the total size of the unacknowledged blocks exceeds
+the max blocks allowed or max bytes allowed, respectively, then back pressure will be engaged.
 
 ### Buffer State
 

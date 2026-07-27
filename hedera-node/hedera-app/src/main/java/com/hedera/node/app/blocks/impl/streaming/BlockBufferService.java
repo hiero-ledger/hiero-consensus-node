@@ -55,6 +55,8 @@ public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
     private static final Duration DEFAULT_WORKER_INTERVAL = Duration.ofSeconds(1);
     private static final int DEFAULT_BUFFER_SIZE = 150;
+    private static final long DEFAULT_BUFFER_BYTES = 15L * BlockStreamingUtils.GB_TO_BYTES; // 15 GB
+    private static final long MIN_BUFFER_BYTES = 10L * BlockStreamingUtils.MB_TO_BYTES; // 10 MB
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
@@ -141,6 +143,7 @@ public class BlockBufferService {
      * data to a block node or persisting on disk.
      */
     private final LongAdder bufferSizeInBytes = new LongAdder();
+    private final AtomicReference<BufferMaxBytes> bufferMaxBytesRef = new AtomicReference<>(new BufferMaxBytes("*", -1L));
 
     /**
      * Creates a new BlockBufferService with the given configuration.
@@ -263,6 +266,32 @@ public class BlockBufferService {
     private int maxBufferedBlocks() {
         final int maxBufferedBlocks = bufferConfig().maxBlocks();
         return maxBufferedBlocks <= 0 ? DEFAULT_BUFFER_SIZE : maxBufferedBlocks;
+    }
+
+    private long maxBufferedBytes() {
+        final String rawMaxBytes = bufferConfig().maxBytes();
+        final BufferMaxBytes maxBytes = bufferMaxBytesRef.get();
+
+        if (maxBytes.raw.equals(rawMaxBytes)) {
+            // config is unchanged, no need to parse the config value
+            return maxBytes.bytes;
+        }
+
+        if (rawMaxBytes == null || rawMaxBytes.isBlank()) {
+            return DEFAULT_BUFFER_BYTES;
+        }
+
+        final long bytes = BlockStreamingUtils.parseToBytes(rawMaxBytes);
+        if (bytes < 0) {
+            logger.warn("Invalid max buffer size in bytes (input: {}); defaulting to {} bytes", rawMaxBytes, DEFAULT_BUFFER_BYTES);
+            bufferMaxBytesRef.compareAndSet(maxBytes, new BufferMaxBytes(rawMaxBytes, DEFAULT_BUFFER_BYTES));
+        } else if (bytes < MIN_BUFFER_BYTES) {
+            logger.warn("Configured max buffer size in bytes (input: {}) is below minimum size (min: {} bytes); defaulting to {} bytes",
+                    rawMaxBytes, MIN_BUFFER_BYTES, DEFAULT_BUFFER_BYTES);
+            bufferMaxBytesRef.compareAndSet(maxBytes, new BufferMaxBytes(rawMaxBytes, DEFAULT_BUFFER_BYTES));
+        }
+
+        return bufferMaxBytesRef.get().bytes();
     }
 
     /**
@@ -1117,4 +1146,6 @@ public class BlockBufferService {
     private static String formatRange(final long start, final long end) {
         return start == end ? "(" + start + ")" : "(" + start + "-" + end + ")";
     }
+
+    private record BufferMaxBytes(String raw, long bytes) { }
 }

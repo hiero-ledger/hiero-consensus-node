@@ -12,6 +12,10 @@ import java.time.Duration;
  * Configuration settings related to the block buffer.
  *
  * @param maxBlocks the maximum number of blocks that can be buffered before the buffer is considered full
+ * @param maxBytes the maximum number of bytes that can be buffered before the buffer is considered full. This value can
+ *                 be specified either in bytes (no postfix), kilobytes (k|K), megabytes (m|M), or gigabytes (g|G) by
+ *                 appending the appropriate postfix to the value. For example, a 1 GB value may be represented as one
+ *                 of the following: 1G, 1024M, 1048576K, 1073741824. The minimum allowed size is 10 MB.
  * @param workerInterval interval to perform periodic tasks related to the block buffer (e.g. pruning and persisting
  *                       buffer to disk)
  * @param actionStageThreshold the threshold (as a percentage from 0.0 to 100.0) at which proactive measures are
@@ -40,6 +44,7 @@ import java.time.Duration;
 @ConfigData("blockStream.buffer")
 public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int maxBlocks,
+        @ConfigProperty(defaultValue = "15g") @NetworkProperty String maxBytes,
         @ConfigProperty(defaultValue = "1s") @Min(1) @NetworkProperty Duration workerInterval,
         @ConfigProperty(defaultValue = "50.0") @Min(0) @NetworkProperty double actionStageThreshold,
         @ConfigProperty(defaultValue = "20s") @Min(0) @NetworkProperty Duration actionGracePeriod,
