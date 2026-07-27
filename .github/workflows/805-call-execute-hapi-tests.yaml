@@ -281,6 +281,7 @@ jobs:
           run_subtask hapiTestCrypto
           run_subtask hapiTestCryptoEmbedded
           run_subtask hapiTestCryptoSerial
+          run_subtask hapiTestNodeStaking
           run_subtask hapiTestMiscSerial
           exit $status
 
@@ -383,7 +384,7 @@ jobs:
           run_subtask hapiTestToken
           run_subtask hapiTestTokenSerial
           run_subtask hapiTestTimeConsuming
-          run_subtask hapiTestTimeConsumingSerial
+          run_subtask hapiTestNodeStakingSerial
           exit $status
 
       - name: Publish HAPI Test (Token & Time Consuming) Reports
