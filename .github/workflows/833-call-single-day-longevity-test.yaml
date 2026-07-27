@@ -596,22 +596,19 @@ jobs:
           set +x
           set +e
 
-          echo >block_ips.txt
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
-          do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" describe pod block-node-$i-0 | grep -E '^IP:' | awk "{print \"block-node-$i-0 \"\$2}" >> block_ips.txt
-          done
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o wide | awk '{print $1" "$6}' | grep 'block-node-' | sort -n > block_ips.txt
 
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
             echo '{"nodes": [' > block-node-sources_$i.json
             grep -v "block-node-$i-0" block_ips.txt | awk '{ print "{ \"address\": \""$2"\", \"port\": 40840, \"priority\": 1 },"}' | perl -pne '~s/\n//g' | perl -pne '~s/^(.*)[,]$/$1/g' >> block-node-sources_$i.json
             echo ']}' >> block-node-sources_$i.json
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "if [ -d /opt/hiero/block-node/backfill ]; then rm -rf /opt/hiero/block-node/backfill; fi"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "if [ -d /opt/hiero/block-node/backfill ]; then cat /opt/hiero/block-node/backfill/block-node-sources.json; rm -rf /opt/hiero/block-node/backfill; fi"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c "mkdir -p /opt/hiero/block-node/backfill"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp block-node-sources_$i.json \
               block-node-${i}-0:/opt/hiero/block-node/backfill/block-node-sources.json
           done
+          exit 0
 
       - name: Temp down BlockNodes
         run: |
