@@ -25,7 +25,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,11 +37,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -64,7 +64,9 @@ import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyncPoint;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
+import org.hiero.otter.fixtures.container.proto.ThreadDumpResponse;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.container.utils.ContainerConstants;
@@ -96,6 +98,9 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
+
+    /** Backoff between retries of the unary {@code start} RPC while the channel reconnects. */
+    private static final Duration START_RETRY_BACKOFF = Duration.ofMillis(250);
 
     /** The time manager to use for this node */
     private final TimeManager timeManager;
@@ -138,6 +143,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     /** JVM arguments to add when starting up the java process */
     private final List<String> jvmArgs;
+
+    /** The self-healing client subscribed to this node's event stream; created in {@link #doStart}. */
+    private EventStreamClient eventStreamClient;
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -187,6 +195,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         nodeCommChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
+                .keepAliveTime(20, TimeUnit.SECONDS)
+                .keepAliveTimeout(10, TimeUnit.SECONDS)
+                .keepAliveWithoutCalls(true)
                 .usePlaintext()
                 .build();
 
@@ -241,43 +252,43 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         // Blocking stub for communicating with the consensus node
         nodeCommBlockingStub = NodeCommunicationServiceGrpc.newBlockingStub(nodeCommChannel);
 
-        final NodeCommunicationServiceStub stub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
-        stub.start(startRequest, new StreamObserver<>() {
-            @Override
-            public void onNext(final EventMessage value) {
-                receivedEvents.add(value);
-            }
-
-            @Override
-            public void onError(@NonNull final Throwable error) {
-                /*
-                 * After a call to killImmediately() the server forcibly closes the stream and the
-                 * client receives an INTERNAL error. This is expected and must *not* fail the test.
-                 * Only report unexpected errors that occur while the node is still running.
-                 */
-                if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
-                    final String message = String.format("gRPC error from node %s", selfId);
-                    fail(message, error);
-                }
-            }
-
-            private static boolean isExpectedError(final @NonNull Throwable error) {
-                if (error instanceof final StatusRuntimeException sre) {
-                    final Code code = sre.getStatus().getCode();
-                    return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
-                }
-                return false;
-            }
-
-            @Override
-            public void onCompleted() {
-                if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
-                    fail("Node " + selfId + " has closed the connection while running the test");
-                }
-            }
-        });
+        // Start the platform. This is a unary call and throws if the server returns an error.
+        startPlatform(startRequest, timeout);
 
         lifeCycle = RUNNING;
+
+        // Subscribe to the event stream on a self-healing client.
+        final NodeCommunicationServiceStub asyncStub = NodeCommunicationServiceGrpc.newStub(nodeCommChannel);
+        eventStreamClient =
+                new EventStreamClient(selfId, asyncStub, receivedEvents, () -> lifeCycle == RUNNING, this::isAlive);
+        eventStreamClient.start();
+    }
+
+    /**
+     * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the
+     * start budget has not been exhausted. This tolerates the shared channel needing to reconnect to a
+     * freshly (re)started node process; any other status, or exhausting the budget, propagates the error.
+     *
+     * @param startRequest the request to send
+     * @param timeout the overall budget for starting the platform
+     */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private void startPlatform(@NonNull final StartRequest startRequest, @NonNull final Duration timeout) {
+        final Instant deadline = timeManager.now().plus(timeout);
+        while (true) {
+            try {
+                nodeCommBlockingStub.start(startRequest);
+                return;
+            } catch (final StatusRuntimeException e) {
+                if (e.getStatus().getCode() != Code.UNAVAILABLE
+                        || !timeManager.now().isBefore(deadline)) {
+                    throw e;
+                }
+                log.warn("Start of node {} returned UNAVAILABLE; retrying while the channel reconnects", selfId);
+            }
+            // Back off before retrying to give the channel time to reconnect to the new node process.
+            timeManager.waitFor(START_RETRY_BACKOFF);
+        }
     }
 
     /**
@@ -291,6 +302,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             // Mark the node as shutting down *before* sending the request to avoid race
             // conditions with the stream observer receiving an error.
             lifeCycle = SHUTDOWN;
+
+            // Stop the event stream client before killing the node so its re-subscribe loop treats the
+            // resulting stream end as expected rather than failing the test.
+            if (eventStreamClient != null) {
+                eventStreamClient.close();
+            }
 
             final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
                     .setTimeoutSeconds((int) timeout.getSeconds())
@@ -385,8 +402,31 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         if (!response.getAlive()) {
             lifeCycle = SHUTDOWN;
             platformStatus = null;
+            if (eventStreamClient != null) {
+                eventStreamClient.close();
+            }
         }
         return response.getAlive();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The dump is produced by the container's control process attaching to the (separate) consensus node process,
+     * so it can capture a node whose own threads are wedged. Best-effort: returns a short explanatory message instead
+     * of throwing if the dump cannot be captured.
+     */
+    @Override
+    @NonNull
+    public String dumpThreads() {
+        try {
+            final ThreadDumpResponse response = containerControlBlockingStub
+                    .withDeadlineAfter(Duration.ofSeconds(40))
+                    .dumpThreads(Empty.newBuilder().build());
+            return response.getThreadDump();
+        } catch (final StatusRuntimeException e) {
+            return "(thread dump RPC failed for node " + selfId + ": " + e.getStatus() + ")";
+        }
     }
 
     /**
@@ -529,6 +569,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
 
         log.info("Destroying container of node {}...", selfId);
+        if (eventStreamClient != null) {
+            eventStreamClient.close();
+        }
         containerControlChannel.shutdownNow();
         nodeCommChannel.shutdownNow();
         if (container.isRunning()) {
@@ -668,6 +711,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUND ->
                     resultsCollector.addConsensusRound(ProtobufConverter.toPlatform(event.getConsensusRound()));
+                case SYNC_POINT -> handleSyncPoint(event);
                 default -> log.warn("Received unexpected event: {}", event);
             }
         }
@@ -683,6 +727,26 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             resultsCollector.addPlatformStatus(newStatus);
         } catch (final IllegalArgumentException e) {
             log.warn("Received unknown platform status: {}", statusName);
+        }
+    }
+
+    /**
+     * Applies the status snapshot carried by a sync point to the cached {@link #platformStatus}. A sync
+     * point is a snapshot delivered at the start of a (re-)subscription, not a transition, so it is
+     * deliberately <em>not</em> added to the results collector's status progression; doing so would
+     * inject a phantom transition on every reconnect.
+     */
+    private void handleSyncPoint(@NonNull final EventMessage value) {
+        final SyncPoint syncPoint = value.getSyncPoint();
+        final String statusName = syncPoint.getCurrentStatus();
+        if (statusName.isEmpty()) {
+            return;
+        }
+        log.info("Received sync point from node {} with current status: {}", selfId, statusName);
+        try {
+            platformStatus = PlatformStatus.valueOf(statusName);
+        } catch (final IllegalArgumentException e) {
+            log.warn("Received unknown platform status in sync point: {}", statusName);
         }
     }
 }

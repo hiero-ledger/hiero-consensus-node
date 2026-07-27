@@ -18,7 +18,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,10 +122,7 @@ class TransactionHandlerDataCounterTest {
         event.signalPrehandleCompletion();
 
         return new ConsensusRound(
-                RandomRosterBuilder.create(random)
-                        .withRealKeysEnabled(false)
-                        .withSize(4)
-                        .build(),
+                RosterFactory.randomRoster(random, 4),
                 List.of(event),
                 EventWindow.getGenesisEventWindow(),
                 GenesisSnapshotFactory.newGenesisSnapshot(),

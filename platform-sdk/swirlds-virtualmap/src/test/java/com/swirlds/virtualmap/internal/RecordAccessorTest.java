@@ -13,11 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -53,12 +53,12 @@ public class RecordAccessorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        final VirtualMapMetadata state = new VirtualMapMetadata();
+        final VirtualMap.Metadata metadata = new VirtualMap.Metadata(5, 10);
         dataSource = new BreakableDataSource();
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         final VirtualNodeCache cache =
                 new VirtualNodeCache(DEFAULT_VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
-        records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
+        records = new RecordAccessor(metadata, hashChunkHeight, cache, dataSource);
 
         // Prepopulate the database with some records
         final VirtualHashRecord root = internal(0);
@@ -91,12 +91,8 @@ public class RecordAccessorTest {
 
         cache.putLeaf(sixthLeafMoved);
         cache.deleteLeaf(seventhLeafGone);
-        mutableRecords = new RecordAccessor(state, dataSource.getHashChunkHeight(), cache.copy(), dataSource);
+        mutableRecords = new RecordAccessor(metadata, dataSource.getHashChunkHeight(), cache.copy(), dataSource);
         cache.prepareForHashing();
-
-        // Set up the state for a 6 leaf in memory tree
-        state.setLastLeafPath(10);
-        state.setFirstLeafPath(5);
     }
 
     @Test
@@ -258,10 +254,7 @@ public class RecordAccessorTest {
     @Test
     @DisplayName("close() closes the data source")
     void closeClosesDataSource() throws Exception {
-        final VirtualMapMetadata state = new VirtualMapMetadata();
-        state.setLastLeafPath(2);
-        state.setFirstLeafPath(1);
-
+        final VirtualMap.Metadata metadata = new VirtualMap.Metadata(1, 2);
         final InMemoryDataSource ds = new InMemoryDataSource("closeClosesDataSource");
         final int hashChunkHeight = ds.getHashChunkHeight();
 
@@ -274,7 +267,7 @@ public class RecordAccessorTest {
         final VirtualNodeCache snapshot = cache.snapshot();
 
         // Wrap in RecordAccessor and close
-        final RecordAccessor accessor = new RecordAccessor(state, hashChunkHeight, snapshot, ds);
+        final RecordAccessor accessor = new RecordAccessor(metadata, hashChunkHeight, snapshot, ds);
         accessor.close();
 
         assertTrue(ds.isClosed(), "Data source should be closed after RecordAccessor.close()");
