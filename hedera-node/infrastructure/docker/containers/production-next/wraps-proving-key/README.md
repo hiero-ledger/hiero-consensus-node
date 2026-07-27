@@ -13,17 +13,27 @@ runner images or downloading it per job. It is consumed by the `hapiTestWraps` a
 
 ## Contents
 
-|       File       | Size (bytes) |                                              SHA-384                                               |
-|------------------|--------------|----------------------------------------------------------------------------------------------------|
-| `decider_pp.bin` | 2170538264   | `8e9fbd68c7f28d56146857b52626185918162a1ecfce25856576465139d1bf4ef638dcbfaf15548d336e56206ae61dca` |
-| `decider_vp.bin` | 1768         | `53e72141e4cf68f4b862daa4acc634d4f2220ecc2d44feca90b377fc5e786dad288dbf32722dd3e18217727a20666da2` |
-| `nova_pp.bin`    | 8454224      | `18d89cfff6e5abebfa8d1740974ce0bd2b60449c67ef7d7de0d3ab377c4b265ab9a99c01fcd03d33da77c6dc47a8c467` |
-| `nova_vp.bin`    | 65768        | `c45e3146f4b3b093c3301ec42171d18f7015c01615d29ca1ab9354d790b5c7ca888f82f26a458366d3b1ff623c8d6c1f` |
+|            File             | Size (bytes) |                                              SHA-384                                               |
+|-----------------------------|--------------|----------------------------------------------------------------------------------------------------|
+| `decider_pp.bin`            | 2170538264   | `8e9fbd68c7f28d56146857b52626185918162a1ecfce25856576465139d1bf4ef638dcbfaf15548d336e56206ae61dca` |
+| `decider_vp.bin`            | 1768         | `53e72141e4cf68f4b862daa4acc634d4f2220ecc2d44feca90b377fc5e786dad288dbf32722dd3e18217727a20666da2` |
+| `nova_pp.bin`               | 8454224      | `18d89cfff6e5abebfa8d1740974ce0bd2b60449c67ef7d7de0d3ab377c4b265ab9a99c01fcd03d33da77c6dc47a8c467` |
+| `nova_vp.bin`               | 65768        | `c45e3146f4b3b093c3301ec42171d18f7015c01615d29ca1ab9354d790b5c7ca888f82f26a458366d3b1ff623c8d6c1f` |
+| `wraps.sha384`              | —            | `4eb1beccf1303ad182459ad9238ef371fdd14d3c1b69ed628957d162bbd1365d8c7f6c7b3b73e2f6c160bb94557cf6e8` |
+| `wraps-artifacts.sha384`    | —            | `21a72f28756f9ab4a134afbf69daf1c7148cf416ad0ae40e958a070adca6589c9b3a8cf12cf419b6895650ea64ef18d8` |
 
-The image also carries a `wraps.sha384` hash file containing the bare hex SHA-384 of the source
-tarball (the value under **Provenance** below). The consensus node reads it from the mounted
-artifacts directory to detect that the artifacts are already in place and skip re-downloading the
-archive on every startup (see `WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME`).
+The image carries two housekeeping files:
+
+- **`wraps.sha384`** — bare hex SHA-384 of the source tarball. The consensus node reads it from the
+  mounted artifacts directory to detect that the artifacts are already in place and skip
+  re-downloading the archive on every startup (see `WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME`).
+
+- **`wraps-artifacts.sha384`** — per-file manifest in `sha384sum(1)` format listing the SHA-384 of
+  each artifact file (`decider_pp.bin`, etc.). Written by the image build and also by the consensus
+  node after extracting from a downloaded tarball. If present, the node checks it lists all required
+  artifact files before treating the installation as complete; an absent manifest is accepted for
+  backwards compatibility with older images (see
+  `WrapsProvingKeyVerification#WRAPS_ARTIFACTS_MANIFEST_FILE_NAME`).
 
 ## Provenance
 

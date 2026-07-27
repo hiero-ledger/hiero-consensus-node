@@ -31,9 +31,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -492,6 +494,40 @@ class WrapsProvingKeyVerificationTest {
         final var hashFile = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME);
         assertTrue(Files.isRegularFile(hashFile), "hash file was not written");
         assertEquals(archiveHash, Files.readString(hashFile).trim());
+
+        // Manifest is written alongside the hash file
+        final var manifestFile = extractionDir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME);
+        assertTrue(Files.isRegularFile(manifestFile), "artifacts manifest was not written");
+        final var manifestLines = Files.readAllLines(manifestFile);
+        assertEquals(4, manifestLines.size(), "manifest should list all 4 artifacts");
+        for (final var line : manifestLines) {
+            assertTrue(line.matches("[0-9a-f]{96}  .+"), "manifest line format is incorrect: " + line);
+        }
+        final Set<String> manifestedFiles = manifestLines.stream()
+                .map(line -> line.substring(line.indexOf("  ") + 2).trim())
+                .collect(Collectors.toSet());
+        assertEquals(WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES, manifestedFiles);
+    }
+
+    @Test
+    void artifactsAlreadyPresentTrueWhenValidManifestPresent() throws IOException {
+        writeRequiredArtifacts(tempDir);
+        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
+        writeArtifactsManifest(tempDir);
+
+        assertTrue(artifactsAlreadyPresent(tempDir.toString(), HASH_A.toHex()));
+    }
+
+    @Test
+    void artifactsAlreadyPresentFalseWhenManifestIsMissingEntries() throws IOException {
+        writeRequiredArtifacts(tempDir);
+        Files.writeString(tempDir.resolve(WrapsProvingKeyVerification.WRAPS_HASH_FILE_NAME), HASH_A.toHex());
+        // Manifest that only lists 2 of the 4 required files
+        Files.writeString(
+                tempDir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME),
+                "aa".repeat(48) + "  decider_pp.bin\n" + "aa".repeat(48) + "  decider_vp.bin\n");
+
+        assertFalse(artifactsAlreadyPresent(tempDir.toString(), HASH_A.toHex()));
     }
 
     // ===== helpers =====
@@ -517,6 +553,16 @@ class WrapsProvingKeyVerificationTest {
         for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
             Files.write(dir.resolve(artifact), artifact.getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private static void writeArtifactsManifest(final Path dir) throws IOException {
+        final var sb = new StringBuilder();
+        for (final var artifact : WrapsProvingKeyVerification.REQUIRED_ARTIFACT_FILES) {
+            final var hash = noThrowSha384HashOf(Bytes.wrap(artifact.getBytes(StandardCharsets.UTF_8))).toHex();
+            sb.append(hash).append("  ").append(artifact).append('\n');
+        }
+        Files.writeString(
+                dir.resolve(WrapsProvingKeyVerification.WRAPS_ARTIFACTS_MANIFEST_FILE_NAME), sb.toString());
     }
 
     // ===== minimal tar.gz builder (mirrors TarGzExtractorTest) =====
