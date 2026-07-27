@@ -141,6 +141,10 @@
 # Protection Rules for Github Configuration Files and Actions Workflows
 /.github/                                           @hiero-ledger/github-maintainers
 /.github/workflows/                                 @hiero-ledger/github-maintainers
+
+# specific to CITR
+
+# Co-owned with devops
 /.github/workflows/node-zxf-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
 /.github/workflows/node-zxf-deploy-preview.yaml     @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
 
