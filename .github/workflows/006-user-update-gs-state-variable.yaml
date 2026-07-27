@@ -25,7 +25,7 @@ jobs:
           egress-policy: audit
 
       - name: Update GS_STATE to input value
-        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
+        uses: step-security/set-github-variable@3293f8b09a8468a063a2521be95a09d8c40aa405 # v1.0.2
         with:
           name: "GS_STATE"
           value: ${{ inputs.value }}
