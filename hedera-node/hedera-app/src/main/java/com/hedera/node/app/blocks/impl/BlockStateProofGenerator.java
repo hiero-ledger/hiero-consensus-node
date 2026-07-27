@@ -67,6 +67,10 @@ public class BlockStateProofGenerator {
      * @param remainingPendingBlocks stream of remaining pending blocks after the current one. This queue is
      *                               passed for <b>read-only</b> purposes; don't dequeue from it.
      * @return the constructed state proof
+     * @throws IllegalStateException if the latest signed block is not strictly after the current pending block, if the
+     *                               pending blocks contain duplicate block numbers or do not cover every block from the
+     *                               current pending block through the latest signed block, or if any block does not
+     *                               carry exactly {@code NUM_SIBLINGS_PER_BLOCK} sibling hashes
      */
     public static StateProof generateStateProof(
             @NonNull final PendingBlock currentPendingBlock,
@@ -81,11 +85,28 @@ public class BlockStateProofGenerator {
         final Map<Long, PendingBlock> allPendingBlocks = Streams.of(
                         Stream.of(currentPendingBlock), remainingPendingBlocks)
                 .flatMap(s -> s)
-                .collect(Collectors.toMap(PendingBlock::number, Function.identity()));
+                .collect(Collectors.toMap(PendingBlock::number, Function.identity(), (a, b) -> {
+                    throw new IllegalStateException(
+                            "Duplicate pending block #%d in the pending block queue".formatted(a.number()));
+                }));
 
-        final Map<Long, PendingBlock> indirectProofBlocks = allPendingBlocks.entrySet().stream()
-                .filter(e -> e.getKey() < latestSignedBlockNumber)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        // An indirect proof requires the sibling hashes of every block from the current pending block up to and
+        // including the signed block, so verify the pending blocks cover that entire range before constructing
+        // anything, failing fast with the offending block number instead of an uninformative NPE below
+        final long minBlockNum = currentPendingBlock.number();
+        if (latestSignedBlockNumber <= minBlockNum) {
+            throw new IllegalStateException(
+                    "Cannot construct an indirect proof for pending block #%d from signed block #%d"
+                            .formatted(minBlockNum, latestSignedBlockNumber));
+        }
+        for (long blockNum = minBlockNum + 1; blockNum <= latestSignedBlockNumber; blockNum++) {
+            if (!allPendingBlocks.containsKey(blockNum)) {
+                throw new IllegalStateException(
+                        "Cannot construct an indirect proof for pending block #%d from signed block #%d because pending block #%d is missing"
+                                .formatted(minBlockNum, latestSignedBlockNumber, blockNum));
+            }
+        }
+        final int numIndirectBlocks = (int) (latestSignedBlockNumber - minBlockNum);
 
         // Construct all merkle paths for each pending block between [currentPendingBlock.number(),
         // latestSignedBlockNumber - 1]
@@ -104,10 +125,20 @@ public class BlockStateProofGenerator {
         // Skip the current block's own siblings (we start from its root hash) and collect siblings for each
         // subsequent indirect block, plus the signed block's siblings and null-hash sentinel
         final var siblings = new ArrayList<SiblingNode>();
-        final long minBlockNum = currentPendingBlock.number();
-        var currentBlockNum = minBlockNum + 1;
-        for (int i = 0; i < indirectProofBlocks.size() - 1; i++) {
-            final var block = indirectProofBlocks.get(currentBlockNum++);
+        for (int i = 0; i < numIndirectBlocks - 1; i++) {
+            final long currentBlockNum = minBlockNum + 1 + i;
+            final var block = allPendingBlocks.get(currentBlockNum);
+            // The verifier expects exactly NUM_SIBLINGS_PER_BLOCK sibling hashes per pending block. Fail fast if the
+            // actual count drifts from that assumption, rather than emitting a proof that only remote verifiers can
+            // reject.
+            if (block.siblingHashes().length != BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK) {
+                throw new IllegalStateException(
+                        "Pending block #%d produced %d sibling hashes but exactly %d were expected"
+                                .formatted(
+                                        currentBlockNum,
+                                        block.siblingHashes().length,
+                                        BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+            }
             for (final var s : block.siblingHashes()) {
                 siblings.add(SiblingNode.newBuilder()
                         .isLeft(s.isFirst())
@@ -124,6 +155,15 @@ public class BlockStateProofGenerator {
         // Merkle Path 2 Continued: add sibling hashes for the signed block, then a null-hash sentinel
         // to represent the single-child internal node wrapping (depth2Node2). The timestamp is in mp1.
         final var signedBlock = allPendingBlocks.get(latestSignedBlockNumber);
+        // The verifier expects exactly NUM_SIBLINGS_PER_BLOCK sibling hashes for the signed block too; the
+        // trailing null-hash sentinel below is added separately. Fail fast if the actual count drifts.
+        if (signedBlock.siblingHashes().length != BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK) {
+            throw new IllegalStateException("Signed block #%d produced %d sibling hashes but exactly %d were expected"
+                    .formatted(
+                            latestSignedBlockNumber,
+                            signedBlock.siblingHashes().length,
+                            BlockStreamManagerImpl.NUM_SIBLINGS_PER_BLOCK));
+        }
         for (final var s : signedBlock.siblingHashes()) {
             siblings.add(SiblingNode.newBuilder()
                     .isLeft(s.isFirst())
