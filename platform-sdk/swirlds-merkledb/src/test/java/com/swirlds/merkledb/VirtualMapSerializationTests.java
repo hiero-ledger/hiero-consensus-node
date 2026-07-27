@@ -3,7 +3,6 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -17,6 +16,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
@@ -112,7 +112,9 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
             map1.release();
             map2.release();
 
-            assertTrue(map2.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map0.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map1.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map2.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 
@@ -162,7 +164,8 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
         } finally {
             map.release();
             copy.release();
-            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Maps should be destroyed");
         }
     }
 
@@ -188,7 +191,8 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
         } finally {
             serializedCopy.release();
             mutableCopy.release();
-            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 
@@ -218,7 +222,8 @@ class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
         } finally {
             copy0.release();
             copy1.release();
-            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 }

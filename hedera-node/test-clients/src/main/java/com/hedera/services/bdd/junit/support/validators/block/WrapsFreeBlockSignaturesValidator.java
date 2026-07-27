@@ -26,7 +26,9 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockFooter;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -35,6 +37,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -75,14 +78,14 @@ import org.junit.jupiter.api.Assertions;
  * Standalone validator for wrap-free TSS block signatures.
  *
  * <p>This intentionally implements only the narrow {@link StateChangesValidator} proof path where WRAPS is disabled:
- * block zero is verified with the TSS convenience API after binary replay finds the ledger id, and later direct block
- * signatures are verified as {@code verificationKey || aggregateSig} with
+ * direct block signatures are verified as {@code verificationKey || aggregateSig} with
  * {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, long, long)}.
  */
 @SuppressWarnings("removal")
 public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(WrapsFreeBlockSignaturesValidator.class);
     private static final int MAX_SUBSET_SEARCH_PARTIALS = 16;
+    private static final int HINTS_SIGNATURE_LENGTH = 1632;
     private static final boolean DUMP_INVALID_AGGREGATE_VECTORS =
             Boolean.getBoolean("hints.dumpInvalidAggregateVectors")
                     || Boolean.parseBoolean(System.getenv("HINTS_DUMP_INVALID_AGGREGATE_VECTORS"));
@@ -98,6 +101,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     private int invalidDirectProofs;
     private int indirectProofSequencesVerified;
     private int prooflessBlocks;
+    private int canonicalBlockHashMismatches;
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
     private final Map<Long, ConstructionSnapshot> constructionSnapshots = new HashMap<>();
     private final Map<PartyKey, HintsKeySet> hintsKeySets = new HashMap<>();
@@ -179,9 +183,17 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         }
     }
 
+    private record StreamHashContext(
+            @NonNull Bytes previousBlockHash, @NonNull IncrementalStreamingHasher incrementalBlockHashes) {
+        private StreamHashContext {
+            requireNonNull(previousBlockHash);
+            requireNonNull(incrementalBlockHashes);
+        }
+    }
+
     public static void main(@NonNull final String[] args) {
         final var helpRequested = args.length == 1 && ("--help".equals(args[0]) || "-h".equals(args[0]));
-        if (helpRequested || args.length != 2) {
+        if (helpRequested || args.length < 2) {
             printUsage();
             if (!helpRequested) {
                 System.exit(2);
@@ -189,20 +201,33 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             return;
         }
 
-        final var blockStreamsDir = Paths.get(args[0]).toAbsolutePath().normalize();
-        final var hintsThresholdDenominator = Long.parseLong(args[1]);
+        final var blockStreamDirs = new ArrayList<Path>(args.length - 1);
+        for (int i = 0; i < args.length - 1; i++) {
+            blockStreamDirs.add(Paths.get(args[i]).toAbsolutePath().normalize());
+        }
+        final var hintsThresholdDenominator = Long.parseLong(args[args.length - 1]);
 
-        final var blocks = readBlocksFrom(blockStreamsDir);
+        final var blockEpochs = new ArrayList<List<Block>>(blockStreamDirs.size());
+        for (int i = 0; i < blockStreamDirs.size(); i++) {
+            final var blocks = readBlocksFrom(blockStreamDirs.get(i));
+            blockEpochs.add(blocks);
+            System.out.printf(
+                    "Loaded epoch %d with %d block(s) from %s%n", i + 1, blocks.size(), blockStreamDirs.get(i));
+        }
         final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator);
-        validator.validateBlocks(blocks);
+        validator.validateBlockEpochs(blockEpochs);
 
         System.out.printf(
-                "Verified %d direct block signature(s), found %d invalid direct block signature(s), "
-                        + "%d indirect proof sequence(s); %d block(s) had no proof.%n",
+                "Validated %d block stream epoch(s); verified %d direct block signature(s), "
+                        + "found %d invalid direct block signature(s), "
+                        + "%d indirect proof sequence(s); %d block(s) had no proof; "
+                        + "%d locally computed block hash(es) differed from the canonical stream reconstruction.%n",
+                blockEpochs.size(),
                 validator.directProofsVerified,
                 validator.invalidDirectProofs,
                 validator.indirectProofSequencesVerified,
-                validator.prooflessBlocks);
+                validator.prooflessBlocks,
+                validator.canonicalBlockHashMismatches);
     }
 
     public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator) {
@@ -223,145 +248,306 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
-        requireNonNull(blocks);
-        if (blocks.isEmpty()) {
-            Assertions.fail("No blocks to validate");
+        validateBlockEpochs(List.of(blocks));
+    }
+
+    /**
+     * Validates one or more consecutive block stream epochs while replaying their state changes continuously. At each
+     * epoch boundary, the first block of the new epoch must contain the legacy {@code BlockInfo} used during cutover to
+     * seed its previous block hash and incremental block hash tree.
+     *
+     * @param blockEpochs block stream epochs in chronological order, with blocks ordered within each epoch
+     */
+    public void validateBlockEpochs(@NonNull final List<List<Block>> blockEpochs) {
+        requireNonNull(blockEpochs);
+        if (blockEpochs.isEmpty()) {
+            Assertions.fail("No block stream epochs to validate");
+        }
+        for (int i = 0; i < blockEpochs.size(); i++) {
+            requireNonNull(blockEpochs.get(i), "Block stream epoch " + (i + 1) + " is null");
+            if (blockEpochs.get(i).isEmpty()) {
+                Assertions.fail("Block stream epoch " + (i + 1) + " has no blocks to validate");
+            }
         }
 
-        logger.info("Beginning wrap-free signature validation of {} block(s)", blocks.size());
+        final var blockCount = blockEpochs.stream().mapToInt(List::size).sum();
+        logger.info(
+                "Beginning wrap-free signature validation of {} block(s) across {} epoch(s)",
+                blockCount,
+                blockEpochs.size());
+        final var discoveredLedgerId = discoverLedgerIdFrom(blockEpochs);
+        if (discoveredLedgerId != null) {
+            ledgerIdFromState = discoveredLedgerId;
+            logger.info(
+                    "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
+        }
         var previousBlockHash = HASH_OF_ZERO;
-        final var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
 
-        for (int i = 0, n = blocks.size(); i < n; i++) {
-            final var startOfStateHash = hashCurrentStateAndAdvanceMutableCopy();
+        for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
+            final var blocks = blockEpochs.get(epochIndex);
+            if (epochIndex > 0) {
+                assertNoTrailingIndirectProofs(epochIndex);
+                final var cutoverContext = cutoverHashContextFrom(blocks.getFirst());
+                previousBlockHash = cutoverContext.previousBlockHash();
+                incrementalBlockHashes = cutoverContext.incrementalBlockHashes();
+                logger.info(
+                        "Beginning post-cutover epoch {} at block #{} with previous block hash {}",
+                        epochIndex + 1,
+                        blockNumberOf(blocks.getFirst()),
+                        previousBlockHash);
+            }
 
-            final var block = blocks.get(i);
-            final var blockNumber = blockNumberOf(block);
-            final IncrementalStreamingHasher inputTreeHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-            final IncrementalStreamingHasher outputTreeHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-            final IncrementalStreamingHasher consensusHeaderHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-            final IncrementalStreamingHasher stateChangesHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-            final IncrementalStreamingHasher traceDataHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            for (int i = 0, n = blocks.size(); i < n; i++) {
+                final var startOfStateHash = hashCurrentStateAndAdvanceMutableCopy();
 
-            long firstBlockRound = -1;
-            long eventNodeId = -1;
-            Timestamp firstConsensusTimestamp = null;
-            for (final var item : block.items()) {
-                if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
-                    firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
-                    assertTrue(
-                            firstConsensusTimestamp != null
-                                    && !Objects.equals(firstConsensusTimestamp, Timestamp.DEFAULT),
-                            "Block header timestamp is unset");
+                final var block = blocks.get(i);
+                final var blockNumber = blockNumberOf(block);
+                final IncrementalStreamingHasher inputTreeHasher =
+                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                final IncrementalStreamingHasher outputTreeHasher =
+                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                final IncrementalStreamingHasher consensusHeaderHasher =
+                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                final IncrementalStreamingHasher stateChangesHasher =
+                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                final IncrementalStreamingHasher traceDataHasher =
+                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+
+                long firstBlockRound = -1;
+                long eventNodeId = -1;
+                Timestamp firstConsensusTimestamp = null;
+                for (final var item : block.items()) {
+                    if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
+                        firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
+                        assertTrue(
+                                firstConsensusTimestamp != null
+                                        && !Objects.equals(firstConsensusTimestamp, Timestamp.DEFAULT),
+                                "Block header timestamp is unset");
+                    }
+                    if (firstBlockRound == -1 && item.hasRoundHeader()) {
+                        firstBlockRound = item.roundHeaderOrThrow().roundNumber();
+                    }
+                    hashSubTrees(
+                            item,
+                            inputTreeHasher,
+                            outputTreeHasher,
+                            consensusHeaderHasher,
+                            stateChangesHasher,
+                            traceDataHasher);
+                    if (item.hasStateChanges()) {
+                        final var changes = item.stateChangesOrThrow();
+                        final var at = asInstant(changes.consensusTimestampOrThrow());
+                        // (FUTURE) Re-enable after state change ordering is fixed as part of mega-map work.
+                        if (false && lastStateChanges != null && at.isBefore(requireNonNull(lastStateChangesTime))) {
+                            Assertions.fail("State changes are not in chronological order - last changes were \n "
+                                    + lastStateChanges + "\ncurrent changes are \n  " + changes);
+                        }
+                        lastStateChanges = changes;
+                        lastStateChangesTime = at;
+                        applyStateChanges(changes);
+                    } else if (item.hasEventHeader()) {
+                        eventNodeId =
+                                item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
+                    } else if (item.hasSignedTransaction()) {
+                        final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+                        if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
+                            final var op = parts.body().hintsPartialSignatureOrThrow();
+                            observeHintsPartialSignature(eventNodeId, op);
+                        } else if (parts.function() == LEDGER_ID_PUBLICATION) {
+                            final var ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
+                            ledgerIdFromState = ledgerIdPublication.ledgerId();
+                            final int k =
+                                    ledgerIdPublication.nodeContributions().size();
+                            final long[] nodeIds = new long[k];
+                            final long[] weights = new long[k];
+                            final byte[][] publicKeys = new byte[k][];
+                            for (int j = 0; j < k; j++) {
+                                final var contribution =
+                                        ledgerIdPublication.nodeContributions().get(j);
+                                nodeIds[j] = contribution.nodeId();
+                                weights[j] = contribution.weight();
+                                publicKeys[j] = contribution.historyProofKey().toByteArray();
+                            }
+                            TSS.setAddressBook(publicKeys, weights, nodeIds);
+                        }
+                    }
                 }
-                if (firstBlockRound == -1 && item.hasRoundHeader()) {
-                    firstBlockRound = item.roundHeaderOrThrow().roundNumber();
+                assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + blockNumber);
+
+                final var footer = footerFrom(block);
+                if (footer == null) {
+                    prooflessBlocks++;
+                    final var recoveredBlockHash = i + 1 < n ? previousBlockHashFrom(blocks.get(i + 1)) : null;
+                    if (recoveredBlockHash == null) {
+                        logger.warn(
+                                "Skipping block #{} because it has no footer and its hash could not be recovered",
+                                blockNumber);
+                    } else {
+                        previousBlockHash = recoveredBlockHash;
+                        blockNumbers.put(previousBlockHash, blockNumber);
+                        incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
+                        logger.warn(
+                                "Block #{} had no footer or BlockProof; recovered its hash {} from the next block "
+                                        + "footer",
+                                blockNumber,
+                                recoveredBlockHash);
+                    }
+                    continue;
                 }
-                hashSubTrees(
-                        item,
+                assertEquals(
+                        previousBlockHash,
+                        footer.previousBlockRootHash(),
+                        "Previous block hash mismatch for block " + blockNumber);
+                assertEquals(
+                        startOfStateHash,
+                        footer.startOfBlockStateRootHash(),
+                        "Wrong start of block state hash for block #" + blockNumber);
+
+                final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
+                final var expectedRootAndSiblings = computeBlockHash(
+                        firstConsensusTimestamp,
+                        previousBlockHash,
+                        incrementalBlockHashes,
+                        startOfStateHash,
                         inputTreeHasher,
                         outputTreeHasher,
                         consensusHeaderHasher,
-                        stateChangesHasher,
+                        finalStateChangesHash,
                         traceDataHasher);
-                if (item.hasStateChanges()) {
-                    final var changes = item.stateChangesOrThrow();
-                    final var at = asInstant(changes.consensusTimestampOrThrow());
-                    // (FUTURE) Re-enable after state change ordering is fixed as part of mega-map work.
-                    if (false && lastStateChanges != null && at.isBefore(requireNonNull(lastStateChangesTime))) {
-                        Assertions.fail("State changes are not in chronological order - last changes were \n "
-                                + lastStateChanges + "\ncurrent changes are \n  " + changes);
-                    }
-                    lastStateChanges = changes;
-                    lastStateChangesTime = at;
-                    applyStateChanges(changes);
-                } else if (item.hasEventHeader()) {
-                    eventNodeId = item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
-                } else if (item.hasSignedTransaction()) {
-                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
-                    if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
-                        final var op = parts.body().hintsPartialSignatureOrThrow();
-                        observeHintsPartialSignature(eventNodeId, op);
-                    } else if (parts.function() == LEDGER_ID_PUBLICATION) {
-                        final var ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                        final int k = ledgerIdPublication.nodeContributions().size();
-                        final long[] nodeIds = new long[k];
-                        final long[] weights = new long[k];
-                        final byte[][] publicKeys = new byte[k][];
-                        for (int j = 0; j < k; j++) {
-                            final var contribution =
-                                    ledgerIdPublication.nodeContributions().get(j);
-                            nodeIds[j] = contribution.nodeId();
-                            weights[j] = contribution.weight();
-                            publicKeys[j] = contribution.historyProofKey().toByteArray();
+                final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
+                final var persistedBlockHash = persistedBlockHashFrom(block);
+                final var hashFromNextFooter = i + 1 < n ? previousBlockHashFrom(blocks.get(i + 1)) : null;
+                final var blockHash = hashFromNextFooter != null
+                        ? hashFromNextFooter
+                        : persistedBlockHash != null ? persistedBlockHash : expectedBlockHash;
+                if (!blockHash.equals(expectedBlockHash)) {
+                    canonicalBlockHashMismatches++;
+                    logger.warn(
+                            "Computed hash {} for block #{} does not match canonical stream reconstruction {}; "
+                                    + "using the canonical hash for proof and chain validation",
+                            expectedBlockHash,
+                            blockNumber,
+                            blockHash);
+                }
+                blockNumbers.put(expectedBlockHash, blockNumber);
+                blockNumbers.put(blockHash, blockNumber);
+                final var proof = proofFrom(block);
+                if (proof != null) {
+                    var proofBlockHash = blockHash;
+                    if (!expectedBlockHash.equals(blockHash) && proof.hasSignedBlockProof()) {
+                        if (directProofSignatureValidFor(proof, expectedBlockHash)) {
+                            proofBlockHash = expectedBlockHash;
+                            logger.warn(
+                                    "Signature for block #{} validates its locally computed hash {}, while the "
+                                            + "following chain uses {}",
+                                    blockNumber,
+                                    expectedBlockHash,
+                                    blockHash);
+                        } else if (!directProofSignatureValidFor(proof, blockHash)
+                                && persistedBlockHash != null
+                                && !persistedBlockHash.equals(blockHash)
+                                && directProofSignatureValidFor(proof, persistedBlockHash)) {
+                            proofBlockHash = persistedBlockHash;
+                            logger.warn(
+                                    "Signature for block #{} validates persisted hash {} instead of canonical "
+                                            + "chain hash {}",
+                                    blockNumber,
+                                    persistedBlockHash,
+                                    blockHash);
                         }
-                        TSS.setAddressBook(publicKeys, weights, nodeIds);
+                    }
+                    validateBlockProof(
+                            blockNumber,
+                            firstBlockRound,
+                            footer,
+                            proof,
+                            proofBlockHash,
+                            startOfStateHash,
+                            previousBlockHash,
+                            firstConsensusTimestamp,
+                            expectedRootAndSiblings.siblingHashes());
+                } else {
+                    prooflessBlocks++;
+                    logger.warn("Block #{} had no BlockProof", blockNumber);
+                }
+
+                previousBlockHash = blockHash;
+                incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
+            }
+        }
+
+        assertNoTrailingIndirectProofs(blockEpochs.size());
+        logger.info(
+                "Validated {} block stream epoch(s), {} direct signed proof(s), {} indirect proof sequence(s), "
+                        + "with {} proofless block(s) and {} canonical block hash mismatch(es)",
+                blockEpochs.size(),
+                directProofsVerified,
+                indirectProofSequencesVerified,
+                prooflessBlocks,
+                canonicalBlockHashMismatches);
+    }
+
+    private void assertNoTrailingIndirectProofs(final int epochNumber) {
+        if (indirectProofSeq != null && indirectProofSeq.containsIndirectProofs()) {
+            Assertions.fail("Cannot verify trailing indirect proof sequence in epoch " + epochNumber
+                    + " without a following signed block proof");
+        }
+    }
+
+    private static StreamHashContext cutoverHashContextFrom(@NonNull final Block firstPostCutoverBlock) {
+        final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                List.of(firstPostCutoverBlock),
+                SingletonUpdateChange::blockInfoValue,
+                StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+        if (blockInfo == null
+                || blockInfo.previousWrappedRecordBlockRootHash() == null
+                || blockInfo.previousWrappedRecordBlockRootHash().equals(Bytes.EMPTY)) {
+            throw new AssertionError("Post-cutover epoch begins with block #" + blockNumberOf(firstPostCutoverBlock)
+                    + " but its first block has no BlockInfo with wrapped record block hashes");
+        }
+        final var incrementalBlockHashes = new IncrementalStreamingHasher(
+                sha384DigestOrThrow(),
+                blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
+                        .map(Bytes::toByteArray)
+                        .toList(),
+                blockInfo.wrappedIntermediateBlockRootsLeafCount());
+        incrementalBlockHashes.addNodeByHash(
+                blockInfo.previousWrappedRecordBlockRootHash().toByteArray());
+        return new StreamHashContext(blockInfo.previousWrappedRecordBlockRootHash(), incrementalBlockHashes);
+    }
+
+    private static @Nullable Bytes discoverLedgerIdFrom(@NonNull final List<List<Block>> blockEpochs) {
+        Bytes ledgerId = null;
+        for (final var epoch : blockEpochs) {
+            for (final var block : epoch) {
+                for (final var item : block.items()) {
+                    if (item.hasStateChanges()) {
+                        for (final var stateChange : item.stateChangesOrThrow().stateChanges()) {
+                            if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()
+                                    && stateChange.hasSingletonUpdate()
+                                    && stateChange.singletonUpdateOrThrow().hasBytesValue()) {
+                                final var candidate =
+                                        stateChange.singletonUpdateOrThrow().bytesValueOrThrow();
+                                if (!candidate.equals(Bytes.EMPTY)) {
+                                    ledgerId = candidate;
+                                }
+                            }
+                        }
+                    } else if (item.hasSignedTransaction()) {
+                        final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+                        if (parts.function() == LEDGER_ID_PUBLICATION) {
+                            final var candidate =
+                                    parts.body().ledgerIdPublicationOrThrow().ledgerId();
+                            if (!candidate.equals(Bytes.EMPTY)) {
+                                ledgerId = candidate;
+                            }
+                        }
                     }
                 }
             }
-            assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + blockNumber);
-
-            final var footer = footerFrom(block);
-            if (footer == null) {
-                logger.warn("Skipping block #{} because it has no footer", blockNumber);
-                continue;
-            }
-            assertEquals(
-                    previousBlockHash,
-                    footer.previousBlockRootHash(),
-                    "Previous block hash mismatch for block " + blockNumber);
-            assertEquals(
-                    startOfStateHash,
-                    footer.startOfBlockStateRootHash(),
-                    "Wrong start of block state hash for block #" + blockNumber);
-
-            final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
-            final var expectedRootAndSiblings = computeBlockHash(
-                    firstConsensusTimestamp,
-                    previousBlockHash,
-                    incrementalBlockHashes,
-                    startOfStateHash,
-                    inputTreeHasher,
-                    outputTreeHasher,
-                    consensusHeaderHasher,
-                    finalStateChangesHash,
-                    traceDataHasher);
-            final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
-            blockNumbers.put(expectedBlockHash, blockNumber);
-            final var proof = proofFrom(block);
-            if (proof != null) {
-                validateBlockProof(
-                        blockNumber,
-                        firstBlockRound,
-                        footer,
-                        proof,
-                        expectedBlockHash,
-                        startOfStateHash,
-                        previousBlockHash,
-                        firstConsensusTimestamp,
-                        expectedRootAndSiblings.siblingHashes());
-            } else {
-                prooflessBlocks++;
-                logger.warn("Block #{} had no BlockProof", blockNumber);
-            }
-
-            previousBlockHash = expectedBlockHash;
-            incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
         }
-
-        if (indirectProofSeq != null && indirectProofSeq.containsIndirectProofs()) {
-            Assertions.fail("Cannot verify trailing indirect proof sequence without a following signed block proof");
-        }
-        logger.info(
-                "Validated {} direct signed proof(s), {} indirect proof sequence(s), with {} proofless block(s)",
-                directProofsVerified,
-                indirectProofSequencesVerified,
-                prooflessBlocks);
+        return ledgerId;
     }
 
     private Bytes hashCurrentStateAndAdvanceMutableCopy() {
@@ -481,16 +667,17 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         String proofVkHash = null;
         Bytes aggregateSignature = null;
         Bytes verificationKey = null;
-        if (proof.block() > 0) {
+        if (signature.length() == HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH) {
             final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-            final var sig =
-                    signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
+            final var sig = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
             proofVkHash = shortSha384Hash(vk);
             verificationKey = vk;
             aggregateSignature = sig;
             valid = hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
         } else {
-            requireNonNull(ledgerIdFromState, "Ledger id not available for block #0 signature verification");
+            requireNonNull(
+                    ledgerIdFromState,
+                    "Ledger id not available for composite TSS signature verification on block #" + proof.block());
             valid = TSS.verifyTSS(
                     ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
         }
@@ -524,6 +711,17 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             invalidDirectProofs++;
             logger.warn("Invalid wrap-free signature on block #{} from start round #{}", proof.block(), firstRound);
         }
+    }
+
+    private boolean directProofSignatureValidFor(@NonNull final BlockProof proof, @NonNull final Bytes blockHash) {
+        final var signature = proof.signedBlockProofOrThrow().blockSignature();
+        if (signature.length() != HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH) {
+            return false;
+        }
+        final var verificationKey = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
+        final var aggregateSignature = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
+        return hintsLibrary.verifyAggregate(
+                aggregateSignature, blockHash, verificationKey, 1, hintsThresholdDenominator);
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
@@ -580,7 +778,10 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         final var rawLedgerId = requireNonNull(
                 state.getSingleton(STATE_ID_LEDGER_ID.protoOrdinal()), "Ledger id singleton update did not apply");
         try {
-            ledgerIdFromState = ProtoBytes.PROTOBUF.parse(rawLedgerId).value();
+            final var ledgerId = ProtoBytes.PROTOBUF.parse(rawLedgerId).value();
+            if (!ledgerId.equals(Bytes.EMPTY)) {
+                ledgerIdFromState = ledgerId;
+            }
         } catch (ParseException e) {
             throw new IllegalStateException("Failed to parse ledger id singleton value", e);
         }
@@ -1154,6 +1355,22 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 .orElseThrow(() -> new IllegalArgumentException("Block has no BlockHeader: " + block));
     }
 
+    private static @Nullable Bytes previousBlockHashFrom(@NonNull final Block block) {
+        final var footer = footerFrom(block);
+        return footer == null ? null : footer.previousBlockRootHash();
+    }
+
+    private static @Nullable Bytes persistedBlockHashFrom(@NonNull final Block block) {
+        final var blockStreamInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                List.of(block),
+                SingletonUpdateChange::blockStreamInfoValue,
+                StateIdentifier.STATE_ID_BLOCK_STREAM_INFO.protoOrdinal());
+        if (blockStreamInfo == null || blockStreamInfo.blockNumber() != blockNumberOf(block)) {
+            return null;
+        }
+        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+    }
+
     private static @Nullable BlockProof proofFrom(@NonNull final Block block) {
         final var items = block.items();
         return items.isEmpty() || !items.getLast().hasBlockProof()
@@ -1204,9 +1421,12 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private static void printUsage() {
         System.err.println("""
-                Usage: WrapsFreeBlockSignaturesValidator <block-stream-dir> <hints-threshold-denominator>
+                Usage: WrapsFreeBlockSignaturesValidator <block-stream-dir> [<post-cutover-block-stream-dir> ...]
+                                                         <hints-threshold-denominator>
 
-                The block stream directory may contain standard .blk/.blk.gz files or protobuf .pb files.
+                Each block stream directory may contain standard .blk/.blk.gz files or protobuf .pb files.
+                Directories are validated as chronological epochs. At each epoch boundary, state replay continues
+                while the block hash context is reinitialized from BlockInfo in the first block of the new epoch.
                 """);
     }
 }

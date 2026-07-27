@@ -94,12 +94,13 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Constructs the root {@link SavepointStackImpl} for the given state at the start of handling a user transaction.
      *
-     * @param state                         the state
-     * @param maxBuildersBeforeUser         the maximum number of preceding builders with available consensus times
-     * @param maxBuildersAfterUser          the maximum number of following builders with available consensus times
-     * @param boundaryStateChangeListener   the listener for the round state changes
-     * @param immediateStateChangeListener  the listener for the key/value state changes
-     * @param streamMode                    the stream mode
+     * @param state the state
+     * @param maxBuildersBeforeUser the maximum number of preceding builders with available consensus times
+     * @param maxBuildersAfterUser the maximum number of following builders with available consensus times
+     * @param boundaryStateChangeListener the listener for the round state changes
+     * @param immediateStateChangeListener the listener for the key/value state changes
+     * @param streamMode the stream mode
+     * @param maxSerializedTraceDataBytes the maximum estimated serialized contract trace data size in bytes
      * @return the root {@link SavepointStackImpl}
      */
     public static SavepointStackImpl newRootStack(
@@ -108,14 +109,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final int maxBuildersAfterUser,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
-            @NonNull final StreamMode streamMode) {
+            @NonNull final StreamMode streamMode,
+            final int maxSerializedTraceDataBytes) {
         return new SavepointStackImpl(
                 state,
                 maxBuildersBeforeUser,
                 maxBuildersAfterUser,
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
-                streamMode);
+                streamMode,
+                maxSerializedTraceDataBytes);
     }
 
     /**
@@ -154,16 +157,17 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             final int maxBuildersAfterUser,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
-            @NonNull final StreamMode streamMode) {
+            @NonNull final StreamMode streamMode,
+            final int maxSerializedTraceDataBytes) {
         this.state = requireNonNull(state);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
+        this.streamMode = requireNonNull(streamMode);
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
         presetIdsAllowed = true;
         noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
         setupFirstSavepoint(USER);
-        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, true);
-        this.streamMode = requireNonNull(streamMode);
+        baseBuilder = createRootBaseBuilder(maxSerializedTraceDataBytes);
     }
 
     /**
@@ -638,6 +642,23 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         } else {
             stack.push(new FirstRootSavepoint(new WrappedState(state), requireNonNull(builderSink)));
         }
+    }
+
+    private StreamBuilder createRootBaseBuilder(final int maxSerializedTraceDataBytes) {
+        final var builder =
+                switch (streamMode) {
+                    case RECORDS ->
+                        new RecordStreamBuilder(
+                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                    case BLOCKS ->
+                        new BlockStreamBuilder(
+                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                    case BOTH ->
+                        new PairedStreamBuilder(
+                                REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes);
+                };
+        peek().addFollowingOrThrow(builder);
+        return builder;
     }
 
     @Override

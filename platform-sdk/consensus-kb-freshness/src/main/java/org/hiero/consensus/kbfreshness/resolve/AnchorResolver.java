@@ -11,8 +11,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -21,6 +23,8 @@ import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.ParsedFile;
 import org.hiero.consensus.kbfreshness.resolve.JavaParsing.TypeInfo;
+import org.hiero.consensus.kbfreshness.util.Markdown;
+import org.hiero.consensus.kbfreshness.util.RepoPaths;
 
 /**
  * Resolves an {@link Anchor} to a three-valued {@link Resolution}. Precision is the mandate: an
@@ -84,16 +88,119 @@ public final class AnchorResolver {
             case CROSS_DOC_LINK -> resolveCrossDoc(a);
             case DOC_HEADING -> resolveHeading(a);
             case CATALOG_ID -> resolveCatalogId(a);
+            case PACKAGE_REF -> resolvePackageRef(a);
             case SOURCE_PATH -> resolveSourcePath(a);
+            case SOURCE_BASENAME -> resolveSourceBasename(a);
+            case CLASS -> resolveClassFqn(a);
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
             case METHOD_SIGNATURE -> resolveMethodSignature(a);
-            // Kinds resolved outside the per-anchor pipeline (INTERFACE_METHOD) or not extracted in
-            // this version resolve as unverifiable if reached here.
-            case CLASS, ENUM_CONSTANT, CONFIG_KEY, INTERFACE_METHOD ->
-                Resolution.finding(
-                        Outcome.UNVERIFIABLE, Lane.QUIET_LOG, "symbol check", "not implemented in this version");
+            // These kinds are never resolved per-anchor: the config kinds and INTERFACE_METHOD are
+            // produced and checked by the Tier-2 diff assemblers, and ENUM_CONSTANT is not extracted in
+            // this version. Reaching here with one is a wiring error, not a symbol result.
+            case ENUM_CONSTANT, CONFIG_KEY, CONFIG_PREFIX, CONFIG_DEFAULT, INTERFACE_METHOD ->
+                throw new IllegalArgumentException("Anchor kind " + a.kind()
+                        + " is not resolved by the per-anchor pipeline (config/interface kinds are handled by the "
+                        + "Tier-2 diff assemblers; ENUM_CONSTANT is unused).");
         };
+    }
+
+    /**
+     * Resolves a prose package reference by checking the indexed package tree. Present when an indexed
+     * source lives in the package or a subpackage of it. Asserted gone only when the package's own
+     * namespace (its first two segments) is indexed — a package outside every indexed namespace is
+     * external (e.g. a library package) and stays quiet rather than guessed at.
+     *
+     * @param a the anchor to resolve; its target is the dotted package name.
+     * @return present when the package tree exists, an absent assertion when it is certainly gone,
+     *     otherwise unverifiable.
+     */
+    private Resolution resolvePackageRef(final Anchor a) {
+        final String pkg = a.target();
+        final String q = "package exists: " + pkg;
+        if (index.packageExists(pkg)) {
+            return Resolution.ok(Outcome.PRESENT, q);
+        }
+        if (!namespaceIndexed(pkg)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Package `" + pkg + "` is outside every indexed namespace (external); unverifiable.");
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "No indexed source lives in package `" + pkg + "` (or any subpackage); the cited package is gone.");
+    }
+
+    /**
+     * Resolves a fully-qualified type citation by package + simple name against the source index. The
+     * primary (file-defining) type is the first uppercase segment; deeper nested-type segments are not
+     * resolved (parse-only nesting is not checked — precision over coverage). A type found only in a
+     * different package is a package move (present, but reported; a unique candidate drives a ready
+     * FQN rewrite); a basename found nowhere asserts gone only when the cited namespace is indexed.
+     *
+     * @param a the anchor to resolve; its target is the FQN and its cited scope the primary type name.
+     * @return the resolution reflecting the type's existence and location.
+     */
+    private Resolution resolveClassFqn(final Anchor a) {
+        final String fqn = a.target();
+        final String simpleName = a.citedScope();
+        final String basename = simpleName + ".java";
+        final String q = "type exists in cited package: " + fqn;
+
+        if (a.historical()) {
+            return resolveHistoricalSource(a, q, basename);
+        }
+        if (allowlist.isExternalName(simpleName)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "`" + simpleName + "` is an allowlisted external/generated type.");
+        }
+        if (!SourceCandidates.forFqn(index, fqn, simpleName).isEmpty()) {
+            return Resolution.ok(Outcome.PRESENT, q);
+        }
+        final List<String> candidates = index.pathsForBasename(basename);
+        if (!candidates.isEmpty()) {
+            return resolveElsewhere(
+                    q,
+                    candidates,
+                    (resolvedPath, modules) -> "`" + simpleName
+                            + "` is not in the cited package"
+                            + (resolvedPath != null
+                                    ? "; it now resolves at `" + resolvedPath + "` (package move)."
+                                    : "; it now resolves in: " + String.join(", ", modules) + " (package move)."));
+        }
+        if (!namespaceIndexed(fqn)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "Type `" + fqn + "` is outside every indexed namespace (external); unverifiable.");
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "No file `" + basename + "` under any indexed module; cited type `" + fqn + "` is gone.");
+    }
+
+    /**
+     * Whether a dotted name's namespace — its first two segments — contains any indexed package. This is
+     * the guard that keeps package/FQN absence assertions inside the repo's own namespaces: a citation of
+     * an external library can never assert.
+     *
+     * @param dotted the dotted package or FQN.
+     * @return {@code true} when an indexed package lives under the name's two-segment namespace.
+     */
+    private boolean namespaceIndexed(final String dotted) {
+        final String[] parts = dotted.split("\\.");
+        final String namespace = parts.length >= 2 ? parts[0] + "." + parts[1] : dotted;
+        return index.packageExists(namespace);
     }
 
     /**
@@ -112,7 +219,9 @@ public final class AnchorResolver {
     }
 
     /**
-     * Resolves a cross-document link anchor by checking that the linked file exists.
+     * Resolves a cross-document link anchor by checking that the linked file exists. A frontmatter
+     * {@code topics:} tag names a slug rather than a hyperlink, so it may equally denote an architecture
+     * interface document; real body links get no such fallback — their href must resolve as written.
      *
      * @param a the anchor to resolve.
      * @return present when the file exists, otherwise an absent assertion.
@@ -122,8 +231,33 @@ public final class AnchorResolver {
         if (index.fileExists(a.target())) {
             return Resolution.ok(Outcome.PRESENT, q);
         }
+        if (isTopicTag(a)) {
+            final String interfacesTarget = a.target().replace("/architecture/topics/", "/architecture/interfaces/");
+            if (index.fileExists(interfacesTarget)) {
+                return Resolution.ok(Outcome.PRESENT, q);
+            }
+            return Resolution.finding(
+                    Outcome.ABSENT,
+                    Lane.ASSERT,
+                    q,
+                    "Linked document `" + a.target() + "` does not exist (no such topic; also checked `"
+                            + interfacesTarget + "`).");
+        }
         return Resolution.finding(
                 Outcome.ABSENT, Lane.ASSERT, q, "Linked document `" + a.target() + "` does not exist.");
+    }
+
+    /**
+     * Whether a cross-doc anchor came from a frontmatter {@code topics:} tag. Such anchors carry the bare
+     * slug as their raw text and a target built as {@code <kb>/architecture/topics/<slug>.md}; a body
+     * link's raw text is its URL (which always ends in {@code .md} or carries a fragment), so it can
+     * never satisfy this shape.
+     *
+     * @param a the cross-doc anchor.
+     * @return {@code true} when the anchor is a topics tag.
+     */
+    private static boolean isTopicTag(final Anchor a) {
+        return a.target().endsWith("/architecture/topics/" + a.rawText() + ".md");
     }
 
     /**
@@ -201,58 +335,26 @@ public final class AnchorResolver {
      */
     private Resolution resolveSourcePath(final Anchor a) {
         final String target = a.target();
-        final String basename = lastSegment(target);
-        final String simpleName = stripExt(basename);
+        final String basename = RepoPaths.lastSegment(target);
+        final String simpleName = RepoPaths.stripExtension(basename);
         final String q = "source exists: " + target;
 
-        if (allowlist.isExternalPath(target)) {
-            return Resolution.finding(
-                    Outcome.UNVERIFIABLE,
-                    Lane.QUIET_LOG,
-                    q,
-                    "External/generated source (not indexed): `" + target + "`.");
+        if (a.historical()) {
+            return resolveHistoricalSource(a, q, basename);
         }
-
         final boolean abbreviated = target.contains("/.../");
-        if (!abbreviated && index.fileExists(target)) {
-            if (a.citedLine() != Anchor.NO_LINE) {
-                final int declLine = primaryTypeDeclLine(target, simpleName);
-                if (declLine > 0 && declLine != a.citedLine()) {
-                    return Resolution.autoFix(
-                            q,
-                            "Type `" + simpleName + "` is declared at line " + declLine + " but is cited at line "
-                                    + a.citedLine() + ".",
-                            declLine);
-                }
-            }
-            return Resolution.ok(Outcome.PRESENT, q);
-        }
 
-        // File not at the cited path (or abbreviated): look the basename up across indexed sources.
-        final List<String> paths = index.pathsForBasename(basename);
-        final List<String> inCitedModule = new ArrayList<>();
-        for (final String p : paths) {
-            if (a.citedModule() != null && a.citedModule().equals(moduleOfPath(p))) {
-                inCitedModule.add(p);
-            }
+        final Optional<Resolution> external = externalSource(a, abbreviated, q);
+        if (external.isPresent()) {
+            return external.get();
         }
-        if (abbreviated && !inCitedModule.isEmpty()) {
-            return Resolution.ok(Outcome.PRESENT, q);
+        final Optional<Resolution> atCitedPath = sourceAtCitedPath(a, basename, simpleName, abbreviated, q);
+        if (atCitedPath.isPresent()) {
+            return atCitedPath.get();
         }
-        if (!paths.isEmpty()) {
-            // Exists, but not where cited — a package/path move, not "gone". Present, but reported.
-            final Set<String> modules = new TreeSet<>();
-            for (final String p : paths) {
-                final String m = moduleOfPath(p);
-                modules.add(m == null ? p : m);
-            }
-            return Resolution.finding(
-                    Outcome.PRESENT,
-                    Lane.ASSERT,
-                    q,
-                    "`" + basename + "` is not at the cited location"
-                            + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
-                            + "; it now resolves in: " + String.join(", ", modules) + " (package/path move).");
+        final Optional<Resolution> moved = movedSource(a, basename, abbreviated, q);
+        if (moved.isPresent()) {
+            return moved.get();
         }
         if (allowlist.isExternalName(simpleName)) {
             return Resolution.finding(
@@ -269,6 +371,179 @@ public final class AnchorResolver {
     }
 
     /**
+     * Resolves an allowlisted external/generated source target: present when it exists on disk, otherwise
+     * unverifiable (it may be generated at build time). Empty when the target is not allowlisted.
+     *
+     * @param a           the anchor to resolve.
+     * @param abbreviated whether the cited path uses the {@code /.../} ellipsis (no on-disk lookup).
+     * @param q           the resolver question.
+     * @return the external-source resolution, or empty when the target is not external.
+     */
+    private Optional<Resolution> externalSource(final Anchor a, final boolean abbreviated, final String q) {
+        final String target = a.target();
+        if (!allowlist.isExternalPath(target)) {
+            return Optional.empty();
+        }
+        // Existence is still a filesystem fact even for a source the engine cannot parse: a cited
+        // external file that is present resolves cleanly (Tier 0). A missing one stays unverifiable —
+        // it may be generated at build time — but the quiet-log evidence flags the absence so a
+        // curator skimming the log sees it.
+        if (!abbreviated && index.fileExists(target)) {
+            return Optional.of(Resolution.ok(Outcome.PRESENT, q));
+        }
+        final String note = abbreviated ? "" : " Not found on disk either (may be generated at build time).";
+        return Optional.of(Resolution.finding(
+                Outcome.UNVERIFIABLE,
+                Lane.QUIET_LOG,
+                q,
+                "External/generated source (not indexed): `" + target + "`." + note));
+    }
+
+    /**
+     * Resolves a source present at exactly the cited (non-abbreviated) path: a stale {@code Module:} label
+     * asserts, a moved declaration line for the named type emits a line auto-fix, otherwise it resolves
+     * cleanly. Empty when the cited path is abbreviated or the file is not there.
+     *
+     * @param a           the anchor to resolve.
+     * @param basename    the cited file basename.
+     * @param simpleName  the cited file basename without its extension (the primary type name).
+     * @param abbreviated whether the cited path uses the {@code /.../} ellipsis.
+     * @param q           the resolver question.
+     * @return the at-cited-path resolution, or empty when the file is not at the cited path.
+     */
+    private Optional<Resolution> sourceAtCitedPath(
+            final Anchor a, final String basename, final String simpleName, final boolean abbreviated, final String q) {
+        final String target = a.target();
+        if (abbreviated || !index.fileExists(target)) {
+            return Optional.empty();
+        }
+        final String actualModule = RepoPaths.moduleOf(target);
+        if (a.statedModule() != null
+                && actualModule != null
+                && !a.statedModule().equals(actualModule)) {
+            return Optional.of(Resolution.finding(
+                    Outcome.PRESENT,
+                    Lane.ASSERT,
+                    q,
+                    "`" + basename + "` resolves in module `" + actualModule
+                            + "`, but the stated label is `Module: " + a.statedModule() + "`; update the label to `"
+                            + actualModule + "`."));
+        }
+        if (a.citedLine() != Anchor.NO_LINE) {
+            final int declLine = primaryTypeDeclLine(target, simpleName);
+            if (declLine > 0 && declLine != a.citedLine()) {
+                return Optional.of(Resolution.autoFix(
+                        q,
+                        "Type `" + simpleName + "` is declared at line " + declLine + " but is cited at line "
+                                + a.citedLine() + ".",
+                        declLine));
+            }
+        }
+        return Optional.of(Resolution.ok(Outcome.PRESENT, q));
+    }
+
+    /**
+     * Resolves a source not at the cited path by looking the basename up across the index: an abbreviated
+     * citation whose basename exists in the cited module is present; a basename found elsewhere is a
+     * package/path move (present, but reported, with a rewrite when the target is unique). Empty when the
+     * basename is not indexed anywhere.
+     *
+     * @param a           the anchor to resolve.
+     * @param basename    the cited file basename.
+     * @param abbreviated whether the cited path uses the {@code /.../} ellipsis.
+     * @param q           the resolver question.
+     * @return the moved-source resolution, or empty when the basename is not indexed.
+     */
+    private Optional<Resolution> movedSource(
+            final Anchor a, final String basename, final boolean abbreviated, final String q) {
+        // File not at the cited path (or abbreviated): look the basename up across indexed sources.
+        final List<String> paths = index.pathsForBasename(basename);
+        if (abbreviated
+                && !SourceCandidates.inModule(index, basename, a.citedModule()).isEmpty()) {
+            return Optional.of(Resolution.ok(Outcome.PRESENT, q));
+        }
+        if (paths.isEmpty()) {
+            return Optional.empty();
+        }
+        // Exists, but not where cited — a package/path move, not "gone". Present, but reported.
+        // With exactly one candidate, the resolved path also drives a path-rewrite auto-fix proposal.
+        return Optional.of(resolveElsewhere(q, paths, (resolvedPath, modules) -> {
+            String evidence = "`" + basename + "` is not at the cited location"
+                    + (a.citedModule() != null ? " in module `" + a.citedModule() + "`" : "")
+                    + (resolvedPath != null
+                            ? "; it now resolves at `" + resolvedPath + "` (package/path move)."
+                            : "; it now resolves in: " + String.join(", ", modules) + " (package/path move).");
+            if (a.statedModule() != null && !modules.contains(a.statedModule())) {
+                evidence += " Also update the stated `Module: " + a.statedModule() + "` label to "
+                        + String.join(", ", modules) + ".";
+            }
+            return evidence;
+        }));
+    }
+
+    /**
+     * Resolves a bare source-file basename cited in prose (no path). Existence only: present if the
+     * basename is indexed anywhere, allowlisted if generated/external, otherwise asserted gone. No location
+     * was cited, so a "moved" location is never asserted.
+     *
+     * @param a the anchor to resolve.
+     * @return the resolution reflecting whether the basename exists in the index.
+     */
+    private Resolution resolveSourceBasename(final Anchor a) {
+        final String basename = a.target();
+        final String simpleName = RepoPaths.stripExtension(basename);
+        final String q = "source exists: " + basename;
+
+        if (a.historical()) {
+            return resolveHistoricalSource(a, q, basename);
+        }
+        if (allowlist.isExternalName(simpleName)) {
+            return Resolution.finding(
+                    Outcome.UNVERIFIABLE,
+                    Lane.QUIET_LOG,
+                    q,
+                    "`" + simpleName + "` is an allowlisted external/generated type.");
+        }
+        if (!index.pathsForBasename(basename).isEmpty()) {
+            return Resolution.ok(Outcome.PRESENT, q);
+        }
+        return Resolution.finding(
+                Outcome.ABSENT,
+                Lane.ASSERT,
+                q,
+                "No file `" + basename + "` under any indexed module; cited source `" + basename + "` is gone.");
+    }
+
+    /**
+     * Resolves a source anchor the citing document marked {@code historical:} (expected-gone). The check
+     * inverts: a gone source is the expected state (quiet, unverifiable as drift), while a source that
+     * still exists contradicts the documented deletion and asserts.
+     *
+     * @param a        the historical anchor.
+     * @param q        the question asked.
+     * @param basename the cited file basename.
+     * @return an assert when the source still exists, otherwise a quiet expected-gone resolution.
+     */
+    private Resolution resolveHistoricalSource(final Anchor a, final String q, final String basename) {
+        final boolean abbreviated = a.target().contains("/.../");
+        final boolean atCitedPath = !abbreviated && a.target().contains("/") && index.fileExists(a.target());
+        final List<String> paths = index.pathsForBasename(basename);
+        if (atCitedPath || !paths.isEmpty()) {
+            final String where = atCitedPath ? a.target() : String.join(", ", paths);
+            return Resolution.finding(
+                    Outcome.PRESENT,
+                    Lane.ASSERT,
+                    q,
+                    "`" + basename + "` is marked `historical:` (expected deleted) but exists at: `" + where + "`.");
+        }
+        return Resolution.finding(
+                Outcome.UNVERIFIABLE,
+                Lane.QUIET_LOG,
+                q,
+                "Expected-gone (historical): `" + a.target() + "` is cited as removed code.");
+    }
+
+    /**
      * Resolves a method-on-class anchor by parsing the resolved class file and checking that it declares
      * the cited method. When the class cannot be located or resolved, existence is unverifiable (the file
      * anchor covers that case).
@@ -281,39 +556,31 @@ public final class AnchorResolver {
         final String className = a.citedScope();
         final String method = a.target();
         final String q = "class `" + className + "` declares method `" + method + "`";
-        final String classFile = className + ".java";
-        String resolvedPath = null;
-        for (final String p : index.pathsForBasename(classFile)) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
-                resolvedPath = p;
-                break;
-            }
-        }
-        if (resolvedPath == null) {
+        final CitedType ct = locateCitedType(a, className);
+        if (!ct.pathResolved()) {
+            final String scope = a.citedModule() == null ? "the index" : "module `" + a.citedModule() + "`";
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
-                    "Class `" + className + "` not found in module `" + a.citedModule()
-                            + "`; method existence unverifiable (the file anchor covers this).");
+                    "Class `" + className + "` not found in " + scope
+                            + "; method existence unverifiable (the file anchor covers this).");
         }
-        final ParsedFile parsed = index.parse(resolvedPath);
-        final TypeInfo type = parsed.types().get(className);
-        if (type == null) {
+        if (!ct.typeResolved()) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
-                    "Could not resolve type `" + className + "` in `" + resolvedPath + "`.");
+                    "Could not resolve type `" + className + "` in `" + ct.path() + "`.");
         }
-        if (type.hasMethod(method)) {
+        if (ct.type().hasMethod(method)) {
             return Resolution.ok(Outcome.PRESENT, q);
         }
         return Resolution.finding(
                 Outcome.ABSENT,
                 Lane.ASSERT,
                 q,
-                "Class `" + className + "` in `" + resolvedPath + "` declares no method `" + method + "`.");
+                "Class `" + className + "` in `" + ct.path() + "` declares no method `" + method + "`.");
     }
 
     /**
@@ -326,29 +593,22 @@ public final class AnchorResolver {
         final String className = a.citedScope();
         final String method = a.target();
         final String q = "method `" + className + "#" + method + "` resolves at cited line";
-        String resolvedPath = null;
-        for (final String p : index.pathsForBasename(className + ".java")) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
-                resolvedPath = p;
-                break;
-            }
-        }
-        if (resolvedPath == null) {
+        final CitedType ct = locateCitedType(a, className);
+        if (!ct.pathResolved()) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
                     "Class `" + className + "` not indexed; line unverifiable.");
         }
-        final TypeInfo type = index.parse(resolvedPath).types().get(className);
-        if (type == null || !type.hasMethod(method)) {
+        if (!ct.typeResolved() || !ct.type().hasMethod(method)) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
-                    "Method `" + method + "` not declared in `" + resolvedPath + "` (may be inherited/overloaded).");
+                    "Method `" + method + "` not declared in `" + ct.path() + "` (may be inherited/overloaded).");
         }
-        final int line = type.firstLine(method).orElse(-1);
+        final int line = ct.type().firstLine(method).orElse(-1);
         if (a.citedLine() != Anchor.NO_LINE && line > 0 && line != a.citedLine()) {
             return Resolution.autoFix(
                     q,
@@ -378,52 +638,45 @@ public final class AnchorResolver {
 
         final List<String> docParams = new ArrayList<>();
         boolean clean = true;
-        for (final String piece : splitParams(paramStr)) {
-            final String type = dropParamName(piece);
+        for (final String piece : JavaParsing.splitParams(paramStr)) {
+            final String type = JavaParsing.dropParamName(piece);
             if (type.isBlank()) {
                 clean = false;
                 break;
             }
-            docParams.add(normalizeType(type));
+            docParams.add(JavaParsing.canonicalType(type));
         }
         if (!clean) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE, Lane.QUIET_LOG, q, "Cited parameter list is not cleanly type-like.");
         }
 
-        String resolvedPath = null;
-        for (final String p : index.pathsForBasename(className + ".java")) {
-            if (a.citedModule() == null || a.citedModule().equals(moduleOfPath(p))) {
-                resolvedPath = p;
-                break;
-            }
-        }
-        if (resolvedPath == null) {
+        final CitedType ct = locateCitedType(a, className);
+        if (!ct.pathResolved()) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
                     "Class `" + className + "` not indexed; signature unverifiable.");
         }
-        final TypeInfo type = index.parse(resolvedPath).types().get(className);
-        if (type == null) {
+        if (!ct.typeResolved()) {
             return Resolution.finding(
                     Outcome.UNVERIFIABLE, Lane.QUIET_LOG, q, "Could not resolve type `" + className + "`.");
         }
-        final List<JavaParsing.MethodSig> overloads = type.overloads(method);
+        final List<JavaParsing.MethodSig> overloads = ct.type().overloads(method);
         if (overloads.isEmpty()) {
             // Method name is absent entirely — could be inherited; leave existence to other anchors.
             return Resolution.finding(
                     Outcome.UNVERIFIABLE,
                     Lane.QUIET_LOG,
                     q,
-                    "Method `" + method + "` not declared in `" + resolvedPath + "` (may be inherited/overloaded).");
+                    "Method `" + method + "` not declared in `" + ct.path() + "` (may be inherited/overloaded).");
         }
+        // Stored parameter types are already canonical (JavaParsing.canonicalType at build time), so the
+        // documented and declared forms compare directly with no second normalization.
         final List<String> actualSignatures = new ArrayList<>();
         for (final JavaParsing.MethodSig sig : overloads) {
-            final List<String> actual =
-                    sig.paramTypes().stream().map(AnchorResolver::normalizeType).toList();
-            if (actual.equals(docParams)) {
+            if (sig.paramTypes().equals(docParams)) {
                 return Resolution.ok(Outcome.PRESENT, q);
             }
             actualSignatures.add(method + "(" + String.join(", ", sig.paramTypes()) + ")");
@@ -437,74 +690,83 @@ public final class AnchorResolver {
     }
 
     /**
-     * Splits a parameter list on top-level commas, ignoring commas nested in generics, arrays, or
-     * parentheses.
+     * A cited type located in the source index: its resolved path and parsed {@link TypeInfo}, either of
+     * which may be absent (path not found, or the file parsed but declares no such type). This is the
+     * shared preamble of the method resolvers; each caller turns an unresolved path or type into its own
+     * short-circuit {@link Resolution} so the (differing) evidence text stays with the caller.
      *
-     * @param paramStr the raw parameter list (without the surrounding parentheses).
-     * @return the trimmed parameter pieces, or an empty list when there are none.
+     * @param path the repo-relative path the class resolved at, or {@code null} when unfound.
+     * @param type the parsed type, or {@code null} when the path resolved but declares no such type.
      */
-    static List<String> splitParams(final String paramStr) {
-        final List<String> parts = new ArrayList<>();
-        if (paramStr.isBlank()) {
-            return parts;
+    private record CitedType(String path, TypeInfo type) {
+
+        /**
+         * Whether the cited class file was located in the index.
+         *
+         * @return {@code true} when a path resolved.
+         */
+        boolean pathResolved() {
+            return path != null;
         }
-        int depth = 0;
-        final StringBuilder cur = new StringBuilder();
-        for (int i = 0; i < paramStr.length(); i++) {
-            final char c = paramStr.charAt(i);
-            if (c == '<' || c == '(' || c == '[') {
-                depth++;
-            } else if (c == '>' || c == ')' || c == ']') {
-                depth--;
-            }
-            if (c == ',' && depth == 0) {
-                parts.add(cur.toString().strip());
-                cur.setLength(0);
-            } else {
-                cur.append(c);
-            }
+
+        /**
+         * Whether the located file declares the cited type.
+         *
+         * @return {@code true} when the type was parsed.
+         */
+        boolean typeResolved() {
+            return type != null;
         }
-        if (!cur.isEmpty()) {
-            parts.add(cur.toString().strip());
-        }
-        return parts;
     }
 
     /**
-     * Drops a trailing parameter name from a parameter piece, keeping just the type. A piece with a
-     * top-level space (e.g. {@code List<Foo> bar}) is treated as {@code type name}; a piece without one
-     * (e.g. {@code byte[]}) is the type itself.
+     * Locates a cited class in the index and parses it: the first indexed file of {@code <className>.java}
+     * whose module matches the anchor's cited module (or any when none is cited), then the type it
+     * declares. Shared by {@code resolveMethodOnClass}, {@code resolveMethodRef}, and
+     * {@code resolveMethodSignature}.
      *
-     * @param piece one parameter piece.
-     * @return the parameter's type portion.
+     * @param a         the citing anchor (supplies the cited-module scope).
+     * @param className the simple class name to locate.
+     * @return the located path and type; either component is absent when unresolved.
      */
-    static String dropParamName(final String piece) {
-        int depth = 0;
-        int lastSpace = -1;
-        for (int i = 0; i < piece.length(); i++) {
-            final char c = piece.charAt(i);
-            if (c == '<' || c == '(' || c == '[') {
-                depth++;
-            } else if (c == '>' || c == ')' || c == ']') {
-                depth--;
-            } else if (c == ' ' && depth == 0) {
-                lastSpace = i;
+    private CitedType locateCitedType(final Anchor a, final String className) {
+        String resolvedPath = null;
+        for (final String p : index.pathsForBasename(className + ".java")) {
+            if (a.citedModule() == null || a.citedModule().equals(RepoPaths.moduleOf(p))) {
+                resolvedPath = p;
+                break;
             }
         }
-        return (lastSpace >= 0 ? piece.substring(0, lastSpace) : piece).strip();
+        if (resolvedPath == null) {
+            return new CitedType(null, null);
+        }
+        return new CitedType(resolvedPath, index.parse(resolvedPath).types().get(className));
     }
 
     /**
-     * Normalizes a type for as-written comparison: removes whitespace and strips package qualifiers
-     * from every identifier (e.g. {@code java.util.List<com.x.Foo>} to {@code List<Foo>}), so a doc's
-     * simple names compare equal to source's possibly-qualified ones.
+     * Reduces a list of candidate paths a cited source resolved elsewhere into a package/path-move
+     * resolution: a unique candidate drives a ready path rewrite ({@link Resolution#moved}); several
+     * candidates assert without one. The caller supplies the exact evidence text given the unique resolved
+     * path (or {@code null} when ambiguous) and the sorted set of modules the candidates span. Shared by
+     * {@code resolveClassFqn} and {@code resolveSourcePath}, which keep their distinct evidence wording.
      *
-     * @param type the type string.
-     * @return the normalized type.
+     * @param q          the question asked.
+     * @param candidates the indexed paths the basename resolves at (non-empty).
+     * @param evidenceFn builds the evidence from the unique resolved path (nullable) and the module set.
+     * @return a moved resolution for a unique candidate, otherwise an asserting present resolution.
      */
-    static String normalizeType(final String type) {
-        final String noSpace = type.replaceAll("\\s+", "");
-        return noSpace.replaceAll("(?:[A-Za-z_$][A-Za-z0-9_$]*\\.)+([A-Za-z_$][A-Za-z0-9_$]*)", "$1");
+    private Resolution resolveElsewhere(
+            final String q, final List<String> candidates, final BiFunction<String, Set<String>, String> evidenceFn) {
+        final Set<String> modules = new TreeSet<>();
+        for (final String p : candidates) {
+            final String m = RepoPaths.moduleOf(p);
+            modules.add(m == null ? p : m);
+        }
+        final String resolvedPath = candidates.size() == 1 ? candidates.get(0) : null;
+        final String evidence = evidenceFn.apply(resolvedPath, modules);
+        return resolvedPath != null
+                ? Resolution.moved(q, evidence, resolvedPath)
+                : Resolution.finding(Outcome.PRESENT, Lane.ASSERT, q, evidence);
     }
 
     // ---- Helpers ----
@@ -543,11 +805,12 @@ public final class AnchorResolver {
     }
 
     /**
-     * Whether a catalog table file contains a line mentioning the given ID.
+     * Whether a catalog table file contains a line naming the given ID as a whole token (see
+     * {@link #idPresent}).
      *
      * @param file the knowledge-base-relative catalog file.
      * @param id   the catalog ID.
-     * @return {@code true} if any line contains the ID.
+     * @return {@code true} if any line names the ID as a whole token.
      * @throws UncheckedIOException if reading the catalog file fails.
      */
     private boolean catalogRowExists(final String file, final String id) {
@@ -557,7 +820,7 @@ public final class AnchorResolver {
         }
         try {
             for (final String line : Files.readAllLines(p)) {
-                if (line.contains(id)) {
+                if (idPresent(line, id)) {
                     return true;
                 }
             }
@@ -565,6 +828,29 @@ public final class AnchorResolver {
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read " + p, e);
         }
+    }
+
+    /**
+     * Whether a line names a catalog ID as a whole token — the ID occurs not flanked by a letter or digit
+     * on either side, so {@code TUN-1} matches {@code | TUN-1 |} but not {@code TUN-10}.
+     *
+     * @param line the line to scan.
+     * @param id   the catalog ID token.
+     * @return {@code true} when the ID appears as a standalone token.
+     */
+    private static boolean idPresent(final String line, final String id) {
+        int from = 0;
+        int idx;
+        while ((idx = line.indexOf(id, from)) >= 0) {
+            final int end = idx + id.length();
+            final boolean leftBoundary = idx == 0 || !Character.isLetterOrDigit(line.charAt(idx - 1));
+            final boolean rightBoundary = end == line.length() || !Character.isLetterOrDigit(line.charAt(end));
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+            from = idx + 1;
+        }
+        return false;
     }
 
     /**
@@ -581,7 +867,7 @@ public final class AnchorResolver {
             try {
                 boolean inFence = false;
                 for (final String line : Files.readAllLines(repoRoot.resolve(path))) {
-                    if (line.strip().startsWith("```") || line.strip().startsWith("~~~")) {
+                    if (Markdown.isFenceDelimiter(line)) {
                         inFence = !inFence;
                         continue;
                     }
@@ -620,43 +906,5 @@ public final class AnchorResolver {
             // other punctuation dropped
         }
         return sb.toString();
-    }
-
-    /**
-     * The module directory of a repo-relative path (the segment preceding {@code src}).
-     *
-     * @param repoRelPath the repo-relative path.
-     * @return the module directory name, or {@code null} if the path has no {@code src} segment.
-     */
-    static String moduleOfPath(final String repoRelPath) {
-        final String[] parts = repoRelPath.split("/");
-        for (int i = 1; i < parts.length; i++) {
-            if (parts[i].equals("src")) {
-                return parts[i - 1];
-            }
-        }
-        return null;
-    }
-
-    /**
-     * The last {@code /}-separated segment of a path.
-     *
-     * @param path the path.
-     * @return the final segment, or the whole path if it contains no slash.
-     */
-    private static String lastSegment(final String path) {
-        final int slash = path.lastIndexOf('/');
-        return slash >= 0 ? path.substring(slash + 1) : path;
-    }
-
-    /**
-     * A filename with its first extension (and anything after) removed.
-     *
-     * @param name the filename.
-     * @return the name up to the first dot, or the whole name if it has no leading-dot extension.
-     */
-    private static String stripExt(final String name) {
-        final int dot = name.indexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
     }
 }

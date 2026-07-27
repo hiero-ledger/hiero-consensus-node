@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,6 +27,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.graph.utils.TestEventUtils;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,7 +44,7 @@ public class PcesGraphSlicerTest {
     private static final List<NodeId> NODE_IDS =
             IntStream.range(START_NODE_ID, END_NODE_ID).mapToObj(NodeId::of).toList();
     private static final Long MINIMUM_BIRTHROUND = 60L;
-    private static final int MIN_SEQUENCE_NUM = 200;
+    private static final int MIN_NGEN = 100;
 
     @TempDir
     private Path baseDir;
@@ -58,9 +58,9 @@ public class PcesGraphSlicerTest {
         pcesOutputLocation = baseDir.resolve(Path.of("migrated/preconsensus-events/"));
         FileUtils.deleteDirectory(pcesOutputLocation);
         final PlatformContext context =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
         final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
-        final Roster roster = PlatformTestUtils.generateRoster(keysAndCertsMap);
+        final Roster roster = RosterFactory.rosterOf(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, 5000);
     }
 
@@ -69,7 +69,7 @@ public class PcesGraphSlicerTest {
     public void sliceByPropertyTest(@NonNull final EventGraphPipeline.EventFilter filter)
             throws IOException, KeyStoreException, ExecutionException, InterruptedException {
         final PlatformContext newContext =
-                PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
+                PlatformContextFactory.createPlatformContext(Function.identity(), Function.identity());
 
         final Map<NodeId, KeysAndCerts> newKeysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()
@@ -85,10 +85,12 @@ public class PcesGraphSlicerTest {
         assertTrue(Files.exists(pcesOutputLocation));
         assertFilteredPcesExist(pcesOutputLocation);
 
-        final PcesEventGraphSource source = new PcesEventGraphSource(pcesLocation, newContext);
+        final PcesEventGraphSource source =
+                new PcesEventGraphSource(pcesLocation, newContext.getConfiguration(), newContext.getRecycleBin());
         final List<PlatformEvent> oldEventsInPCes = new ArrayList<>();
         source.forEachRemaining(oldEventsInPCes::add);
-        final PcesEventGraphSource newSource = new PcesEventGraphSource(pcesOutputLocation, newContext);
+        final PcesEventGraphSource newSource =
+                new PcesEventGraphSource(pcesOutputLocation, newContext.getConfiguration(), newContext.getRecycleBin());
         final List<PlatformEvent> newEventsInPCes = new ArrayList<>();
         newSource.forEachRemaining(newEventsInPCes::add);
         Assertions.assertTrue(
@@ -128,9 +130,7 @@ public class PcesGraphSlicerTest {
     }
 
     private static List<EventGraphPipeline.EventFilter> filters() {
-        return List.of(
-                event -> event.getBirthRound() >= MINIMUM_BIRTHROUND,
-                event -> event.getSequenceNumber() >= MIN_SEQUENCE_NUM);
+        return List.of(event -> event.getBirthRound() >= MINIMUM_BIRTHROUND, event -> event.getNGen() >= MIN_NGEN);
     }
 
     private static EventCore overrideBirthround(@NonNull final EventCore event) {

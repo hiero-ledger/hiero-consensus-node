@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal;
 
-import static org.hiero.consensus.model.event.EventConstants.FIRST_SEQUENCE_NUMBER;
+import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -34,7 +34,7 @@ public class GuiEventStorage {
     // A note on concurrency: although all input to this class is sequential and thread safe, access to this class
     // happens asynchronously. This requires all methods to be synchronized.
 
-    private long maxSequenceNumber = FIRST_SEQUENCE_NUMBER;
+    private long maxGeneration = FIRST_GENERATION;
 
     private final Consensus consensus;
     private final ConsensusLinker linker;
@@ -68,10 +68,10 @@ public class GuiEventStorage {
         this.consensus = consensus;
         this.linker = linker;
         this.configuration = configuration;
-        maxSequenceNumber = linker.getNonAncientEvents().stream()
-                .mapToLong(EventImpl::getSequenceNumber)
+        maxGeneration = linker.getNonAncientEvents().stream()
+                .mapToLong(EventImpl::getNGen)
                 .max()
-                .orElse(1);
+                .orElse(FIRST_GENERATION);
     }
 
     /**
@@ -87,8 +87,9 @@ public class GuiEventStorage {
      *
      * @param event the event to handle
      */
-    public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
-        maxSequenceNumber = Math.max(maxSequenceNumber, event.getSequenceNumber());
+    @Nullable
+    public synchronized EventWindow handlePreconsensusEvent(@NonNull final PlatformEvent event) {
+        maxGeneration = Math.max(maxGeneration, event.getNGen());
 
         // Detect branches before linking
         final NodeId creator = event.getCreatorId();
@@ -97,20 +98,22 @@ public class GuiEventStorage {
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());
         if (eventImpl == null) {
-            return;
+            return null;
         }
+        eventImpl.getBaseEvent().setNGen(event.getNGen());
         eventImpl.getBaseEvent().setSequenceNumber(event.getSequenceNumber());
 
         final List<ConsensusRound> rounds = consensus.addEvent(eventImpl);
 
         if (rounds.isEmpty()) {
-            return;
+            return null;
         }
         lastConsensusRound = rounds.getLast();
 
         final EventWindow currentEventWindow = rounds.getLast().getEventWindow();
         branchDetector.setEventWindow(currentEventWindow);
         linker.setEventWindow(currentEventWindow);
+        return currentEventWindow;
     }
 
     /**
@@ -135,8 +138,8 @@ public class GuiEventStorage {
      *
      * @return the maximum generation of any event in the hashgraph
      */
-    public synchronized long getMaxSequenceNumber() {
-        return maxSequenceNumber;
+    public synchronized long getMaxGeneration() {
+        return maxGeneration;
     }
 
     /**

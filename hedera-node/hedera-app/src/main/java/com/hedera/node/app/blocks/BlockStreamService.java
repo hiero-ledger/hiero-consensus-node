@@ -63,6 +63,17 @@ public class BlockStreamService implements Service {
         return bsiSchemaOverwriteExecuted;
     }
 
+    /**
+     * Returns whether the schema overwrite was executed during the most recent migration and clears the signal.
+     *
+     * @return whether the schema overwrite was executed
+     */
+    public boolean consumeBsiSchemaOverwriteExecuted() {
+        final var executed = bsiSchemaOverwriteExecuted;
+        bsiSchemaOverwriteExecuted = false;
+        return executed;
+    }
+
     private void markSchemaOverwriteExecuted() {
         this.bsiSchemaOverwriteExecuted = true;
         log.info("Block stream cutover's schema overwrite executed during schema migration");
