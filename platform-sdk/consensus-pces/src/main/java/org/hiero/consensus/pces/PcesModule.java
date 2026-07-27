@@ -11,7 +11,6 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
@@ -19,7 +18,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides
@@ -40,8 +39,7 @@ public interface PcesModule {
      * @param startingRound the round from which to start replaying events
      * @param flushPrimaryPipeline a {@link Runnable} that triggers flushing of PCES events to the required modules before resuming normal operations
      * @param replayProgressSupplier a supplier that returns the current replay progress
-     * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
-     * @param platformStatusFlusher a {@link Runnable} that triggers flushing of the platform status
+     * @param statusMonitorModule the {@link StatusMonitorModule} for monitoring the status of the platform
      * @param signalEndOfPcesReplay a {@link Runnable} that signals to the system that PCES replay is complete
      * @param pipelineTracker an optional {@link EventPipelineTracker} for tracking events through the pipeline
      */
@@ -56,8 +54,7 @@ public interface PcesModule {
             long startingRound,
             @NonNull Runnable flushPrimaryPipeline,
             @NonNull Supplier<PcesReplayProgress> replayProgressSupplier,
-            @NonNull Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull Runnable platformStatusFlusher,
+            @NonNull StatusMonitorModule statusMonitorModule,
             @NonNull Runnable signalEndOfPcesReplay,
             @Nullable EventPipelineTracker pipelineTracker);
 
@@ -121,13 +118,6 @@ public interface PcesModule {
     @InputWireLabel("discontinuity")
     @NonNull
     InputWire<Long> discontinuityInputWire();
-
-    /**
-     * Inject the minimum birth round non-ancient for the oldest state on disk.
-     *
-     * @param minimumBirthRoundNonAncientForOldestState the minimum birth round
-     */
-    void injectMinimumBirthRound(long minimumBirthRoundNonAncientForOldestState);
 
     /**
      * Flushes all events of the internal components.

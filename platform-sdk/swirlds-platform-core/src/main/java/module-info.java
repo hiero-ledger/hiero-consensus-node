@@ -26,7 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.listeners;
     exports com.swirlds.platform.metrics;
-    exports com.swirlds.platform.monitor;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state;
@@ -43,11 +42,6 @@ module com.swirlds.platform.core {
             org.hiero.consensus.pcli,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
-    exports com.swirlds.platform.uptime to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            com.swirlds.common,
-            com.hedera.node.test.clients;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.monitor;
+package org.hiero.consensus.status;
 
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
@@ -11,8 +11,6 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.monitor.internal.DefaultPlatformMonitor;
-import com.swirlds.platform.monitor.internal.PlatformMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.config.PlatformStatusConfig;
@@ -23,6 +21,8 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.internal.DefaultPlatformMonitor;
+import org.hiero.consensus.status.internal.PlatformMonitor;
 
 /**
  * The StatusMonitorModule is responsible for monitoring the platform's status and updating the platform's
@@ -98,6 +98,27 @@ public class StatusMonitorModule {
     }
 
     /**
+     * {@link InputWire} to submit a PlatformStatusAction to the monitor
+     *
+     * @return the {@link InputWire} for submitting PlatformStatusAction
+     */
+    @InputWireLabel("platform status action")
+    @NonNull
+    public InputWire<PlatformStatusAction> platformStatusActionInputWire() {
+        return platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
+    }
+
+    /**
+     * {@link InputWire} to submit a quiescence command to the platform monitor.
+     *
+     * @return the {@link InputWire} for submitting quiescence commands
+     */
+    @NonNull
+    public InputWire<QuiescenceCommand> quiescenceCommandInputWire() {
+        return platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand);
+    }
+
+    /**
      * The primary output wire of the StatusMonitorModule. This output wire produces PlatformStatus notifications.
      *
      * @return the {@link OutputWire} for PlatformStatus notifications
@@ -105,24 +126,6 @@ public class StatusMonitorModule {
     @NonNull
     public OutputWire<PlatformStatus> platformStatusOutputWire() {
         return platformMonitorWiring.getOutputWire();
-    }
-
-    /**
-     * Submit a status action to the platform monitor.
-     *
-     * @param action the status action to submit
-     */
-    public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction).put(action);
-    }
-
-    /**
-     * Submit a quiescence command to the platform monitor.
-     *
-     * @param quiescenceCommand the quiescence command to submit
-     */
-    public void submitQuiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand).inject(quiescenceCommand);
     }
 
     /**

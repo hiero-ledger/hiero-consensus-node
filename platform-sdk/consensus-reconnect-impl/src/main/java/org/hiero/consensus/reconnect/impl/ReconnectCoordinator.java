@@ -24,7 +24,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.SignedState;
-import org.hiero.consensus.status.StatusStateMachine;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.status.actions.PlatformStatusAction;
 
 /**
@@ -44,10 +44,10 @@ public class ReconnectCoordinator {
     }
 
     /**
-     * @see StatusStateMachine#submitStatusAction
+     * @see StatusMonitorModule#platformStatusActionInputWire()
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
-        buildingBlocks.statusMonitorModule().submitStatusAction(action);
+        buildingBlocks.statusMonitorModule().platformStatusActionInputWire().put(action);
     }
 
     /**
@@ -130,7 +130,8 @@ public class ReconnectCoordinator {
     public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
         buildingBlocks
                 .issDetectionModule()
-                .overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+                .overridingStateInputWire()
+                .put(signedState.reserve("reconnect state to issDetector"));
 
         buildingBlocks
                 .transactionHandlingModule()
@@ -144,7 +145,7 @@ public class ReconnectCoordinator {
         final State state = signedState.getState();
 
         final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(state));
-        buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
+        buildingBlocks.hashgraphModule().consensusSnapshotOverrideInputWire().inject(consensusSnapshot);
 
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
@@ -159,7 +160,7 @@ public class ReconnectCoordinator {
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
-        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
+        buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateInput().inject(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
     }
 

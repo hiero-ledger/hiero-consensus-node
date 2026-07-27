@@ -28,6 +28,7 @@ import org.hiero.consensus.status.actions.SelfEventReachedConsensusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 import org.hiero.consensus.status.actions.StateWrittenToDiskAction;
 import org.hiero.consensus.status.actions.TimeElapsedAction;
+import org.hiero.consensus.status.internal.StatusStateMachine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

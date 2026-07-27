@@ -26,6 +26,7 @@ public interface ReconnectModule {
      * @param configuration the configuration for this module
      * @param time the time source
      * @param currentRoster the current roster of the network
+     * @param buildingBlocks the building blocks for the consensus layer
      * @param platform the platform to use for performing platform operations
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
      * @param consensusStateEventHandler the handler for consensus state events

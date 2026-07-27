@@ -31,7 +31,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.config.StateConfig;
@@ -79,7 +78,7 @@ public class InitialStateLoader {
                 requireNonNullElse(legacyRunningEventHashOf(signedState.getState()), Cryptography.NULL_HASH);
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
-        buildingBlocks.runningEventHashOverrideWiring().updateRunningHash(runningEventHashOverride);
+        buildingBlocks.runningEventHashOverrideWiring().runningHashUpdateInput().inject(runningEventHashOverride);
 
         // Load the minimum birth round into the pre-consensus event writer
         final String actualMainClassName =
@@ -92,20 +91,21 @@ public class InitialStateLoader {
             // The minimum birth round of non-ancient events for the oldest state snapshot on disk.
             final long minimumBirthRoundNonAncientForOldestState =
                     savedStates.getLast().metadata().minimumBirthRoundNonAncient();
-            buildingBlocks.pcesModule().injectMinimumBirthRound(minimumBirthRoundNonAncientForOldestState);
+            buildingBlocks.pcesModule().minimumBirthRoundInputWire().inject(minimumBirthRoundNonAncientForOldestState);
         }
 
         final boolean startedFromGenesis = signedState.isGenesisState();
 
-        if (startedFromGenesis) {
-            buildingBlocks.platformCoordinator().updateEventWindow(EventWindow.getGenesisEventWindow());
-        } else {
+        if (!startedFromGenesis) {
             buildingBlocks.stateModule().sendState(signedState);
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
 
             final ConsensusSnapshot consensusSnapshot = requireNonNull(consensusSnapshotOf(signedState.getState()));
-            buildingBlocks.hashgraphModule().consensusSnapshotOverride(consensusSnapshot);
+            buildingBlocks
+                    .hashgraphModule()
+                    .consensusSnapshotOverrideInputWire()
+                    .inject(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
@@ -115,7 +115,10 @@ public class InitialStateLoader {
             buildingBlocks
                     .platformCoordinator()
                     .updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
-            buildingBlocks.issDetectionModule().overrideIssDetectorState(signedState.reserve("initialize issDetector"));
+            buildingBlocks
+                    .issDetectionModule()
+                    .overridingStateInputWire()
+                    .put(signedState.reserve("initialize issDetector"));
         }
     }
 
