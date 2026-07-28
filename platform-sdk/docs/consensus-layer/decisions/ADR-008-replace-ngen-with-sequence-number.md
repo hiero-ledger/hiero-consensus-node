@@ -70,15 +70,17 @@ fundamental need for a graph height:
   the frontier below which `ConsensusImpl.round(x)` short-circuits an event to
   `ROUND_NEGATIVE_INFINITY`. Re-diagnosed, the divergence was **not** a property
   of the sequence number but a latent bug in `roundCreated` assignment
-  ([#26529](https://github.com/hiero-ledger/hiero-consensus-node/issues/26529)): a
-  genesis (parentless) event that is **not** a descendant of the latest decided
-  round's judges reaches the parentless branch of `round(x)`
-  (`consensus-hashgraph-impl/.../consensus/ConsensusImpl.java`) and is assigned
-  `ROUND_FIRST` instead of `ROUND_NEGATIVE_INFINITY`, violating INV-015. `nGen`
-  masked the bug by always sorting such an event below the frontier (short-circuit
-  to `ROUND_NEGATIVE_INFINITY`); the sequence number let it sort above the
-  frontier and reach the buggy branch. Fixing #26529 restores INV-015, after which
-  the sequence number is safe here (see [Why the threshold is
+  ([#26529](https://github.com/hiero-ledger/hiero-consensus-node/issues/26529)): the
+  no-parent branch of `round(x)`
+  (`consensus-hashgraph-impl/.../consensus/ConsensusImpl.java`) assigns `ROUND_FIRST`
+  to *any* event with no non-ancient parents, but that is right only when the pending
+  round is 1 — a true genesis event. When the pending round is greater than 1, a
+  no-parent event sits below a decided round — a non-descendant of its judges — and
+  must be terminal (`ROUND_NEGATIVE_INFINITY`), not round 1; assigning it a real
+  round violates INV-015. `nGen` masked the bug by always sorting such an event below
+  the frontier (short-circuited to `ROUND_NEGATIVE_INFINITY`); the sequence number
+  let it sort above the frontier and reach the branch. Fixing #26529 restores
+  INV-015, after which the sequence number is safe here (see [Why the threshold is
   safe](#why-the-threshold-is-safe-on-the-sequence-number)).
 - **Event creator `lastSelfEvent` → a branch (SCN-003).** After a fast
   reconnect a re-received self-ancestor got a higher *new* sequence number than
@@ -137,9 +139,11 @@ than that judge (a parent leaves the orphan buffer before its child):
   all of whose parents are `ROUND_NEGATIVE_INFINITY`, collapse to it) — also
   correct.
 
-The only gap was a non-descendant with **no parents** — a genesis event — which
-has nothing to inherit from and hit the `ROUND_FIRST` branch (SCN-002, #26529).
-Closing that gap makes the frontier correct on either key.
+The only gap was a non-descendant with **no non-ancient parents** — nothing to
+inherit terminal from, so it fell to the no-parent branch and was assigned
+`ROUND_FIRST` as though the pending round were 1 (SCN-002, #26529). Closing that gap
+— terminal, not round 1, whenever the pending round is greater than 1 — makes the
+frontier correct on either key.
 
 ## Limitations
 
@@ -252,8 +256,8 @@ See **Decision** above.
   `registerEvent` keys `lastSelfEvent` recency on `nGen` today; converts to the
   sequence number once #26530 reworks the tracking (SCN-003).
 - `consensus-hashgraph-impl/.../consensus/ConsensusImpl.java` — `round(x)` and its
-  short-circuits; the parentless branch that assigns `ROUND_FIRST` is the #26529
-  bug behind SCN-002. `ConsensusRounds`, `RoundElections` hold the threshold
+  short-circuits; the no-parent branch that assigns `ROUND_FIRST` regardless of the
+  pending round is the #26529 bug behind SCN-002. `ConsensusRounds`, `RoundElections` hold the threshold
   (RUL-005); `LocalConsensusGeneration` holds the `cGen` sort. `ConsensusSorter`
   orders by the resulting `cGen`, never `nGen`.
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by

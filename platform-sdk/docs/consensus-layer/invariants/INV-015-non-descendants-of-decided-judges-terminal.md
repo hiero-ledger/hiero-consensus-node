@@ -65,16 +65,17 @@ implementation must pin non-descendants of the decided judges to the terminal va
 Any change that lets a non-descendant of the latest decided round's judges acquire
 a **real** (non-terminal) voting round breaks the invariant. Concrete mechanisms:
 
-- **A round-assignment path that assigns a real round without checking descent from
-  the decided judges.** The parentless branch of `ConsensusImpl.round` assigns
-  `ROUND_FIRST` to any event with no parents — correct for a true first-round genesis event,
-  but a defect for a non-descendant event whose parents are all ancient that clears the frontier, which
-  must be terminal. This is the latent bug #26529 (see Notes and SCN-002).
+- **A round-assignment path that assigns a real round without checking the pending
+  round.** The no-parent branch of `ConsensusImpl.round` assigns `ROUND_FIRST` to any
+  event with no non-ancient parents. That is correct only when the pending round is 1
+  (a genuine genesis); when the pending round is greater than 1, such an event sits
+  below a decided round — a non-descendant of its judges — and must be terminal, so
+  assigning it a real round is the latent bug #26529 (see Notes and SCN-002).
 - **Weakening the terminal short-circuits so a non-descendant slips through.** A
   non-descendant is kept terminal either by the RUL-005 frontier short-circuit or,
   above the frontier, by inheriting `ROUND_NEGATIVE_INFINITY` from its parents. The
-  two must jointly cover **every** non-descendant — including the parentless case,
-  which has no parents to inherit from.
+  two must jointly cover **every** non-descendant — including an event with no
+  non-ancient parents, which has none to inherit from.
 - **A side path that imports or caches a real round for such an event** — a reconnect
   or replay path that carries round numbers across the decided-round boundary
   instead of re-deriving them from the judges.
@@ -86,14 +87,17 @@ a defect to be stopped, not a tradeoff — its symptom is an ISS (SCN-002).
 
 - **Enforced today, with a latent defect.** In the shipping configuration the
   RUL-005 frontier is keyed on `nGen`, which keeps every non-descendant below the
-  frontier (a genesis event carries `nGen = 1`), so the parentless `ROUND_FIRST`
-  branch is never reached by a non-descendant and the invariant holds. The
-  round-assignment code nonetheless contains the latent defect #26529
-  (`ConsensusImpl.round`, the parentless branch assigns `ROUND_FIRST`); it is masked
-  only by that `nGen` keying. Re-keying the frontier to the orphan-buffer sequence
-  number without fixing #26529 lets a non-descendant genesis event clear the
-  frontier and reach the defect — the ISS in SCN-002. ADR-008 makes #26529 the
-  prerequisite for that re-keying.
+  frontier (an event with no non-ancient parents has `nGen` reset to 1), so the
+  no-parent `ROUND_FIRST` branch is never reached by a non-descendant and the
+  invariant holds. The round-assignment code nonetheless contains the latent defect
+
+  # 26529 (`ConsensusImpl.round`, the no-parent branch assigns `ROUND_FIRST`
+
+  regardless of the pending round); it is masked only by that `nGen` keying.
+  Re-keying the frontier to the orphan-buffer sequence number without fixing #26529
+  lets such an event clear the frontier and reach the defect — the ISS in SCN-002.
+  ADR-008 makes #26529 the prerequisite for that re-keying.
+
 - RUL-005 is the implementation-level short-circuit that enforces this invariant as
   an optimization; INV-001 (voting round monotonic along ancestry) and INV-007
   (judge set agreed across deciders) are the neighbouring properties it rests on.
