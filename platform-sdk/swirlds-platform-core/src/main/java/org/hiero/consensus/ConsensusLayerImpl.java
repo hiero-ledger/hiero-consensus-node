@@ -4,6 +4,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 public class ConsensusLayerImpl implements ConsensusLayer {
@@ -26,12 +28,12 @@ public class ConsensusLayerImpl implements ConsensusLayer {
     }
 
     @Override
-    public void nextRound(Roster newRoster) {
-
+    public void requestNextRound(@Nullable final Roster newRoster, @Nullable final Instant freezeTime) {
+        // TODO update the freeze period checker in the hashgraph module with the freeze time if non-null
     }
 
     @Override
-    public void quiescenceCommand(@NonNull final QuiescenceCommand command) {
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
         buildingBlocks.statusMonitorModule().submitQuiescenceCommand(command);
         buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(command);
     }

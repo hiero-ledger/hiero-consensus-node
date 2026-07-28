@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -14,6 +15,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
@@ -75,7 +78,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker,
             final long transactionOffsetNanos) {
-
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
         consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
 

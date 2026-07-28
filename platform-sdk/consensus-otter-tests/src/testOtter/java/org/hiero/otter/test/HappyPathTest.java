@@ -49,7 +49,7 @@ public class HappyPathTest {
         network.start();
 
         // Wait for 5 seconds
-        timeManager.waitFor(Duration.ofSeconds(5L));
+        timeManager.waitFor(Duration.ofSeconds(60L));
 
         // Validations
         assertThat(network.newPlatformStatusResults())

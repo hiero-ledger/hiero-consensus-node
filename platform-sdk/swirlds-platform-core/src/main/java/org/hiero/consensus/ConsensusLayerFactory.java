@@ -67,6 +67,7 @@ import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
@@ -203,12 +204,13 @@ public class ConsensusLayerFactory {
     /**
      * The output of the factory.
      *
-     * @param platformCoordinator the platform coordinator
+     * @param platformCoordinator          the platform coordinator
      * @param consensusLayerBuildingBlocks the building blocks of the consensus layer
      */
     public record ConsensusLayerFactoryResult(
             @NonNull PlatformCoordinator platformCoordinator,
-            @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {}
+            @NonNull ConsensusLayerBuildingBlocks consensusLayerBuildingBlocks) {
+    }
 
     /**
      * Constructs most of the components and modules required to create the platform.
@@ -221,7 +223,8 @@ public class ConsensusLayerFactory {
         final IntakeEventCounter intakeEventCounter = createIntakeEventCounter();
         final EventPipelineTracker eventPipelineTracker = createEventPipelineTracker(eventCreatorModule);
         final EventIntakeModule eventIntakeModule = createEventIntakeModule(intakeEventCounter, eventPipelineTracker);
-        final HashgraphModule hashgraphModule = createHashgraphModule(eventPipelineTracker);
+        final FreezePeriodChecker freezePeriodChecker = new FreezePeriodChecker(null);
+        final HashgraphModule hashgraphModule = createHashgraphModule(eventPipelineTracker, freezePeriodChecker);
         final LatestCompleteStateNexus latestCompleteStateNexus =
                 new DefaultLatestCompleteStateNexus(configuration, metrics);
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
@@ -378,12 +381,13 @@ public class ConsensusLayerFactory {
     /**
      * Setup the reconnect module with the necessary dependencies.
      *
-     * @param platform the {@link Platform}
-     * @param platformCoordinator the {@link PlatformCoordinator}
-     * @param platformComponents the {@link PlatformComponents}
-     * @param savedStateController the {@link SavedStateController}
-     * @param reservedSignedStateResultPromise the {@link BlockingResourceProvider} for {@link ReservedSignedStateResult}
-     * @param fallenBehindMonitor the {@link FallenBehindMonitor}
+     * @param platform                         the {@link Platform}
+     * @param platformCoordinator              the {@link PlatformCoordinator}
+     * @param platformComponents               the {@link PlatformComponents}
+     * @param savedStateController             the {@link SavedStateController}
+     * @param reservedSignedStateResultPromise the {@link BlockingResourceProvider} for
+     *                                         {@link ReservedSignedStateResult}
+     * @param fallenBehindMonitor              the {@link FallenBehindMonitor}
      */
     public void setupReconnectModule(
             @NonNull final Platform platform,
@@ -473,7 +477,8 @@ public class ConsensusLayerFactory {
     }
 
     @NonNull
-    private HashgraphModule createHashgraphModule(@Nullable final EventPipelineTracker eventPipelineTracker) {
+    private HashgraphModule createHashgraphModule(@Nullable final EventPipelineTracker eventPipelineTracker,
+            @NonNull final FreezePeriodChecker freezePeriodChecker) {
         final HashgraphModule module = createModule(HashgraphModule.class, configuration);
         module.initialize(
                 wiringModel,
@@ -482,7 +487,7 @@ public class ConsensusLayerFactory {
                 time,
                 rosterHistory.getCurrentRoster(),
                 selfId,
-                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
+                freezePeriodChecker,
                 eventPipelineTracker,
                 transactionOffsetNanos);
         return module;

@@ -9,6 +9,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -343,7 +344,7 @@ public class NetworkSimulationTest {
                 creatorNetwork.getPlatformContext().getTime(),
                 creatorNetwork.getRoster(),
                 NodeId.of(creatorNetwork.getRoster().rosterEntries().getFirst().nodeId()),
-                _ -> false,
+                new FreezePeriodChecker(null),
                 0L);
 
         final SimulationStats stats = new SimulationStats();

@@ -15,6 +15,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Map;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
@@ -44,4 +45,5 @@ public record ConsensusLayerInputs(
         @Nullable StaleEventConsumer staleEventConsumer,
         @Nullable WiringModel wiringModel,
         @Nullable SecureRandom secureRandom,
+        @Nullable Instant freezeTime,
         @NonNull Map<String, Object> additionalProperties) {}

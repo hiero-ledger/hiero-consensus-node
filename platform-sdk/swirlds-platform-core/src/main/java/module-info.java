@@ -38,6 +38,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform;
     exports org.hiero.consensus;
+    exports org.hiero.consensus.exception;
 
     /* Targeted Exports to External Libraries */
     exports com.swirlds.platform.internal to
