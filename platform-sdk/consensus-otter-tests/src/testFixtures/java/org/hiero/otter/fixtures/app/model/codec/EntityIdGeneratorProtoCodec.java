@@ -14,6 +14,8 @@ import com.hedera.pbj.runtime.ProtoArrayWriterTools;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
@@ -70,8 +72,8 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
      * @return Parsed EntityIdGenerator model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull EntityIdGenerator parse(
-            @NonNull final ReadableSequentialData input,
+    public @NonNull EntityIdGenerator realParse(
+            @NonNull final PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -190,6 +192,20 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
         }
     }
 
+    public void realWrite(@NonNull EntityIdGenerator data, @NonNull final PbjWriter out) {
+        // [1] - nextId
+        writeLong(out, EntityIdGeneratorSchema.NEXT_ID, data.nextId(), true);
+
+        // Check if not-empty to avoid creating a lambda if there's nothing to write.
+        if (!data.getUnknownFields().isEmpty()) {
+            data.getUnknownFields().forEach(uf -> {
+                final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                out.writeVarInt(tag, false);
+                uf.bytes().writeTo(out);
+            });
+        }
+    }
+
     /**
      * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
      * cases there are simpler methods such as toBytes() or writing to a {@link WritableStreamingData}.
@@ -253,8 +269,7 @@ public final class EntityIdGeneratorProtoCodec implements Codec<EntityIdGenerato
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public boolean fastEquals(@NonNull EntityIdGenerator item, @NonNull final ReadableSequentialData input)
-            throws ParseException {
+    public boolean fastEquals(@NonNull EntityIdGenerator item, @NonNull final PbjReader input) throws ParseException {
         return item.equals(parse(input));
     }
 

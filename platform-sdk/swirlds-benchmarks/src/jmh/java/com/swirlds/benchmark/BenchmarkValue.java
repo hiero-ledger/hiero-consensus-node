@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import java.util.Arrays;
 import java.util.function.LongUnaryOperator;
@@ -32,7 +33,7 @@ public class BenchmarkValue {
         this(other.valueBytes);
     }
 
-    public BenchmarkValue(final ReadableSequentialData in) {
+    public BenchmarkValue(final PbjReader in) {
         final int len = in.readInt();
         valueBytes = new byte[len];
         in.readBytes(valueBytes);
@@ -55,12 +56,17 @@ public class BenchmarkValue {
         out.writeBytes(valueBytes);
     }
 
+    public void writeTo(final PbjWriter out) {
+        out.writeInt(valueBytes.length);
+        out.writeBytes(valueBytes);
+    }
+
     public void serialize(final WritableSequentialData out) {
         out.writeInt(valueBytes.length);
         out.writeBytes(valueBytes);
     }
 
-    public void deserialize(final ReadableSequentialData in) {
+    public void deserialize(final PbjReader in) {
         int n = in.readInt();
         valueBytes = new byte[n];
         in.readBytes(valueBytes);
