@@ -16,7 +16,6 @@ import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.StaleEventConsumer;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -29,7 +28,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
-import org.hiero.consensus.ConsensusLayerFactory.ConsensusLayerFactoryResult;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
@@ -190,10 +188,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         used = true;
         final ConsensusLayerInputs inputs = createConsensusLayerInputs();
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
-        final ConsensusLayerFactoryResult factoryOutput = factory.create();
-
-        buildingBlocks = factoryOutput.consensusLayerBuildingBlocks();
-        final PlatformCoordinator platformCoordinator = factoryOutput.platformCoordinator();
+        buildingBlocks = factory.create();
 
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
@@ -202,30 +197,20 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         final SwirldsPlatform platform;
         if (startedFromGenesis) {
-            platform = new SwirldsPlatform(inputs, platformCoordinator, buildingBlocks, 0, 0);
+            platform = new SwirldsPlatform(inputs, buildingBlocks, 0, 0);
         } else {
             final long initialAncientThreshold = ancientThresholdOf(initialSignedState.getState());
-            platform = new SwirldsPlatform(
-                    inputs,
-                    platformCoordinator,
-                    buildingBlocks,
-                    initialAncientThreshold,
-                    initialSignedState.getRound());
+            platform =
+                    new SwirldsPlatform(inputs, buildingBlocks, initialAncientThreshold, initialSignedState.getRound());
         }
 
-        InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks, platformCoordinator);
+        InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks);
 
         // Future work - capture the reconnect module, add a start() method to it, and call it later
         final boolean reconnectActive =
                 configuration.getConfigData(ReconnectConfig.class).active();
         if (reconnectActive) {
-            factory.setupReconnectModule(
-                    platform,
-                    platformCoordinator,
-                    buildingBlocks.platformComponents(),
-                    buildingBlocks.savedStateController(),
-                    buildingBlocks.reservedSignedStateResultPromise(),
-                    buildingBlocks.fallenBehindMonitor());
+            factory.setupReconnectModule(platform, buildingBlocks);
         }
 
         // Close the initial reservation made on this state, taken in {@link StartupStateUtils#loadInitialState}

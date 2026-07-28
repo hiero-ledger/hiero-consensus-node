@@ -22,15 +22,15 @@ import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.config.EventConfig_;
@@ -50,6 +50,7 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
@@ -112,22 +113,22 @@ class ConsensusLayerWiringTests {
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
                 RunningEventHashOverrideWiring.create(model);
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher =
+                new WireTransformer<>(model, "InitialEventWindowDispatcher", "event window", UnaryOperator.identity());
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
-        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
+        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
         final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
         final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager);
+                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
         final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
-        final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
@@ -142,7 +143,7 @@ class ConsensusLayerWiringTests {
                 stateModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
-                eventWindowManagerWiring,
+                initialEventWindowDispatcher,
                 notifierWiring,
                 statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
@@ -153,7 +154,6 @@ class ConsensusLayerWiringTests {
                 null);
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
-        eventWindowManagerWiring.bind(mock(EventWindowManager.class));
         eventStreamWiring.bind(mock(ConsensusEventStream.class));
         notifierWiring.bind(mock(AppNotifier.class));
 

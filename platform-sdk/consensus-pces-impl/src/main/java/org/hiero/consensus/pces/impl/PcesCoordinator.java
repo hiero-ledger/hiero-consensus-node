@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.io.IOIterator;
@@ -14,8 +13,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
 import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
 
 /**
@@ -31,8 +30,7 @@ public class PcesCoordinator {
     private final Time time;
     private final PcesFileTracker initialPcesFiles;
     private final PcesReplayerWiring pcesReplayerWiring;
-    private final Consumer<PlatformStatusAction> statusActionConsumer;
-    private final Runnable platformStatusFlusher;
+    private final StatusMonitorModule statusMonitorModule;
     private final Runnable signalEndOfPcesReplay;
 
     /**
@@ -41,21 +39,19 @@ public class PcesCoordinator {
      * @param time the time source
      * @param initialPcesFiles the {@link PcesFileTracker} to read the PCES files from
      * @param pcesReplayerWiring the wiring for the {@link PcesReplayer}
-     * @param statusActionConsumer a consumer for {@link PlatformStatusAction}s to report status updates to the platform
+     * @param statusMonitorModule the {@link StatusMonitorModule} to report status updates to the platform
      * @param signalEndOfPcesReplay a runnable that signals to the system that PCES replay is complete
      */
     public PcesCoordinator(
             @NonNull final Time time,
             @NonNull final PcesFileTracker initialPcesFiles,
             @NonNull final PcesReplayerWiring pcesReplayerWiring,
-            @NonNull final Consumer<PlatformStatusAction> statusActionConsumer,
-            @NonNull final Runnable platformStatusFlusher,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Runnable signalEndOfPcesReplay) {
         this.time = requireNonNull(time);
         this.initialPcesFiles = requireNonNull(initialPcesFiles);
         this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
-        this.statusActionConsumer = requireNonNull(statusActionConsumer);
-        this.platformStatusFlusher = requireNonNull(platformStatusFlusher);
+        this.statusMonitorModule = requireNonNull(statusMonitorModule);
         this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
     }
 
@@ -67,10 +63,10 @@ public class PcesCoordinator {
      */
     public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
         requireNonNull(initialPcesFiles, "Not initialized");
-        statusActionConsumer.accept(new StartedReplayingEventsAction());
+        statusMonitorModule.platformStatusActionInputWire().put(new StartedReplayingEventsAction());
         // Flush the replay started action so that the status is up to date when rounds start reaching consensus
         // and the ConsensusRound#pcesRound boolean is guaranteed to be accurate.
-        platformStatusFlusher.run();
+        statusMonitorModule.flush();
 
         final IOIterator<PlatformEvent> iterator =
                 initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
@@ -79,6 +75,6 @@ public class PcesCoordinator {
 
         pcesReplayerWiring.pcesIteratorInputWire().inject(iterator);
         signalEndOfPcesReplay.run();
-        statusActionConsumer.accept(new DoneReplayingEventsAction(time.now()));
+        statusMonitorModule.platformStatusActionInputWire().put(new DoneReplayingEventsAction(time.now()));
     }
 }
