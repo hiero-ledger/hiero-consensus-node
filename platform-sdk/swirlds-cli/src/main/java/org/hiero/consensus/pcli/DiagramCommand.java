@@ -24,10 +24,10 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
 import com.swirlds.component.framework.model.diagram.ModelGroup;
 import com.swirlds.component.framework.model.diagram.ModelManualLink;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -183,8 +183,8 @@ public final class DiagramCommand extends AbstractCommand {
                 new ComponentWiring<>(model, ConsensusEventStream.class, eventStreamConfig.consensusEventStream());
         final RunningEventHashOverrideWiring runningEventHashOverrideWiring =
                 RunningEventHashOverrideWiring.create(model);
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION);
+        final WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher =
+                new WireTransformer<>(model, "InitialEventWindowDispatcher", "event window");
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
@@ -201,11 +201,10 @@ public final class DiagramCommand extends AbstractCommand {
                 statemanagementModule,
                 eventStreamWiring,
                 runningEventHashOverrideWiring,
-                eventWindowManagerWiring,
+                initialEventWindowDispatcher,
                 notifierWiring,
                 statusMonitorModule,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                null,
                 null,
                 null,
                 null,
