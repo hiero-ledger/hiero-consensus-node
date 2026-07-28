@@ -8,7 +8,7 @@ import java.util.Iterator;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 
 /**
  * A collection of unique events that reached consensus at the same time. The consensus data for every event in the

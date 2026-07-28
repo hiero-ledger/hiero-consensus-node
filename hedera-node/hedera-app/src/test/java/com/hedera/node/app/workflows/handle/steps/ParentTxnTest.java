@@ -57,7 +57,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.Map;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

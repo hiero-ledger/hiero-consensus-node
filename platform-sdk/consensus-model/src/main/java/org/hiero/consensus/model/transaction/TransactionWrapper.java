@@ -6,11 +6,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Objects;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 
 /**
  * A transaction that may or may not reach consensus.
  */
-public non-sealed class TransactionWrapper implements ConsensusTransaction {
+public class TransactionWrapper implements ConsensusTransaction {
 
     /**
      * The consensus timestamp of this transaction, or null if consensus has not yet been reached.

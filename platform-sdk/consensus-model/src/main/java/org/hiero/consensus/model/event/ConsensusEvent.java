@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ReachedConsensus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 
 /**
  * An event that has reached consensus.

@@ -3,7 +3,6 @@ package org.hiero.consensus.main.model;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.concurrent.locks.ReadWriteLock;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 /**
  * A hashgraph transaction that consists of an array of bytes and a list of immutable
@@ -11,7 +10,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
  * with a thread-safe and atomic implementation. The transaction internally uses a {@link ReadWriteLock} to provide
  * atomic reads and writes to the underlying list of signatures.
  */
-public sealed interface Transaction permits ConsensusTransaction {
+public interface Transaction {
 
     /**
      * A convenience method for retrieving the application transaction {@link Bytes} object.

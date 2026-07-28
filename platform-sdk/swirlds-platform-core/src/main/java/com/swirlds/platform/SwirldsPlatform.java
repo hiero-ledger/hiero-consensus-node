@@ -9,10 +9,10 @@ import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,8 +63,6 @@ public class SwirldsPlatform implements Platform {
      */
     private final NotificationEngine notificationEngine;
 
-    private final PlatformCoordinator platformCoordinator;
-
     private final PlatformContext platformContext;
     private final ConsensusLayerInputs inputs;
     private final ConsensusLayerBuildingBlocks buildingBlocks;
@@ -74,7 +72,6 @@ public class SwirldsPlatform implements Platform {
      */
     public SwirldsPlatform(
             @NonNull final ConsensusLayerInputs inputs,
-            @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
             final long initialAncientThreshold,
             final long startingRound) {
@@ -86,7 +83,6 @@ public class SwirldsPlatform implements Platform {
                 inputs.metrics(),
                 inputs.fileSystemManager(),
                 inputs.recycleBin());
-        this.platformCoordinator = platformCoordinator;
         this.initialAncientThreshold = initialAncientThreshold;
         this.startingRound = startingRound;
 
@@ -124,7 +120,7 @@ public class SwirldsPlatform implements Platform {
         buildingBlocks.wiringModel().start();
 
         buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound);
-        buildingBlocks.gossipModule().start();
+        buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance());
     }
 
     @Override
@@ -167,7 +163,8 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        platformCoordinator.quiescenceCommand(quiescenceCommand);
+        buildingBlocks.statusMonitorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
+        buildingBlocks.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 
     /**

@@ -22,6 +22,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.main.model.NodeId;
@@ -94,13 +95,22 @@ public interface GossipModule {
     InputWire<PlatformEvent> eventToGossipInputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} module.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the event window
+     * @return the {@link InputWire} for the consensus round
      */
-    @InputWireLabel("event window")
+    @InputWireLabel("consensus round")
     @NonNull
-    InputWire<EventWindow> eventWindowInputWire();
+    InputWire<ConsensusRound> consensusRoundInputWire();
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    InputWire<EventWindow> initialEventWindowInputWire();
 
     /**
      * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
@@ -150,9 +160,13 @@ public interface GossipModule {
     InputWire<NoInput> resumeInputWire();
 
     /**
-     * Starts gossiping.
+     * {@link InputWire} for control signals to start gossiping.
+     *
+     * @return the {@link InputWire} for start signals
      */
-    void start();
+    @InputWireLabel("start")
+    @NonNull
+    InputWire<NoInput> startInputWire();
 
     /**
      * Flushes the gossip module.

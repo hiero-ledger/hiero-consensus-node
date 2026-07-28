@@ -17,8 +17,6 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.components.DefaultEventWindowManager;
-import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -128,10 +126,6 @@ public class TestIntake {
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
 
-        final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, scheduler("eventWindowManager"));
-        eventWindowManagerWiring.bind(new DefaultEventWindowManager());
-
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
         postHashCollectorWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
         final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
@@ -141,15 +135,12 @@ public class TestIntake {
                 .getOutputWire()
                 .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
                 .buildSplitter("consensusRoundsSplitter", "consensusRounds");
-        consensusRoundOutputWire.solderTo(
-                eventWindowManagerWiring.getInputWire(EventWindowManager::extractEventWindow));
+        consensusRoundOutputWire
+                .buildTransformer("EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow)
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow), INJECT);
         consensusEngineWiring
                 .getOutputWire()
                 .solderTo("consensusOutputTestTool", "consensus output", output::consensusEngineOutput);
-
-        eventWindowManagerWiring
-                .getOutputWire()
-                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow), INJECT);
 
         // Ensure unsoldered wires are created.
         hasherWiring.getInputWire(EventHasher::hashEvent);

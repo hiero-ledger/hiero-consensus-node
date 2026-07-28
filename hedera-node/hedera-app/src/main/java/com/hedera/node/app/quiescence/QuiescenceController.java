@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.main.model.Transaction;
 
 /**

@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -20,7 +21,6 @@ import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.builder.TestPlatformBuilder;
-import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -97,7 +97,7 @@ public class ConsensusNodeManager {
             @NonNull final KeysAndCerts keysAndCerts) {
 
         initLogging();
-        BootstrapUtils.setupConstructableRegistry();
+        setupConstructableRegistry();
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);

@@ -146,6 +146,24 @@ public class IssDetectionModule {
     }
 
     /**
+     * Get the input wire for overriding state.
+     *
+     * @return the input wire for overriding state
+     */
+    @InputWireLabel("overriding state")
+    @NonNull
+    public InputWire<ReservedSignedState> overridingStateInputWire() {
+        return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::overridingState);
+    }
+
+    @InputWireLabel("signal end of preconsensus replay")
+    @NonNull
+    public InputWire<NoInput> signalEndOfPreconsensusReplayInputWire() {
+        return requireNonNull(issDetectorWiring, "Not initialized")
+                .getInputWire(IssDetector::signalEndOfPreconsensusReplay);
+    }
+
+    /**
      * Get the output wire for ISS notifications.
      *
      * @return the output wire for ISS notifications
@@ -153,25 +171,5 @@ public class IssDetectionModule {
     @NonNull
     public OutputWire<IssNotification> issNotificationOutputWire() {
         return requireNonNull(issDetectorWiring, "Not initialized").getSplitOutput();
-    }
-
-    /**
-     * Pass an overriding state to the ISS detector.
-     *
-     * @param state the overriding state
-     */
-    public void overrideIssDetectorState(@NonNull final ReservedSignedState state) {
-        requireNonNull(issDetectorWiring, "Not initialized")
-                .getInputWire(IssDetector::overridingState)
-                .put(state);
-    }
-
-    /**
-     * Signal the end of the preconsensus replay to the ISS detector.
-     */
-    public void signalEndOfPcesReplay() {
-        requireNonNull(issDetectorWiring, "Not initialized")
-                .getInputWire(IssDetector::signalEndOfPreconsensusReplay)
-                .put(NoInput.getInstance());
     }
 }

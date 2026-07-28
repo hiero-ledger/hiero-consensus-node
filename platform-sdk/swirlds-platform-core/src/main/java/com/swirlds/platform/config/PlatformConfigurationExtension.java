@@ -9,10 +9,9 @@ import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.monitor.StatusMonitorWiringConfig;
-import com.swirlds.platform.uptime.UptimeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.BasicConfig;
 import org.hiero.consensus.FallenBehindConfig;
 import org.hiero.consensus.main.model.NodeId;
 
@@ -31,12 +30,11 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
 
         // Load Configuration Definitions
         return Set.of(
+                BasicConfig.class,
                 ModulesConfig.class,
                 FallenBehindConfig.class,
                 OSHealthCheckConfig.class,
                 PlatformMetricsConfig.class,
-                StatusMonitorWiringConfig.class,
-                UptimeConfig.class,
                 WiringConfig.class,
                 InternalLoggingConfig.class);
     }

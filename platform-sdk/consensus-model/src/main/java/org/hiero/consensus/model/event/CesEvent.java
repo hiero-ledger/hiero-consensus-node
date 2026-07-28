@@ -20,7 +20,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 import org.hiero.consensus.main.model.Transaction;
 
 /**

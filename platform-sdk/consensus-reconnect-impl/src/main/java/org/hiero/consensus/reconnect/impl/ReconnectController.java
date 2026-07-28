@@ -16,7 +16,6 @@ import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -58,7 +57,6 @@ import org.hiero.consensus.system.SystemExitUtils;
  *
  * @see FallenBehindMonitor
  * @see BlockingResourceProvider
- * @see PlatformCoordinator
  */
 public class ReconnectController implements Runnable {
 

@@ -10,7 +10,7 @@ import java.util.Iterator;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.hiero.consensus.main.model.ConsensusTransaction;
 
 public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     private final long consensusOrder;

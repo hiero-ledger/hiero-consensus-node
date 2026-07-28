@@ -143,10 +143,11 @@ public class DefaultHashgraphModule implements HashgraphModule {
     /**
      * {@inheritDoc}
      */
-    public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
-        requireNonNull(consensusEngineWiring, "Not initialized")
-                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
-                .inject(consensusSnapshot);
+    @NonNull
+    @Override
+    public InputWire<ConsensusSnapshot> consensusSnapshotOverrideInputWire() {
+        return requireNonNull(consensusEngineWiring, "Not initialized")
+                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
     }
 
     /**
