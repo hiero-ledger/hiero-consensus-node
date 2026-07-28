@@ -18,7 +18,6 @@ import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -57,7 +56,6 @@ public class ConsensusLayerWiring {
         wireEventCreatorOutputs(buildingBlocks);
         wirePcesOutputs(buildingBlocks);
         wireHashgraphOutputs(inputs, buildingBlocks);
-        wireEventWindowManagerOutputs(buildingBlocks);
         wireTransactionHandlingOutputs(buildingBlocks);
         wireStateOutputs(inputs, buildingBlocks);
         wireIssDetectionOutputs(buildingBlocks);
@@ -142,6 +140,12 @@ public class ConsensusLayerWiring {
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = hashgraph.consensusRoundOutputWire();
 
+        consensusRoundOutputWire.solderTo(buildingBlocks.eventIntakeModule().consensusRoundInputWire(), INJECT);
+        consensusRoundOutputWire.solderTo(buildingBlocks.gossipModule().consensusRoundInputWire(), INJECT);
+        consensusRoundOutputWire.solderTo(buildingBlocks.pcesModule().consensusRoundInputWire(), INJECT);
+        consensusRoundOutputWire.solderTo(buildingBlocks.eventCreatorModule().consensusRoundInputWire(), INJECT);
+        consensusRoundOutputWire.solderTo(buildingBlocks.stateModule().consensusRoundInputWire(), INJECT);
+
         consensusRoundOutputWire.solderTo(
                 buildingBlocks.transactionHandlingModule().handleConsensusRoundInputWire());
 
@@ -153,20 +157,6 @@ public class ConsensusLayerWiring {
                 .solderTo(buildingBlocks.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
         consensusRoundOutputWire.solderTo(buildingBlocks.statusMonitorModule().consensusRoundInputWire());
-    }
-
-    /**
-     * Solder the EventWindow output to all components that need it.
-     */
-    private static void wireEventWindowManagerOutputs(@NonNull final ConsensusLayerBuildingBlocks buildingBlocks) {
-        final OutputWire<EventWindow> eventWindowOutputWire =
-                buildingBlocks.eventWindowManagerWiring().getOutputWire();
-
-        eventWindowOutputWire.solderTo(buildingBlocks.eventIntakeModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(buildingBlocks.gossipModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(buildingBlocks.pcesModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(buildingBlocks.eventCreatorModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(buildingBlocks.stateModule().eventWindowInputWire());
     }
 
     /**
