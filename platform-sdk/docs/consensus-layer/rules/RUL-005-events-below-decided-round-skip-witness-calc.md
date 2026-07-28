@@ -9,13 +9,13 @@ components:
   - consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusRounds.java
   - consensus-utility/src/main/java/org/hiero/consensus/orphan/DefaultOrphanBuffer.java
 related:
-  invariants: [INV-001, INV-007, INV-009]
+  invariants: [INV-001, INV-007, INV-009, INV-015]
   decisions: [ADR-008]
   scenarios: [SCN-001, SCN-002]
   heuristics: []
 status: holds
 confidence: high
-provenance: elicitation-2026-06-23; revised from #26319 (sequence-number threshold reverted to nGen)
+provenance: elicitation-2026-06-23; revised from #26319 (sequence-number threshold reverted to nGen); re-diagnosed 2026-07-27 (SCN-002 root cause is #26529, not the key; frontier safety rests on INV-015)
 curated_by: Kelly Greco (@poulok)
 ---
 
@@ -44,11 +44,12 @@ the latest decided round, set in `ConsensusRounds.currentElectionDecided` from
 `ConsensusImpl.checkInitJudges` via `setConsensusRelevantNGen`. The test is
 `ConsensusRounds.isOlderThanDecidedRoundGeneration(x)`, which is just
 `consensusRelevantNGen > x.getNGen()`. nGen is assigned once per event at the
-orphan buffer's exit (`DefaultOrphanBuffer`) and approximates graph height. ADR-008
-migrated this key to the orphan-buffer sequence number, but that diverged
-consensus (an ISS, SCN-002) and was reverted to nGen in #26319; see
-[ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md) for why nGen
-is retained here.
+orphan buffer's exit (`DefaultOrphanBuffer`). ADR-008 migrated this key to the
+orphan-buffer sequence number; that exposed a latent round-assignment bug (#26529)
+and was reverted to nGen in #26319 as a stopgap. The frontier is a valid
+short-circuit on either key — see *Why it holds now* — so once #26529 is fixed the
+threshold can key on the sequence number; see
+[ADR-008](../decisions/ADR-008-replace-ngen-with-sequence-number.md).
 
 ## Why it holds now
 
@@ -61,15 +62,22 @@ downstream: it makes `notRelevantForConsensus(e)` true, so the dependent walks �
 `lastSee`, `stronglySeeP`, `seeThru`, `firstWitnessS`, `firstSelfWitnessS` —
 return `null` when they reach the event, and `witness(x)` rejects it.
 
-The comparison is a **graph-height frontier**: an event structurally below the
-decided judges must be classified as below on every node, or nodes disagree on
-which events are skipped. nGen provides this because it is parent-derived (one plus
-the maximum tracked-parent nGen), so a structurally-low event carries a low nGen
-everywhere. The orphan-buffer sequence number does not: it is a release-order
-counter, so a structurally-low event received late gets a high, node-local number
-and can rank above the frontier on one node and below on another. Keying the
-threshold on it diverged consensus — an ISS (SCN-002) — which is why nGen is
-retained here.
+The short-circuit **enforces INV-015**: every event that is not a descendant of the
+decided round's judges is made `ROUND_NEGATIVE_INFINITY`, so it cannot become a
+witness in any undecided round. The frontier is a **shortcut**, not the whole of
+that enforcement — it catches a non-descendant that sorts below the frontier
+without walking to the bottom of the graph; a non-descendant that sorts *above* the
+frontier is still made terminal, by inheriting `ROUND_NEGATIVE_INFINITY` from its
+parents (the second short-circuit, below). It is correct on **any ordering key for
+which a judge's descendant outranks the judge**: a descendant then always sorts
+above the frontier and is recalculated, while non-descendants collapse to terminal.
+nGen has this property — it is parent-derived (one plus the maximum tracked-parent
+nGen), so a descendant's nGen exceeds its ancestor judge's — and so does the
+orphan-buffer sequence number, since a parent is released, and numbered, before its
+child. The frontier is therefore sound on either key; the SCN-002 ISS came not from
+the key but from a latent bug (#26529) it exposed — a parentless non-descendant
+assigned a real round instead of terminal — which ADR-008 makes the prerequisite
+for re-keying to the sequence number.
 
 nGen's own defect (a reset to 1 when an event's parents are already ancient,
 ADR-008) is benign for this comparison: the reset only ever *under*-counts an
@@ -82,9 +90,10 @@ frontier check (`isOlderThanDecidedRoundGeneration`) and, separately, the case
 where all of `x`'s non-ancient parents are already `ROUND_NEGATIVE_INFINITY`. Both
 also feed the metadata-preservation carve-out in `recalculateAndVote` — a
 decided-round judge keeps its round only when all its parents are
-`ROUND_NEGATIVE_INFINITY` — so a mis-classified frontier flips whether that judge
-is preserved or recalculated, the mechanism behind the SCN-002 ISS. See INV-001
-and SCN-001.
+`ROUND_NEGATIVE_INFINITY`. So if a non-descendant that should be terminal is instead
+given a real round (the #26529 defect), a judge carrying that event in its parentage
+is wrongly recalculated instead of preserved — the mechanism behind the SCN-002 ISS.
+See INV-001, INV-015, and SCN-001.
 
 ## Change risk
 
@@ -94,13 +103,13 @@ and SCN-001.
   should still be counted as a witness or voter is silently skipped. Fame can
   then be mis-decided — this is an **agreement / liveness defect**, not a
   slowdown.
-- **Re-keying the comparison to an ordering that is not a graph height.** The
-  frontier is safe only because a structurally-below event ranks below it on every
-  node (see *Why it holds now*). A non-height key — most concretely the
-  orphan-buffer **sequence number**, a release-order counter — breaks that: the
-  same event ranks below the frontier on one node and above it on another,
-  diverging consensus. Not hypothetical — SCN-002 records exactly this when ADR-008
-  re-keyed the threshold to the sequence number.
+- **Re-keying the frontier without preserving INV-015.** The frontier is safe on
+  any key for which a judge's descendant outranks the judge — nGen and the sequence
+  number both qualify (see *Why it holds now*) — *provided* every non-descendant of
+  the decided judges still collapses to `ROUND_NEGATIVE_INFINITY`. The hazard is not
+  the key's units but an unfixed #26529: keyed on the sequence number, a parentless
+  non-descendant cleared the frontier and reached the branch that assigns a real
+  round, diverging consensus (SCN-002). Re-key only once #26529 is fixed (ADR-008).
 - **Removing the short-circuit.** On its own this is "only" a performance
   regression (the forced memoization in `calculateMetadata` also guards against
   deep recursion). But the `ROUND_NEGATIVE_INFINITY` sentinel is
@@ -109,11 +118,11 @@ and SCN-001.
   so changes here must be weighed against that interaction.
 
 Breaking this rule is a **flag for confirmation**. Confirmation looks like
-answering: does the frontier remain a sound lower bound — is every event below
-it provably unable to affect any undecided round — and does the ordering key still
-reflect graph height, so a structurally-below event ranks below the frontier on
-every node? If yes, the change is safe; if not, it reintroduces an agreement /
-liveness risk, or — if the cross-node height property is lost — an ISS (SCN-002).
+answering: does the frontier remain a sound lower bound — is every event below it
+provably unable to affect any undecided round — and does INV-015 still hold, i.e. is
+every event that is not a descendant of the decided judges still made
+`ROUND_NEGATIVE_INFINITY` under the key in use? If yes, the change is safe; if not,
+it reintroduces an agreement / liveness risk, or an ISS (SCN-002).
 
 ## Notes
 
@@ -126,3 +135,9 @@ liveness risk, or — if the cross-node height property is lost — an ISS (SCN-
   ancestry stalls consensus) both concern how old events' rounds are frozen or
   cleared across roster changes; the sentinel assigned here is part of that
   mechanism.
+- The property this short-circuit enforces — every non-descendant of the decided
+  judges is terminal — is INV-015. An earlier reading of SCN-002 held that the
+  frontier had to be keyed on a graph height and that the sequence number was
+  fundamentally unsafe here; re-diagnosis (2026-07-27) showed the SCN-002 ISS was a
+  latent round-assignment bug (#26529), not a property of the key, and that the
+  frontier is sound on either key once INV-015 is upheld.

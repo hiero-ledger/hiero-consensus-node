@@ -25,7 +25,7 @@ load-bearing.
 |                                ID                                |                                                           Title                                                            | Symptoms |          Topics          |  Verification   |  Status  |
 |------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|----------|--------------------------|-----------------|----------|
 | [SCN-001](SCN-001-same-round-judge-ancestry-stalls-consensus.md) | A round's judge exempted from clearing has another same-round judge in its ancestry — consensus stalls after roster change | SYM-001  | hashgraph                | observed        | verified |
-| [SCN-002](SCN-002-sequence-number-consensus-threshold-iss.md)    | Consensus-relevant threshold keyed on the local sequence number diverges the round short-circuit across nodes — ISS        | SYM-002  | hashgraph                | test-reproduced | verified |
+| [SCN-002](SCN-002-sequence-number-consensus-threshold-iss.md)    | Consensus-relevant threshold keyed on the sequence number exposes a latent roundCreated bug for a genesis event — ISS      | SYM-002  | hashgraph                | test-reproduced | verified |
 | [SCN-003](SCN-003-sequence-number-last-self-event-branch.md)     | Self-event recency keyed on the local sequence number picks an older self-parent after a fast reconnect — branching        | SYM-003  | event-creator, reconnect | test-reproduced | verified |
 
 <!--

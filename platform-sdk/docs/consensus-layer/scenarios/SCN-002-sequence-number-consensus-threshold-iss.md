@@ -1,33 +1,37 @@
 ---
 type: scenario
 id: SCN-002
-title: Consensus-relevant threshold keyed on the local sequence number diverges the round short-circuit across nodes — ISS
+title: Consensus-relevant threshold keyed on the sequence number exposes a latent roundCreated bug for a genesis event — ISS
 symptoms: [SYM-002]
 topics: [hashgraph]
 kind: historical-incident
 verification: test-reproduced
 severity: critical
 related:
-  invariants: [INV-001]
+  invariants: [INV-001, INV-015]
   decisions: [ADR-008]
   scenarios: [SCN-001]
   tests:
     - swirlds-cli/src/test/java/org/hiero/consensus/pcli/MinConsensusRelevantThresholdTest.java
 status: verified
-provenance: hiero-consensus-node#26319 (fix); reproduced by MinConsensusRelevantThresholdTest
+provenance: hiero-consensus-node#26319 (interim revert); re-diagnosed to #26529; reproduced by MinConsensusRelevantThresholdTest
 curated_by: Kelly Greco (@poulok)
 ---
 
-# SCN-002 — Consensus-relevant threshold keyed on the local sequence number diverges the round short-circuit across nodes — ISS
+# SCN-002 — Consensus-relevant threshold keyed on the sequence number exposes a latent roundCreated bug for a genesis event — ISS
 
 ## Summary
 
 ADR-008's consensus stage re-keyed the decided-round short-circuit threshold
-(RUL-005) from nGen to the orphan-buffer sequence number — a release-order counter,
-not a graph height. A structurally-low event could then rank below the frontier on
-some nodes and above it on others, flipping whether a decided-round judge's
-metadata was preserved or recalculated and placing events in different consensus
-rounds — an ISS. Reverted to nGen in #26319.
+(RUL-005) from nGen to the orphan-buffer sequence number. That exposed a **latent
+bug** in `roundCreated` assignment (#26529): a genesis (parentless) event that is
+not a descendant of the latest decided round's judges was assigned `ROUND_FIRST`
+instead of `ROUND_NEGATIVE_INFINITY`, violating INV-015. nGen had masked the bug by
+always sorting such an event below the frontier; keyed on the sequence number, the
+event sorted above the frontier on one node, reached the buggy branch, and flipped
+a decided-round judge's metadata preservation during recalculation — placing events
+in different consensus rounds, an ISS. Reverted to nGen in #26319 as a stopgap; the
+durable fix is #26529, after which the sequence number is safe here (ADR-008).
 
 ## Setup
 
@@ -52,25 +56,31 @@ events resolved differently across nodes.
    threshold key. (observed — the merged migration)
 2. `ConsensusImpl.round(x)` assigns `ROUND_NEGATIVE_INFINITY` through two
    short-circuits: (a) `x` is below the threshold
-   (`isOlderThanDecidedRound…`, ConsensusImpl.java:~1141), or (b) all of `x`'s
+   (`isOlderThanDecidedRound…`, ConsensusImpl.java:1141), or (b) all of `x`'s
    non-ancient parents are already `ROUND_NEGATIVE_INFINITY`
-   (ConsensusImpl.java:~1188). An event with no parents instead gets `ROUND_FIRST`
-   (=1). (observed — code)
+   (ConsensusImpl.java:1188). But an event with **no parents** takes neither branch:
+   it is assigned `ROUND_FIRST` (=1) (ConsensusImpl.java:1149–1151). That last
+   assignment is the latent defect (#26529) — a parentless event that is not a
+   descendant of the decided judges must be `ROUND_NEGATIVE_INFINITY` (INV-015), and
+   with no parents it cannot reach short-circuit (b). (observed — code)
 3. The events in question were a node's **genesis event and its child**, in the
    ancestry of a decided-round judge `J` that was *not* the lowest-key judge and
    had no other judge in its ancestry. (observed)
-4. **With nGen:** genesis (height 1) and its child had nGen below the lowest
-   judge's nGen → short-circuit (a) → both `ROUND_NEGATIVE_INFINITY`, on every
-   node. (observed)
-5. **With the sequence number:** on the ISS node their sequence numbers were
-   *higher* than the lowest judge's → short-circuit (a) false; genesis has no
-   parents → `ROUND_FIRST` (=1); the child then inherited a real round. (observed)
+4. **With nGen (masking the defect):** genesis (height 1) and its child had nGen
+   below the lowest judge's nGen → short-circuit (a) → both
+   `ROUND_NEGATIVE_INFINITY`, on every node. The genesis event never reached the
+   parentless `ROUND_FIRST` branch, so the bug stayed invisible. (observed)
+5. **With the sequence number (exposing the defect):** on the ISS node their
+   sequence numbers were *higher* than the lowest judge's → short-circuit (a) false;
+   genesis has no parents → `ROUND_FIRST` (=1) via the buggy branch; the child then
+   inherited a real round. Had #26529 been fixed, the parentless genesis would have
+   been `ROUND_NEGATIVE_INFINITY` here too, matching the other nodes. (observed)
 6. In `recalculateAndVote`, a last-decided-round judge keeps its metadata **iff**
    the maximum round over all its parents is `ROUND_NEGATIVE_INFINITY`
    (ConsensusImpl.java:330–350). With nGen, `J`'s parents all resolved to
    `ROUND_NEGATIVE_INFINITY` → `J` preserved. With the sequence number, `J` had a
-   parent with a real round → `J` was cleared and its round recalculated.
-   (observed)
+   parent with a real round (the mis-assigned child of genesis) → `J` was cleared
+   and its round recalculated. (observed)
 7. Recalculated, `J` got a different round and stopped being a witness on the ISS
    node. Witness membership propagates upward — a witness must strongly see a
    supermajority of the prior round's witnesses — so the witness set, and then the
@@ -92,25 +102,31 @@ the threshold is keyed on the sequence number.
 
 ## Contributing factors
 
-- **A height frontier keyed on a non-height value.** The threshold is a
-  graph-height boundary, but the sequence number is a release-order counter: a
-  structurally-low event received late gets a high number, and that number is
-  node-local, so the frontier comparison diverged across nodes.
-- **A safety argument that named the wrong property.** The rule at the time leaned
-  on "the key is local and never consulted for agreement." True of the value — but
-  the comparison feeds the `recalculateAndVote` preservation carve-out (INV-001,
-  SCN-001), whose outcome does determine consensus. What mattered was height
-  fidelity, not absolute determinism.
-- **A migration that did not distinguish its consumers.** ADR-008 lumped together
-  consumers needing only a topological order (tipset, sync) and this threshold,
-  which needs graph height.
+- **A latent bug in `roundCreated` for parentless events (#26529).** `round(x)`
+  assigns `ROUND_FIRST` to any event with no parents
+  (ConsensusImpl.java:1149–1151), even a genesis event that is not a descendant of
+  the latest decided round's judges and so must be `ROUND_NEGATIVE_INFINITY`
+  (INV-015). The defect was always present; nothing before had let a genesis event
+  reach that branch on one node but not another.
+- **nGen masked the defect.** A genesis event carries `nGen = 1`, always below the
+  frontier, so short-circuit (a) sent it to `ROUND_NEGATIVE_INFINITY` before it
+  could reach the parentless branch. The bug stayed invisible for as long as the
+  threshold was keyed on a graph height.
+- **The sequence number exposed it, without being wrong itself.** As a node-local
+  release-order counter it sorted the same genesis event above the frontier on the
+  ISS node and below it on others. That cross-node difference is harmless on its
+  own — a non-descendant collapses to `ROUND_NEGATIVE_INFINITY` whether the frontier
+  catches it (short-circuit a) or its parents do (short-circuit b) — *except* for
+  the parentless case #26529 mishandles, which has no parents to fall back on.
 
 ## Mitigation
 
-Reverted the threshold to nGen in #26319. RUL-005 is the current rule and lists
-its code anchors and why the nGen reset is benign here; ADR-008 records the
-reversal and the graph-height-vs-release-order distinction it rests on. Regression
-guard: `MinConsensusRelevantThresholdTest` replays the two nodes' PCES and asserts
+Reverted the threshold to nGen in #26319 — a **stopgap** that re-masks the #26529
+bug rather than fixing it. RUL-005 documents the current (nGen) rule and its code
+anchors. The durable fix is #26529: assign `ROUND_NEGATIVE_INFINITY` to a parentless
+event that is not a descendant of the decided judges, restoring INV-015; once it
+lands, the threshold can key on the sequence number (ADR-008). Regression guard:
+`MinConsensusRelevantThresholdTest` replays the two nodes' PCES and asserts
 round-by-round internal equality.
 
 ## Verification
@@ -134,3 +150,7 @@ was also observed in a live run from genesis before the fix.
   from the reproduction (`MinConsensusRelevantThresholdTest`) and the
   merged-then-reverted code; `(reasoned)` steps from the witness/judge propagation
   argument — Kelly Greco (@poulok).
+- 2026-07-27 — re-diagnosed: the ISS root cause is a latent `roundCreated` bug for
+  parentless events (#26529), not the sequence number; the revert to nGen (#26319)
+  re-masks it. Reframed the summary, sequence (steps 2, 4, 5), contributing factors,
+  and mitigation; retitled; added INV-015 — Kelly Greco (@poulok).

@@ -28,8 +28,9 @@ it when a registered self event ranks higher by the local ordering key
 a fast reconnect let a self-*ancestor*, re-received via gossip after the orphan
 buffer had been cleared, get a fresh higher sequence number than the maintained
 latest self event, overwrite it, and cause the node to create a new event on an
-older self-parent — a branch. Fixed by keying on nGen in #26376; RUL-006 documents
-the current rule.
+older self-parent — a branch. Fixed by keying on nGen in #26376 (an interim
+revert); ADR-008 records the reversal and the plan to move `lastSelfEvent` back to
+the sequence number once #26530 reworks the tracking.
 
 ## Setup
 
@@ -102,9 +103,10 @@ assertion.
 ## Mitigation
 
 Keyed self-event recency on nGen in #26376
-(`TipsetEventCreator.registerEvent`, `hasNGen()` / `getNGen()`). RUL-006 is the
-rule and states why nGen is safe here; ADR-008 records the reversal. Regression
-guard: `ReconnectTest.testSyntheticBottleneckReconnect`.
+(`TipsetEventCreator.registerEvent`, `hasNGen()` / `getNGen()`) — an interim
+revert. ADR-008 records the reversal and the plan to move `lastSelfEvent` back to
+the sequence number once #26530 reworks the tracking. Regression guard:
+`ReconnectTest.testSyntheticBottleneckReconnect`.
 
 ## Verification
 
@@ -114,16 +116,16 @@ guard: `ReconnectTest.testSyntheticBottleneckReconnect`.
 
 ## Open questions
 
-- Do other consumers of the sequence number assume "higher number = higher in the
-  graph" and could break similarly on re-receipt after a buffer clear? Answering
-  it: an audit of sequence-number comparisons across the layer.
+None.
 
 ## Notes
 
 - 2026-07-17 — created from the #26376 fix. `(observed)` steps come from the code
   and the reproducing otter test; `(reasoned)` steps from the sequence-number
-  re-release argument. Why nGen is the safe key lives in RUL-006 — Kelly Greco
-  (@poulok).
+  re-release argument — Kelly Greco (@poulok).
+- 2026-07-27 — RUL-006 deleted (added under an incomplete understanding of the
+  nGen/sequence-number trade-off); its references here redirected to ADR-008
+  — Kelly Greco (@poulok).
 - 2026-07-21 — made the overwrite guard explicit in steps 1–2: the
   `hasSequenceNumber()`/`hasNGen()` operand short-circuits only until the orphan
   buffer stamps the held self event's key, after which the strictly-greater
