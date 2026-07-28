@@ -12,9 +12,6 @@ on:
       solo-version:
         required: false
         description: "Override default solo version for testing"
-      tck-version:
-        required: false
-        description: "Override default TCK version for testing"
       enable-timing-sensitive-test-suite:
         type: boolean
         description: "Run Timing Sensitive Test Suite"
@@ -45,6 +42,9 @@ on:
         type: boolean
         default: true
         description: "Run SDK TCK Regression Panel"
+      tck-version:
+        required: false
+        description: "Override default TCK version for testing"
       enable-mirror-node-regression-panel:
         required: true
         type: boolean
