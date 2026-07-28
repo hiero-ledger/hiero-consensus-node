@@ -155,8 +155,10 @@ public class ReconnectCoordinator {
         final int roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
         buildingBlocks
-                .platformCoordinator()
-                .updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+                .initialEventWindowDispatcher()
+                .getInputWire()
+                .inject(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+        buildingBlocks.gossipModule().flush();
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
