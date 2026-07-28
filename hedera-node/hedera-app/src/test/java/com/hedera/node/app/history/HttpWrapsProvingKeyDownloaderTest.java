@@ -8,8 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.http.HttpTimeoutException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,5 +80,26 @@ class HttpWrapsProvingKeyDownloaderTest {
 
         final var ex = assertThrows(IOException.class, () -> subject.download(baseUrl + "/error", target));
         assertEquals("Failed to download from " + baseUrl + "/error (HTTP status 500)", ex.getMessage());
+    }
+
+    @Test
+    void throwsWhenServerNeverSendsHeaders() throws Exception {
+        final var release = new CountDownLatch(1);
+        server.createContext("/silent", exchange -> {
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        final var target = tempDir.resolve("silent.tar.gz");
+
+        try {
+            assertThrows(
+                    HttpTimeoutException.class,
+                    () -> subject.download(baseUrl + "/silent", target, Duration.ofMillis(500)));
+        } finally {
+            release.countDown();
+        }
     }
 }
