@@ -1206,45 +1206,51 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (itemSize > hardLimitBytes) {
                     // the item exceeds the absolute max request size (even without accounting for request overhead)
                     // if there are any pending items, attempt to send them but regardless of the outcome we want to
-                    // close the connection
-                    try {
-                        trySendPendingRequest();
-                    } catch (final Exception _) {
-                        // ignore exception... we are about to close the connection
+                    // ultimately close the connection
+                    if (!pendingRequestItems.isEmpty()) {
+                        logger.trace(
+                                "{} Block item exceeds the max message size hard limit; attempting to send any preceding items (largeItemIndex: {})",
+                                BlockNodeStreamingConnection.this,
+                                item.index());
+                        if (trySendPendingRequest() && itemIndex != item.index()) {
+                            // we've successfully sent some pending items, but there are still more to send so try again
+                            // before closing the connection
+                            continue;
+                        }
                     }
                     blockStreamMetrics.recordRequestExceedsHardLimit();
                     logger.error(
-                            "{} !!! FATAL: Block item exceeds max message size hard limit; closing connection (block: {}, itemIndex: {}, itemSize: {} bytes, sizeHardLimit: {} bytes)",
+                            "{} !!! FATAL: Block item exceeds max message size hard limit; closing connection (block: {}, itemIndex: {}, itemSize: {} bytes, itemType: {}, sizeHardLimit: {} bytes)",
                             BlockNodeStreamingConnection.this,
                             block.blockNumber(),
                             itemIndex,
                             itemSize,
+                            item.itemType(),
                             hardLimitBytes);
                     sendEndStream(ERROR);
                     close(CloseReason.INTERNAL_ERROR, true);
                     return true;
-                } else if (itemSize >= softLimitBytes) {
+                } else if (newRequestBytes >= softLimitBytes) {
                     // the item is too large to fit into a normal request, so make it a part of its own request
                     // we want to send any previous pending items first though
                     if (!pendingRequestItems.isEmpty() && !trySendPendingRequest()) {
                         return true; // failed to send the request for some reason; exit early
                     }
 
-                    // add the new large item to its own request and try to send it
-                    pendingRequestItems.add(item);
-                    pendingRequestBytes += itemSize;
-                    pendingRequestHasBlockProof |= item.isProof();
-                    pendingRequestHasBlockHeader |= item.isHeader();
-                    ++itemIndex;
-
-                    if (!trySendPendingRequest()) {
-                        return true; // failed to send the request for some reason; exit early
-                    }
-                } else if (newRequestBytes > softLimitBytes) {
-                    // if we add the item to the current request, the request would exceed the soft limit so send
-                    // the pending request and start a new request with the item
-                    if (!trySendPendingRequest()) {
-                        return true; // failed to send the request for some reason; exit early
+                    if (itemIndex == item.index()) {
+                        /*
+                        trySendPendingRequest() may rollback the items added to the pending request if the actual
+                        request exceeds our limits. When this happens, the current item index is decremented one or more
+                        times. Thus, we should only add the current item to the next pending request if, and only if,
+                        the current item index is the same as the item we originally tried to add. If they don't match,
+                        we don't want to add the item and instead reenter the main loop and let it add the correct
+                        item(s) to maintain proper order.
+                         */
+                        pendingRequestItems.add(item);
+                        pendingRequestBytes += itemSize;
+                        pendingRequestHasBlockProof |= item.isProof();
+                        pendingRequestHasBlockHeader |= item.isHeader();
+                        ++itemIndex;
                     }
                 } else {
                     // adding the item to the current pending item wouldn't exceed the soft limit so add it
@@ -1409,10 +1415,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 // try to remove the last item from the request and try sending again
                 blockStreamMetrics.recordMultiItemRequestExceedsSoftLimit();
                 logger.trace(
-                        "{} Multi-item request exceeds soft limit; will attempt to remove last item and send again (requestSize: {}, items: {})",
+                        "{} Multi-item request exceeds soft limit; will attempt to remove last item and send again (items: {}, requestSize: {}, softLimitBytes: {})",
                         BlockNodeStreamingConnection.this,
+                        pendingRequestItems.size(),
                         reqBytes,
-                        pendingRequestItems.size());
+                        softLimitBytes);
                 // remove the last item from the pending item set and update state to reflect the removal of the item
                 final BufferedItem item = pendingRequestItems.removeLast();
                 --itemIndex;
