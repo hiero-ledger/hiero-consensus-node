@@ -13,6 +13,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
@@ -58,8 +60,8 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
      * @return Parsed ConsistencyState model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull ConsistencyState parse(
-            @NonNull final ReadableSequentialData input,
+    public @NonNull ConsistencyState realParse(
+            @NonNull final PbjReader input,
             final boolean strictMode,
             final boolean parseUnknownFields,
             final int maxDepth,
@@ -185,6 +187,22 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
         }
     }
 
+    public void realWrite(@NonNull ConsistencyState data, @NonNull PbjWriter out) {
+        // [1] - running_checksum
+        writeLong(out, ConsistencyStateSchema.RUNNING_CHECKSUM, data.runningChecksum(), true);
+        // [2] - rounds_handled
+        writeLong(out, ConsistencyStateSchema.ROUNDS_HANDLED, data.roundsHandled(), true);
+
+        // Check if not-empty to avoid creating a lambda if there's nothing to write.
+        if (!data.getUnknownFields().isEmpty()) {
+            data.getUnknownFields().forEach(uf -> {
+                final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
+                out.writeVarInt(tag, false);
+                uf.bytes().writeTo(out);
+            });
+        }
+    }
+
     /**
      * Reads from this data input the length of the data within the input. The implementation may
      * read all the data, or just some special serialized data, as needed to find out the length of
@@ -223,8 +241,7 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public boolean fastEquals(@NonNull ConsistencyState item, @NonNull final ReadableSequentialData input)
-            throws ParseException {
+    public boolean fastEquals(@NonNull ConsistencyState item, @NonNull final PbjReader input) throws ParseException {
         return item.equals(parse(input));
     }
 
