@@ -398,7 +398,7 @@ public class SimulatedBlockNodeServer {
             return ServerStatusResponse.newBuilder()
                     .firstAvailableBlock(lastBlock)
                     .lastAvailableBlock(lastBlock)
-                    .nextExpectedBlock(lastBlock + 1)
+                    .nextExpectedBlock(lastBlock == -1 ? -1 : (lastBlock + 1))
                     .build();
         }
 
