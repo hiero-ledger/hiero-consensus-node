@@ -14,11 +14,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.monitor.StatusMonitorModule;
-import com.swirlds.platform.reconnect.ReconnectModule;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
@@ -28,7 +23,6 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.KeyGeneratingException;
@@ -62,8 +56,7 @@ import org.hiero.consensus.state.nexus.LockFreeStateNexus;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.actions.PlatformStatusAction;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 
@@ -137,11 +130,14 @@ public class ConsensusNoOpModules {
      *
      * @param model         the wiring model
      * @param configuration the configuration
+     * @param statusMonitorModule the status monitor module
      * @return an initialized no-op instance of {@code PcesModule}
      */
     @NonNull
     public static PcesModule createNoOpPcesModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -150,8 +146,6 @@ public class ConsensusNoOpModules {
         final long startingRound = 0L;
         final Runnable flushPrimaryPipeline = () -> {};
         final Supplier<PcesReplayProgress> replayProgressSupplier = () -> PcesReplayProgress.EMPTY;
-        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
-        final Runnable platformStatusFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
@@ -168,8 +162,7 @@ public class ConsensusNoOpModules {
                 startingRound,
                 flushPrimaryPipeline,
                 replayProgressSupplier,
-                statusActionConsumer,
-                platformStatusFlusher,
+                statusMonitorModule,
                 signalEndOfPcesReplay,
                 eventPipelineTracker);
         return pcesModule;
@@ -228,7 +221,7 @@ public class ConsensusNoOpModules {
         final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;
         final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
                 new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics, selfId);
+        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, metrics, selfId, 0);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
@@ -245,7 +238,8 @@ public class ConsensusNoOpModules {
                 latestCompleteStateSupplier,
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                Map.of());
         return gossipModule;
     }
 
@@ -296,15 +290,15 @@ public class ConsensusNoOpModules {
     public static TransactionHandlingModule createNoOpTransactionHandlingModule(
             @NonNull final WiringModel model,
             @NonNull final Configuration configuration,
-            @NonNull final FileSystemManager fileSystemManager) {
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final StatusMonitorModule statusMonitorModule) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
         final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final StatusActionSubmitter statusActionSubmitter = action -> {};
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
-        final NodeId selfId = NodeId.FIRST_NODE_ID;
         final long transactionOffsetNanos = 0L;
 
         return new TransactionHandlingModule(
@@ -315,7 +309,7 @@ public class ConsensusNoOpModules {
                 latestImmutableStateNexus,
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 stateLifecycleManager,
-                statusActionSubmitter,
+                statusMonitorModule,
                 appVersion,
                 selfId,
                 transactionOffsetNanos);
@@ -364,40 +358,6 @@ public class ConsensusNoOpModules {
                 stateLifecycleManager,
                 latestCompleteStateNexus,
                 savedStateController);
-    }
-
-    public static ReconnectModule createNoOpReconnectModule(
-            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
-        final Time time = Time.getCurrent();
-        final Metrics metrics = new NoOpMetrics();
-        final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
-        final PlatformComponents platformComponents = null;
-        final PlatformCoordinator platformCoordinator = null;
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
-        final SavedStateController savedStateController = new DefaultSavedStateController(configuration);
-        final ConsensusStateEventHandler consensusStateEventHandler = NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
-        final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise =
-                new BlockingResourceProvider<>();
-        final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, selfId);
-
-        final ReconnectModule reconnectModule = createModule(ReconnectModule.class, configuration);
-        reconnectModule.initialize(
-                configuration,
-                time,
-                roster,
-                platformComponents,
-                null,
-                platformCoordinator,
-                stateLifecycleManager,
-                savedStateController,
-                consensusStateEventHandler,
-                reservedSignedStateResultPromise,
-                selfId,
-                fallenBehindMonitor);
-        return reconnectModule;
     }
 
     /**
