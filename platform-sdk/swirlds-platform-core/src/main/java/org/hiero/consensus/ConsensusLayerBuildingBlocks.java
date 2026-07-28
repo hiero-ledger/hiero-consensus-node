@@ -4,10 +4,9 @@ package org.hiero.consensus;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
-import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -40,7 +39,7 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull StateModule stateModule,
         @NonNull ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         @NonNull RunningEventHashOverrideWiring runningEventHashOverrideWiring,
-        @NonNull ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
+        @NonNull WireTransformer<EventWindow, EventWindow> initialEventWindowDispatcher,
         @NonNull ComponentWiring<AppNotifier, Void> notifierWiring,
         @NonNull StatusMonitorModule statusMonitorModule,
         @NonNull NotificationEngine notificationEngine,
@@ -48,5 +47,4 @@ public record ConsensusLayerBuildingBlocks(
         @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
         @NonNull IntakeEventCounter intakeEventCounter,
-        @NonNull PlatformCoordinator platformCoordinator,
         @NonNull PipelineFlusher pipelineFlusher) {}
