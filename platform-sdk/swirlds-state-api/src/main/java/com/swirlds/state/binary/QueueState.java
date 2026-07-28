@@ -8,12 +8,12 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 
 /**
  * A class to work with {@link ReadableQueueState} and {@link WritableQueueState} states. Every
@@ -96,8 +96,7 @@ public record QueueState(long head, long tail) {
         }
 
         @Override
-        public void write(@NonNull final QueueState value, @NonNull final WritableSequentialData out)
-                throws IOException {
+        public void realWrite(@NonNull final QueueState value, @NonNull final PbjWriter out) {
             final long pos = out.position();
             if (value.head() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_QUEUESTATE_HEAD);
@@ -112,8 +111,8 @@ public record QueueState(long head, long tail) {
 
         @NonNull
         @Override
-        public QueueState parse(
-                @NonNull final ReadableSequentialData in,
+        public QueueState realParse(
+                @NonNull final PbjReader in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
                 final int maxDepth,
@@ -147,8 +146,7 @@ public record QueueState(long head, long tail) {
         }
 
         @Override
-        public boolean fastEquals(@NonNull final QueueState value, @NonNull final ReadableSequentialData in)
-                throws ParseException {
+        public boolean fastEquals(@NonNull final QueueState value, @NonNull final PbjReader in) throws ParseException {
             return value.equals(parse(in));
         }
 

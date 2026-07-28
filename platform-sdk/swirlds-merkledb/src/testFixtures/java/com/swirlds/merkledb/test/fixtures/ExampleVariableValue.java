@@ -3,8 +3,8 @@ package com.swirlds.merkledb.test.fixtures;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.PbjReader;
+import com.hedera.pbj.runtime.io.PbjWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 
@@ -36,7 +36,7 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         System.arraycopy(RANDOM_DATA, 0, data, 0, data.length);
     }
 
-    public ExampleVariableValue(final ReadableSequentialData in) {
+    public ExampleVariableValue(final PbjReader in) {
         this.id = in.readInt();
         final int len = in.readInt();
         this.data = new byte[len];
@@ -57,7 +57,7 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         return Integer.BYTES + Integer.BYTES + data.length;
     }
 
-    public void writeTo(final WritableSequentialData out) {
+    public void writeTo(final PbjWriter out) {
         out.writeInt(id);
         out.writeInt(data.length);
         out.writeBytes(data);
@@ -73,22 +73,18 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
 
         @NonNull
         @Override
-        public ExampleVariableValue parse(
-                @NonNull ReadableSequentialData in,
-                boolean strictMode,
-                boolean parseUnknownFields,
-                int maxDepth,
-                int maxSize) {
+        public ExampleVariableValue realParse(
+                @NonNull PbjReader in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
             return new ExampleVariableValue(in);
         }
 
         @Override
-        public void write(@NonNull ExampleVariableValue value, @NonNull WritableSequentialData out) {
+        public void realWrite(@NonNull ExampleVariableValue value, @NonNull PbjWriter out) {
             value.writeTo(out);
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData in) {
+        public int measure(@NonNull PbjReader in) {
             throw new UnsupportedOperationException("ExampleVariableValueCodec.measure() not implemented");
         }
 
@@ -98,8 +94,7 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         }
 
         @Override
-        public boolean fastEquals(@NonNull ExampleVariableValue value, @NonNull ReadableSequentialData in)
-                throws ParseException {
+        public boolean fastEquals(@NonNull ExampleVariableValue value, @NonNull PbjReader in) throws ParseException {
             final ExampleVariableValue other = parse(in);
             return other.equals(value);
         }
