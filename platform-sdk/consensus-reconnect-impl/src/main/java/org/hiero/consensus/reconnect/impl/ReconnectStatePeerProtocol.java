@@ -150,13 +150,17 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
     @Override
     public boolean shouldInitiate() {
-        // if this neighbor has not told me I have fallen behind, I will not reconnect with him
         if (!fallenBehindMonitor.hasFallenBehind()) {
             return false;
         }
-        if (!fallenBehindMonitor.isBehindPeer(peerId)) {
-            return false;
-        }
+
+        // Any peer is a candidate teacher, not just the ones that reported us behind. A single heavily weighted
+        // peer can push us over the fallen behind threshold on its own, and gossip pauses within milliseconds of
+        // that first report, so restricting candidates to reporters can leave exactly one candidate. If that peer
+        // refuses -- most commonly because its ReconnectStateTeacherThrottle is still inside
+        // minimumTimeBetweenReconnects -- there is nobody else to ask. A peer that cannot teach rejects us in
+        // shouldAccept(), which already checks that it is not itself behind, is ACTIVE, and holds a complete
+        // signed state.
 
         // if a permit is acquired, it will be released by either initiateFailed or runProtocol
         final boolean acquiredPermit = reservedSignedStateResultProvider.acquireProvidePermit();
