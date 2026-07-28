@@ -141,9 +141,10 @@
 # Protection Rules for Github Configuration Files and Actions Workflows
 /.github/                                           @hiero-ledger/github-maintainers
 /.github/workflows/                                 @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-ci-codeowners
+/.github/workflows/*                                 @hiero-ledger/github-maintainers
+/.github/workflows/templates/                 @hiero-ledger/github-maintainers  @hiero-ledger/hiero-consensus-node-ci-codeowners
 
 # specific to CITR
-007-user-test-chewie-connection.yaml                @hiero-ledger/github-maintainers
 200-user-mqpt-controller-adhoc.yaml                 @hiero-ledger/github-maintainers
 201-user-sdpt-controller-adhoc.yaml                 @hiero-ledger/github-maintainers
 202-user-sdlt-controller-adhoc.yaml                 @hiero-ledger/github-maintainers
