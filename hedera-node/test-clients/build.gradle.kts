@@ -248,9 +248,7 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
-// hapiTestRestart restarts the same node several times within a few minutes, needing repeated
-// reconnects from the same teacher. In production a teacher helps a given learner only once per
-// minimumTimeBetweenReconnects (10m), which would leave the learner with no willing teacher.
+// hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
     mapOf(
         "hapiTestRestart" to
