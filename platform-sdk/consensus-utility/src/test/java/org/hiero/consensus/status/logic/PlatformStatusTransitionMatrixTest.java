@@ -120,8 +120,13 @@ class PlatformStatusTransitionMatrixTest {
                                 .on(CATASTROPHIC, CATASTROPHIC_FAILURE)
                                 .on(RECONNECT_COMPLETE, PlatformStatus.RECONNECT_COMPLETE)
                                 .on(FREEZE_STATE_WRITTEN, FREEZE_COMPLETE)
-                                .stays(FREEZE_ENTERED, SELF_EVENT_CONSENSUS, NON_FREEZE_STATE_WRITTEN, TIME_ELAPSED)
-                                .illegal(DONE_REPLAYING, FALLEN_BEHIND, STARTED_REPLAYING),
+                                .stays(
+                                        FALLEN_BEHIND,
+                                        FREEZE_ENTERED,
+                                        SELF_EVENT_CONSENSUS,
+                                        NON_FREEZE_STATE_WRITTEN,
+                                        TIME_ELAPSED)
+                                .illegal(DONE_REPLAYING, STARTED_REPLAYING),
                         cases(
                                         PlatformStatus.RECONNECT_COMPLETE,
                                         () -> new ReconnectCompleteStatusLogic(0, null, CONFIG))

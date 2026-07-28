@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -143,6 +146,45 @@ public class BlockingResourceProvider<T> {
             waitingForResource.set(false);
         }
     }
+    /**
+     * Blocks the consumer until a provider delivers a resource, giving up if no provider engages within
+     * {@code timeout}. The timeout only measures time spent with the permit free. While the permit is held the wait
+     * is extended indefinitely, so neither an in-progress delivery nor any other permit holder is ever cut short by
+     * this timeout.
+     *
+     * @param timeout how long to wait for some provider to engage
+     * @return a {@link LockedResource} holding the delivered resource; must be closed to complete the cycle
+     * @throws InterruptedException if the consumer thread is interrupted while waiting
+     * @throws TimeoutException     if no provider engaged within {@code timeout}
+     */
+    public LockedResource<T> waitForResource(@NonNull final Duration timeout)
+            throws InterruptedException, TimeoutException {
+        lock.lock();
+        waitingForResource.set(true);
+        try {
+            long remainingNanos = timeout.toNanos();
+            while (resource.getResource() == null) {
+                if (remainingNanos <= 0) {
+                    if (providePermit.availablePermits() > 0) {
+                        throw new TimeoutException("No provider engaged within " + timeout);
+                    }
+                    // A provider holds the permit and is mid-delivery; give the delivery as long as it needs
+                    remainingNanos = timeout.toNanos();
+                }
+                remainingNanos = resourceProvided.awaitNanos(remainingNanos);
+            }
+            return resource;
+        } catch (final InterruptedException | TimeoutException e) {
+            // Clear the flag while still holding the lock so a provider cannot observe a stale "waiting" state
+            // and block forever delivering to a consumer that has already given up
+            waitingForResource.set(false);
+            resource.close();
+            throw e;
+        } finally {
+            waitingForResource.set(false);
+        }
+    }
+
     /**
      * Returns {@code true} if the consumer is currently blocked in {@link #waitForResource()}.
      */

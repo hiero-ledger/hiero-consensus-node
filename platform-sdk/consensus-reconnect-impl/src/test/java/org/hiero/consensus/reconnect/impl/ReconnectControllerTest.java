@@ -8,6 +8,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +17,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -558,6 +561,45 @@ class ReconnectControllerTest {
         assertFalse(
                 fallenBehindMonitor.hasFallenBehind(),
                 "FallenBehindMonitor should be reset after successful reconnect");
+    }
+
+    @Test
+    @DisplayName("Re-arms when no peer engages as teacher instead of waiting indefinitely")
+    void testTeacherSelectionTimeoutReArms() {
+        // A learner whose only candidate teacher refuses (throttled, not ACTIVE, no signed state) must not sit
+        // waiting for a state that will never arrive. minimumTimeBetweenReconnects is deliberately long here: the
+        // controller must recover without waiting out the teacher-side throttle window.
+        final Configuration timeoutConfig = new TestConfigBuilder()
+                .withValue("reconnect.active", true)
+                .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
+                .withValue("reconnect.minimumTimeBetweenReconnects", "10m")
+                .withValue("reconnect.teacherSelectionTimeout", "200ms")
+                .withValue("reconnect.reconnectWindowSeconds", -1)
+                .getOrCreateConfig();
+
+        final AtomicReference<SystemExitCode> exitCode = new AtomicReference<>();
+        final ReconnectScenario scenario = new ReconnectScenario(createController(timeoutConfig, Time.getCurrent()));
+
+        scenario.startWithExitCapture(exitCode)
+                .reportFallenBehind(nodeIds[1], nodeIds[2])
+                .waitForReconnectToRequestState();
+
+        // No peer ever provides a state; the controller must give up waiting and put itself back in a position
+        // where fresh fallen-behind reports can be collected
+        verify(reconnectCoordinator, timeout(LONG_TIMEOUT.toMillis())).resumeGossip();
+        assertFalse(
+                fallenBehindMonitor.hasFallenBehind(),
+                "Monitor must be cleared so peers can report again and widen the candidate teacher set");
+        verify(reconnectCoordinator, never()).loadReconnectState(any(), any());
+
+        // The node stays alive and reconnects on the next episode
+        assertTrue(scenario.isControllerAlive(), "Controller must not exit after a teacher selection timeout");
+        assertNull(exitCode.get(), "A teacher selection timeout is not a reconnect failure");
+
+        scenario.reportFallenBehind(nodeIds[1], nodeIds[2]);
+        verify(reconnectCoordinator, timeout(LONG_TIMEOUT.toMillis()).times(2)).pauseGossip();
+
+        scenario.stop(LONG_TIMEOUT, "Controller did not finish when expected");
     }
 
     @Test

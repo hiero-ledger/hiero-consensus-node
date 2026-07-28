@@ -24,6 +24,10 @@ import java.time.Duration;
  *                                               intentionally or unintentionally slowing another node down by
  *                                               continuously reconnecting with it. Time is measured starting from when
  *                                               a reconnect attempt is initialized.
+ * @param teacherSelectionTimeout                How long a learner waits for some peer to engage as its teacher before
+ *                                               giving up, resuming gossip and collecting fresh fallen-behind reports.
+ *                                               Only counts time with no teacher engaged, so an in-progress state
+ *                                               transfer is never interrupted no matter how long it takes.
  */
 @ConfigData("reconnect")
 public record ReconnectConfig(
@@ -32,4 +36,5 @@ public record ReconnectConfig(
         @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
         @ConfigProperty(defaultValue = "10ms") Duration maxAckDelay,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
-        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects) {}
+        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
+        @ConfigProperty(defaultValue = "60s") Duration teacherSelectionTimeout) {}

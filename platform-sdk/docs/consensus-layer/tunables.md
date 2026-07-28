@@ -218,6 +218,7 @@ Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-re
 | TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
 | TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
 | TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
+| TUN-075 | `reconnect.teacherSelectionTimeout`                | Duration | `60s`   | How long a learner waits for some peer to engage as teacher before resuming gossip and collecting fresh reports. Counts only time with no teacher engaged, so a slow state transfer is never interrupted. |       | —         |
 
 ## `state.*` — StateConfig
 

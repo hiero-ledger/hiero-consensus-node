@@ -82,10 +82,17 @@ class BehindStatusLogicTests {
     }
 
     @Test
+    @DisplayName("Falling behind again while already BEHIND is a no-op")
+    void repeatedFallenBehind() {
+        // A reconnect attempt that finds no teacher resumes gossip and collects fresh fallen-behind reports without
+        // leaving BEHIND, so the same action is raised again for an episode that is already under way
+        assertNoTransition(logic, new FallenBehindAction(), logic.getStatus());
+    }
+
+    @Test
     @DisplayName("Unexpected actions should cause exceptions")
     void unexpectedActions() {
         assertException(logic, new StartedReplayingEventsAction(), logic.getStatus());
         assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertException(logic, new FallenBehindAction(), logic.getStatus());
     }
 }

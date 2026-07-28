@@ -4,6 +4,7 @@ package org.hiero.consensus.status.logic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.status.actions.ReconnectCompleteAction;
 
@@ -41,6 +42,18 @@ public class BehindStatusLogic extends AbstractStatusLogic {
     protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
         validateFreezeRound(freezeRound, action);
         freezeRound = action.freezeRound();
+        return this;
+    }
+
+    /**
+     * Receiving a {@link FallenBehindAction} while already {@link PlatformStatus#BEHIND} doesn't result in a status
+     * transition. A reconnect attempt that finds no peer willing to teach resumes gossip and collects fresh
+     * fallen-behind reports without leaving this status, so the action is raised again for an episode already under
+     * way.
+     */
+    @NonNull
+    @Override
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
         return this;
     }
 

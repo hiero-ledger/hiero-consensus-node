@@ -26,6 +26,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -155,6 +156,22 @@ public class ReconnectController implements Runnable {
                         reconnectCoordinator.resumeGossip();
                         break;
                     }
+                    if (result.noTeacherEngaged()) {
+                        // No peer took the teacher role. Only the peers that already told us we are behind are
+                        // candidate teachers, and gossip was paused before the rest of the network had a chance to
+                        // report. Resume gossip and start over so fresh reports can widen the candidate set. This is
+                        // not a failed reconnect: nothing was transferred and no error occurred, so it does not count
+                        // toward maximumReconnectFailuresBeforeShutdown and must not wait out
+                        // minimumTimeBetweenReconnects.
+                        logger.warn(
+                                RECONNECT.getMarker(),
+                                "No peer engaged as teacher within {}, resuming gossip to collect fresh "
+                                        + "fallen behind reports before trying again",
+                                reconnectConfig.teacherSelectionTimeout());
+                        fallenBehindMonitor.clear();
+                        reconnectCoordinator.resumeGossip();
+                        break;
+                    }
                     reconnectCoordinator.clear();
                     exitIfMaxRetriesOrWait(++failedReconnectsInARow, result.throwable());
                 } while (run.get());
@@ -190,7 +207,8 @@ public class ReconnectController implements Runnable {
         // unblocked
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         try (final LockedResource<ReservedSignedStateResult> reservedStateResource =
-                        requireNonNull(peerReservedSignedStateResultProvider.waitForResource());
+                        requireNonNull(peerReservedSignedStateResultProvider.waitForResource(
+                                reconnectConfig.teacherSelectionTimeout()));
                 final ReservedSignedStateResult result = requireNonNull(reservedStateResource.getResource())) {
             if (result.isError()) {
                 return AttemptReconnectResult.error(requireNonNull(result.throwable()));
@@ -208,6 +226,8 @@ public class ReconnectController implements Runnable {
             reconnectCoordinator.sendReconnectCompleteNotification(
                     result.reservedSignedState().get());
             return AttemptReconnectResult.ok();
+        } catch (final TimeoutException e) {
+            return AttemptReconnectResult.timedOutSelectingTeacher();
         } catch (final RuntimeException e) {
             return AttemptReconnectResult.error(e);
         }
@@ -301,13 +321,19 @@ public class ReconnectController implements Runnable {
     }
 
     private record AttemptReconnectResult(
-            boolean success, @Nullable Throwable throwable) {
+            boolean success,
+            boolean noTeacherEngaged,
+            @Nullable Throwable throwable) {
         static AttemptReconnectResult ok() {
-            return new AttemptReconnectResult(true, null);
+            return new AttemptReconnectResult(true, false, null);
         }
 
         static AttemptReconnectResult error(@NonNull final Throwable error) {
-            return new AttemptReconnectResult(false, error);
+            return new AttemptReconnectResult(false, false, error);
+        }
+
+        static AttemptReconnectResult timedOutSelectingTeacher() {
+            return new AttemptReconnectResult(false, true, null);
         }
     }
 }

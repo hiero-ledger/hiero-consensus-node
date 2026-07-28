@@ -4,6 +4,7 @@ package org.hiero.base.concurrent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,6 +14,7 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
@@ -209,6 +211,53 @@ class BlockingResourceProviderTest {
         provider.provide("next");
         nextConsumer.join(TIMEOUT);
         assertFalse(nextConsumer.isAlive(), "Next consumer should have finished");
+    }
+
+    /**
+     * A consumer that gives up after a timeout must not wait forever when no provider ever engages.
+     */
+    @Test
+    void waitForResourceTimesOutWhenNoProviderEngages() {
+        final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
+
+        assertThrows(TimeoutException.class, () -> provider.waitForResource(Duration.ofMillis(100)));
+        assertFalse(provider.isWaitingForResource(), "Consumer should no longer be waiting after a timeout");
+    }
+
+    /**
+     * The timeout measures how long the consumer waits for <i>some</i> provider to engage. While a provider holds
+     * the permit it is actively delivering, so the consumer must keep waiting however long that takes.
+     */
+    @Test
+    void waitForResourceDoesNotTimeOutWhileProviderHoldsPermit() throws Exception {
+        final BlockingResourceProvider<String> provider = new BlockingResourceProvider<>();
+        final Duration timeout = Duration.ofMillis(200);
+        final AtomicReference<String> consumed = new AtomicReference<>();
+
+        final Thread consumerThread = new Thread(() -> {
+            try (final var value = provider.waitForResource(timeout)) {
+                consumed.set(value.getResource());
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (final TimeoutException e) {
+                consumed.set("TIMED_OUT");
+            }
+        });
+        consumerThread.start();
+
+        final long deadline = System.currentTimeMillis() + TIMEOUT.toMillis();
+        while (!provider.isWaitingForResource()) {
+            assertTrue(System.currentTimeMillis() < deadline, "Consumer never started waiting");
+            Thread.sleep(10);
+        }
+
+        // A provider engages, then takes much longer than the timeout to deliver
+        assertTrue(provider.acquireProvidePermit());
+        Thread.sleep(timeout.toMillis() * 4);
+        provider.provide("slow transfer");
+
+        consumerThread.join(TIMEOUT);
+        assertEquals("slow transfer", consumed.get(), "A slow but engaged provider must not be timed out");
     }
 
     private record Resource(int threadId, int sequence) {}
