@@ -18,7 +18,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 
 /**
  * Public interface of the pces module which is responsible for the preconsensus event stream (PCES). It provides

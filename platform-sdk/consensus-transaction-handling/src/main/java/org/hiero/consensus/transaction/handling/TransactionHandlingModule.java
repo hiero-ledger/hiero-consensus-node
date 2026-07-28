@@ -27,7 +27,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
-import org.hiero.consensus.status.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;

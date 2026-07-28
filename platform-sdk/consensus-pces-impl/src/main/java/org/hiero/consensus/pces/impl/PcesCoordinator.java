@@ -13,9 +13,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
 import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
-import org.hiero.consensus.status.StatusMonitorModule;
-import org.hiero.consensus.status.actions.DoneReplayingEventsAction;
-import org.hiero.consensus.status.actions.StartedReplayingEventsAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 
 /**
  * The {@link PcesCoordinator} is responsible for coordinating the replay of events from the preconsensus event stream
