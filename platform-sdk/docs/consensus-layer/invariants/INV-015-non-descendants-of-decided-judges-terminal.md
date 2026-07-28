@@ -67,8 +67,8 @@ a **real** (non-terminal) voting round breaks the invariant. Concrete mechanisms
 
 - **A round-assignment path that assigns a real round without checking descent from
   the decided judges.** The parentless branch of `ConsensusImpl.round` assigns
-  `ROUND_FIRST` to any event with no parents — correct for a true first-round event,
-  but a defect for a non-descendant genesis event that clears the frontier, which
+  `ROUND_FIRST` to any event with no parents — correct for a true first-round genesis event,
+  but a defect for a non-descendant event whose parents are all ancient that clears the frontier, which
   must be terminal. This is the latent bug #26529 (see Notes and SCN-002).
 - **Weakening the terminal short-circuits so a non-descendant slips through.** A
   non-descendant is kept terminal either by the RUL-005 frontier short-circuit or,

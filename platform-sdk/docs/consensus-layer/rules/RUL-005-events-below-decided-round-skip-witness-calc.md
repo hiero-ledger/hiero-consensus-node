@@ -35,8 +35,10 @@ Deciding whether an event is a witness requires `round(x)`, which in the general
 case counts, per member, the witnesses in the parent round that `x` strongly
 sees — a per-member, super-majority "generalized dot product" walk over the DAG
 (`ConsensusImpl.stronglySeeP`, driven from `round`). That walk is the dominant
-cost of the algorithm. This rule is the short-circuit that keeps it off the part
-of the graph that can no longer influence which rounds decide.
+cost of the algorithm. This rule is the short-circuit that returns
+`ROUND_NEGATIVE_INFINITY` for events that **must not** influence the witnesses of
+any undecided round — the events that are not descendants of the latest decided
+round's judges (INV-015) — so their witness and round computation is skipped.
 
 The frontier is `consensusRelevantNGen` — the minimum nGen among the judges of
 the latest decided round, set in `ConsensusRounds.currentElectionDecided` from
@@ -53,37 +55,31 @@ threshold can key on the sequence number; see
 
 ## Why it holds now
 
-The optimization runs only when a round's judges are decided, and at that point
-no event below those judges can become a witness in — or change the outcome of —
-any undecided round, so skipping their witness calculation changes nothing. Such
-an event can still reach consensus as an ancestor of the judges; only its witness
-and round computation is skipped. `ROUND_NEGATIVE_INFINITY` carries this
-downstream: it makes `notRelevantForConsensus(e)` true, so the dependent walks —
-`lastSee`, `stronglySeeP`, `seeThru`, `firstWitnessS`, `firstSelfWitnessS` —
-return `null` when they reach the event, and `witness(x)` rejects it.
+The short-circuit runs only once a round's judges are decided. From that point
+every event that is not a descendant of those judges must carry
+`ROUND_NEGATIVE_INFINITY` (INV-015), and no such event can become a witness in — or
+change the outcome of — any undecided round, so skipping its witness and round
+computation is safe; it can still reach consensus as an ancestor of the judges. That
+sentinel carries downstream: it makes `notRelevantForConsensus(e)` true, so the
+dependent walks — `lastSee`, `stronglySeeP`, `seeThru`, `firstWitnessS`,
+`firstSelfWitnessS` — return `null` at the event and `witness(x)` rejects it.
 
-The short-circuit **enforces INV-015**: every event that is not a descendant of the
-decided round's judges is made `ROUND_NEGATIVE_INFINITY`, so it cannot become a
-witness in any undecided round. The frontier is a **shortcut**, not the whole of
-that enforcement — it catches a non-descendant that sorts below the frontier
-without walking to the bottom of the graph; a non-descendant that sorts *above* the
-frontier is still made terminal, by inheriting `ROUND_NEGATIVE_INFINITY` from its
-parents (the second short-circuit, below). It is correct on **any ordering key for
-which a judge's descendant outranks the judge**: a descendant then always sorts
-above the frontier and is recalculated, while non-descendants collapse to terminal.
-nGen has this property — it is parent-derived (one plus the maximum tracked-parent
-nGen), so a descendant's nGen exceeds its ancestor judge's — and so does the
-orphan-buffer sequence number, since a parent is released, and numbered, before its
-child. The frontier is therefore sound on either key; the SCN-002 ISS came not from
-the key but from a latent bug (#26529) it exposed — a parentless non-descendant
-assigned a real round instead of terminal — which ADR-008 makes the prerequisite
-for re-keying to the sequence number.
+The frontier is a **shortcut**, not the whole of that enforcement. A non-descendant
+below the frontier is caught here; one above it is still made terminal by inheriting
+`ROUND_NEGATIVE_INFINITY` from its parents (the second short-circuit, below), and
+consensus events by the `x.isConsensus()` half of the guard. So the frontier is
+correct on any key for which a judge's descendant outranks the judge — true of nGen
+(a parent-derived height) and of the orphan-buffer sequence number (a parent is
+numbered before its child), as ADR-008 works through. And because parent-propagation
+reaches the same terminal value without entering the strongly-see walk, the frontier
+is not what averts the dominant cost.
 
-nGen's own defect (a reset to 1 when an event's parents are already ancient,
-ADR-008) is benign for this comparison: the reset only ever *under*-counts an
-event's height, pushing an affected event *further* below the frontier, never
-above it. The `x.isConsensus()` half of the guard covers events that have already
-reached consensus, which are likewise irrelevant going forward.
+Its load-bearing role today is correctness, not speed. While #26529 is unfixed, the
+frontier keeps an event with no non-ancient parents — whose nGen has reset to 1, so
+it always sorts below the frontier — away from the `ROUND_FIRST` branch that would
+otherwise mis-assign it a real round; that branch, not the key, diverged consensus
+in SCN-002. The nGen reset is otherwise benign here: it only ever *under*-counts
+height, pushing an affected event further below the frontier, never above.
 
 `round(x)` assigns `ROUND_NEGATIVE_INFINITY` through two short-circuits: this
 frontier check (`isOlderThanDecidedRoundGeneration`) and, separately, the case
@@ -110,12 +106,15 @@ See INV-001, INV-015, and SCN-001.
   the key's units but an unfixed #26529: keyed on the sequence number, a parentless
   non-descendant cleared the frontier and reached the branch that assigns a real
   round, diverging consensus (SCN-002). Re-key only once #26529 is fixed (ADR-008).
-- **Removing the short-circuit.** On its own this is "only" a performance
-  regression (the forced memoization in `calculateMetadata` also guards against
-  deep recursion). But the `ROUND_NEGATIVE_INFINITY` sentinel is
-  part of the same machinery that keeps cleared old events from being recomputed
-  under a new roster during `recalculateAndVote` — see INV-001 and SCN-001 —
-  so changes here must be weighed against that interaction.
+- **Removing the short-circuit while #26529 is unfixed.** This is not merely a
+  performance regression. Without the frontier check, an event with no non-ancient
+  parents that is a non-descendant of the decided judges reaches the `ROUND_FIRST`
+  branch and is mis-assigned a real round — the SCN-002 ISS. Once #26529 is fixed
+  the short-circuit is redundant (see Notes) and removing it is safe; the forced
+  memoization in `calculateMetadata` already guards against deep recursion. Either
+  way, the `ROUND_NEGATIVE_INFINITY` sentinel is part of the machinery that keeps
+  cleared old events from being recomputed under a new roster during
+  `recalculateAndVote` (INV-001, SCN-001), so weigh changes against that interaction.
 
 Breaking this rule is a **flag for confirmation**. Confirmation looks like
 answering: does the frontier remain a sound lower bound — is every event below it
@@ -141,3 +140,12 @@ it reintroduces an agreement / liveness risk, or an ISS (SCN-002).
   fundamentally unsafe here; re-diagnosis (2026-07-27) showed the SCN-002 ISS was a
   latent round-assignment bug (#26529), not a property of the key, and that the
   frontier is sound on either key once INV-015 is upheld.
+- **Future state — the short-circuit becomes redundant once #26529 is fixed.** With
+  a non-descendant that has no non-ancient parents assigned `ROUND_NEGATIVE_INFINITY`
+  rather than `ROUND_FIRST`, every non-descendant reaches terminal anyway — via the
+  `x.isConsensus()` guard, parent-propagation (all non-ancient parents terminal), and
+  the fixed no-parent branch — none of which enter the strongly-see walk. The
+  frontier check would then save only a shallow parent recursion for the narrow set
+  of non-consensus events below the lowest decided judge (and memoization already
+  bounds recursion depth), so it could be removed. This is future state; today the
+  check is still load-bearing (it masks #26529 — see *Why it holds now*).
