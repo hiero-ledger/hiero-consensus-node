@@ -141,7 +141,7 @@ wait_for_haproxy_ready() {
 
 # Read the Implementation-Version from a built data dir's HederaNode.jar manifest.
 build_implementation_version() {
-  local build_path="$1"
+  local build_path="${1}"
   unzip -p "${build_path}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
     | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1
 }
@@ -260,7 +260,7 @@ compute_versions() {
 # baseline local build. Sets BASELINE_MODE=local-build plus BASELINE_BUILD_PATH,
 # BASELINE_WORKTREE, DEPLOY_VERSION_LABEL and BASELINE_DESC.
 build_baseline_from_release_branch() {
-  local prev_series="$1"
+  local prev_series="${1}"
   local branch="release/${prev_series}"
   local baseline_version=""
 
