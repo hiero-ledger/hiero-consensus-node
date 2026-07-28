@@ -465,11 +465,6 @@ jobs:
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: "${{ secrets.access-token }}"
 
       - name: Announce Skip
         run: |
@@ -493,11 +488,6 @@ jobs:
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: "${{ secrets.access-token }}"
 
       - name: Announce Skip
         run: |
