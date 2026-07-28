@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -1402,6 +1403,111 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
+    }
+
+    @Test
+    void testConnectionWorker_nearSoftLimitSize() throws Exception {
+        activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.configuration();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
+
+        final BlockState block = new BlockState(10);
+        final BlockItem header = newBlockHeaderItem(10);
+        final BlockItem item = newBlockTxItem(2097120);
+        final BlockItem proof = newBlockProofItem(10, 2_000);
+
+        doReturn(block).when(bufferService).getBlockState(10);
+        lenient().when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
+        lenient().when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        final Object worker = createWorker();
+
+        block.addItem(header);
+        invokeDoWork(worker); // header should get sent
+
+        Thread.sleep(200);
+        block.addItem(item);
+        invokeDoWork(worker); // the block item should get sent
+
+        Thread.sleep(200);
+        block.addItem(proof);
+        block.closeBlock();
+        invokeDoWork(worker); // the proof should be sent
+
+        verify(requestCall, times(4)).sendRequest(requestCaptor.capture(), anyBoolean());
+
+        final List<PublishStreamRequestBytes> requests = requestCaptor.getAllValues();
+        assertThat(requests).hasSize(4);
+
+        final PublishStreamRequestBytes req1 = requests.get(0);
+        assertThat(req1.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems())
+                .hasSize(1)
+                .containsExactly(toBytes(header));
+        final PublishStreamRequestBytes req2 = requests.get(1);
+        assertThat(req2.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems())
+                .hasSize(1)
+                .containsExactly(toBytes(item));
+        final PublishStreamRequestBytes req3 = requests.get(2);
+        assertThat(req3.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems())
+                .hasSize(1)
+                .containsExactly(toBytes(proof));
+        final PublishStreamRequestBytes req4 = requests.get(3);
+        assertThat(req4.endOfBlockOrElse(BlockEnd.DEFAULT).blockNumber()).isEqualTo(10);
+    }
+
+    @Test
+    void testConnectionWorker_twoConsecutiveItemsBetweenSoftAndHardLimit_mustNotFatallyClose() throws Exception {
+        activateConnection();
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockNodeConfiguration config = connection.configuration();
+        // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
+        assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
+        assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
+
+        final BlockState block = new BlockState(10);
+        // Each item is 20 MB: above the 2 MB soft limit but well below the 36 MB hard limit.
+        // Individually valid, but 20 MB + 20 MB = 40 MB exceeds the hard limit.
+        final BlockItem item1 = newBlockTxItem(20_000_000);
+        final BlockItem item2 = newBlockTxItem(20_000_000);
+
+        block.addItem(item1);
+        block.addItem(item2);
+        block.closeBlock();
+
+        doReturn(block).when(bufferService).getBlockState(10);
+        lenient().when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
+        lenient().when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        final ArgumentCaptor<PublishStreamRequestBytes> requestCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        final Object worker = createWorker();
+
+        invokeDoWork(worker);
+
+        // The connection must NOT have been fatally closed: both items are valid and can each be sent in their own
+        // request. This is the primary signal of the bug.
+        verify(metrics, never()).recordRequestExceedsHardLimit();
+        verify(metrics, never()).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        assertThat(connection.currentState()).isNotEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.closeReason()).isNotEqualTo(CloseReason.INTERNAL_ERROR);
+
+        // Both items must actually have been sent, each in its own request.
+        verify(requestCall, atLeast(2)).sendRequest(requestCaptor.capture(), anyBoolean());
+        final List<Bytes> allSentItems = requestCaptor.getAllValues().stream()
+                .flatMap(req -> req.blockItemsOrElse(BlockItemSetBytes.DEFAULT).blockItems().stream())
+                .toList();
+        assertThat(allSentItems).contains(toBytes(item1), toBytes(item2));
     }
 
     @Test
