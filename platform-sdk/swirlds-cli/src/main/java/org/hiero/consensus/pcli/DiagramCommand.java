@@ -29,8 +29,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.monitor.StatusMonitorModule;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
+import com.swirlds.state.NoOpStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -61,6 +61,7 @@ import org.hiero.consensus.pcli.utility.VirtualTerminal;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import picocli.CommandLine;
 
@@ -157,7 +158,7 @@ public final class DiagramCommand extends AbstractCommand {
                 new NoOpExecutionLayer(),
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 ReservedSignedState.createNullReservation(),
-                null,
+                new NoOpStateLifecycleManager<>(),
                 SemanticVersion.DEFAULT,
                 "testApp",
                 "123",
