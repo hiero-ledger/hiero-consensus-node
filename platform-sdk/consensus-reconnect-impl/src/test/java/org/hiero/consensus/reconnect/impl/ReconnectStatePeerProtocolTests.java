@@ -65,12 +65,8 @@ class ReconnectStatePeerProtocolTests {
                 Arguments.of(new InitiateParams(
                         true, true, true, "Permit acquired and peer is a reconnect neighbor, initiate")),
                 Arguments.of(new InitiateParams(false, true, false, "Permit not acquired, do not initiate")),
-                Arguments.of(new InitiateParams(
-                        true,
-                        false,
-                        true,
-                        "Peer has not reported us behind, initiate anyway so a single reporter cannot be the "
-                                + "only candidate teacher")),
+                Arguments.of(
+                        new InitiateParams(true, false, false, "Peer is not a reconnect neighbor, do not initiate")),
                 Arguments.of(new InitiateParams(
                         false,
                         false,
