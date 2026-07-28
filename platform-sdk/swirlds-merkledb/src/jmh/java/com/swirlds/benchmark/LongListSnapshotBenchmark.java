@@ -11,7 +11,9 @@ import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import java.io.EOFException;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
+import com.swirlds.merkledb.files.DataFileCommon;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -21,7 +23,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -39,66 +40,83 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+/**
+ * Benchmarks snapshot writes from a dense leaf-index fixture. The fixture is created once per leaf count and reused
+ * across JMH forks, keeping fixture generation outside the measured operation.
+ */
 @State(Scope.Benchmark)
 @Fork(1)
 @Threads(1)
-@Warmup(iterations = 2)
-@Measurement(iterations = 5)
+@Warmup(iterations = 1)
+@Measurement(iterations = 2)
 @BenchmarkMode(Mode.SingleShotTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class LongListSnapshotBenchmark {
 
-    private static final int FILE_HEADER_SIZE = Integer.BYTES + Long.BYTES;
+    // Mirrors the LongList v3 header: format version followed by minimum valid index.
+    private static final int LONG_LIST_FILE_FORMAT_VERSION = 3;
+    private static final int LONG_LIST_FILE_HEADER_SIZE = Integer.BYTES + Long.BYTES;
+    // Unmeasured fixture creation batches one default 1,048,576-long chunk per write.
+    private static final int FIXTURE_WRITE_BUFFER_SIZE = 8 * 1024 * 1024;
 
     @Param({"LongListHeap", "LongListOffHeap", "LongListSegment", "LongListDisk", "LongListDiskSegment"})
     public String listImpl;
 
-    @Param({"1", "3", "16"})
+    @Param({"1", "2", "8", "16", "32"})
     public int threadsPerLongList;
 
-    @Param({"104857600"})
-    public int listSize;
+    /** Number of leaves represented by the valid index range {@code [N - 1, 2N - 2]}. */
+    @Param({"10000000"})
+    public long leafCount;
 
-    private final AtomicInteger snapshotIndex = new AtomicInteger();
+    @Param({"1048576"})
+    public int longListChunkSize;
 
-    private Path rootDir;
+    /** Shared directory used to reuse the fixture across JMH forks. */
+    @Param({"build/tmp/long-list-snapshot-benchmark"})
+    public String workDir;
+
+    /** Enables a complete byte-for-byte comparison for smoke runs. */
+    @Param({"false"})
+    public boolean verify;
+
+    private Path fixtureFile;
+    private Path trialDirectory;
     private Path snapshotFile;
     private LongList source;
     private ExecutorService executor;
-    private int longsPerChunk;
-    private long expectedFileSize;
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        rootDir = Files.createTempDirectory("LongListSnapshotBenchmark");
-        final FileSystemManager fileSystemManager = new FileSystemManager(rootDir);
-        final MerkleDbConfig configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build().getConfigData(MerkleDbConfig.class);
-        longsPerChunk = configuration.longListChunkSize();
-        source = switch (listImpl) {
-            case "LongListHeap" -> new LongListHeap(listSize, configuration);
-            case "LongListOffHeap" -> new LongListOffHeap(listSize, configuration);
-            case "LongListSegment" -> new LongListSegment(listSize, configuration);
-            case "LongListDisk" -> new LongListDisk(listSize, configuration, fileSystemManager);
-            case "LongListDiskSegment" -> new LongListDiskSegment(listSize, configuration, fileSystemManager);
-            default -> throw new IllegalArgumentException("Unknown LongList implementation: " + listImpl);
-        };
+        final Path sharedDirectory = Path.of(workDir).toAbsolutePath().normalize();
+        Files.createDirectories(sharedDirectory);
 
-        source.updateValidRange(0, listSize - 1L);
-        for (int index = 0; index < listSize; index += longsPerChunk) {
-            source.put(index, index + 1L);
+        // Chunk size is not stored in the snapshot, so one fixture works for every chunk configuration.
+        fixtureFile = sharedDirectory.resolve("leaf-index-" + leafCount + ".ll");
+        createFixtureIfMissing(fixtureFile);
+
+        trialDirectory = Files.createTempDirectory(sharedDirectory, "trial-");
+        final FileSystemManager fileSystemManager = new FileSystemManager(trialDirectory);
+        final MerkleDbConfig configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, Integer.toString(longListChunkSize))
+                .build()
+                .getConfigData(MerkleDbConfig.class);
+
+        // Match production leaf-index capacity: virtual paths can span twice the configured key count.
+        final long capacity = Math.multiplyExact(configuration.maxNumOfKeys(), 2);
+        // N leaf entries at paths N - 1 through 2N - 2 give the list an exclusive size of 2N - 1.
+        final long listSize = Math.subtractExact(Math.multiplyExact(leafCount, 2), 1);
+        if (listSize > capacity) {
+            throw new IllegalArgumentException(
+                    "Leaf index size " + listSize + " exceeds production capacity " + capacity);
         }
-        source.put(listSize - 1L, listSize);
 
+        snapshotFile = trialDirectory.resolve("snapshot.ll");
+        source = createSource(fixtureFile, capacity, configuration, fileSystemManager);
         if (threadsPerLongList > 1) {
             executor = Executors.newFixedThreadPool(threadsPerLongList);
         }
-        expectedFileSize = FILE_HEADER_SIZE + (source.size() - source.getMinValidIndex()) * Long.BYTES;
-    }
-
-    @Setup(Level.Invocation)
-    public void setupInvocation() {
-        snapshotFile = rootDir.resolve("snapshot-" + snapshotIndex.getAndIncrement() + ".ll");
     }
 
     @Benchmark
@@ -113,20 +131,10 @@ public class LongListSnapshotBenchmark {
     @TearDown(Level.Invocation)
     public void tearDownInvocation() throws IOException {
         try {
-            if (Files.size(snapshotFile) != expectedFileSize) {
-                throw new IOException("Unexpected snapshot size: " + Files.size(snapshotFile));
-            }
-
-            try (final FileChannel channel = FileChannel.open(snapshotFile, StandardOpenOption.READ)) {
-                for (int index = 0; index < listSize; index += longsPerChunk) {
-                    final long value = readLong(channel, FILE_HEADER_SIZE + (long) index * Long.BYTES);
-                    if (value != index + 1L) {
-                        throw new IOException("Unexpected value at index " + index + ": " + value);
-                    }
-                }
-                final long value = readLong(channel, FILE_HEADER_SIZE + (long) (listSize - 1) * Long.BYTES);
-                if (value != listSize) {
-                    throw new IOException("Unexpected value at index " + (listSize - 1) + ": " + value);
+            if (verify) {
+                final long mismatch = Files.mismatch(fixtureFile, snapshotFile);
+                if (mismatch >= 0) {
+                    throw new IOException("Snapshot differs from fixture at byte " + mismatch);
                 }
             }
         } finally {
@@ -142,18 +150,61 @@ public class LongListSnapshotBenchmark {
         if (source != null) {
             source.close();
         }
-        FileUtils.deleteDirectory(rootDir);
+        if (trialDirectory != null) {
+            FileUtils.deleteDirectory(trialDirectory);
+        }
     }
 
-    private static long readLong(final FileChannel channel, final long position) throws IOException {
-        final ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES).order(LITTLE_ENDIAN);
-        while (buffer.hasRemaining()) {
-            final int read = channel.read(buffer, position + buffer.position());
-            if (read < 0) {
-                throw new EOFException("Unexpected end of snapshot file");
-            }
+    private LongList createSource(
+            final Path file,
+            final long capacity,
+            final MerkleDbConfig configuration,
+            final FileSystemManager fileSystemManager)
+            throws IOException {
+        return switch (listImpl) {
+            case "LongListHeap" -> new LongListHeap(file, capacity, configuration);
+            case "LongListOffHeap" -> new LongListOffHeap(file, capacity, configuration);
+            case "LongListSegment" -> new LongListSegment(file, capacity, configuration);
+            case "LongListDisk" -> new LongListDisk(file, capacity, configuration, fileSystemManager);
+            case "LongListDiskSegment" -> new LongListDiskSegment(file, capacity, configuration, fileSystemManager);
+            default -> throw new IllegalArgumentException("Unknown LongList implementation: " + listImpl);
+        };
+    }
+
+    private void createFixtureIfMissing(final Path file) throws IOException {
+        if (Files.exists(file)) {
+            return;
         }
-        buffer.flip();
-        return buffer.getLong();
+
+        final long firstLeafPath = leafCount - 1;
+        System.out.printf("Creating dense leaf-index fixture with %,d entries%n", leafCount);
+        // Write the file directly so fixture creation scales to billions of entries without individual LongList puts.
+        try (final FileChannel channel =
+                FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            // LongList snapshots use a big-endian header and a little-endian body.
+            final ByteBuffer headerBuffer = ByteBuffer.allocate(LONG_LIST_FILE_HEADER_SIZE);
+            headerBuffer.putInt(LONG_LIST_FILE_FORMAT_VERSION);
+            headerBuffer.putLong(firstLeafPath);
+            headerBuffer.flip();
+            MerkleDbFileUtils.completelyWrite(channel, headerBuffer);
+
+            final ByteBuffer dataBuffer =
+                    ByteBuffer.allocateDirect(FIXTURE_WRITE_BUFFER_SIZE).order(LITTLE_ENDIAN);
+            long entriesWritten = 0;
+            while (entriesWritten < leafCount) {
+                dataBuffer.clear();
+                final int entryCount = (int) Math.min(dataBuffer.capacity() / Long.BYTES, leafCount - entriesWritten);
+                for (int index = 0; index < entryCount; index++) {
+                    // Zero means missing; file 0 with offsets starting at one gives every leaf a distinct location.
+                    dataBuffer.putLong(DataFileCommon.dataLocation(0, entriesWritten + index + 1));
+                }
+                dataBuffer.flip();
+                MerkleDbFileUtils.completelyWrite(channel, dataBuffer);
+                entriesWritten += entryCount;
+            }
+
+            // Prevent fixture writeback from competing with the measured snapshot writes.
+            channel.force(true);
+        }
     }
 }
